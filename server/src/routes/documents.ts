@@ -6,11 +6,17 @@ import { saveTemporaryFile } from "../utils/fileHandler.js";
 
 const documentsRouter = Router();
 
+/**
+ * Handles GET /api/documents by returning a placeholder response for list operations.
+ */
 documentsRouter.get("/", (_req, res) => {
   logInfo("GET /api/documents invoked");
   res.json({ message: "List documents not implemented" });
 });
 
+/**
+ * Handles POST /api/documents by simulating a document upload.
+ */
 documentsRouter.post("/", async (req, res) => {
   logInfo("POST /api/documents invoked");
   const filePath = await saveTemporaryFile(Buffer.from("stub"), "upload.txt");
@@ -25,6 +31,9 @@ documentsRouter.post("/", async (req, res) => {
   }) });
 });
 
+/**
+ * Handles GET /api/documents/:id/status by returning the processing status of a document.
+ */
 documentsRouter.get("/:id/status", async (req, res) => {
   logInfo("GET /api/documents/:id/status invoked");
   const status = await fetchDocumentStatus(req.params.id);

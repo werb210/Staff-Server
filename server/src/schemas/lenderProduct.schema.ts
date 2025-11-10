@@ -8,13 +8,13 @@ export const lenderProductSchema = z.object({
   id: z
     .string()
     .min(1)
-    .refine((value) => isValidUuid(value), {
+    .refine((value: string) => isValidUuid(value), {
       message: "Lender product identifier must be a valid UUID"
     }),
   lenderId: z
     .string()
     .min(1)
-    .refine((value) => isValidUuid(value), {
+    .refine((value: string) => isValidUuid(value), {
       message: "Lender identifier must be a valid UUID"
     }),
   name: z.string().min(3, "Product name must contain at least three characters"),

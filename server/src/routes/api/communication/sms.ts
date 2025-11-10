@@ -6,8 +6,8 @@ import { sanitizePhoneNumber, isE164PhoneNumber } from "../../../utils/phone.js"
 const payloadSchema = z.object({
   to: z
     .string()
-    .transform((value) => sanitizePhoneNumber(value))
-    .refine((value) => isE164PhoneNumber(value), { message: "Recipient must be a valid E.164 phone number" }),
+    .transform((value: string) => sanitizePhoneNumber(value))
+    .refine((value: string) => isE164PhoneNumber(value), { message: "Recipient must be a valid E.164 phone number" }),
   message: z.string().min(1, "message is required")
 });
 

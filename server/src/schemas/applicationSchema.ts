@@ -13,6 +13,9 @@ export const ApplicationSchema = z.object({
 
 export type ApplicationSchemaType = z.infer<typeof ApplicationSchema>;
 
+/**
+ * Parses unknown input into a validated application object.
+ */
 export function parseApplication(data: unknown): ApplicationSchemaType {
   logInfo("parseApplication invoked");
   const result = ApplicationSchema.parse(data);

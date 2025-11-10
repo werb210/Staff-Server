@@ -2,6 +2,9 @@ import { logDebug, logInfo } from "../utils/logger.js";
 import type { Application } from "../types/application.js";
 import type { LenderProduct } from "../types/lenderProduct.js";
 
+/**
+ * Returns a ranked list of lenders suitable for the provided application.
+ */
 export async function recommendLenders(application: Application): Promise<LenderProduct[]> {
   logInfo("recommendLenders invoked");
   logDebug("recommendLenders payload", { application });
@@ -18,6 +21,9 @@ export async function recommendLenders(application: Application): Promise<Lender
   ];
 }
 
+/**
+ * Produces a relevance score for a given lender product relative to an application.
+ */
 export async function scoreLenderMatch(application: Application, product: LenderProduct): Promise<number> {
   logInfo("scoreLenderMatch invoked");
   logDebug("scoreLenderMatch payload", { applicationId: application.id, productId: product.id });

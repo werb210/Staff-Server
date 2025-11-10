@@ -7,11 +7,17 @@ import { recommendLenders } from "../services/lenderRecommendationService.js";
 
 const applicationsRouter = Router();
 
+/**
+ * Handles GET /api/applications by returning a stubbed response for listing applications.
+ */
 applicationsRouter.get("/", (_req, res) => {
   logInfo("GET /api/applications invoked");
   res.json({ message: "List applications not implemented" });
 });
 
+/**
+ * Handles POST /api/applications by validating the payload and echoing the created application.
+ */
 applicationsRouter.post("/", (req, res) => {
   logInfo("POST /api/applications invoked");
   try {
@@ -22,12 +28,18 @@ applicationsRouter.post("/", (req, res) => {
   }
 });
 
+/**
+ * Handles GET /api/applications/:id/documents by returning associated documents.
+ */
 applicationsRouter.get("/:id/documents", async (req, res) => {
   logInfo("GET /api/applications/:id/documents invoked");
   const documents = await listApplicationDocuments(req.params.id);
   res.json({ message: "Application documents fetched", documents: documents.map(parseDocument) });
 });
 
+/**
+ * Handles GET /api/applications/:id/lenders by returning recommended lenders.
+ */
 applicationsRouter.get("/:id/lenders", async (req, res) => {
   logInfo("GET /api/applications/:id/lenders invoked");
   const application = parseApplication({

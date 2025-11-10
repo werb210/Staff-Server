@@ -14,6 +14,9 @@ export const UserSchema = z.object({
 
 export type UserSchemaType = z.infer<typeof UserSchema>;
 
+/**
+ * Parses unknown input into a validated user record.
+ */
 export function parseUser(data: unknown): UserSchemaType {
   logInfo("parseUser invoked");
   const result = UserSchema.parse(data);

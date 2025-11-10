@@ -7,7 +7,7 @@ const reportQuerySchema = z.object({
   lenderId: z
     .string()
     .optional()
-    .refine((value) => (value ? isValidUuid(value) : true), {
+    .refine((value: string | undefined) => (value ? isValidUuid(value) : true), {
       message: "lenderId must be a UUID when provided"
     }),
   startDate: z.string().optional(),

@@ -4,7 +4,7 @@ import { retryQueueService } from "../../../services/retryQueueService.js";
 import { isValidUuid } from "../../../utils/uuidValidator.js";
 
 const enqueueSchema = z.object({
-  id: z.string().refine((value) => isValidUuid(value), { message: "id must be a UUID" }),
+  id: z.string().refine((value: string) => isValidUuid(value), { message: "id must be a UUID" }),
   type: z.string().min(1, "type is required"),
   payload: z.record(z.unknown()),
   attempts: z.number().int().nonnegative(),

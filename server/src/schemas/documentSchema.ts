@@ -12,6 +12,9 @@ export const DocumentSchema = z.object({
 
 export type DocumentSchemaType = z.infer<typeof DocumentSchema>;
 
+/**
+ * Parses unknown input into a validated document record.
+ */
 export function parseDocument(data: unknown): DocumentSchemaType {
   logInfo("parseDocument invoked");
   const result = DocumentSchema.parse(data);

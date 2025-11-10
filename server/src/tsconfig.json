@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "node",
+    "module": "NodeNext",
+    "moduleResolution": "nodenext",
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "strict": true,
@@ -14,6 +14,7 @@
     "services/**/*",
     "utils/**/*",
     "schemas/**/*",
+    "types/**/*",
     "index.ts"
   ]
 }
