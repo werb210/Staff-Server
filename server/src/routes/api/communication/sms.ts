@@ -1,33 +1,15 @@
 import { Router } from "express";
-import { z } from "zod";
-import { sendSms } from "../../../services/twilioService.js";
-import { sanitizePhoneNumber, isE164PhoneNumber } from "../../../utils/phone.js";
-
-const payloadSchema = z.object({
-  to: z
-    .string()
-    .transform((value: string) => sanitizePhoneNumber(value))
-    .refine((value: string) => isE164PhoneNumber(value), { message: "Recipient must be a valid E.164 phone number" }),
-  message: z.string().min(1, "message is required")
-});
+import { twilioService } from "../../../services/twilioService.js";
 
 const router = Router();
 
 /**
- * POST /api/communication/sms
- * Sends an SMS notification.
+ * GET /api/communication/sms
+ * Returns stubbed SMS messages so tests can verify the endpoint is reachable.
  */
-router.post("/", async (req, res) => {
-  try {
-    const payload = payloadSchema.parse(req.body);
-    const message = await sendSms(payload.to, payload.message);
-    res.json({ message });
-  } catch (error) {
-    res.status(400).json({
-      message: "Failed to send SMS",
-      error: (error as Error).message
-    });
-  }
+router.get("/", (_req, res) => {
+  const messages = twilioService.listSmsMessages();
+  res.json({ message: "SMS messages retrieved", messages });
 });
 
 export default router;

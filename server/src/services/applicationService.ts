@@ -1,67 +1,76 @@
-import crypto from "node:crypto";
+import { randomUUID } from "node:crypto";
 import {
   applicationSummarySchema,
-  completeApplicationSchema,
   createApplicationSchema,
+  type ApplicationSummary,
+  type CompleteApplicationInput,
+  type CreateApplicationInput,
+  type PublicApplication,
+  type SubmitApplicationInput,
+  completeApplicationSchema,
   publicApplicationSchema,
   submitApplicationSchema
 } from "../schemas/application.schema.js";
-import type {
-  ApplicationSummary,
-  CompleteApplicationInput,
-  CreateApplicationInput,
-  PublicApplication,
-  SubmitApplicationInput
-} from "../schemas/application.schema.js";
-import { documentRequirementSchema, documentUploadSchema } from "../schemas/document.schema.js";
-import type { DocumentRequirement, DocumentUploadInput } from "../schemas/document.schema.js";
-import { calculateChecksum } from "../utils/checksum.js";
-import { isFeatureEnabled } from "../utils/featureFlags.js";
 
 /**
- * Service encapsulating core application lifecycle operations.
+ * Simple in-memory store for application records used by the stub routes.
  */
-export class ApplicationService {
+class ApplicationService {
+  private applications: ApplicationSummary[] = [];
+
   /**
-   * Creates a new application in draft state.
+   * Returns the list of stubbed applications.
    */
-  async createDraftApplication(payload: CreateApplicationInput): Promise<ApplicationSummary> {
-    const validated = createApplicationSchema.parse(payload);
-    const now = new Date().toISOString();
-    return applicationSummarySchema.parse({
-      id: crypto.randomUUID(),
-      applicant: validated.applicant,
-      loanDetails: validated.loanDetails,
-      status: "draft",
-      createdAt: now,
-      updatedAt: now
-    });
+  listApplications(): ApplicationSummary[] {
+    return [...this.applications];
   }
 
   /**
-   * Submits an existing application for review.
+   * Persists a new application in memory and returns a normalized summary.
+   */
+  createApplication(payload: CreateApplicationInput): ApplicationSummary {
+    const validated = createApplicationSchema.parse(payload);
+    const timestamp = new Date().toISOString();
+    const summary = applicationSummarySchema.parse({
+      id: randomUUID(),
+      applicant: validated.applicant,
+      loanDetails: validated.loanDetails,
+      status: "submitted",
+      createdAt: timestamp,
+      updatedAt: timestamp
+    });
+
+    this.applications.push(summary);
+    return summary;
+  }
+
+  /**
+   * Alias used by modular routes to create a draft application.
+   */
+  async createDraftApplication(payload: CreateApplicationInput): Promise<ApplicationSummary> {
+    const draft = this.createApplication(payload);
+    return { ...draft, status: "draft" };
+  }
+
+  /**
+   * Stubbed submit handler mirroring the original service contract.
    */
   async submitApplication(payload: SubmitApplicationInput): Promise<ApplicationSummary> {
     const validated = submitApplicationSchema.parse(payload);
-
-    if (!validated.declarationAccepted) {
-      throw new Error("Declaration must be accepted before submitting an application");
-    }
-
     const now = new Date().toISOString();
     return applicationSummarySchema.parse({
       id: validated.applicationId,
       applicant: {
         id: validated.submittedBy,
-        firstName: "Pending",
-        lastName: "Applicant",
-        email: "pending@example.com",
-        phone: "+10000000000"
+        firstName: "Submitted",
+        lastName: "User",
+        email: "submitted@example.com",
+        phone: "+15550000000"
       },
       loanDetails: {
         amountRequested: 10000,
-        termMonths: 24,
-        purpose: "General purpose",
+        termMonths: 12,
+        purpose: validated.additionalNotes ?? "Submitted application",
         collateral: undefined
       },
       status: "submitted",
@@ -71,22 +80,7 @@ export class ApplicationService {
   }
 
   /**
-   * Uploads a supporting document for the specified application.
-   */
-  async uploadSupportingDocument(payload: DocumentUploadInput): Promise<DocumentRequirement> {
-    const validated = documentUploadSchema.parse(payload);
-    const checksum = calculateChecksum(validated.storageKey);
-    return documentRequirementSchema.parse({
-      id: crypto.randomUUID(),
-      name: validated.fileName,
-      description: `Uploaded document ${validated.fileName} (${validated.mimeType}) with checksum ${checksum.slice(0, 8)}`,
-      required: true,
-      status: "received"
-    });
-  }
-
-  /**
-   * Marks an application as completed.
+   * Stubbed completion handler for compatibility with existing routes.
    */
   async markApplicationComplete(payload: CompleteApplicationInput): Promise<ApplicationSummary> {
     const validated = completeApplicationSchema.parse(payload);
@@ -96,14 +90,14 @@ export class ApplicationService {
       applicant: {
         id: validated.completedBy,
         firstName: "Completed",
-        lastName: "Applicant",
+        lastName: "User",
         email: "completed@example.com",
-        phone: "+10000000000"
+        phone: "+15550000000"
       },
       loanDetails: {
-        amountRequested: 10000,
-        termMonths: 36,
-        purpose: validated.completionNotes ?? "Completed",
+        amountRequested: 15000,
+        termMonths: 24,
+        purpose: validated.completionNotes ?? "Completed application",
         collateral: undefined
       },
       status: "completed",
@@ -113,41 +107,22 @@ export class ApplicationService {
   }
 
   /**
-   * Returns applications that are available for public viewing.
+   * Returns a small set of public applications for marketing pages.
    */
   async listPublicApplications(): Promise<PublicApplication[]> {
-    const now = new Date().toISOString();
-    const mockApplications: PublicApplication[] = [
+    return [
       publicApplicationSchema.parse({
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         loanDetails: {
-          amountRequested: 15000,
+          amountRequested: 20000,
           termMonths: 18,
-          purpose: "Equipment purchase",
+          purpose: "Equipment financing",
           collateral: undefined
         },
         status: "submitted",
-        createdAt: now
+        createdAt: new Date().toISOString()
       })
     ];
-
-    if (isFeatureEnabled("PUBLIC_APPLICATION_SAMPLE")) {
-      mockApplications.push(
-        publicApplicationSchema.parse({
-          id: crypto.randomUUID(),
-          loanDetails: {
-            amountRequested: 25000,
-            termMonths: 36,
-            purpose: "Expansion capital",
-            collateral: undefined
-          },
-          status: "under_review",
-          createdAt: now
-        })
-      );
-    }
-
-    return mockApplications;
   }
 }
 

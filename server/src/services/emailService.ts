@@ -4,31 +4,20 @@ export interface EmailPayload {
   body: string;
 }
 
-export interface ScheduledEmailPayload extends EmailPayload {
-  sendAt: Date;
-}
-
 /**
- * Service providing email dispatch utilities.
+ * Stub email service used by the communication routes.
  */
-export class EmailService {
-  /**
-   * Sends an email immediately using the configured provider.
-   */
-  async sendEmail(payload: EmailPayload): Promise<{ messageId: string }> {
-    return {
-      messageId: `email-${Date.now()}`
-    };
-  }
+class EmailService {
+  private readonly emails: EmailPayload[] = [
+    {
+      to: "applicant@example.com",
+      subject: "Welcome to the lender portal",
+      body: "Thanks for signing up."
+    }
+  ];
 
-  /**
-   * Schedules an email to be delivered in the future.
-   */
-  async scheduleEmail(payload: ScheduledEmailPayload): Promise<{ messageId: string; scheduledFor: Date }> {
-    return {
-      messageId: `scheduled-${Date.now()}`,
-      scheduledFor: payload.sendAt
-    };
+  listEmails(): EmailPayload[] {
+    return [...this.emails];
   }
 }
 

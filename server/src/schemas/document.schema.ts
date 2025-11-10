@@ -2,47 +2,36 @@ import { z } from "zod";
 import { isValidUuid } from "../utils/uuidValidator.js";
 
 /**
- * Schema describing metadata for a document requirement associated with an application.
+ * Reusable schema fragment for UUID validation used across document payloads.
  */
-export const documentRequirementSchema = z.object({
-  id: z
-    .string()
-    .min(1)
-    .refine((value: string) => isValidUuid(value), {
-      message: "Document requirement identifier must be a valid UUID"
-    }),
-  name: z.string().min(1, "Requirement name is required"),
-  description: z.string().min(1, "Requirement description is required"),
-  required: z.boolean(),
-  status: z.enum(["pending", "received", "approved", "rejected"])
-});
+const uuidSchema = z
+  .string()
+  .min(1)
+  .refine((value: string) => isValidUuid(value), {
+    message: "Value must be a valid UUID"
+  });
 
 /**
- * Schema describing a document that is uploaded in support of an application.
+ * Input payload for uploading a new supporting document.
  */
 export const documentUploadSchema = z.object({
-  applicationId: z
-    .string()
-    .min(1)
-    .refine((value: string) => isValidUuid(value), {
-      message: "Application identifier must be a valid UUID"
-    }),
-  fileName: z.string().min(1, "File name is required"),
-  mimeType: z.string().min(1, "MIME type is required"),
-  checksum: z.string().min(1, "Checksum is required"),
-  contentLength: z.number().int().positive("Content length must be positive"),
-  storageKey: z.string().min(1, "Storage key is required")
+  applicationId: uuidSchema,
+  fileName: z.string().min(1, "fileName is required"),
+  mimeType: z.string().min(1, "mimeType is required"),
+  content: z.string().min(1, "content must be a base64 string")
 });
 
 /**
- * Schema representing the result of an OCR insight.
+ * Schema describing the status metadata returned after upload or status lookups.
  */
-export const ocrInsightSchema = z.object({
-  field: z.string(),
-  value: z.string(),
-  confidence: z.number().min(0).max(1)
+export const documentStatusSchema = z.object({
+  id: uuidSchema,
+  applicationId: uuidSchema,
+  fileName: z.string(),
+  mimeType: z.string(),
+  status: z.enum(["processing", "ready", "failed"]),
+  uploadedAt: z.string().datetime()
 });
 
-export type DocumentRequirement = z.infer<typeof documentRequirementSchema>;
 export type DocumentUploadInput = z.infer<typeof documentUploadSchema>;
-export type OcrInsight = z.infer<typeof ocrInsightSchema>;
+export type DocumentStatus = z.infer<typeof documentStatusSchema>;
