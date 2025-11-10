@@ -8,7 +8,7 @@ import { sanitizePhoneNumber, isE164PhoneNumber } from "../utils/phone.js";
 const uuidSchema = z
   .string()
   .min(1)
-  .refine((value) => isValidUuid(value), {
+  .refine((value: string) => isValidUuid(value), {
     message: "Value must be a valid UUID"
   });
 
@@ -34,8 +34,8 @@ export const applicantSchema = z.object({
   email: z.string().email("A valid email is required"),
   phone: z
     .string()
-    .transform((value) => sanitizePhoneNumber(value))
-    .refine((value) => isE164PhoneNumber(value), {
+    .transform((value: string) => sanitizePhoneNumber(value))
+    .refine((value: string) => isE164PhoneNumber(value), {
       message: "Phone number must be a valid E.164 string"
     })
 });

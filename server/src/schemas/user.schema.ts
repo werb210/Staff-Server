@@ -9,7 +9,7 @@ export const userSchema = z.object({
   id: z
     .string()
     .min(1)
-    .refine((value) => isValidUuid(value), {
+    .refine((value: string) => isValidUuid(value), {
       message: "User identifier must be a valid UUID"
     }),
   firstName: z.string().min(1, "First name is required"),
@@ -17,8 +17,8 @@ export const userSchema = z.object({
   email: z.string().email("A valid email is required"),
   phone: z
     .string()
-    .transform((value) => sanitizePhoneNumber(value))
-    .refine((value) => isE164PhoneNumber(value), {
+    .transform((value: string) => sanitizePhoneNumber(value))
+    .refine((value: string) => isE164PhoneNumber(value), {
       message: "Phone number must be in E.164 format"
     }),
   role: z.enum(["applicant", "loan_officer", "admin"]),

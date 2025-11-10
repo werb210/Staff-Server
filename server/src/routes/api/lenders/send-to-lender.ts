@@ -6,10 +6,10 @@ import { isValidUuid } from "../../../utils/uuidValidator.js";
 const sendToLenderSchema = z.object({
   applicationId: z
     .string()
-    .refine((value) => isValidUuid(value), { message: "applicationId must be a UUID" }),
+    .refine((value: string) => isValidUuid(value), { message: "applicationId must be a UUID" }),
   lenderId: z
     .string()
-    .refine((value) => isValidUuid(value), { message: "lenderId must be a UUID" }),
+    .refine((value: string) => isValidUuid(value), { message: "lenderId must be a UUID" }),
   notes: z.string().optional()
 });
 

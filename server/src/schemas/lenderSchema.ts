@@ -12,6 +12,9 @@ export const LenderSchema = z.object({
 
 export type LenderSchemaType = z.infer<typeof LenderSchema>;
 
+/**
+ * Parses unknown input into a validated lender record.
+ */
 export function parseLender(data: unknown): LenderSchemaType {
   logInfo("parseLender invoked");
   const result = LenderSchema.parse(data);

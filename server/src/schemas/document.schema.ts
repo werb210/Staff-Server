@@ -8,7 +8,7 @@ export const documentRequirementSchema = z.object({
   id: z
     .string()
     .min(1)
-    .refine((value) => isValidUuid(value), {
+    .refine((value: string) => isValidUuid(value), {
       message: "Document requirement identifier must be a valid UUID"
     }),
   name: z.string().min(1, "Requirement name is required"),
@@ -24,7 +24,7 @@ export const documentUploadSchema = z.object({
   applicationId: z
     .string()
     .min(1)
-    .refine((value) => isValidUuid(value), {
+    .refine((value: string) => isValidUuid(value), {
       message: "Application identifier must be a valid UUID"
     }),
   fileName: z.string().min(1, "File name is required"),

@@ -4,11 +4,17 @@ import { logInfo } from "../utils/logger.js";
 
 const usersRouter = Router();
 
+/**
+ * Handles GET /api/users by returning a placeholder response.
+ */
 usersRouter.get("/", (_req, res) => {
   logInfo("GET /api/users invoked");
   res.json({ message: "List users not implemented" });
 });
 
+/**
+ * Handles POST /api/users by validating the payload and echoing the created user.
+ */
 usersRouter.post("/", (req, res) => {
   logInfo("POST /api/users invoked");
   try {
