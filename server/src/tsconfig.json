@@ -10,6 +10,11 @@
     "outDir": "dist"
   },
   "include": [
-    "server/src/**/*.ts"
+    "server/src/routes/**/*",
+    "server/src/services/**/*",
+    "server/src/utils/**/*",
+    "server/src/schemas/**/*",
+    "server/src/types/**/*",
+    "server/src/index.ts"
   ]
 }
