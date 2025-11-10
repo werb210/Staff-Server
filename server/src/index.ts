@@ -17,6 +17,7 @@ import documentsRouter from "./routes/documents.js";
 import lendersRouter from "./routes/lenders.js";
 import tasksRouter from "./routes/tasks.js";
 import usersRouter from "./routes/users.js";
+import pipelineRouter from "./routes/pipeline.js";
 
 // API modular routers (Codex-generated)
 import createApplicationRouter from "./routes/api/applications/create.js";
@@ -63,6 +64,7 @@ app.use("/api/documents", documentsRouter);
 app.use("/api/lenders", lendersRouter);
 app.use("/api/tasks", tasksRouter);
 app.use("/api/users", usersRouter);
+app.use("/api/pipeline", pipelineRouter);
 
 // Mount modular /api routes
 app.use("/api/applications/create", createApplicationRouter);

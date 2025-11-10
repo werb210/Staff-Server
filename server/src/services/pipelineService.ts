@@ -7,14 +7,14 @@ import type { PipelineAssignment, PipelineStage } from "../schemas/pipeline.sche
 export class PipelineService {
   private readonly stages: PipelineStage[] = [
     pipelineStageSchema.parse({
-      id: "stage-intake",
+      id: "11111111-1111-4111-8111-111111111111",
       name: "Intake",
       order: 0,
       slaHours: 24,
       description: "Initial document collection"
     }),
     pipelineStageSchema.parse({
-      id: "stage-review",
+      id: "22222222-2222-4222-8222-222222222222",
       name: "Review",
       order: 1,
       slaHours: 48,
@@ -33,6 +33,10 @@ export class PipelineService {
    * Assigns an application to a pipeline stage.
    */
   async assignToStage(assignment: PipelineAssignment): Promise<PipelineAssignment> {
+    const stageExists = this.stages.some((stage) => stage.id === assignment.stageId);
+    if (!stageExists) {
+      throw new Error(`Pipeline stage ${assignment.stageId} does not exist`);
+    }
     return pipelineAssignmentSchema.parse(assignment);
   }
 }
