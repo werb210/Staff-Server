@@ -4,12 +4,16 @@ import bodyParser from "body-parser";
 
 import { loadEnvironment } from "./utils/env.js";
 import { logInfo } from "./utils/logger.js";
+
+// Core Routers
 import healthRouter from "./routes/health.js";
 import applicationsRouter from "./routes/applications.js";
 import documentsRouter from "./routes/documents.js";
 import lendersRouter from "./routes/lenders.js";
 import tasksRouter from "./routes/tasks.js";
 import usersRouter from "./routes/users.js";
+
+// API Routers
 import createApplicationRouter from "./routes/api/applications/create.js";
 import submitApplicationRouter from "./routes/api/applications/submit.js";
 import uploadApplicationDocumentRouter from "./routes/api/applications/upload.js";
@@ -21,30 +25,41 @@ import publicApplicationsRouter from "./routes/api/publicApplications.js";
 import documentRequirementsRouter from "./routes/api/documentRequirements.js";
 import ocrInsightsRouter from "./routes/api/ocrInsights.js";
 import aiSummaryRouter from "./routes/api/aiSummary.js";
+
+// Communication Routers
 import smsRouter from "./routes/api/communication/sms.js";
 import emailRouter from "./routes/api/communication/email.js";
 import callsRouter from "./routes/api/communication/calls.js";
+
+// Marketing Routers
 import marketingAdsRouter from "./routes/api/marketing/ads.js";
 import marketingAutomationRouter from "./routes/api/marketing/automation.js";
+
+// Admin / Internal Routers
 import retryQueueRouter from "./routes/api/admin/retryQueue.js";
 import backupsRouter from "./routes/api/admin/backups.js";
 import internalHealthRouter from "./routes/api/_int/health.js";
 import buildGuardRouter from "./routes/api/_int/buildGuard.js";
 
+// Load environment variables
 loadEnvironment();
 
 const app = express();
 
+// Middleware
 app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
+// Mount Core Routers
 app.use("/api/health", healthRouter);
 app.use("/api/applications", applicationsRouter);
 app.use("/api/documents", documentsRouter);
 app.use("/api/lenders", lendersRouter);
 app.use("/api/tasks", tasksRouter);
 app.use("/api/users", usersRouter);
+
+// Mount API Routers
 app.use("/api/applications/create", createApplicationRouter);
 app.use("/api/applications/submit", submitApplicationRouter);
 app.use("/api/applications/upload", uploadApplicationDocumentRouter);
@@ -56,18 +71,24 @@ app.use("/api/public-applications", publicApplicationsRouter);
 app.use("/api/document-requirements", documentRequirementsRouter);
 app.use("/api/ocr-insights", ocrInsightsRouter);
 app.use("/api/ai-summary", aiSummaryRouter);
+
+// Mount Communication Routers
 app.use("/api/communication/sms", smsRouter);
 app.use("/api/communication/email", emailRouter);
 app.use("/api/communication/calls", callsRouter);
+
+// Mount Marketing Routers
 app.use("/api/marketing/ads", marketingAdsRouter);
 app.use("/api/marketing/automation", marketingAutomationRouter);
+
+// Mount Admin / Internal Routers
 app.use("/api/admin/retry-queue", retryQueueRouter);
 app.use("/api/admin/backups", backupsRouter);
 app.use("/api/_int/health", internalHealthRouter);
 app.use("/api/_int/build-guard", buildGuardRouter);
 
+// Start server
 const PORT = Number(process.env.PORT ?? 5000);
-
 if (process.env.NODE_ENV !== "test") {
   app.listen(PORT, () => {
     logInfo(`Server listening on port ${PORT}`);
