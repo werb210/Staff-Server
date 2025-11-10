@@ -24,8 +24,8 @@ const router = Router();
 router.post("/", async (req, res) => {
   try {
     const payload = payloadSchema.parse(req.body);
-    const sid = await initiateCall(payload.to, payload.from, payload.script);
-    res.json({ sid });
+    const call = await initiateCall(payload.to, payload.from, payload.script);
+    res.json({ call });
   } catch (error) {
     res.status(400).json({
       message: "Failed to initiate call",

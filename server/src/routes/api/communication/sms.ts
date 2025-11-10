@@ -20,8 +20,8 @@ const router = Router();
 router.post("/", async (req, res) => {
   try {
     const payload = payloadSchema.parse(req.body);
-    const success = await sendSms(payload.to, payload.message);
-    res.json({ success });
+    const message = await sendSms(payload.to, payload.message);
+    res.json({ message });
   } catch (error) {
     res.status(400).json({
       message: "Failed to send SMS",

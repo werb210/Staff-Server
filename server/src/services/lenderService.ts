@@ -7,6 +7,8 @@ import type {
   CreateLenderProductInput,
   LenderProduct
 } from "../schemas/lenderProduct.schema.js";
+import { LenderSchema } from "../schemas/lenderSchema.js";
+import type { LenderSchemaType } from "../schemas/lenderSchema.js";
 import { applicationSummarySchema } from "../schemas/application.schema.js";
 import { documentRequirementSchema } from "../schemas/document.schema.js";
 import type { DocumentRequirement } from "../schemas/document.schema.js";
@@ -34,6 +36,33 @@ export interface LenderReportSummary {
  * Service encapsulating operations performed with lender integrations.
  */
 export class LenderService {
+  private readonly lenders: LenderSchemaType[] = [
+    LenderSchema.parse({
+      id: crypto.randomUUID(),
+      name: "Alpha Capital",
+      contactEmail: "support@alphacapital.test",
+      contactPhone: "+15551234567",
+      rating: 4.6,
+      active: true
+    }),
+    LenderSchema.parse({
+      id: crypto.randomUUID(),
+      name: "Bridge Funding Partners",
+      contactEmail: "hello@bridgefunding.test",
+      contactPhone: "+15559871234",
+      rating: 4.2,
+      active: true
+    }),
+    LenderSchema.parse({
+      id: crypto.randomUUID(),
+      name: "Summit Financial",
+      contactEmail: "team@summitfinancial.test",
+      contactPhone: "+15557654321",
+      rating: 3.9,
+      active: false
+    })
+  ];
+
   /**
    * Simulates sending an application to a specific lender.
    */
@@ -62,6 +91,13 @@ export class LenderService {
       status: "queued",
       referenceId: `${payload.lenderId}-${application.id}`
     };
+  }
+
+  /**
+   * Returns the set of lenders known to the platform.
+   */
+  async listLenders(): Promise<LenderSchemaType[]> {
+    return this.lenders.map((lender) => ({ ...lender }));
   }
 
   /**
