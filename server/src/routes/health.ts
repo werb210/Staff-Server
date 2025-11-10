@@ -1,9 +1,11 @@
-import { Router, Request, Response } from "express";
+import { Router } from "express";
+import { logInfo } from "../utils/logger.js";
 
-const router = Router();
+const healthRouter = Router();
 
-router.get("/health", (_req: Request, res: Response) => {
-  res.json({ status: "ok" });
+healthRouter.get("/", (_req, res) => {
+  logInfo("GET /api/health invoked");
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-export default router;
+export default healthRouter;
