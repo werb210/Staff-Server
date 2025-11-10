@@ -1,12 +1,10 @@
-// Auto-generated stub by Codex
-// Stub router for GET /api/document-requirements
-
 import { Router } from "express";
+import { documentRequirementService } from "../../services/documentRequirementService.js";
 
 const router = Router();
 
 router.get("/", (_req, res) => {
-  res.json({ message: "OK" });
+  res.json({ data: documentRequirementService.listRequirements() });
 });
 
 export default router;

@@ -9,18 +9,15 @@ export interface ScheduledTask {
  * Service representing a simple cron scheduler used for background tasks.
  */
 export class SchedulerService {
-  private readonly tasks: ScheduledTask[] = [];
+  private readonly tasks: ScheduledTask[] = [
+    { id: "task-1", name: "Sync Lender Status", cronExpression: "*/30 * * * *", enabled: true },
+    { id: "task-2", name: "Generate Daily Metrics", cronExpression: "0 5 * * *", enabled: true }
+  ];
 
-  /**
-   * Registers a new scheduled task.
-   */
   async registerTask(task: ScheduledTask): Promise<void> {
     this.tasks.push(task);
   }
 
-  /**
-   * Retrieves the list of registered tasks.
-   */
   async listTasks(): Promise<ScheduledTask[]> {
     return [...this.tasks];
   }

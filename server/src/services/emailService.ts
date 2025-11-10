@@ -1,18 +1,33 @@
-// Auto-generated stub by Codex
-// Stub email service returning a static list of messages
-
-export type EmailRecord = {
+export interface EmailRecord {
   id: string;
   subject: string;
-};
+  to: string;
+  sentAt: string;
+}
+
+export interface EmailPayload {
+  to: string;
+  from: string;
+  subject: string;
+  body: string;
+}
 
 class EmailService {
+  private readonly emails: EmailRecord[] = [];
+
   listEmails(): EmailRecord[] {
-    return [{ id: "email-1", subject: "Welcome" }];
+    return [...this.emails];
   }
 
-  sendEmail(): { message: string } {
-    return { message: "sent" };
+  sendEmail(payload: EmailPayload): EmailRecord {
+    const record: EmailRecord = {
+      id: `EM${Date.now()}`,
+      subject: payload.subject,
+      to: payload.to,
+      sentAt: new Date().toISOString()
+    };
+    this.emails.push(record);
+    return record;
   }
 }
 

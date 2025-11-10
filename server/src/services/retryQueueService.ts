@@ -1,14 +1,22 @@
-// Auto-generated stub by Codex
-// Stub retry queue service providing static entries
-
-export type RetryQueueItem = {
+export interface RetryQueueItem {
   id: string;
-  status: string;
-};
+  status: "queued" | "processing" | "failed" | "completed";
+}
 
 class RetryQueueService {
+  private readonly queue: RetryQueueItem[] = [{ id: "job-1", status: "queued" }];
+
   listQueue(): RetryQueueItem[] {
-    return [{ id: "job-1", status: "queued" }];
+    return [...this.queue];
+  }
+
+  retryItem(itemId: string): RetryQueueItem | null {
+    const item = this.queue.find((entry) => entry.id === itemId);
+    if (!item) {
+      return null;
+    }
+    item.status = "processing";
+    return { ...item };
   }
 }
 

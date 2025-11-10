@@ -1,12 +1,23 @@
-// Auto-generated stub by Codex
-// Lender product schema definitions for stub routes
+import { z } from "zod";
+import { isValidUuid } from "../utils/uuidValidator.js";
 
-export type LenderProduct = {
-  id: string;
-  name: string;
-  rate: number;
-};
+const uuidSchema = z
+  .string()
+  .min(1)
+  .refine((value: string) => isValidUuid(value), { message: "Value must be a valid UUID" });
 
-export const lenderProducts: LenderProduct[] = [
-  { id: "product-1", name: "Standard Loan", rate: 4.5 }
-];
+export const lenderProductSchema = z.object({
+  id: uuidSchema,
+  lenderId: uuidSchema,
+  name: z.string().min(1, "Product name is required"),
+  description: z.string().min(1, "Product description is required"),
+  interestRate: z.number().positive(),
+  maxAmount: z.number().positive(),
+  termMonths: z.number().int().positive()
+});
+
+export type LenderProduct = z.infer<typeof lenderProductSchema>;
+
+export function parseLenderProduct(input: unknown): LenderProduct {
+  return lenderProductSchema.parse(input);
+}

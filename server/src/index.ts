@@ -3,12 +3,12 @@
  * Mounts all routers and starts the server
  */
 
-import express, { Application as ExpressApp } from "express";
+import express, { Application as ExpressApp, NextFunction, Request, Response } from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
 
 import { loadEnvironment } from "./utils/env.js";
-import { logInfo } from "./utils/logger.js";
+import { logError, logInfo } from "./utils/logger.js";
 
 // Top-level routers
 import healthRouter from "./routes/health.js";
@@ -93,6 +93,13 @@ app.use("/api/admin/backups", backupsRouter);
 
 app.use("/api/_int/health", internalHealthRouter);
 app.use("/api/_int/build-guard", buildGuardRouter);
+
+// Basic error handler to ensure JSON responses
+app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  logError("Request failed", error);
+  const message = error instanceof Error ? error.message : "Unexpected error";
+  res.status(400).json({ message });
+});
 
 // Start server
 const PORT = Number(process.env.PORT ?? 5000);

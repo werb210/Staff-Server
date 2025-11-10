@@ -118,3 +118,23 @@ export type SubmitApplicationInput = z.infer<typeof submitApplicationSchema>;
 export type CompleteApplicationInput = z.infer<typeof completeApplicationSchema>;
 export type ApplicationSummary = z.infer<typeof applicationSummarySchema>;
 export type PublicApplication = z.infer<typeof publicApplicationSchema>;
+
+export function parseCreateApplicationInput(input: unknown): CreateApplicationInput {
+  return createApplicationSchema.parse(input);
+}
+
+export function parseSubmitApplicationInput(input: unknown): SubmitApplicationInput {
+  return submitApplicationSchema.parse(input);
+}
+
+export function parseCompleteApplicationInput(input: unknown): CompleteApplicationInput {
+  return completeApplicationSchema.parse(input);
+}
+
+export function parseApplicationSummary(input: unknown): ApplicationSummary {
+  return applicationSummarySchema.parse(input);
+}
+
+export function parsePublicApplication(input: unknown): PublicApplication {
+  return publicApplicationSchema.parse(input);
+}

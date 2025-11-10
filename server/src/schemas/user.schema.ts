@@ -2,16 +2,16 @@ import { z } from "zod";
 import { isValidUuid } from "../utils/uuidValidator.js";
 import { sanitizePhoneNumber, isE164PhoneNumber } from "../utils/phone.js";
 
+const uuidSchema = z
+  .string()
+  .min(1)
+  .refine((value: string) => isValidUuid(value), { message: "User identifier must be a valid UUID" });
+
 /**
  * Schema describing a user within the platform.
  */
 export const userSchema = z.object({
-  id: z
-    .string()
-    .min(1)
-    .refine((value: string) => isValidUuid(value), {
-      message: "User identifier must be a valid UUID"
-    }),
+  id: uuidSchema,
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
   email: z.string().email("A valid email is required"),
@@ -37,3 +37,11 @@ export const upsertUserSchema = userSchema.partial({
 
 export type User = z.infer<typeof userSchema>;
 export type UpsertUserInput = z.infer<typeof upsertUserSchema>;
+
+export function parseUser(input: unknown): User {
+  return userSchema.parse(input);
+}
+
+export function parseUpsertUserInput(input: unknown): UpsertUserInput {
+  return upsertUserSchema.parse(input);
+}

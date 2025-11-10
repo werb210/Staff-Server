@@ -1,9 +1,14 @@
-// Auto-generated stub by Codex
-// Stub backup service exposing a simple trigger
-
 class BackupService {
+  private readonly backups: string[] = ["nightly-backup"];
+
   listBackups(): string[] {
-    return ["nightly-backup"];
+    return [...this.backups];
+  }
+
+  triggerBackup(label: string): { message: string; backupId: string } {
+    const id = `${label}-${Date.now()}`;
+    this.backups.push(id);
+    return { message: `Backup ${id} started`, backupId: id };
   }
 }
 

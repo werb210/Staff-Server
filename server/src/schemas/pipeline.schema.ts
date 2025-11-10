@@ -1,16 +1,16 @@
 import { z } from "zod";
 import { isValidUuid } from "../utils/uuidValidator.js";
 
+const uuidSchema = z
+  .string()
+  .min(1)
+  .refine((value: string) => isValidUuid(value), { message: "Value must be a valid UUID" });
+
 /**
  * Schema describing a pipeline stage for application processing.
  */
 export const pipelineStageSchema = z.object({
-  id: z
-    .string()
-    .min(1)
-    .refine((value: string) => isValidUuid(value), {
-      message: "Pipeline stage identifier must be a valid UUID"
-    }),
+  id: uuidSchema,
   name: z.string().min(1, "Pipeline stage name is required"),
   order: z.number().int().nonnegative(),
   slaHours: z.number().int().positive(),
@@ -21,21 +21,19 @@ export const pipelineStageSchema = z.object({
  * Schema representing the assignment of an application to a stage.
  */
 export const pipelineAssignmentSchema = z.object({
-  applicationId: z
-    .string()
-    .min(1)
-    .refine((value: string) => isValidUuid(value), {
-      message: "Application identifier must be a valid UUID"
-    }),
+  applicationId: uuidSchema,
   stageId: pipelineStageSchema.shape.id,
-  assignedBy: z
-    .string()
-    .min(1)
-    .refine((value: string) => isValidUuid(value), {
-      message: "User identifier must be a valid UUID"
-    }),
+  assignedBy: uuidSchema,
   assignedAt: z.string().datetime()
 });
 
 export type PipelineStage = z.infer<typeof pipelineStageSchema>;
 export type PipelineAssignment = z.infer<typeof pipelineAssignmentSchema>;
+
+export function parsePipelineStage(input: unknown): PipelineStage {
+  return pipelineStageSchema.parse(input);
+}
+
+export function parsePipelineAssignment(input: unknown): PipelineAssignment {
+  return pipelineAssignmentSchema.parse(input);
+}

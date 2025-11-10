@@ -4,9 +4,10 @@
   "description": "Backend server for the staff-app-clean finance/loan platform",
   "type": "module",
   "scripts": {
-    "dev": "tsx --watch server/src/index.ts",
-    "start": "tsx server/src/index.ts",
-    "build": "tsc --build server/src/tsconfig.json"
+    "dev": "tsx --watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "build": "tsc --build src/tsconfig.json",
+    "typecheck": "tsc --noEmit -p src/tsconfig.json"
   },
   "dependencies": {
     "@azure/storage-blob": "^12.18.0",
