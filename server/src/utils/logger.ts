@@ -1,3 +1,8 @@
+/**
+ * Logger utility for consistent logging across the application.
+ * Provides info, warn, error, and debug levels.
+ */
+
 export function logInfo(message: string): void {
   console.log("[logger] logInfo invoked");
   console.info(`[INFO] ${message}`);
