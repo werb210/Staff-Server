@@ -1,15 +1,12 @@
+// Auto-generated stub by Codex
+// Stub router for GET /api/admin/backups
+
 import { Router } from "express";
-import { backupService } from "../../../services/backupService.js";
 
 const router = Router();
 
-/**
- * GET /api/admin/backups
- * Returns stubbed backup metadata.
- */
 router.get("/", (_req, res) => {
-  const backups = backupService.listBackups();
-  res.json({ message: "Backups retrieved", backups });
+  res.json({ message: "OK" });
 });
 
 export default router;

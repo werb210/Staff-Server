@@ -1,13 +1,12 @@
+// Auto-generated stub by Codex
+// Stub router for GET /api/_int/health
+
 import { Router } from "express";
 
 const router = Router();
 
-/**
- * GET /api/_int/health
- * Lightweight internal health check used for load balancers.
- */
 router.get("/", (_req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
+  res.json({ message: "OK" });
 });
 
 export default router;

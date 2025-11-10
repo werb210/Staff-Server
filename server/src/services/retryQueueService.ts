@@ -1,21 +1,14 @@
-interface RetryJob {
+// Auto-generated stub by Codex
+// Stub retry queue service providing static entries
+
+export type RetryQueueItem = {
   id: string;
-  type: string;
-}
+  status: string;
+};
 
-/**
- * Stub retry queue service returning static jobs.
- */
 class RetryQueueService {
-  private readonly jobs: RetryJob[] = [
-    {
-      id: "job-1",
-      type: "document-processing"
-    }
-  ];
-
-  listJobs(): RetryJob[] {
-    return [...this.jobs];
+  listQueue(): RetryQueueItem[] {
+    return [{ id: "job-1", status: "queued" }];
   }
 }
 

@@ -1,15 +1,12 @@
+// Auto-generated stub by Codex
+// Stub router for POST /api/communication/calls
+
 import { Router } from "express";
-import { twilioService } from "../../../services/twilioService.js";
 
 const router = Router();
 
-/**
- * GET /api/communication/calls
- * Returns stubbed call logs from the Twilio service.
- */
-router.get("/", (_req, res) => {
-  const calls = twilioService.listCallLogs();
-  res.json({ message: "Call logs retrieved", calls });
+router.post("/", (_req, res) => {
+  res.json({ message: "OK" });
 });
 
 export default router;

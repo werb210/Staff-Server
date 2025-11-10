@@ -1,20 +1,12 @@
-/**
- * Health check route
- * Responds with server status and timestamp.
- */
+// Auto-generated stub by Codex
+// Stub router for GET /api/health
 
-import { Router, Request, Response } from "express";
-import { logInfo } from "../utils/logger.js";
+import { Router } from "express";
 
-const healthRouter: Router = Router();
+const router = Router();
 
-// GET /api/health
-healthRouter.get("/", (_req: Request, res: Response) => {
-  logInfo("GET /api/health invoked");
-  res.json({
-    status: "ok",
-    timestamp: new Date().toISOString(),
-  });
+router.get("/", (_req, res) => {
+  res.json({ status: "ok" });
 });
 
-export default healthRouter;
+export default router;

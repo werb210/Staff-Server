@@ -1,15 +1,12 @@
+// Auto-generated stub by Codex
+// Stub router for GET /api/public-applications
+
 import { Router } from "express";
-import { applicationService } from "../../services/applicationService.js";
 
 const router = Router();
 
-/**
- * GET /api/public-applications
- * Returns the set of applications exposed to public marketing pages.
- */
-router.get("/", async (_req, res) => {
-  const applications = await applicationService.listPublicApplications();
-  res.json({ applications });
+router.get("/", (_req, res) => {
+  res.json({ message: "OK" });
 });
 
 export default router;

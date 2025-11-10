@@ -1,21 +1,9 @@
-interface BackupRecord {
-  id: string;
-  createdAt: string;
-}
+// Auto-generated stub by Codex
+// Stub backup service exposing a simple trigger
 
-/**
- * Stub backup service returning a single record.
- */
 class BackupService {
-  private readonly backups: BackupRecord[] = [
-    {
-      id: "backup-1",
-      createdAt: new Date().toISOString()
-    }
-  ];
-
-  listBackups(): BackupRecord[] {
-    return [...this.backups];
+  listBackups(): string[] {
+    return ["nightly-backup"];
   }
 }
 

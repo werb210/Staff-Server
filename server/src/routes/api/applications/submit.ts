@@ -1,24 +1,12 @@
+// Auto-generated stub by Codex
+// Stub router for POST /api/applications/submit
+
 import { Router } from "express";
-import { submitApplicationSchema } from "../../../schemas/application.schema.js";
-import { applicationService } from "../../../services/applicationService.js";
 
 const router = Router();
 
-/**
- * POST /api/applications/submit
- * Submits a draft application for review.
- */
-router.post("/", async (req, res) => {
-  try {
-    const payload = submitApplicationSchema.parse(req.body);
-    const application = await applicationService.submitApplication(payload);
-    res.json({ application });
-  } catch (error) {
-    res.status(400).json({
-      message: "Failed to submit application",
-      error: (error as Error).message
-    });
-  }
+router.post("/", (_req, res) => {
+  res.json({ message: "OK" });
 });
 
 export default router;

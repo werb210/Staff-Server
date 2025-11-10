@@ -1,23 +1,18 @@
-export interface EmailPayload {
-  to: string;
+// Auto-generated stub by Codex
+// Stub email service returning a static list of messages
+
+export type EmailRecord = {
+  id: string;
   subject: string;
-  body: string;
-}
+};
 
-/**
- * Stub email service used by the communication routes.
- */
 class EmailService {
-  private readonly emails: EmailPayload[] = [
-    {
-      to: "applicant@example.com",
-      subject: "Welcome to the lender portal",
-      body: "Thanks for signing up."
-    }
-  ];
+  listEmails(): EmailRecord[] {
+    return [{ id: "email-1", subject: "Welcome" }];
+  }
 
-  listEmails(): EmailPayload[] {
-    return [...this.emails];
+  sendEmail(): { message: string } {
+    return { message: "sent" };
   }
 }
 

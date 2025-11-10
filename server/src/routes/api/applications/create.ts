@@ -1,24 +1,12 @@
+// Auto-generated stub by Codex
+// Stub router for POST /api/applications/create
+
 import { Router } from "express";
-import { createApplicationSchema } from "../../../schemas/application.schema.js";
-import { applicationService } from "../../../services/applicationService.js";
 
 const router = Router();
 
-/**
- * POST /api/applications/create
- * Creates a draft loan application.
- */
-router.post("/", async (req, res) => {
-  try {
-    const payload = createApplicationSchema.parse(req.body);
-    const application = await applicationService.createDraftApplication(payload);
-    res.status(201).json({ application });
-  } catch (error) {
-    res.status(400).json({
-      message: "Failed to create application",
-      error: (error as Error).message
-    });
-  }
+router.post("/", (_req, res) => {
+  res.json({ message: "OK" });
 });
 
 export default router;
