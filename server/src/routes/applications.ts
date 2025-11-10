@@ -1,8 +1,9 @@
 import { Router, Request, Response } from "express";
+
 const router = Router();
 
-router.get("/api/applications", (_req: Request, res: Response) => {
-    res.json({ status: "ok", data: [] });
+router.get("/applications", (_req: Request, res: Response) => {
+  res.json({ applications: [] });
 });
 
 export default router;

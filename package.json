@@ -1,19 +1,24 @@
 {
   "name": "staff-app-clean",
   "version": "1.0.0",
-  "type": "module",
+  "main": "server/dist/index.js",
   "scripts": {
-    "start": "ts-node server/src/index.ts",
-    "dev": "ts-node-dev --respawn server/src/index.ts"
+    "build": "tsc -p server/src/tsconfig.json",
+    "start": "node server/dist/index.js",
+    "dev": "ts-node server/src/index.ts"
   },
   "dependencies": {
     "body-parser": "^1.20.2",
     "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
     "express": "^4.18.2"
   },
   "devDependencies": {
-    "ts-node": "^10.9.1",
-    "ts-node-dev": "^2.0.0",
-    "typescript": "^5.2.2"
+    "@types/body-parser": "^1.19.5",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.11.30",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.3"
   }
 }
