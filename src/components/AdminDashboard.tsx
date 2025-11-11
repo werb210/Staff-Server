@@ -1,41 +1,33 @@
-import { useEffect, useState } from "react";
-import { apiClient } from "../api";
-import { BackupRecord, RetryJob } from "../types/api";
+import { useState } from "react";
+import { useAdmin } from "../hooks/useAdmin";
+import type { RetryJob } from "../types/api";
 import "../styles/layout.css";
 import "./FormStyles.css";
 
 export function AdminDashboard() {
-  const [retryJobs, setRetryJobs] = useState<RetryJob[]>([]);
-  const [backups, setBackups] = useState<BackupRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { retryJobs, backups, loading, error, retryJob, createBackup } = useAdmin();
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [backupName, setBackupName] = useState<string>("manual-backup");
 
-  useEffect(() => {
-    let isMounted = true;
-    const fetchAdminData = async () => {
-      try {
-        setLoading(true);
-        const [jobs, backupRecords] = await Promise.all([
-          apiClient.getRetryQueue(),
-          apiClient.getBackups(),
-        ]);
-        if (!isMounted) return;
-        setRetryJobs(jobs);
-        setBackups(backupRecords);
-      } catch (err) {
-        const message =
-          (err as { message?: string })?.message ?? "Failed to load admin data.";
-        setError(message);
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    };
+  const handleRetry = async (job: RetryJob) => {
+    try {
+      setLocalError(null);
+      await retryJob(job.id);
+    } catch (err) {
+      const message = (err as { message?: string })?.message ?? "Failed to retry job.";
+      setLocalError(message);
+    }
+  };
 
-    fetchAdminData();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+  const handleCreateBackup = async () => {
+    try {
+      setLocalError(null);
+      await createBackup(backupName || `manual-${Date.now()}`);
+    } catch (err) {
+      const message = (err as { message?: string })?.message ?? "Failed to create backup.";
+      setLocalError(message);
+    }
+  };
 
   return (
     <section className="card">
@@ -44,7 +36,7 @@ export function AdminDashboard() {
         <p>Monitor retry queues and backup operations.</p>
       </header>
 
-      {error && <div className="error">{error}</div>}
+      {(error || localError) && <div className="error">{error ?? localError}</div>}
       {loading && <div className="loading">Loading admin data…</div>}
 
       {!loading && (
@@ -63,6 +55,7 @@ export function AdminDashboard() {
                     <th>Status</th>
                     <th>Scheduled</th>
                     <th>Error</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -74,6 +67,11 @@ export function AdminDashboard() {
                       <td>{job.status}</td>
                       <td>{new Date(job.scheduledFor).toLocaleString()}</td>
                       <td>{job.lastError ?? "—"}</td>
+                      <td className="table-actions">
+                        <button className="secondary" onClick={() => void handleRetry(job)}>
+                          Retry
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -86,6 +84,19 @@ export function AdminDashboard() {
           <div className="panel">
             <div className="panel-header">
               <h3>Backups</h3>
+            </div>
+            <div className="panel-body">
+              <label>
+                Backup Name
+                <input
+                  type="text"
+                  value={backupName}
+                  onChange={(event) => setBackupName(event.target.value)}
+                />
+              </label>
+              <button className="primary" type="button" onClick={() => void handleCreateBackup()}>
+                Create Backup
+              </button>
             </div>
             {backups.length ? (
               <table className="data-table">

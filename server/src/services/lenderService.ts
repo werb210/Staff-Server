@@ -1,9 +1,13 @@
 import { randomUUID } from "crypto";
 import {
   type Lender,
+  type LenderCreateInput,
   type LenderDocumentRequirement,
   type LenderProduct,
+  type LenderProductCreateInput,
+  type LenderProductUpdateInput,
   type LenderReport,
+  type LenderUpdateInput,
 } from "../schemas/lenderProduct.schema.js";
 import { applicationService } from "./applicationService.js";
 import { aiService } from "./aiService.js";
@@ -12,7 +16,7 @@ import { aiService } from "./aiService.js";
  * LenderService provides an in-memory catalogue of lenders and products.
  */
 class LenderService {
-  private readonly lenders: Lender[] = [
+  private lenders: Lender[] = [
     {
       id: "a0e2711b-4bb5-4ba0-94f5-cc5f25152f1f",
       name: "Northwind Credit",
@@ -67,7 +71,7 @@ class LenderService {
     ],
   ]);
 
-  private readonly products: LenderProduct[] = [
+  private products: LenderProduct[] = [
     {
       id: "385ca198-5b56-4587-a5b4-947ca9b61930",
       lenderId: "a0e2711b-4bb5-4ba0-94f5-cc5f25152f1f",
@@ -80,6 +84,7 @@ class LenderService {
         "a0e2711b-4bb5-4ba0-94f5-cc5f25152f1f",
       ) ?? [],
       recommendedScore: 70,
+      active: true,
     },
     {
       id: "9ce2637f-2255-4790-8eb7-50f572cca40a",
@@ -91,6 +96,7 @@ class LenderService {
       termMonths: 240,
       documentation: this.requirements.get("4a67f0d4-571e-4be7-9a3a-5a846e91ec3c") ?? [],
       recommendedScore: 80,
+      active: true,
     },
     {
       id: "a9a7b7dc-4a9f-4f42-872b-b723f47876eb",
@@ -108,6 +114,7 @@ class LenderService {
         },
       ],
       recommendedScore: 65,
+      active: true,
     },
   ];
 
@@ -115,15 +122,126 @@ class LenderService {
    * Returns the list of configured lenders.
    */
   public listLenders(): Lender[] {
-    return [...this.lenders];
+    return this.lenders.map((lender) => ({ ...lender }));
   }
 
   /**
    * Returns the products for a lender. When lenderId is omitted all products are returned.
    */
   public listProducts(lenderId?: string): LenderProduct[] {
-    const products = [...this.products];
-    return lenderId ? products.filter((product) => product.lenderId === lenderId) : products;
+    const products = this.products.map((product) => ({ ...product }));
+    return lenderId
+      ? products.filter((product) => product.lenderId === lenderId)
+      : products;
+  }
+
+  /**
+   * Fetches a single lender by identifier.
+   */
+  public getLender(id: string): Lender {
+    const lender = this.lenders.find((item) => item.id === id);
+    if (!lender) {
+      throw new Error("Lender not found");
+    }
+    return { ...lender };
+  }
+
+  /**
+   * Creates a new lender record.
+   */
+  public createLender(input: LenderCreateInput): Lender {
+    const lender: Lender = {
+      id: randomUUID(),
+      name: input.name,
+      contactEmail: input.contactEmail,
+      contactPhone: input.contactPhone,
+      status: input.status ?? "active",
+      rating: input.rating ?? 4,
+    };
+    this.lenders = [lender, ...this.lenders];
+    return lender;
+  }
+
+  /**
+   * Updates an existing lender.
+   */
+  public updateLender(id: string, updates: Omit<LenderUpdateInput, "id">): Lender {
+    const index = this.lenders.findIndex((item) => item.id === id);
+    if (index === -1) {
+      throw new Error("Lender not found");
+    }
+    const updated: Lender = {
+      ...this.lenders[index],
+      ...updates,
+    };
+    this.lenders[index] = updated;
+    return updated;
+  }
+
+  /**
+   * Removes a lender and any associated products.
+   */
+  public deleteLender(id: string): void {
+    const exists = this.lenders.some((item) => item.id === id);
+    if (!exists) {
+      throw new Error("Lender not found");
+    }
+    this.lenders = this.lenders.filter((item) => item.id !== id);
+    this.products = this.products.filter((product) => product.lenderId !== id);
+    this.requirements.delete(id);
+  }
+
+  /**
+   * Creates a product for a lender.
+   */
+  public createProduct(input: LenderProductCreateInput): LenderProduct {
+    this.getLender(input.lenderId);
+    const documentation =
+      input.documentation ?? this.requirements.get(input.lenderId) ?? [];
+    const product: LenderProduct = {
+      id: randomUUID(),
+      lenderId: input.lenderId,
+      name: input.name,
+      interestRate: input.interestRate,
+      minAmount: input.minAmount,
+      maxAmount: input.maxAmount,
+      termMonths: input.termMonths,
+      documentation,
+      recommendedScore: input.recommendedScore,
+      active: input.active ?? true,
+    };
+    this.products = [product, ...this.products];
+    return product;
+  }
+
+  /**
+   * Updates a lender product.
+   */
+  public updateProduct(id: string, updates: Omit<LenderProductUpdateInput, "id">): LenderProduct {
+    const index = this.products.findIndex((product) => product.id === id);
+    if (index === -1) {
+      throw new Error("Product not found");
+    }
+    if (updates.lenderId) {
+      this.getLender(updates.lenderId);
+    }
+    const updated: LenderProduct = {
+      ...this.products[index],
+      ...updates,
+    };
+    this.products[index] = updated;
+    return updated;
+  }
+
+  /**
+   * Deletes a product.
+   */
+  public deleteProduct(id: string): void {
+    const exists = this.products.some((product) => product.id === id);
+    if (!exists) {
+      throw new Error("Product not found");
+    }
+    this.products = this.products.filter((product) => product.id !== id);
   }
 
   /**

@@ -1,36 +1,65 @@
 import { Router } from "express";
 import { z } from "zod";
+import { marketingService } from "../../../services/marketingService.js";
 import { logError, logInfo } from "../../../utils/logger.js";
 
 const router = Router();
 
 const AdSchema = z.object({
-  id: z.string().uuid(),
   name: z.string().min(1),
-  budget: z.number().min(0),
+  description: z.string().min(1),
+  active: z.boolean().optional(),
+  channel: z.string().min(1),
+  spend: z.number().min(0),
 });
 
-// Lists synthetic ad campaigns for dashboards.
+const ToggleSchema = z.object({
+  active: z.boolean(),
+});
+
+/**
+ * GET /api/marketing/ads
+ * Example: curl http://localhost:5000/api/marketing/ads
+ */
 router.get("/", (_req, res) => {
   logInfo("Listing marketing ads");
-  res.json({
-    message: "OK",
-    data: [
-      { id: "3d8a4b39-4f29-4ddd-8627-0d8b284dd2a9", name: "Search", budget: 1200 },
-      { id: "6879be9f-7b3d-4be3-a3cf-43b7d623c2d6", name: "Display", budget: 800 },
-    ],
-  });
+  res.json({ message: "OK", data: marketingService.listAds() });
 });
 
-// Validates ad payloads and echoes them back to the client.
+/**
+ * POST /api/marketing/ads
+ * Example: curl -X POST http://localhost:5000/api/marketing/ads \
+ *   -H 'Content-Type: application/json' -d '{"name":"LinkedIn","description":"Sponsored posts","channel":"Social","spend":600}'
+ */
 router.post("/", (req, res) => {
   try {
-    const ad = AdSchema.parse(req.body);
-    logInfo("Received marketing ad", ad);
+    const payload = AdSchema.parse(req.body);
+    logInfo("Creating marketing ad", payload);
+    const ad = marketingService.createAd({
+      ...payload,
+      active: payload.active ?? true,
+    });
     res.status(201).json({ message: "OK", data: ad });
   } catch (error) {
     logError("Failed to validate ad", error);
     res.status(400).json({ message: "Invalid ad payload" });
+  }
+});
+
+/**
+ * POST /api/marketing/ads/:id/toggle
+ * Example: curl -X POST http://localhost:5000/api/marketing/ads/<id>/toggle \
+ *   -H 'Content-Type: application/json' -d '{"active":false}'
+ */
+router.post("/:id/toggle", (req, res) => {
+  try {
+    const payload = ToggleSchema.parse(req.body);
+    logInfo("Toggling marketing ad", { id: req.params.id, ...payload });
+    const ad = marketingService.toggleAd(req.params.id, payload.active);
+    res.json({ message: "OK", data: ad });
+  } catch (error) {
+    logError("Failed to toggle ad", error);
+    res.status(400).json({ message: (error as Error).message });
   }
 });
 

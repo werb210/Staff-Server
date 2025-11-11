@@ -32,6 +32,7 @@ export const LenderProductSchema = z.object({
   termMonths: z.number().int().positive(),
   documentation: z.array(LenderDocumentRequirementSchema),
   recommendedScore: z.number().min(0).max(100),
+  active: z.boolean().default(true),
 });
 
 export type LenderProduct = z.infer<typeof LenderProductSchema>;
@@ -47,3 +48,23 @@ export const LenderReportSchema = z.object({
 });
 
 export type LenderReport = z.infer<typeof LenderReportSchema>;
+
+export const LenderCreateSchema = LenderSchema.omit({ id: true });
+
+export type LenderCreateInput = z.infer<typeof LenderCreateSchema>;
+
+export const LenderUpdateSchema = LenderCreateSchema.partial().extend({
+  id: uuidSchema,
+});
+
+export type LenderUpdateInput = z.infer<typeof LenderUpdateSchema>;
+
+export const LenderProductCreateSchema = LenderProductSchema.omit({ id: true });
+
+export type LenderProductCreateInput = z.infer<typeof LenderProductCreateSchema>;
+
+export const LenderProductUpdateSchema = LenderProductCreateSchema.partial().extend({
+  id: uuidSchema,
+});
+
+export type LenderProductUpdateInput = z.infer<typeof LenderProductUpdateSchema>;

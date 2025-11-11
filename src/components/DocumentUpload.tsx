@@ -1,10 +1,6 @@
-import { ChangeEvent, useMemo, useState } from "react";
-import { apiClient } from "../api";
-import {
-  ApplicationDocument,
-  DocumentStatus,
-  DocumentUploadInput,
-} from "../types/api";
+import { ChangeEvent, useEffect, useMemo, useState } from "react";
+import { useDocuments } from "../hooks/useDocuments";
+import type { DocumentStatus, DocumentUploadInput } from "../types/api";
 import "../styles/layout.css";
 import "./FormStyles.css";
 
@@ -15,19 +11,27 @@ interface UploadState {
 }
 
 export function DocumentUpload({ applicationId }: { applicationId?: string }) {
+  const { documents, uploadDocument: uploadDocumentMutation, loading, error, refresh } =
+    useDocuments(applicationId);
   const [uploadState, setUploadState] = useState<UploadState>({
     documentType: "Identification",
     applicationId: applicationId ?? "",
   });
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [documents, setDocuments] = useState<ApplicationDocument[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const isReady = useMemo(
     () => Boolean(uploadState.file && uploadState.applicationId && uploadState.documentType),
     [uploadState]
   );
+
+  useEffect(() => {
+    if (applicationId) {
+      setUploadState((prev) => ({ ...prev, applicationId }));
+    }
+  }, [applicationId]);
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const [file] = event.target.files ?? [];
@@ -58,37 +62,58 @@ export function DocumentUpload({ applicationId }: { applicationId?: string }) {
     });
   };
 
-  const uploadDocument = async () => {
+  const generateDocumentId = () => {
+    const globalCrypto =
+      typeof globalThis !== "undefined"
+        ? ((globalThis as typeof globalThis & { crypto?: Crypto }).crypto ?? undefined)
+        : undefined;
+    if (globalCrypto?.randomUUID) {
+      return globalCrypto.randomUUID();
+    }
+    if (typeof window !== "undefined" && window.crypto?.randomUUID) {
+      return window.crypto.randomUUID();
+    }
+    return `doc-${Math.random().toString(36).slice(2, 10)}`;
+  };
+
+  const handleUpload = async () => {
     if (!uploadState.file || !uploadState.applicationId) return;
-    setError(null);
+    setLocalError(null);
+    setSuccess(null);
     setUploading(true);
     simulateProgress();
 
     try {
       const payload: DocumentUploadInput = {
         applicationId: uploadState.applicationId,
+        documentId: generateDocumentId(),
         documentType: uploadState.documentType,
         fileName: uploadState.file.name,
+        contentType: uploadState.file.type || "application/octet-stream",
         fileContent: await readFileAsBase64(uploadState.file),
+        note: uploadState.documentType,
+        uploadedBy: "staff.user",
       };
 
-      const uploaded = await apiClient.uploadDocument(payload);
-      setDocuments((prev) => [uploaded, ...prev]);
+      const result = await uploadDocumentMutation(payload);
+      setSuccess(`Upload ready. Use SAS URL before ${new Date(result.upload.expiresAt).toLocaleTimeString()}.`);
       setUploadState((prev) => ({ ...prev, file: undefined }));
+      await refresh();
     } catch (err) {
       const message =
         ((err as { data?: { errors?: string[]; message?: string } }).data?.errors?.[0] ??
           (err as { message?: string })?.message ??
           "Failed to upload document.");
-      setError(message);
+      setLocalError(message);
     } finally {
       setUploading(false);
     }
   };
 
   const statusColor: Record<DocumentStatus, string> = {
-    pending: "warning",
+    uploaded: "info",
     processing: "info",
+    review: "warning",
     approved: "success",
     rejected: "error",
   };
@@ -100,7 +125,9 @@ export function DocumentUpload({ applicationId }: { applicationId?: string }) {
         <p>Upload applicant documents and track their processing status.</p>
       </header>
 
-      {error && <div className="error">{error}</div>}
+      {(error || localError) && <div className="error">{error ?? localError}</div>}
+      {success && <div className="success">{success}</div>}
+      {loading && <div className="loading">Loading documents…</div>}
 
       <div className="form-step">
         <div className="grid">
@@ -135,7 +162,7 @@ export function DocumentUpload({ applicationId }: { applicationId?: string }) {
           </label>
         </div>
         <div className="form-actions">
-          <button type="button" className="primary" onClick={uploadDocument} disabled={!isReady || uploading}>
+          <button type="button" className="primary" onClick={handleUpload} disabled={!isReady || uploading}>
             {uploading ? `Uploading ${progress}%` : "Upload"}
           </button>
         </div>
@@ -146,22 +173,34 @@ export function DocumentUpload({ applicationId }: { applicationId?: string }) {
           <thead>
             <tr>
               <th>File</th>
+              <th>Version</th>
               <th>Type</th>
               <th>Status</th>
               <th>Uploaded At</th>
+              <th>Download</th>
             </tr>
           </thead>
           <tbody>
             {documents.map((doc) => (
               <tr key={doc.id}>
                 <td>{doc.fileName}</td>
-                <td>{doc.documentType}</td>
+                <td>{doc.version}</td>
+                <td>{doc.documentType ?? doc.note ?? "—"}</td>
                 <td>
                   <span className={`badge ${statusColor[doc.status] ?? "info"}`}>
                     {doc.status}
                   </span>
                 </td>
                 <td>{new Date(doc.uploadedAt).toLocaleString()}</td>
+                <td>
+                  {doc.sasUrl ? (
+                    <a href={doc.sasUrl} target="_blank" rel="noreferrer">
+                      SAS Link
+                    </a>
+                  ) : (
+                    "—"
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>

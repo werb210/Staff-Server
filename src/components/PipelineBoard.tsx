@@ -1,35 +1,10 @@
-import { useEffect, useState } from "react";
-import { apiClient } from "../api";
-import { PipelineBoardData, PipelineStage } from "../types/api";
+import { usePipeline } from "../hooks/usePipeline";
+import type { Application, PipelineStage } from "../types/api";
 import "../styles/layout.css";
 import "./FormStyles.css";
 
 export function PipelineBoard() {
-  const [board, setBoard] = useState<PipelineBoardData>({ stages: [] });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let isMounted = true;
-    const fetchPipeline = async () => {
-      try {
-        setLoading(true);
-        const data = await apiClient.getPipeline();
-        if (!isMounted) return;
-        setBoard(data);
-      } catch (err) {
-        const message = (err as { message?: string })?.message ?? "Failed to load pipeline.";
-        setError(message);
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    };
-
-    fetchPipeline();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+  const { board, loading, error, refresh } = usePipeline();
 
   const renderStage = (stage: PipelineStage) => (
     <div key={stage.id} className="kanban-column">
@@ -41,23 +16,7 @@ export function PipelineBoard() {
       </div>
       <div className="kanban-cards">
         {stage.applications.length ? (
-          stage.applications.map((application) => (
-            <article key={application.id} className="kanban-card">
-              <h4>{application.applicantName}</h4>
-              <p>{application.loanPurpose}</p>
-              <dl>
-                <div>
-                  <dt>Amount</dt>
-                  <dd>${application.loanAmount.toLocaleString()}</dd>
-                </div>
-                <div>
-                  <dt>Status</dt>
-                  <dd>{application.status}</dd>
-                </div>
-              </dl>
-              <small>Updated {new Date(application.updatedAt ?? application.createdAt).toLocaleString()}</small>
-            </article>
-          ))
+          stage.applications.map((application) => renderCard(application))
         ) : (
           <p className="empty">No applications</p>
         )}
@@ -65,11 +24,42 @@ export function PipelineBoard() {
     </div>
   );
 
+  const renderCard = (application: Application) => (
+    <article key={application.id} className="kanban-card">
+      <h4>{application.applicantName}</h4>
+      <p>{application.loanPurpose}</p>
+      <dl>
+        <div>
+          <dt>Amount</dt>
+          <dd>${application.loanAmount.toLocaleString()}</dd>
+        </div>
+        <div>
+          <dt>Status</dt>
+          <dd>{application.status}</dd>
+        </div>
+        {application.assignedTo && (
+          <div>
+            <dt>Assigned</dt>
+            <dd>{application.assignedTo}</dd>
+          </div>
+        )}
+      </dl>
+      <small>
+        Updated {new Date(application.updatedAt ?? application.createdAt).toLocaleString()}
+      </small>
+    </article>
+  );
+
   return (
     <section className="card">
       <header className="card-header">
-        <h2>Pipeline</h2>
-        <p>Track applications across pipeline stages.</p>
+        <div>
+          <h2>Pipeline</h2>
+          <p>Track applications across pipeline stages.</p>
+        </div>
+        <button type="button" className="secondary" onClick={() => void refresh()} disabled={loading}>
+          Refresh
+        </button>
       </header>
 
       {error && <div className="error">{error}</div>}
@@ -77,7 +67,7 @@ export function PipelineBoard() {
 
       {!loading && !error && (
         <div className="kanban-board">
-          {board.stages.sort((a, b) => a.position - b.position).map(renderStage)}
+          {[...board.stages].sort((a, b) => a.position - b.position).map(renderStage)}
         </div>
       )}
     </section>
