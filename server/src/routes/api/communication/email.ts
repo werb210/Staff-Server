@@ -1,12 +1,13 @@
-// Auto-generated stub by Codex
-// Stub router for POST /api/communication/email
-
 import { Router } from "express";
-
 const router = Router();
+const emails: Record<string, any> = {};
 
-router.post("/", (_req, res) => {
-  res.json({ message: "OK" });
+router.get("/", (_req, res) => res.json(Object.values(emails)));
+
+router.post("/", (req, res) => {
+  const id = `EM-${Date.now()}`;
+  emails[id] = req.body;
+  res.status(201).json(emails[id]);
 });
 
 export default router;
