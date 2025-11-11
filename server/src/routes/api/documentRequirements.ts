@@ -1,13 +1,12 @@
 import { Router } from "express";
+
+import { documentRequirementService } from "../../services/documentRequirementService.js";
+
 const router = Router();
-const requirements: Record<string, any> = {};
 
-router.get("/", (_req, res) => res.json(Object.values(requirements)));
-
-router.post("/", (req, res) => {
-  const id = `REQ-${Date.now()}`;
-  requirements[id] = req.body;
-  res.status(201).json(requirements[id]);
+router.get("/", (_req, res) => {
+  const requirements = documentRequirementService.listRequirements();
+  res.json({ message: "OK", requirements });
 });
 
 export default router;

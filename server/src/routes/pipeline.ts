@@ -1,19 +1,21 @@
 import { Router } from "express";
 
-const router = Router();
-const pipelineCards: Record<string, any> = {};
+import { pipelineService } from "../services/pipelineService.js";
 
-// GET all pipeline cards
+const router = Router();
+
 router.get("/", (_req, res) => {
-  res.json(Object.values(pipelineCards));
+  const snapshot = pipelineService.getSnapshot();
+  res.json({ message: "OK", pipeline: snapshot });
 });
 
-// POST new card
-router.post("/", (req, res) => {
-  const id = `${Date.now()}`;
-  const cardData = { id, ...req.body };
-  pipelineCards[id] = cardData;
-  res.status(201).json(cardData);
+router.post("/assign", (req, res, next) => {
+  try {
+    const assignment = pipelineService.assignApplication(req.body);
+    res.status(201).json({ message: "OK", assignment });
+  } catch (error) {
+    next(error);
+  }
 });
 
 export default router;

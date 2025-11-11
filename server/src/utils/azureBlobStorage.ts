@@ -1,9 +1,7 @@
 import { randomUUID } from "node:crypto";
+
 import { calculateChecksum } from "./checksum.js";
 
-/**
- * Represents the payload required to upload content to Azure Blob Storage.
- */
 export interface UploadRequest {
   container: string;
   blobName?: string;
@@ -12,9 +10,6 @@ export interface UploadRequest {
   metadata?: Record<string, string>;
 }
 
-/**
- * Summary returned to consumers after uploading content to the stub storage.
- */
 export interface UploadResult {
   container: string;
   blobName: string;
@@ -26,7 +21,6 @@ export interface UploadResult {
 }
 
 interface StoredBlob {
-  id: string;
   container: string;
   blobName: string;
   content: Buffer;
@@ -36,81 +30,63 @@ interface StoredBlob {
   etag: string;
 }
 
-/**
- * Minimal in-memory Azure Blob client used for local testing.
- * Stores blobs in memory and generates deterministic SAS URLs.
- */
-export class AzureBlobClient {
-  private readonly storage = new Map<string, StoredBlob>();
-  private readonly baseUrl = "https://stub.blob.core.windows.net";
+const storage = new Map<string, StoredBlob>();
+const baseUrl = "https://stub.blob.core.windows.net";
 
-  /**
-   * Uploads content to the stub blob storage.
-   */
-  async upload(request: UploadRequest): Promise<UploadResult> {
-    if (!request.container) {
-      throw new Error("Container name is required");
-    }
-
-    const blobName = request.blobName ?? randomUUID();
-    const key = this.buildKey(request.container, blobName);
-    const stored: StoredBlob = {
-      id: randomUUID(),
-      container: request.container,
-      blobName,
-      content: Buffer.from(request.data),
-      contentType: request.contentType ?? "application/octet-stream",
-      metadata: request.metadata ?? {},
-      uploadedAt: new Date(),
-      etag: calculateChecksum(request.data)
-    };
-
-    this.storage.set(key, stored);
-
-    return {
-      container: stored.container,
-      blobName: stored.blobName,
-      url: this.buildUrl(stored.container, stored.blobName),
-      etag: stored.etag,
-      uploadedAt: stored.uploadedAt.toISOString(),
-      size: stored.content.length,
-      metadata: { ...stored.metadata }
-    };
-  }
-
-  /**
-   * Lists blobs stored for the provided container.
-   */
-  listBlobs(container: string): UploadResult[] {
-    return Array.from(this.storage.values())
-      .filter((blob) => blob.container === container)
-      .map((blob) => ({
-        container: blob.container,
-        blobName: blob.blobName,
-        url: this.buildUrl(blob.container, blob.blobName),
-        etag: blob.etag,
-        uploadedAt: blob.uploadedAt.toISOString(),
-        size: blob.content.length,
-        metadata: { ...blob.metadata }
-      }));
-  }
-
-  /**
-   * Generates a signed URL for accessing a stored blob.
-   */
-  generateSasUrl(container: string, blobName: string, expiresInSeconds = 3600): string {
-    const expiry = new Date(Date.now() + expiresInSeconds * 1000).toISOString();
-    const signature = calculateChecksum(`${container}/${blobName}/${expiry}`);
-    return `${this.buildUrl(container, blobName)}?sig=${signature}&se=${encodeURIComponent(expiry)}`;
-  }
-
-  private buildKey(container: string, blobName: string): string {
-    return `${container}::${blobName}`;
-  }
-
-  private buildUrl(container: string, blobName: string): string {
-    return `${this.baseUrl}/${container}/${blobName}`;
-  }
+function buildKey(container: string, blobName: string): string {
+  return `${container}::${blobName}`;
 }
 
-export const azureBlobClient = new AzureBlobClient();
+function buildUrl(container: string, blobName: string): string {
+  return `${baseUrl}/${container}/${blobName}`;
+}
+
+export async function uploadToBlob(request: UploadRequest): Promise<UploadResult> {
+  if (!request.container) {
+    throw new Error("Container name is required");
+  }
+
+  const blobName = request.blobName ?? randomUUID();
+  const key = buildKey(request.container, blobName);
+  const stored: StoredBlob = {
+    container: request.container,
+    blobName,
+    content: Buffer.from(request.data),
+    contentType: request.contentType ?? "application/octet-stream",
+    metadata: { ...(request.metadata ?? {}) },
+    uploadedAt: new Date(),
+    etag: calculateChecksum(request.data)
+  };
+
+  storage.set(key, stored);
+
+  return {
+    container: stored.container,
+    blobName: stored.blobName,
+    url: buildUrl(stored.container, stored.blobName),
+    etag: stored.etag,
+    uploadedAt: stored.uploadedAt.toISOString(),
+    size: stored.content.length,
+    metadata: { ...stored.metadata }
+  };
+}
+
+export function listBlobs(container: string): UploadResult[] {
+  return Array.from(storage.values())
+    .filter((blob) => blob.container === container)
+    .map((blob) => ({
+      container: blob.container,
+      blobName: blob.blobName,
+      url: buildUrl(blob.container, blob.blobName),
+      etag: blob.etag,
+      uploadedAt: blob.uploadedAt.toISOString(),
+      size: blob.content.length,
+      metadata: { ...blob.metadata }
+    }));
+}
+
+export function generateSASUrl(container: string, blobName: string, expiresInSeconds = 3600): string {
+  const expiry = new Date(Date.now() + expiresInSeconds * 1000).toISOString();
+  const signature = calculateChecksum(`${container}/${blobName}/${expiry}`);
+  return `${buildUrl(container, blobName)}?sig=${signature}&se=${encodeURIComponent(expiry)}`;
+}

@@ -1,16 +1,16 @@
 import { Router } from "express";
+
+import { applicationService } from "../../../services/applicationService.js";
+
 const router = Router();
-const applications: Record<string, any> = {};
 
-router.post("/", (req, res) => {
-  const id = `APP-${Date.now()}`;
-  const appData = { id, ...req.body };
-  applications[id] = appData;
-  res.status(201).json(appData);
-});
-
-router.get("/", (_req, res) => {
-  res.json(Object.values(applications));
+router.post("/", (req, res, next) => {
+  try {
+    const application = applicationService.createApplication(req.body);
+    res.status(201).json({ message: "OK", application });
+  } catch (error) {
+    next(error);
+  }
 });
 
 export default router;

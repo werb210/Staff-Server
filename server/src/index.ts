@@ -7,7 +7,6 @@ import express, { Application as ExpressApp, NextFunction, Request, Response } f
 import cors from "cors";
 import bodyParser from "body-parser";
 
-import { loadEnvironment } from "./utils/env.js";
 import { logError, logInfo } from "./utils/logger.js";
 
 // Top-level routers
@@ -46,8 +45,6 @@ import backupsRouter from "./routes/api/admin/backups.js";
 
 import internalHealthRouter from "./routes/api/_int/health.js";
 import buildGuardRouter from "./routes/api/_int/buildGuard.js";
-
-loadEnvironment();
 
 // Create Express app
 const app: ExpressApp = express();
