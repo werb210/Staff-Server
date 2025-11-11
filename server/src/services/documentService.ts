@@ -30,8 +30,23 @@ interface DocumentHistoryPayload extends DocumentSaveInput {
 /**
  * DocumentService tracks uploaded document metadata in memory with versioning support.
  */
+export class DocumentNotFoundError extends Error {
+  constructor(id: string) {
+    super(`Document ${id} not found`);
+    this.name = "DocumentNotFoundError";
+  }
+}
+
+export class DocumentVersionNotFoundError extends Error {
+  constructor(id: string, version: number) {
+    super(`Version ${version} for document ${id} not found`);
+    this.name = "DocumentVersionNotFoundError";
+  }
+}
+
 export class DocumentService {
   private readonly documents = new Map<string, DocumentMetadata>();
+  private readonly statusUpdates = new Map<string, string>();
   private readonly ai: AiServiceType;
   private readonly ocr: OcrServiceType;
   private readonly storage: AzureBlobStorageType;
@@ -73,6 +88,14 @@ export class DocumentService {
         this.updateStatus(created.id, seed.status);
       }
     });
+  }
+
+  private requireDocument(id: string): DocumentMetadata {
+    const document = this.documents.get(id);
+    if (!document) {
+      throw new DocumentNotFoundError(id);
+    }
+    return document;
   }
 
   private createVersion({
@@ -222,22 +245,105 @@ export class DocumentService {
     });
 
     this.documents.set(id, metadata);
+    this.statusUpdates.set(id, metadata.uploadedAt);
     return metadata;
   }
 
   /**
    * Updates the status of a document.
    */
-  public updateStatus(id: string, status: DocumentStatus): DocumentStatusResponse {
-    const document = this.getDocument(id);
-    const updated: DocumentMetadata = { ...document, status };
-    this.documents.set(id, updated);
-    return {
-      id,
+  public updateStatus(
+    id: string,
+    status: DocumentStatus,
+    reviewedBy?: string,
+  ): DocumentMetadata {
+    const document = this.requireDocument(id);
+    const lastUpdatedAt = new Date().toISOString();
+    const auditTrail = reviewedBy
+      ? {
+          ...(document.explainability ?? {}),
+          reviewer: reviewedBy,
+          reviewerUpdatedAt: lastUpdatedAt,
+        }
+      : document.explainability;
+
+    const updated: DocumentMetadata = {
+      ...document,
       status,
-      version: updated.version,
-      lastUpdatedAt: new Date().toISOString(),
+      explainability: auditTrail,
     };
+
+    this.documents.set(id, updated);
+    this.statusUpdates.set(id, lastUpdatedAt);
+    return updated;
+  }
+
+  /**
+   * Returns the current status payload for a document.
+   */
+  public getStatus(id: string): DocumentStatusResponse {
+    const document = this.requireDocument(id);
+    return {
+      id: document.id,
+      status: document.status,
+      version: document.version,
+      lastUpdatedAt: this.statusUpdates.get(id) ?? document.uploadedAt,
+    };
+  }
+
+  /**
+   * Returns the version history including the current version.
+   */
+  public listVersions(id: string): DocumentVersion[] {
+    const document = this.requireDocument(id);
+    const current: DocumentVersion = {
+      version: document.version,
+      uploadedAt: document.uploadedAt,
+      checksum: document.checksum,
+      blobUrl: document.blobUrl,
+      sasUrl: document.sasUrl,
+      uploadedBy: document.uploadedBy,
+      note: document.note,
+    };
+
+    return [current, ...document.versionHistory];
+  }
+
+  /**
+   * Resolves a SAS download URL for a specific document version.
+   */
+  public getDownloadUrl(
+    id: string,
+    version?: number,
+  ): { sasUrl: string; version: number } {
+    const document = this.requireDocument(id);
+    if (version === undefined || version === document.version) {
+      return { sasUrl: document.sasUrl, version: document.version };
+    }
+
+    const history = document.versionHistory.find((entry) => entry.version === version);
+    if (!history) {
+      throw new DocumentVersionNotFoundError(id, version);
+    }
+
+    return { sasUrl: history.sasUrl, version: history.version };
+  }
+
+  /**
+   * Generates an upload URL for the current document version.
+   */
+  public createUploadUrl(
+    id: string,
+    fileName: string,
+  ): { uploadUrl: string; expiresAt: string; version: number } {
+    const document = this.requireDocument(id);
+    const sanitizedFileName = fileName.trim();
+    if (!sanitizedFileName) {
+      throw new Error("File name is required");
+    }
+    const blobName = `${id}/v${document.version}/${sanitizedFileName}`;
+    const upload = this.storage.createUploadUrl("documents", blobName);
+    return { ...upload, version: document.version };
   }
 }
 

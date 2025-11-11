@@ -3,7 +3,10 @@ import { apiClient } from "../api";
 import type { PipelineBoardData } from "../types/api";
 
 export default function PipelinePage() {
-  const [board, setBoard] = useState<PipelineBoardData>({ stages: [] });
+  const [board, setBoard] = useState<PipelineBoardData>({
+    stages: [],
+    assignments: [],
+  });
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
