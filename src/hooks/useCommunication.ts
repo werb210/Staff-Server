@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
-import { apiClient } from "../api";
+import {
+  listCallLogs,
+  listEmailMessages,
+  listSmsMessages,
+  logCall as logCallApi,
+  receiveEmail as receiveEmailApi,
+  receiveSms as receiveSmsApi,
+  sendEmail as sendEmailApi,
+  sendSms as sendSmsApi,
+} from "../api/communication";
 import { CallLog, EmailMessage, EmailThread, SmsMessage, SmsThread } from "../types/api";
 
 function addSmsToThreads(threads: SmsThread[], message: SmsMessage): SmsThread[] {
@@ -41,13 +50,21 @@ export function useCommunication() {
     try {
       setError(null);
       setLoading(true);
-      const [sms, email, calls] = await Promise.all([
-        apiClient.getSmsThreads(),
-        apiClient.getEmailThreads(),
-        apiClient.getCallLogs(),
+      const [smsMessages, emailMessages, calls] = await Promise.all([
+        listSmsMessages(),
+        listEmailMessages(),
+        listCallLogs(),
       ]);
-      setSmsThreads(sms);
-      setEmailThreads(email);
+      setSmsThreads(
+        [...smsMessages]
+          .sort((a, b) => b.sentAt.localeCompare(a.sentAt))
+          .reduce<SmsThread[]>((threads, message) => addSmsToThreads(threads, message), []),
+      );
+      setEmailThreads(
+        [...emailMessages]
+          .sort((a, b) => b.sentAt.localeCompare(a.sentAt))
+          .reduce<EmailThread[]>((threads, message) => addEmailToThreads(threads, message), []),
+      );
       setCallLogs(calls);
     } catch (err) {
       const message = (err as { message?: string })?.message ?? "Unable to load communications.";
@@ -62,20 +79,20 @@ export function useCommunication() {
   }, [refresh]);
 
   const sendSms = useCallback(async (payload: { to: string; from?: string; body: string }) => {
-    const message = await apiClient.sendSms(payload);
+    const message = await sendSmsApi(payload);
     setSmsThreads((prev) => addSmsToThreads(prev, message));
     return message;
   }, []);
 
   const receiveSms = useCallback(async (payload: { from: string; to?: string; body: string }) => {
-    const message = await apiClient.receiveSms(payload);
+    const message = await receiveSmsApi(payload);
     setSmsThreads((prev) => addSmsToThreads(prev, message));
     return message;
   }, []);
 
   const sendEmail = useCallback(
     async (payload: { to: string; subject: string; body: string; from?: string }) => {
-      const message = await apiClient.sendEmail(payload);
+      const message = await sendEmailApi(payload);
       setEmailThreads((prev) => addEmailToThreads(prev, message));
       return message;
     },
@@ -84,7 +101,7 @@ export function useCommunication() {
 
   const receiveEmail = useCallback(
     async (payload: { from: string; to: string; subject: string; body: string }) => {
-      const message = await apiClient.receiveEmail(payload);
+      const message = await receiveEmailApi(payload);
       setEmailThreads((prev) => addEmailToThreads(prev, message));
       return message;
     },
@@ -93,7 +110,7 @@ export function useCommunication() {
 
   const logCall = useCallback(
     async (payload: Pick<CallLog, "to" | "from" | "durationSeconds" | "notes" | "outcome">) => {
-      const call = await apiClient.logCall(payload);
+      const call = await logCallApi(payload);
       setCallLogs((prev) => [call, ...prev]);
       return call;
     },

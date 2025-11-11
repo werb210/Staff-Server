@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { apiClient } from "../api";
+import { getBuildGuard, getHealth } from "../api/health";
 import { HealthStatus } from "../types/api";
 import "../styles/layout.css";
 import "./FormStyles.css";
@@ -20,8 +20,8 @@ export function HealthMonitor() {
         setLoading(true);
       }
       const [health, buildGuard] = await Promise.all([
-        apiClient.getHealth(),
-        apiClient.getBuildGuard(),
+        getHealth(),
+        getBuildGuard(),
       ]);
 
       const normalized: ServiceStatus[] = [

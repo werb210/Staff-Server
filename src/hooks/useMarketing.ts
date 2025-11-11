@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { apiClient } from "../api";
+import {
+  listAds,
+  listAutomations,
+  toggleAd as toggleAdApi,
+  toggleAutomation as toggleAutomationApi,
+} from "../api/marketing";
 import { MarketingItem } from "../types/api";
 
 export function useMarketing() {
@@ -13,8 +18,8 @@ export function useMarketing() {
       setError(null);
       setLoading(true);
       const [adsData, automationData] = await Promise.all([
-        apiClient.getMarketingAds(),
-        apiClient.getMarketingAutomations(),
+        listAds(),
+        listAutomations(),
       ]);
       setAds(adsData);
       setAutomations(automationData);
@@ -31,13 +36,13 @@ export function useMarketing() {
   }, [refresh]);
 
   const toggleAd = useCallback(async (id: string, active: boolean) => {
-    const ad = await apiClient.toggleAd(id, active);
+    const ad = await toggleAdApi(id, active);
     setAds((prev) => prev.map((item) => (item.id === ad.id ? ad : item)));
     return ad;
   }, []);
 
   const toggleAutomation = useCallback(async (id: string, active: boolean) => {
-    const automation = await apiClient.toggleAutomation(id, active);
+    const automation = await toggleAutomationApi(id, active);
     setAutomations((prev) => prev.map((item) => (item.id === automation.id ? automation : item)));
     return automation;
   }, []);

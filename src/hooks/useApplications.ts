@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { apiClient } from "../api";
+import {
+  assignApplication as assignApplicationApi,
+  createApplication as createApplicationApi,
+  deleteApplication as deleteApplicationApi,
+  listApplications,
+  updateApplication as updateApplicationApi,
+  updateApplicationStatus as updateApplicationStatusApi,
+} from "../api/applications";
 import { Application } from "../types/api";
 
 export function useApplications() {
@@ -11,7 +18,7 @@ export function useApplications() {
     try {
       setError(null);
       setLoading(true);
-      const data = await apiClient.getApplications();
+      const data = await listApplications();
       setApplications(data);
     } catch (err) {
       const message = (err as { message?: string })?.message ?? "Unable to load applications.";
@@ -26,14 +33,14 @@ export function useApplications() {
   }, [refresh]);
 
   const createApplication = useCallback(async (payload: Partial<Application>) => {
-    const created = await apiClient.createApplication(payload);
+    const created = await createApplicationApi(payload);
     setApplications((prev) => [created, ...prev]);
     return created;
   }, []);
 
   const updateApplication = useCallback(
     async (id: string, payload: Partial<Application>) => {
-      const updated = await apiClient.updateApplication(id, payload);
+      const updated = await updateApplicationApi(id, payload);
       setApplications((prev) => prev.map((app) => (app.id === updated.id ? updated : app)));
       return updated;
     },
@@ -41,13 +48,13 @@ export function useApplications() {
   );
 
   const deleteApplication = useCallback(async (id: string) => {
-    await apiClient.deleteApplication(id);
+    await deleteApplicationApi(id);
     setApplications((prev) => prev.filter((app) => app.id !== id));
   }, []);
 
   const assignApplication = useCallback(
     async (id: string, assignedTo: string, stage?: Application["status"]) => {
-      const updated = await apiClient.assignApplication(id, { assignedTo, stage });
+      const updated = await assignApplicationApi({ id, assignedTo, stage });
       setApplications((prev) => prev.map((app) => (app.id === updated.id ? updated : app)));
       return updated;
     },
@@ -55,7 +62,7 @@ export function useApplications() {
   );
 
   const updateStatus = useCallback(async (id: string, status: Application["status"]) => {
-    const updated = await apiClient.updateApplicationStatus(id, status);
+    const updated = await updateApplicationStatusApi(id, status);
     setApplications((prev) => prev.map((app) => (app.id === updated.id ? updated : app)));
     return updated;
   }, []);

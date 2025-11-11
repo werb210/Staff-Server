@@ -1,29 +1,47 @@
-import { apiClient } from "../api";
+import { httpClient, request } from "../api/http";
 
-describe("apiClient", () => {
-  beforeEach(() => {
-    global.fetch = jest.fn(() =>
-      Promise.resolve({
-        ok: true,
-        headers: { get: () => "application/json" },
-        json: () => Promise.resolve({ message: "OK", data: [] }),
-      } as unknown as Response),
-    );
+describe("request", () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   it("unwraps API envelope", async () => {
-    const applications = await apiClient.getApplications();
+    const spy = jest
+      .spyOn(httpClient, "request")
+      .mockResolvedValueOnce({ data: { message: "OK", data: [] } } as never);
+
+    const applications = await request<unknown[]>({
+      url: "/api/applications",
+      method: "GET",
+    });
+
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: "/api/applications",
+        method: "GET",
+        headers: expect.any(Object),
+      }),
+    );
     expect(applications).toEqual([]);
   });
 
-  it("transforms pipeline response", async () => {
-    (global.fetch as jest.Mock).mockResolvedValueOnce({
-      ok: true,
-      headers: { get: () => "application/json" },
-      json: () => Promise.resolve({ message: "OK", data: [{ id: "1", name: "draft", position: 0, count: 1, totalLoanAmount: 10, averageScore: 80, lastUpdatedAt: new Date().toISOString() }] }),
-    } as unknown as Response);
+  it("normalizes axios errors", async () => {
+    jest.spyOn(httpClient, "request").mockRejectedValueOnce({
+      isAxiosError: true,
+      message: "Request failed",
+      response: { status: 400, data: { message: "Invalid payload" } },
+    });
 
-    const pipeline = await apiClient.getPipeline();
-    expect(pipeline.stages[0].name).toBe("draft");
+    await expect(
+      request({
+        url: "/api/applications",
+        method: "POST",
+        data: { name: "Example" },
+      }),
+    ).rejects.toMatchObject({
+      message: "Invalid payload",
+      status: 400,
+      data: { message: "Invalid payload" },
+    });
   });
 });

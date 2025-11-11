@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { apiClient } from "../api";
+import {
+  assignPipelineStage,
+  getPipelineBoard,
+  transitionPipeline,
+} from "../api/pipeline";
 import { PipelineBoardData } from "../types/api";
 
 const emptyBoard: PipelineBoardData = { stages: [], assignments: [] };
@@ -13,7 +17,7 @@ export function usePipeline() {
     try {
       setError(null);
       setLoading(true);
-      const data = await apiClient.getPipeline();
+      const data = await getPipelineBoard();
       setBoard(data);
     } catch (err) {
       const message = (err as { message?: string })?.message ?? "Unable to load pipeline.";
@@ -29,7 +33,7 @@ export function usePipeline() {
 
   const transition = useCallback(
     async (payload: { applicationId: string; toStage: string; fromStage?: string; assignedTo?: string; note?: string }) => {
-      const result = await apiClient.transitionPipeline(payload);
+      const result = await transitionPipeline(payload);
       setBoard(result.board);
       return result;
     },
@@ -38,7 +42,7 @@ export function usePipeline() {
 
   const assign = useCallback(
     async (payload: { id: string; assignedTo: string; stage?: string; note?: string }) => {
-      const result = await apiClient.assignPipeline(payload);
+      const result = await assignPipelineStage(payload);
       setBoard(result.board);
       return result;
     },
