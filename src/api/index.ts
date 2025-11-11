@@ -7,3 +7,4 @@ export * from "./communication";
 export * from "./admin";
 export * from "./marketing";
 export * from "./health";
+export * from "./publicLogin";

@@ -19,7 +19,7 @@ describe("documentService", () => {
 
   it("returns status snapshots", () => {
     const [first] = documentService.listDocuments();
-    const status = documentService.getDocumentStatus(first.id);
+    const status = documentService.getStatus(first.id);
     expect(status.status).toBe(first.status);
   });
 });
