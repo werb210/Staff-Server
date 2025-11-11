@@ -9,6 +9,7 @@ import {
   ApplicationCompleteSchema,
   ApplicationUpdateSchema,
 } from "../../schemas/application.schema.js";
+import { DocumentUploadSchema } from "../../schemas/document.schema.js";
 import { isPlaceholderSilo, respondWithPlaceholder } from "../../utils/placeholder.js";
 
 const router = Router();
@@ -40,6 +41,18 @@ router.get("/:id", (req, res) => {
 });
 
 router.post("/", (req, res) => {
+  if (isPlaceholderSilo(req)) {
+    return respondWithPlaceholder(res);
+  }
+  const parsed = ApplicationCreateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: "Invalid application payload" });
+  }
+  const created = req.silo!.services.applications.createApplication(parsed.data);
+  res.status(201).json({ message: "OK", data: created });
+});
+
+router.post("/create", (req, res) => {
   if (isPlaceholderSilo(req)) {
     return respondWithPlaceholder(res);
   }
@@ -150,6 +163,21 @@ router.post("/:id/submit", (req, res) => {
   res.json({ message: "OK", data: submitted });
 });
 
+router.post("/submit", (req, res) => {
+  if (isPlaceholderSilo(req)) {
+    return respondWithPlaceholder(res);
+  }
+  const parsed = ApplicationSubmitSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: "Invalid submit payload" });
+  }
+  const submitted = req.silo!.services.applications.submitApplication(
+    parsed.data.id,
+    parsed.data.submittedBy,
+  );
+  res.json({ message: "OK", data: submitted });
+});
+
 router.post("/:id/complete", (req, res) => {
   if (isPlaceholderSilo(req)) {
     return respondWithPlaceholder(res);
@@ -166,6 +194,51 @@ router.post("/:id/complete", (req, res) => {
     parsed.data.completedBy,
   );
   res.json({ message: "OK", data: completed });
+});
+
+router.post("/complete", (req, res) => {
+  if (isPlaceholderSilo(req)) {
+    return respondWithPlaceholder(res);
+  }
+  const parsed = ApplicationCompleteSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: "Invalid completion payload" });
+  }
+  const completed = req.silo!.services.applications.completeApplication(
+    parsed.data.id,
+    parsed.data.completedBy,
+  );
+  res.json({ message: "OK", data: completed });
+});
+
+const ApplicationUploadSchema = DocumentUploadSchema.pick({
+  applicationId: true,
+  fileName: true,
+  contentType: true,
+  uploadedBy: true,
+  note: true,
+}).extend({
+  documentId: DocumentUploadSchema.shape.documentId.optional(),
+});
+
+router.post("/upload", (req, res) => {
+  if (isPlaceholderSilo(req)) {
+    return respondWithPlaceholder(res);
+  }
+  const parsed = ApplicationUploadSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: "Invalid upload payload" });
+  }
+  const saved = req.silo!.services.documents.saveDocument({
+    id: parsed.data.documentId,
+    applicationId: parsed.data.applicationId,
+    fileName: parsed.data.fileName,
+    contentType: parsed.data.contentType,
+    uploadedBy: parsed.data.uploadedBy,
+    note: parsed.data.note,
+    status: req.silo!.services.metadata.documentStatusDefault,
+  });
+  res.status(201).json({ message: "OK", data: saved });
 });
 
 export default router;

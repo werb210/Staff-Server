@@ -22,6 +22,7 @@ import retryQueueRouter from "./routes/admin/retryQueue.js";
 import backupsRouter from "./routes/admin/backups.js";
 import ocrInsightsRouter from "./routes/ocrInsights.js";
 import aiSummaryRouter from "./routes/aiSummary.js";
+import notificationsRouter from "./routes/notifications.js";
 import internalHealthRouter from "./routes/internal/health.js";
 import buildGuardRouter from "./routes/internal/buildGuard.js";
 import publicLoginRouter from "./routes/api/publicLogin.js";
@@ -62,6 +63,7 @@ app.use("/api/admin/retry-queue", retryQueueRouter);
 app.use("/api/admin/backups", backupsRouter);
 app.use("/api/ocr-insights", ocrInsightsRouter);
 app.use("/api/ai-summary", aiSummaryRouter);
+app.use("/api/notifications", notificationsRouter);
 app.use("/api/_int/health", internalHealthRouter);
 app.use("/api/_int/build-guard", buildGuardRouter);
 

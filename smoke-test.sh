@@ -3,10 +3,12 @@ set -euo pipefail
 
 BASE_URL="${BASE_URL:-http://localhost:5000}"
 PORT="${PORT:-5000}"
+SILO="${SILO:-BF}"
 SERVER_START_CMD=("npx" "tsx" "server/src/index.ts")
 
 STARTED_SERVER=0
 SERVER_PID=""
+SESSION_TOKEN=""
 
 cleanup() {
   if [[ $STARTED_SERVER -eq 1 && -n "${SERVER_PID}" ]]; then
@@ -61,6 +63,7 @@ run_checks() {
     "/api/pipeline"
     "/api/communication/sms"
     "/api/admin/retry-queue"
+    "/api/notifications"
   )
 
   local failures=0
@@ -68,7 +71,12 @@ run_checks() {
   for endpoint in "${endpoints[@]}"; do
     printf "Testing %s ... " "${endpoint}"
     local response http_status body
-    if ! response=$(curl -sS -w "HTTPSTATUS:%{http_code}" "${BASE_URL}${endpoint}" 2>/tmp/staff-app-smoke-error.log); then
+    local -a headers=("-H" "x-silo: ${SILO}")
+    if [[ -n "${SESSION_TOKEN}" ]]; then
+      headers+=("-H" "Authorization: Bearer ${SESSION_TOKEN}")
+    fi
+
+    if ! response=$(curl -sS -w "HTTPSTATUS:%{http_code}" "${headers[@]}" "${BASE_URL}${endpoint}" 2>/tmp/staff-app-smoke-error.log); then
       printf "FAIL (curl error)\n"
       cat /tmp/staff-app-smoke-error.log >&2
       : $((failures++))
@@ -107,4 +115,69 @@ run_checks() {
 }
 
 ensure_server
+ensure_session() {
+  if [[ -n "${SESSION_TOKEN}" ]]; then
+    return
+  fi
+
+  local credential_id=""
+  local public_key=""
+  local secret=""
+
+  case "${SILO}" in
+    BF)
+      credential_id="bf-cred-1"
+      public_key="bf-public-key"
+      secret="bf-secret"
+      ;;
+    SLF)
+      credential_id="slf-cred-1"
+      public_key="slf-public-key"
+      secret="slf-secret"
+      ;;
+    BI)
+      SESSION_TOKEN="placeholder-token"
+      return
+      ;;
+    *)
+      credential_id="bf-cred-1"
+      public_key="bf-public-key"
+      secret="bf-secret"
+      ;;
+  esac
+
+  local challenge="smoke-test-challenge"
+  local signature
+  signature=$(node --input-type=module - "${public_key}" "${secret}" "${challenge}" <<'NODE'
+import { createHmac } from "crypto";
+const [publicKey, secret, challenge] = process.argv.slice(2);
+process.stdout.write(
+  createHmac("sha256", `${publicKey}:${secret}`).update(challenge).digest("hex"),
+);
+NODE
+  )
+
+  local payload
+  payload=$(jq -n \
+    --arg cred "${credential_id}" \
+    --arg chall "${challenge}" \
+    --arg sig "${signature}" \
+    '{credentialId: $cred, challenge: $chall, signature: $sig}')
+
+  local response
+  response=$(curl -sS -X POST \
+    -H "Content-Type: application/json" \
+    -H "x-silo: ${SILO}" \
+    -d "${payload}" \
+    "${BASE_URL}/api/auth/passkey")
+
+  SESSION_TOKEN=$(echo "${response}" | jq -r '.session.token // empty')
+  if [[ -z "${SESSION_TOKEN}" ]]; then
+    echo "Failed to obtain session token for silo ${SILO}" >&2
+    echo "Response: ${response}" >&2
+    exit 1
+  fi
+}
+
+ensure_session
 run_checks
