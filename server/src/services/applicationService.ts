@@ -210,11 +210,13 @@ export class ApplicationService {
    */
   public submitApplication(id: string, submittedBy: string): Application {
     const application = this.updateStatus(id, "submitted");
-    return {
+    const updated: Application = {
       ...application,
       submittedBy,
       submittedAt: new Date().toISOString(),
     };
+    this.applications.set(updated.id, updated);
+    return updated;
   }
 
   /**
@@ -222,11 +224,13 @@ export class ApplicationService {
    */
   public completeApplication(id: string, completedBy: string): Application {
     const application = this.updateStatus(id, "completed");
-    return {
+    const updated: Application = {
       ...application,
       completedBy,
       completedAt: new Date().toISOString(),
     };
+    this.applications.set(updated.id, updated);
+    return updated;
   }
 
   /**
