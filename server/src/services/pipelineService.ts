@@ -1,60 +1,82 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID } from "crypto";
 import {
-  parsePipelineAssignment,
-  parsePipelineStage,
-  type PipelineAssignment,
-  type PipelineStage
-} from "../schemas/pipeline.schema.js";
+  PipelineAssignmentRequestSchema,
+  PipelineStageUpdateSchema,
+} from "../schemas/pipelineSchemas.js";
+import { logInfo } from "../utils/logger.js";
+import { parseWithSchema } from "../utils/validation.js";
+import { PipelineStage } from "../types/index.js";
 
-interface PipelineSnapshot {
-  stages: PipelineStage[];
-  assignments: PipelineAssignment[];
-}
+type PipelineAssignment = {
+  id: string;
+  applicationId: string;
+  stageId: string;
+  ownerId: string | null;
+  updatedAt: string;
+};
 
 class PipelineService {
-  private readonly stages = new Map<string, PipelineStage>();
-  private readonly assignments: PipelineAssignment[] = [];
+  private stages: PipelineStage[] = [];
+  private assignments: PipelineAssignment[] = [];
 
   constructor() {
-    const seedStages: PipelineStage[] = [
-      { id: randomUUID(), name: "Intake", order: 0, slaHours: 24, description: "Application intake and triage" },
-      { id: randomUUID(), name: "Review", order: 1, slaHours: 48, description: "Underwriting review" },
-      { id: randomUUID(), name: "Compliance", order: 2, slaHours: 24, description: "Compliance verification" }
-    ];
+    const stageId = randomUUID();
+    this.stages.push({
+      id: stageId,
+      name: "Review",
+      order: 0,
+      ownerId: null,
+    });
+    this.assignments.push({
+      id: randomUUID(),
+      applicationId: randomUUID(),
+      stageId,
+      ownerId: null,
+      updatedAt: new Date().toISOString(),
+    });
+  }
 
-    seedStages.forEach((stage) => this.stages.set(stage.id, parsePipelineStage(stage)));
+  listPipeline(): { stages: PipelineStage[]; assignments: PipelineAssignment[] } {
+    logInfo("Listing pipeline");
+    return { stages: this.stages, assignments: this.assignments };
   }
 
   listStages(): PipelineStage[] {
-    return Array.from(this.stages.values()).sort((a, b) => a.order - b.order);
+    logInfo("Listing pipeline stages");
+    return this.stages;
   }
 
-  getSnapshot(): PipelineSnapshot {
-    return {
-      stages: this.listStages(),
-      assignments: [...this.assignments]
+  updateStage(id: string, payload: unknown): PipelineStage {
+    const updates = parseWithSchema(PipelineStageUpdateSchema, payload);
+    logInfo("Updating pipeline stage", { id, updates });
+    const stage = this.stages.find((item) => item.id === id);
+    if (!stage) {
+      throw new Error(`Stage ${id} not found`);
+    }
+    Object.assign(stage, updates);
+    return stage;
+  }
+
+  assignStage(payload: unknown): PipelineAssignment {
+    const data = parseWithSchema(PipelineAssignmentRequestSchema, payload);
+    logInfo("Assigning pipeline stage", data);
+    const assignment = this.assignments.find((item) => item.applicationId === data.applicationId);
+    if (assignment) {
+      assignment.stageId = data.stageId;
+      assignment.ownerId = data.ownerId;
+      assignment.updatedAt = new Date().toISOString();
+      return assignment;
+    }
+    const newAssignment: PipelineAssignment = {
+      id: randomUUID(),
+      applicationId: data.applicationId,
+      stageId: data.stageId,
+      ownerId: data.ownerId,
+      updatedAt: new Date().toISOString(),
     };
-  }
-
-  assignApplication(input: unknown): PipelineAssignment {
-    const base = (typeof input === "object" && input !== null ? (input as Partial<PipelineAssignment>) : {});
-    const stageId = base.stageId ?? this.listStages()[0]?.id;
-    if (!stageId) {
-      throw new Error("Pipeline stage is required");
-    }
-    const payload = parsePipelineAssignment({
-      applicationId: base.applicationId ?? randomUUID(),
-      stageId,
-      assignedBy: base.assignedBy ?? randomUUID(),
-      assignedAt: base.assignedAt ?? new Date().toISOString()
-    });
-    if (!this.stages.has(payload.stageId)) {
-      throw new Error(`Pipeline stage ${payload.stageId} not found`);
-    }
-    this.assignments.push(payload);
-    return payload;
+    this.assignments.push(newAssignment);
+    return newAssignment;
   }
 }
 
 export const pipelineService = new PipelineService();
-export type { PipelineStage, PipelineAssignment };

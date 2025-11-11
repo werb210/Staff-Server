@@ -1,42 +1,19 @@
-/**
- * Environment utility functions.
- * Handles loading and validating environment variables.
- */
+import { config } from "dotenv";
+import { logInfo } from "./logger.js";
 
-import dotenv from "dotenv";
-import { logDebug, logInfo, logWarn } from "./logger.js";
+let isLoaded = false;
 
-dotenv.config();
-
-/**
- * Ensure that an environment variable is set, or return fallback if provided.
- * Throws an error if the variable is missing and no fallback is given.
- */
-export function ensureEnvVar(name: string, fallback?: string): string {
-  logInfo("ensureEnvVar invoked");
-  const value = process.env[name] ?? fallback;
-  if (!value) {
-    logWarn(`Environment variable ${name} is not set`);
-    throw new Error(`Missing required environment variable: ${name}`);
+export const loadEnv = (): void => {
+  if (isLoaded) {
+    return;
   }
-  logDebug("ensureEnvVar result", { name, value });
-  return value;
-}
 
-/**
- * Returns true if running in production environment.
- */
-export function isProduction(): boolean {
-  logInfo("isProduction invoked");
-  const result = process.env.NODE_ENV === "production";
-  logDebug("isProduction result", { result });
-  return result;
-}
+  const result = config();
+  if (result.error) {
+    logInfo("No .env file found, relying on process environment");
+  } else {
+    logInfo("Environment variables loaded from .env");
+  }
 
-/**
- * Loads environment configuration and logs current snapshot.
- */
-export function loadEnvironment(): void {
-  logInfo("loadEnvironment invoked");
-  logDebug("current environment snapshot", { env: process.env.NODE_ENV });
-}
+  isLoaded = true;
+};

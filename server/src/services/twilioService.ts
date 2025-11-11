@@ -1,28 +1,14 @@
-export interface SmsPayload {
-  to: string;
-  from: string;
-  body: string;
-}
+import { logInfo } from "../utils/logger.js";
 
-export interface CallPayload {
+export type SmsPayload = {
   to: string;
-  from: string;
-  subject: string;
-}
+  message: string;
+};
 
 class TwilioService {
-  sendSms(payload: SmsPayload): { message: string; sid: string } {
-    return {
-      message: `SMS to ${payload.to} queued`,
-      sid: `SM${Date.now()}`
-    };
-  }
-
-  initiateCall(payload: CallPayload): { message: string; sid: string } {
-    return {
-      message: `Call to ${payload.to} regarding ${payload.subject} scheduled`,
-      sid: `CA${Date.now()}`
-    };
+  sendSms(payload: SmsPayload): { sid: string } {
+    logInfo("Twilio SMS stub invoked", payload);
+    return { sid: `SM-${Date.now()}` };
   }
 }
 

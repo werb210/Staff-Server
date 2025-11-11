@@ -1,49 +1,22 @@
-/**
- * Logger utility functions for consistent logging across the application.
- */
+import { inspect } from "util";
 
-/**
- * Logs an informational message.
- */
-export function logInfo(message: string, payload?: unknown): void {
-  if (payload !== undefined) {
-    console.info(`[INFO] ${message}`, payload);
-  } else {
-    console.info(`[INFO] ${message}`);
-  }
-}
+type LogLevel = "info" | "warn" | "error";
 
-/**
- * Logs a warning message.
- */
-export function logWarn(message: string, payload?: unknown): void {
-  if (payload !== undefined) {
-    console.warn(`[WARN] ${message}`, payload);
-  } else {
-    console.warn(`[WARN] ${message}`);
-  }
-}
+const formatMessage = (level: LogLevel, message: string, meta?: unknown): string => {
+  const timestamp = new Date().toISOString();
+  const metaString =
+    meta === undefined || meta === null ? "" : ` ${inspect(meta, { depth: 5, breakLength: Infinity })}`;
+  return `[${timestamp}] [${level.toUpperCase()}] ${message}${metaString}`;
+};
 
-/**
- * Logs an error message and optional error object.
- */
-export function logError(message: string, error?: unknown): void {
-  if (error instanceof Error) {
-    console.error(`[ERROR] ${message}`, error);
-  } else if (error !== undefined) {
-    console.error(`[ERROR] ${message}`, error);
-  } else {
-    console.error(`[ERROR] ${message}`);
-  }
-}
+export const logInfo = (message: string, meta?: unknown): void => {
+  console.log(formatMessage("info", message, meta));
+};
 
-/**
- * Logs a debug message with optional structured payload data.
- */
-export function logDebug(message: string, payload?: unknown): void {
-  if (payload !== undefined) {
-    console.debug(`[DEBUG] ${message}`, payload);
-  } else {
-    console.debug(`[DEBUG] ${message}`);
-  }
-}
+export const logWarn = (message: string, meta?: unknown): void => {
+  console.warn(formatMessage("warn", message, meta));
+};
+
+export const logError = (message: string, meta?: unknown): void => {
+  console.error(formatMessage("error", message, meta));
+};
