@@ -1,5 +1,11 @@
 import { FormEvent, useEffect, useState } from "react";
-import { apiClient } from "../api";
+import {
+  listLenders,
+  listProducts,
+  listRequirements,
+  listReports,
+  sendToLender as sendToLenderApi,
+} from "../api/lenders";
 import type { Lender, LenderProduct } from "../types/api";
 
 const defaultApplicationId = "c27e0c87-3bd5-47cc-8d14-5c569ea2cc15";
@@ -18,17 +24,18 @@ export default function LendersPage() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    void apiClient.getLenders().then(setLenders).catch(() => setLenders([]));
-    void apiClient.getLenderReports().then(setReports).catch(() => setReports([]));
+    void listLenders().then(setLenders).catch(() => setLenders([]));
+    void listReports().then(setReports).catch(() => setReports([]));
   }, []);
 
   useEffect(() => {
     if (!selectedLender) return;
-    void apiClient.getLenderProducts(selectedLender).then(setProducts).catch(() => {
-      setProducts([]);
-    });
-    void apiClient
-      .getLenderRequirements(selectedLender)
+    void listProducts(selectedLender)
+      .then(setProducts)
+      .catch(() => {
+        setProducts([]);
+      });
+    void listRequirements(selectedLender)
       .then(setRequirements)
       .catch(() => setRequirements([]));
   }, [selectedLender]);
@@ -36,7 +43,7 @@ export default function LendersPage() {
   const handleSend = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     try {
-      const result = await apiClient.sendToLender(applicationId, selectedLender);
+      const result = await sendToLenderApi(applicationId, selectedLender);
       setStatusMessage(`Queued package with status: ${result.status ?? "queued"}`);
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : "Failed to queue package");

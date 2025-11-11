@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { apiClient } from "../api";
+import {
+  createBackup as createBackupApi,
+  listBackups,
+  listRetryJobs,
+  retryJob as retryJobApi,
+} from "../api/admin";
 import { BackupRecord, RetryJob } from "../types/api";
 
 export function useAdmin() {
@@ -13,8 +18,8 @@ export function useAdmin() {
       setError(null);
       setLoading(true);
       const [jobs, backupRecords] = await Promise.all([
-        apiClient.getRetryQueue(),
-        apiClient.getBackups(),
+        listRetryJobs(),
+        listBackups(),
       ]);
       setRetryJobs(jobs);
       setBackups(backupRecords);
@@ -31,13 +36,13 @@ export function useAdmin() {
   }, [refresh]);
 
   const retryJob = useCallback(async (id: string) => {
-    const job = await apiClient.retryJob(id);
+    const job = await retryJobApi(id);
     setRetryJobs((prev) => prev.map((item) => (item.id === job.id ? job : item)));
     return job;
   }, []);
 
   const createBackup = useCallback(async (name: string) => {
-    const backup = await apiClient.createBackup(name);
+    const backup = await createBackupApi(name);
     setBackups((prev) => [backup, ...prev]);
     return backup;
   }, []);

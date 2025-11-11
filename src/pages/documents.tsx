@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { apiClient } from "../api";
+import { listDocuments, uploadDocument as uploadDocumentApi } from "../api/documents";
 import type { ApplicationDocument } from "../types/api";
 
 interface DocumentFormState {
@@ -21,7 +21,7 @@ export default function DocumentsPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    void apiClient.getDocuments().then(setDocuments).catch(() => {
+    void listDocuments().then(setDocuments).catch(() => {
       setError("Unable to load documents");
     });
   }, []);
@@ -30,7 +30,7 @@ export default function DocumentsPage() {
     event.preventDefault();
     setError(null);
     try {
-      const { metadata, upload } = await apiClient.uploadDocument({
+      const { metadata, upload } = await uploadDocumentApi({
         applicationId: form.applicationId,
         documentId: form.documentId,
         fileName: form.fileName,

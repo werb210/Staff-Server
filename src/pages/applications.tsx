@@ -1,5 +1,10 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { apiClient } from "../api";
+import {
+  createApplication as createApplicationApi,
+  listApplications,
+  listPublicApplications,
+} from "../api/applications";
+import { listProducts as listProductsApi } from "../api/lenders";
 import type { Application, ApplicationSummary, LenderProduct } from "../types/api";
 
 interface ApplicationFormState {
@@ -31,18 +36,21 @@ export default function ApplicationsPage() {
   const [isSubmitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    void apiClient.getApplications().then(setApplications).catch(() => {
-      setError("Unable to load applications");
-    });
-    void apiClient
-      .getApplications<ApplicationSummary>({ view: "public" })
+    void listApplications()
+      .then(setApplications)
+      .catch(() => {
+        setError("Unable to load applications");
+      });
+    void listPublicApplications()
       .then(setPublicApplications)
       .catch(() => {
         setError("Unable to load public applications");
       });
-    void apiClient.getLenderProducts().then(setProducts).catch(() => {
-      /* ignore */
-    });
+    void listProductsApi()
+      .then(setProducts)
+      .catch(() => {
+        /* ignore */
+      });
   }, []);
 
   const handleChange = (field: keyof ApplicationFormState, value: string | number) => {
@@ -63,7 +71,7 @@ export default function ApplicationsPage() {
     }
     try {
       setSubmitting(true);
-      const created = await apiClient.createApplication({
+      const created = await createApplicationApi({
         applicantName: form.applicantName,
         applicantEmail: form.applicantEmail,
         applicantPhone: form.applicantPhone,

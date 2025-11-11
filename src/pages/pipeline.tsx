@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { apiClient } from "../api";
+import { getPipelineBoard } from "../api/pipeline";
 import type { PipelineBoardData } from "../types/api";
 
 export default function PipelinePage() {
@@ -10,8 +10,7 @@ export default function PipelinePage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    void apiClient
-      .getPipeline()
+    void getPipelineBoard()
       .then(setBoard)
       .catch(() => setError("Unable to load pipeline"));
   }, []);

@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { apiClient } from "../api";
+import {
+  getDocumentDownloadUrl,
+  getDocumentVersions,
+  listDocuments,
+  updateDocumentStatus,
+  uploadDocument,
+} from "../api/documents";
 import { ApplicationDocument, DocumentUploadInput, DocumentVersion } from "../types/api";
 
 export function useDocuments(applicationId?: string) {
@@ -11,7 +17,7 @@ export function useDocuments(applicationId?: string) {
     try {
       setError(null);
       setLoading(true);
-      const data = await apiClient.getDocuments(applicationId);
+      const data = await listDocuments(applicationId);
       setDocuments(data);
     } catch (err) {
       const message = (err as { message?: string })?.message ?? "Unable to load documents.";
@@ -27,7 +33,7 @@ export function useDocuments(applicationId?: string) {
 
   const uploadDocument = useCallback(
     async (payload: DocumentUploadInput) => {
-      const result = await apiClient.uploadDocument(payload);
+      const result = await uploadDocument(payload);
       setDocuments((prev) => [result.metadata, ...prev.filter((doc) => doc.id !== result.metadata.id)]);
       return result;
     },
@@ -35,17 +41,17 @@ export function useDocuments(applicationId?: string) {
   );
 
   const updateStatus = useCallback(async (id: string, status: string) => {
-    const updated = await apiClient.updateDocumentStatus(id, status);
+    const updated = await updateDocumentStatus(id, status);
     setDocuments((prev) => prev.map((doc) => (doc.id === updated.id ? updated : doc)));
     return updated;
   }, []);
 
   const getVersions = useCallback(async (id: string): Promise<DocumentVersion[]> => {
-    return apiClient.getDocumentVersions(id);
+    return getDocumentVersions(id);
   }, []);
 
   const getDownloadUrl = useCallback(async (id: string, version?: number) => {
-    return apiClient.getDocumentDownloadUrl(id, version);
+    return getDocumentDownloadUrl(id, version);
   }, []);
 
   return {
