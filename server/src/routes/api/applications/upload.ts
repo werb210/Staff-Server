@@ -1,12 +1,15 @@
-// Auto-generated stub by Codex
-// Stub router for POST /api/applications/upload
-
 import { Router } from "express";
-
 const router = Router();
+const uploadedDocs: Record<string, any> = {};
 
-router.post("/", (_req, res) => {
-  res.json({ message: "OK" });
+router.post("/", (req, res) => {
+  const id = `DOC-${Date.now()}`;
+  uploadedDocs[id] = req.body;
+  res.status(201).json({ message: "OK", id });
+});
+
+router.get("/", (_req, res) => {
+  res.json(Object.values(uploadedDocs));
 });
 
 export default router;
