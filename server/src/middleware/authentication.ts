@@ -3,6 +3,7 @@ import type { NextFunction, Request, Response } from "express";
 const NON_AUTH_ROUTES = [
   /^\/api\/health/,
   /^\/api\/auth\/passkey/,
+  /^\/api\/publicLogin/,
   /^\/api\/_int\/health/,
   /^\/api\/_int\/build-guard/,
 ];

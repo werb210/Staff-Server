@@ -24,6 +24,7 @@ import ocrInsightsRouter from "./routes/ocrInsights.js";
 import aiSummaryRouter from "./routes/aiSummary.js";
 import internalHealthRouter from "./routes/internal/health.js";
 import buildGuardRouter from "./routes/internal/buildGuard.js";
+import publicLoginRouter from "./routes/api/publicLogin.js";
 import { loadEnv } from "./utils/env.js";
 import { logError, logInfo } from "./utils/logger.js";
 
@@ -44,6 +45,7 @@ app.use("/api", authenticateRequest);
 
 app.use("/api/health", healthRouter);
 app.use("/api/auth", authRouter);
+app.use("/api/publicLogin", publicLoginRouter);
 app.use("/api/applications", applicationsRouter);
 app.use("/api/documents", documentsRouter);
 app.use("/api/lenders", lendersRouter);
