@@ -1,12 +1,12 @@
-// Auto-generated stub by Codex
-// Stub router for GET /api/lenders
-
 import { Router } from "express";
+
+import { lenderService } from "../services/lenderService.js";
 
 const router = Router();
 
 router.get("/", (_req, res) => {
-  res.json({ message: "OK" });
+  const lenders = lenderService.listLenders();
+  res.json({ message: "OK", lenders });
 });
 
 export default router;

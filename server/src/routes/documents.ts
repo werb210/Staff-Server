@@ -1,18 +1,21 @@
-// Auto-generated stub by Codex
-// Stub router for GET /api/documents
-
 import { Router } from "express";
+
+import { documentService } from "../services/documentService.js";
 
 const router = Router();
 
-// Existing GET handler
 router.get("/", (_req, res) => {
-  res.json({ message: "OK" });
+  const documents = documentService.listDocuments();
+  res.json({ message: "OK", documents });
 });
 
-// Add POST handler for testing
-router.post("/", (req, res) => {
-  res.json({ message: "OK" });
+router.post("/", async (req, res, next) => {
+  try {
+    const document = await documentService.uploadDocument(req.body);
+    res.status(201).json({ message: "OK", document });
+  } catch (error) {
+    next(error);
+  }
 });
 
 export default router;

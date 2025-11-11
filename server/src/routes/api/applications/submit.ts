@@ -1,15 +1,16 @@
 import { Router } from "express";
+
+import { applicationService } from "../../../services/applicationService.js";
+
 const router = Router();
-const submittedApps: Record<string, any> = {};
 
-router.post("/", (req, res) => {
-  const id = req.body.id ?? `SUB-${Date.now()}`;
-  submittedApps[id] = req.body;
-  res.status(200).json({ message: "Submitted", id });
-});
-
-router.get("/", (_req, res) => {
-  res.json(Object.values(submittedApps));
+router.post("/", (req, res, next) => {
+  try {
+    const result = applicationService.submitApplication(req.body);
+    res.json({ message: "OK", submission: result });
+  } catch (error) {
+    next(error);
+  }
 });
 
 export default router;

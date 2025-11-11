@@ -16,6 +16,7 @@ export const documentSchema = z.object({
   type: documentTypeSchema,
   mimeType: z.string().min(1, "Document MIME type is required"),
   url: z.string().url("Document URL must be valid"),
+  sasUrl: z.string().url().optional(),
   checksum: z.string().min(1, "Checksum is required"),
   uploadedAt: z.string().datetime(),
   status: documentStatusSchema

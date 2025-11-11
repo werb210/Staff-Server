@@ -1,4 +1,9 @@
 import { Router } from "express";
+
 const router = Router();
-router.get("/api/health", (_, res) => res.json({ status: "ok" }));
+
+router.get("/", (_req, res) => {
+  res.json({ message: "OK", status: "healthy" });
+});
+
 export default router;

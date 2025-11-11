@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { calculateChecksum } from "../utils/checksum.js";
-import { azureBlobClient } from "../utils/azureBlobStorage.js";
+import { generateSASUrl, uploadToBlob } from "../utils/azureBlobStorage.js";
 import {
   documentSchema,
   parseDocument,
@@ -20,13 +20,14 @@ class DocumentService {
     const payload: UploadDocumentInput = parseUploadDocumentInput(input);
     const isBase64 = /^[A-Za-z0-9+/=]+$/.test(payload.content.trim());
     const data = Buffer.from(payload.content, isBase64 ? "base64" : "utf-8");
-    const uploadResult = await azureBlobClient.upload({
+    const uploadResult = await uploadToBlob({
       container: payload.applicationId,
       blobName: `${payload.name.replace(/\s+/g, "-")}-${Date.now()}`,
       data,
       contentType: payload.mimeType,
       metadata: payload.metadata
     });
+    const sasUrl = generateSASUrl(payload.applicationId, uploadResult.blobName);
 
     const document: Document = documentSchema.parse({
       id: randomUUID(),
@@ -35,6 +36,7 @@ class DocumentService {
       type: payload.type,
       mimeType: payload.mimeType,
       url: uploadResult.url,
+      sasUrl,
       checksum: calculateChecksum(data),
       uploadedAt: uploadResult.uploadedAt,
       status: "received"

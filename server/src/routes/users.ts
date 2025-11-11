@@ -1,19 +1,21 @@
 import { Router } from "express";
 
-const router = Router();
-const users: Record<string, any> = {};
+import { userService } from "../services/userService.js";
 
-// GET all users
+const router = Router();
+
 router.get("/", (_req, res) => {
-  res.json(Object.values(users));
+  const users = userService.listUsers();
+  res.json({ message: "OK", users });
 });
 
-// POST new user
-router.post("/", (req, res) => {
-  const id = `${Date.now()}`;
-  const userData = { id, ...req.body };
-  users[id] = userData;
-  res.status(201).json(userData);
+router.post("/", (req, res, next) => {
+  try {
+    const user = userService.upsertUser(req.body);
+    res.status(201).json({ message: "OK", user });
+  } catch (error) {
+    next(error);
+  }
 });
 
 export default router;

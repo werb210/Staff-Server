@@ -9,13 +9,6 @@
     "skipLibCheck": true,
     "outDir": "dist"
   },
-  "include": [
-    "src/routes/**/*",
-    "src/services/**/*",
-    "src/utils/**/*",
-    "src/schemas/**/*",
-    "src/types/**/*",
-    "src/index.ts"
-  ],
+  "include": ["src/index.ts", "src/**/*.ts"],
   "exclude": ["dist"]
 }
