@@ -4,7 +4,8 @@ const router = Router();
 
 router.get("/", (req, res) => {
   res.json({
-    message: "OK",
+    status: "ok",
+    message: "Service healthy",
     silo: req.silo?.silo ?? "unknown",
     auth: req.silo?.auth.describe(),
   });
