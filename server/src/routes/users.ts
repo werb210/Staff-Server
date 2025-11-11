@@ -1,19 +1,45 @@
 import { Router } from "express";
-import { UserSchema } from "../schemas/user.schema.js";
-import { logError, logInfo } from "../utils/logger.js";
+import { z } from "zod";
+import { isPlaceholderSilo, respondWithPlaceholder } from "../utils/placeholder.js";
 
 const router = Router();
 
-// Echo endpoint that validates the provided user payload.
-router.post("/", (req, res) => {
-  try {
-    const user = UserSchema.parse(req.body);
-    logInfo("Received user payload", { id: user.id, email: user.email });
-    res.status(201).json({ message: "OK", data: user });
-  } catch (error) {
-    logError("Invalid user payload", error);
-    res.status(400).json({ message: "Invalid user payload" });
+router.get("/", (req, res) => {
+  if (isPlaceholderSilo(req)) {
+    return respondWithPlaceholder(res);
   }
+  const users = req.silo!.services.users.listUsers();
+  res.json({ message: "OK", data: users });
+});
+
+router.post("/", (req, res) => {
+  if (isPlaceholderSilo(req)) {
+    return respondWithPlaceholder(res);
+  }
+  const payload = z
+    .object({
+      name: z.string().min(1),
+      email: z.string().email(),
+      role: z.enum(["admin", "manager", "agent"]),
+    })
+    .safeParse(req.body);
+  if (!payload.success) {
+    return res.status(400).json({ message: "Invalid user payload" });
+  }
+  const user = req.silo!.services.users.createUser(payload.data);
+  res.status(201).json({ message: "OK", data: user });
+});
+
+router.get("/:id", (req, res) => {
+  if (isPlaceholderSilo(req)) {
+    return respondWithPlaceholder(res);
+  }
+  const id = z.string().uuid().safeParse(req.params.id);
+  if (!id.success) {
+    return res.status(400).json({ message: "Invalid user id" });
+  }
+  const user = req.silo!.services.users.getUser(id.data);
+  res.json({ message: "OK", data: user });
 });
 
 export default router;

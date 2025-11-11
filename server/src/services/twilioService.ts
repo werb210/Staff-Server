@@ -23,7 +23,7 @@ export interface CallLog {
 /**
  * TwilioService mimics Twilio interactions by storing records in memory.
  */
-class TwilioService {
+export class TwilioService {
   private readonly messages: SmsMessage[] = [];
   private readonly calls: CallLog[] = [];
 
@@ -141,3 +141,5 @@ class TwilioService {
 export const twilioService = new TwilioService();
 
 export type TwilioServiceType = TwilioService;
+
+export const createTwilioService = (): TwilioService => new TwilioService();

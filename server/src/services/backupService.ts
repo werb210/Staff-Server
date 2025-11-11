@@ -12,7 +12,7 @@ export interface BackupRecord {
 /**
  * BackupService keeps track of database backup metadata.
  */
-class BackupService {
+export class BackupService {
   private readonly backups: BackupRecord[] = [
     {
       id: "cde27026-349d-4e71-b3af-09b587971776",
@@ -50,3 +50,5 @@ class BackupService {
 export const backupService = new BackupService();
 
 export type BackupServiceType = BackupService;
+
+export const createBackupService = (): BackupService => new BackupService();

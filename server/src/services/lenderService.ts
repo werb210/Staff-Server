@@ -9,44 +9,50 @@ import {
   type LenderReport,
   type LenderUpdateInput,
 } from "../schemas/lenderProduct.schema.js";
-import { applicationService } from "./applicationService.js";
-import { aiService } from "./aiService.js";
+import {
+  ApplicationService,
+  type ApplicationServiceType,
+} from "./applicationService.js";
+import { aiService, type AiServiceType } from "./aiService.js";
+
+export interface LenderServiceOptions {
+  applicationService?: ApplicationServiceType;
+  ai?: AiServiceType;
+  seedLenders?: Lender[];
+  seedProducts?: LenderProduct[];
+  seedRequirements?: Record<string, LenderDocumentRequirement[]>;
+}
 
 /**
  * LenderService provides an in-memory catalogue of lenders and products.
  */
-class LenderService {
-  private lenders: Lender[] = [
-    {
-      id: "a0e2711b-4bb5-4ba0-94f5-cc5f25152f1f",
-      name: "Northwind Credit",
-      contactEmail: "sales@northwind.example",
-      contactPhone: "+1-555-123-1000",
-      status: "active",
-      rating: 4.5,
-    },
-    {
-      id: "4a67f0d4-571e-4be7-9a3a-5a846e91ec3c",
-      name: "Evergreen Bank",
-      contactEmail: "partners@evergreen.example",
-      contactPhone: "+1-555-555-6543",
-      status: "onboarding",
-      rating: 4.2,
-    },
-    {
-      id: "f3b2077d-3a4f-4e75-8d0e-41f4e5cc0d84",
-      name: "Boreal Capital",
-      contactEmail: "alliances@boreal.example",
-      contactPhone: "+1-555-450-7788",
-      status: "active",
-      rating: 4.8,
-    },
-  ];
+export class LenderService {
+  private lenders: Lender[] = [];
+  private products: LenderProduct[] = [];
+  private readonly requirements = new Map<string, LenderDocumentRequirement[]>();
+  private readonly applications: ApplicationServiceType;
+  private readonly ai: AiServiceType;
 
-  private readonly requirements = new Map<string, LenderDocumentRequirement[]>([
-    [
-      "a0e2711b-4bb5-4ba0-94f5-cc5f25152f1f",
-      [
+  constructor(options: LenderServiceOptions = {}) {
+    this.applications = options.applicationService ?? new ApplicationService();
+    this.ai = options.ai ?? aiService;
+
+    const baseRequirements =
+      options.seedRequirements ??
+      this.buildDefaultRequirements(["a0e2711b-4bb5-4ba0-94f5-cc5f25152f1f", "4a67f0d4-571e-4be7-9a3a-5a846e91ec3c"]);
+    for (const [lenderId, requirements] of Object.entries(baseRequirements)) {
+      this.requirements.set(lenderId, [...requirements]);
+    }
+
+    this.lenders =
+      options.seedLenders ?? this.buildDefaultLenders(Array.from(this.requirements.keys()));
+    this.products =
+      options.seedProducts ?? this.buildDefaultProducts(this.requirements);
+  }
+
+  private buildDefaultRequirements(ids: string[]): Record<string, LenderDocumentRequirement[]> {
+    return {
+      [ids[0]]: [
         {
           documentType: "bank-statement",
           required: true,
@@ -58,65 +64,93 @@ class LenderService {
           description: "Most recent federal tax return",
         },
       ],
-    ],
-    [
-      "4a67f0d4-571e-4be7-9a3a-5a846e91ec3c",
-      [
+      [ids[1]]: [
         {
           documentType: "rent-roll",
           required: false,
           description: "Rent roll for the subject property",
         },
       ],
-    ],
-  ]);
+    };
+  }
 
-  private products: LenderProduct[] = [
-    {
-      id: "385ca198-5b56-4587-a5b4-947ca9b61930",
-      lenderId: "a0e2711b-4bb5-4ba0-94f5-cc5f25152f1f",
-      name: "Small Business Term Loan",
-      interestRate: 6.25,
-      minAmount: 50000,
-      maxAmount: 500000,
-      termMonths: 60,
-      documentation: this.requirements.get(
-        "a0e2711b-4bb5-4ba0-94f5-cc5f25152f1f",
-      ) ?? [],
-      recommendedScore: 70,
-      active: true,
-    },
-    {
-      id: "9ce2637f-2255-4790-8eb7-50f572cca40a",
-      lenderId: "4a67f0d4-571e-4be7-9a3a-5a846e91ec3c",
-      name: "Commercial Mortgage",
-      interestRate: 7.1,
-      minAmount: 250000,
-      maxAmount: 2000000,
-      termMonths: 240,
-      documentation: this.requirements.get("4a67f0d4-571e-4be7-9a3a-5a846e91ec3c") ?? [],
-      recommendedScore: 80,
-      active: true,
-    },
-    {
-      id: "a9a7b7dc-4a9f-4f42-872b-b723f47876eb",
-      lenderId: "f3b2077d-3a4f-4e75-8d0e-41f4e5cc0d84",
-      name: "Line of Credit",
-      interestRate: 5.6,
-      minAmount: 25000,
-      maxAmount: 300000,
-      termMonths: 36,
-      documentation: [
-        {
-          documentType: "financial-statements",
-          required: true,
-          description: "YTD financial statements",
-        },
-      ],
-      recommendedScore: 65,
-      active: true,
-    },
-  ];
+  private buildDefaultLenders(ids: string[]): Lender[] {
+    return [
+      {
+        id: ids[0],
+        name: "Northwind Credit",
+        contactEmail: "sales@northwind.example",
+        contactPhone: "+1-555-123-1000",
+        status: "active",
+        rating: 4.5,
+      },
+      {
+        id: ids[1],
+        name: "Evergreen Bank",
+        contactEmail: "partners@evergreen.example",
+        contactPhone: "+1-555-555-6543",
+        status: "onboarding",
+        rating: 4.2,
+      },
+      {
+        id: "f3b2077d-3a4f-4e75-8d0e-41f4e5cc0d84",
+        name: "Boreal Capital",
+        contactEmail: "alliances@boreal.example",
+        contactPhone: "+1-555-450-7788",
+        status: "active",
+        rating: 4.8,
+      },
+    ];
+  }
+
+  private buildDefaultProducts(
+    requirements: Map<string, LenderDocumentRequirement[]>,
+  ): LenderProduct[] {
+    return [
+      {
+        id: "385ca198-5b56-4587-a5b4-947ca9b61930",
+        lenderId: "a0e2711b-4bb5-4ba0-94f5-cc5f25152f1f",
+        name: "Small Business Term Loan",
+        interestRate: 6.25,
+        minAmount: 50000,
+        maxAmount: 500000,
+        termMonths: 60,
+        documentation: requirements.get("a0e2711b-4bb5-4ba0-94f5-cc5f25152f1f") ?? [],
+        recommendedScore: 70,
+        active: true,
+      },
+      {
+        id: "9ce2637f-2255-4790-8eb7-50f572cca40a",
+        lenderId: "4a67f0d4-571e-4be7-9a3a-5a846e91ec3c",
+        name: "Commercial Mortgage",
+        interestRate: 7.1,
+        minAmount: 250000,
+        maxAmount: 2000000,
+        termMonths: 240,
+        documentation: requirements.get("4a67f0d4-571e-4be7-9a3a-5a846e91ec3c") ?? [],
+        recommendedScore: 80,
+        active: true,
+      },
+      {
+        id: "a9a7b7dc-4a9f-4f42-872b-b723f47876eb",
+        lenderId: "f3b2077d-3a4f-4e75-8d0e-41f4e5cc0d84",
+        name: "Line of Credit",
+        interestRate: 5.6,
+        minAmount: 25000,
+        maxAmount: 300000,
+        termMonths: 36,
+        documentation: [
+          {
+            documentType: "financial-statements",
+            required: true,
+            description: "YTD financial statements",
+          },
+        ],
+        recommendedScore: 65,
+        active: true,
+      },
+    ];
+  }
 
   /**
    * Returns the list of configured lenders.
@@ -258,10 +292,10 @@ class LenderService {
     applicationId: string,
     lenderId: string,
   ): LenderReport & { aiScore: number; aiExplanation: string } {
-    const application = applicationService.getApplication(applicationId);
+    const application = this.applications.getApplication(applicationId);
     const product = this.listProducts(lenderId)[0];
     const { score, explanation } = product
-      ? aiService.scoreLenderMatch(product, application)
+      ? this.ai.scoreLenderMatch(product, application)
       : { score: 50, explanation: "Manual review required" };
 
     return {
@@ -299,3 +333,7 @@ class LenderService {
 export const lenderService = new LenderService();
 
 export type LenderServiceType = LenderService;
+
+export const createLenderService = (
+  options: LenderServiceOptions = {},
+): LenderService => new LenderService(options);

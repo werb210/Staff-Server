@@ -1,149 +1,90 @@
 import { Router } from "express";
-import { documentService } from "../services/documentService.js";
+import { z } from "zod";
 import {
   DocumentSaveSchema,
-  DocumentStatusResponseSchema,
   DocumentStatusUpdateSchema,
 } from "../schemas/document.schema.js";
-import { logError, logInfo } from "../utils/logger.js";
+import { azureBlobStorage } from "../utils/azureBlobStorage.js";
+import { isPlaceholderSilo, respondWithPlaceholder } from "../utils/placeholder.js";
 
 const router = Router();
 
-/**
- * GET /api/documents
- * Example: curl "http://localhost:5000/api/documents?applicationId=<id>"
- */
 router.get("/", (req, res) => {
-  try {
-    const applicationId = req.query.applicationId as string | undefined;
-    logInfo("Listing documents", { applicationId });
-    const documents = documentService.listDocuments(applicationId);
-    res.json({ message: "OK", data: documents });
-  } catch (error) {
-    logError("Failed to list documents", error);
-    res.status(400).json({ message: "Unable to fetch documents" });
+  if (isPlaceholderSilo(req)) {
+    return respondWithPlaceholder(res);
   }
+  const { applicationId } = req.query;
+  const documents = req.silo!.services.documents.listDocuments(
+    typeof applicationId === "string" ? applicationId : undefined,
+  );
+  res.json({ message: "OK", data: documents });
 });
 
-/**
- * GET /api/documents/:id
- * Example: curl http://localhost:5000/api/documents/<id>
- */
 router.get("/:id", (req, res) => {
-  try {
-    logInfo("Fetching document", { id: req.params.id });
-    const document = documentService.getDocument(req.params.id);
-    res.json({ message: "OK", data: document });
-  } catch (error) {
-    logError("Failed to fetch document", error);
-    res.status(400).json({ message: "Unable to fetch document" });
+  if (isPlaceholderSilo(req)) {
+    return respondWithPlaceholder(res);
   }
+  const id = z.string().uuid().safeParse(req.params.id);
+  if (!id.success) {
+    return res.status(400).json({ message: "Invalid document id" });
+  }
+  const document = req.silo!.services.documents.getDocument(id.data);
+  res.json({ message: "OK", data: document });
 });
 
-/**
- * POST /api/documents
- * Example: curl -X POST http://localhost:5000/api/documents \
- *   -H 'Content-Type: application/json' \
- *   -d '{"applicationId":"<id>","fileName":"statement.pdf","contentType":"application/pdf"}'
- */
 router.post("/", (req, res) => {
-  try {
-    const payload = DocumentSaveSchema.parse(req.body);
-    logInfo("Saving document metadata", { fileName: payload.fileName });
-    const stored = documentService.saveDocument(payload);
-    res.status(201).json({ message: "OK", data: stored });
-  } catch (error) {
-    logError("Failed to save document", error);
-    res.status(400).json({ message: "Invalid document payload" });
+  if (isPlaceholderSilo(req)) {
+    return respondWithPlaceholder(res);
   }
+  const parsed = DocumentSaveSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: "Invalid document payload" });
+  }
+  const defaults = {
+    status: parsed.data.status ?? req.silo!.services.metadata.documentStatusDefault,
+  };
+  const saved = req.silo!.services.documents.saveDocument({
+    ...parsed.data,
+    status: defaults.status,
+  });
+  res.status(201).json({ message: "OK", data: saved });
 });
 
-/**
- * POST /api/documents/:id/status
- * Example: curl -X POST http://localhost:5000/api/documents/<id>/status \
- *   -H 'Content-Type: application/json' -d '{"status":"review"}'
- */
 router.post("/:id/status", (req, res) => {
-  try {
-    const payload = DocumentStatusUpdateSchema.parse({
-      id: req.params.id,
-      status: req.body.status,
-      reviewedBy: req.body.reviewedBy,
-    });
-    logInfo("Updating document status", payload);
-    const updated = documentService.updateStatus(payload.id, payload.status);
-    res.json({ message: "OK", data: updated });
-  } catch (error) {
-    logError("Failed to update document status", error);
-    res.status(400).json({ message: "Unable to update document" });
+  if (isPlaceholderSilo(req)) {
+    return respondWithPlaceholder(res);
   }
+  const parsed = DocumentStatusUpdateSchema.safeParse({
+    id: req.params.id,
+    status: req.body.status,
+    reviewedBy: req.body.reviewedBy,
+  });
+  if (!parsed.success) {
+    return res.status(400).json({ message: "Invalid document status update" });
+  }
+  const result = req.silo!.services.documents.updateStatus(
+    parsed.data.id,
+    parsed.data.status,
+  );
+  res.json({ message: "OK", data: result });
 });
 
-/**
- * GET /api/documents/:id/status
- * Example: curl http://localhost:5000/api/documents/<id>/status
- */
-router.get("/:id/status", (req, res) => {
-  try {
-    logInfo("Fetching document status", { id: req.params.id });
-    const status = documentService.getDocumentStatus(req.params.id);
-    const payload = DocumentStatusResponseSchema.parse(status);
-    res.json({ message: "OK", data: payload });
-  } catch (error) {
-    logError("Failed to fetch document status", error);
-    res.status(400).json({ message: "Unable to fetch document status" });
+router.post("/upload-url", (req, res) => {
+  if (isPlaceholderSilo(req)) {
+    return respondWithPlaceholder(res);
   }
-});
-
-/**
- * GET /api/documents/:id/versions
- * Example: curl http://localhost:5000/api/documents/<id>/versions
- */
-router.get("/:id/versions", (req, res) => {
-  try {
-    logInfo("Listing document versions", { id: req.params.id });
-    const versions = documentService.listVersions(req.params.id);
-    res.json({ message: "OK", data: versions });
-  } catch (error) {
-    logError("Failed to list document versions", error);
-    res.status(400).json({ message: "Unable to fetch versions" });
+  const payload = z
+    .object({
+      fileName: z.string().min(1),
+      applicationId: z.string().uuid(),
+    })
+    .safeParse(req.body);
+  if (!payload.success) {
+    return res.status(400).json({ message: "Invalid upload payload" });
   }
-});
-
-/**
- * GET /api/documents/:id/download
- * Example: curl "http://localhost:5000/api/documents/<id>/download?version=1"
- */
-router.get("/:id/download", (req, res) => {
-  try {
-    const version = req.query.version
-      ? Number.parseInt(String(req.query.version), 10)
-      : undefined;
-    logInfo("Generating download URL", { id: req.params.id, version });
-    const download = documentService.getDownloadUrl(req.params.id, version);
-    res.json({ message: "OK", data: download });
-  } catch (error) {
-    logError("Failed to generate download URL", error);
-    res.status(400).json({ message: (error as Error).message });
-  }
-});
-
-/**
- * POST /api/documents/:id/upload-url
- * Example: curl -X POST http://localhost:5000/api/documents/<id>/upload-url \
- *   -H 'Content-Type: application/json' -d '{"fileName":"statement.pdf"}'
- */
-router.post("/:id/upload-url", (req, res) => {
-  try {
-    const fileName =
-      typeof req.body.fileName === "string" ? req.body.fileName : "upload.bin";
-    logInfo("Generating upload URL", { id: req.params.id, fileName });
-    const upload = documentService.generateUploadUrl(req.params.id, fileName);
-    res.json({ message: "OK", data: upload });
-  } catch (error) {
-    logError("Failed to generate upload URL", error);
-    res.status(400).json({ message: "Unable to generate upload URL" });
-  }
+  const blobName = `${payload.data.applicationId}/${Date.now()}-${payload.data.fileName}`;
+  const upload = azureBlobStorage.createUploadUrl("documents", blobName);
+  res.json({ message: "OK", data: upload });
 });
 
 export default router;

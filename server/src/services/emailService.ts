@@ -21,7 +21,7 @@ export interface EmailPayload {
 /**
  * EmailService captures outbound email messages in memory.
  */
-class EmailService {
+export class EmailService {
   private readonly emails: EmailMessage[] = [];
 
   /**
@@ -88,3 +88,5 @@ class EmailService {
 export const emailService = new EmailService();
 
 export type EmailServiceType = EmailService;
+
+export const createEmailService = (): EmailService => new EmailService();

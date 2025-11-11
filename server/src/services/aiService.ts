@@ -3,7 +3,7 @@ import type { DocumentMetadata } from "../schemas/document.schema.js";
 import type { LenderProduct } from "../schemas/lenderProduct.schema.js";
 import { createRecommendation, createSummary } from "../utils/aiHelpers.js";
 
-class AiService {
+export class AiService {
   public summarizeApplication(application: Application): string {
     return createSummary(
       `${application.applicantName} requesting ${application.loanAmount.toFixed(
@@ -46,3 +46,5 @@ class AiService {
 export const aiService = new AiService();
 
 export type AiServiceType = AiService;
+
+export const createAiService = (): AiService => new AiService();

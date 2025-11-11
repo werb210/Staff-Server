@@ -3,7 +3,10 @@ import {
   type PipelineBoard,
   type PipelineTransitionInput,
 } from "../schemas/pipeline.schema.js";
-import { applicationService } from "./applicationService.js";
+import {
+  ApplicationService,
+  type ApplicationServiceType,
+} from "./applicationService.js";
 
 interface AssignmentRecord {
   id: string;
@@ -13,12 +16,15 @@ interface AssignmentRecord {
   note?: string;
 }
 
+export interface PipelineServiceOptions {
+  applications?: ApplicationServiceType;
+}
+
 /**
  * PipelineService coordinates application stage transitions and assignments.
  */
-class PipelineService {
+export class PipelineService {
   private readonly assignments = new Map<string, AssignmentRecord>();
-
   private readonly allowedTransitions: Record<string, ReadonlyArray<string>> = {
     draft: ["submitted", "review"],
     submitted: ["review", "draft"],
@@ -26,6 +32,11 @@ class PipelineService {
     approved: ["completed", "review"],
     completed: [],
   };
+  private readonly applications: ApplicationServiceType;
+
+  constructor(options: PipelineServiceOptions = {}) {
+    this.applications = options.applications ?? new ApplicationService();
+  }
 
   private validateAssignee(assignee: string) {
     if (!assignee.trim()) {
@@ -47,7 +58,7 @@ class PipelineService {
   }
 
   public getBoard(): PipelineBoard {
-    const stages = applicationService.buildPipeline();
+    const stages = this.applications.buildPipeline();
     const assignments = Array.from(this.assignments.values()).map((assignment) => ({
       id: assignment.id,
       assignedTo: assignment.assignedTo,
@@ -64,7 +75,7 @@ class PipelineService {
   }
 
   public transitionApplication(payload: PipelineTransitionInput) {
-    const application = applicationService.getApplication(payload.applicationId);
+    const application = this.applications.getApplication(payload.applicationId);
 
     if (payload.fromStage && payload.fromStage !== application.status) {
       throw new Error(
@@ -75,12 +86,12 @@ class PipelineService {
     this.guardTransition(application.status, payload.toStage);
 
     const updated = payload.assignedTo
-      ? applicationService.assignApplication(
+      ? this.applications.assignApplication(
           application.id,
           payload.assignedTo,
           payload.toStage,
         )
-      : applicationService.updateStatus(application.id, payload.toStage);
+      : this.applications.updateStatus(application.id, payload.toStage);
 
     if (payload.assignedTo) {
       this.recordAssignment({
@@ -99,7 +110,7 @@ class PipelineService {
 
   public assignApplication(payload: PipelineAssignmentInput) {
     this.validateAssignee(payload.assignedTo);
-    const application = applicationService.assignApplication(
+    const application = this.applications.assignApplication(
       payload.id,
       payload.assignedTo,
       payload.stage,
@@ -134,3 +145,7 @@ class PipelineService {
 export const pipelineService = new PipelineService();
 
 export type PipelineServiceType = PipelineService;
+
+export const createPipelineService = (
+  options: PipelineServiceOptions = {},
+): PipelineService => new PipelineService(options);

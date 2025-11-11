@@ -13,7 +13,7 @@ export interface MarketingItem {
 /**
  * MarketingService maintains in-memory marketing campaign data.
  */
-class MarketingService {
+export class MarketingService {
   private ads: MarketingItem[] = [
     {
       id: "3d8a4b39-4f29-4ddd-8627-0d8b284dd2a9",
@@ -118,3 +118,5 @@ class MarketingService {
 export const marketingService = new MarketingService();
 
 export type MarketingServiceType = MarketingService;
+
+export const createMarketingService = (): MarketingService => new MarketingService();

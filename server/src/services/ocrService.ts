@@ -6,7 +6,7 @@ interface OcrResult {
   summary: string;
 }
 
-class OcrService {
+export class OcrService {
   public analyze(content: string | Buffer): OcrResult {
     const text = typeof content === "string" ? content : content.toString("utf-8");
     const normalized = text.trim() || "Document received";
@@ -21,3 +21,5 @@ class OcrService {
 export const ocrService = new OcrService();
 
 export type OcrServiceType = OcrService;
+
+export const createOcrService = (): OcrService => new OcrService();

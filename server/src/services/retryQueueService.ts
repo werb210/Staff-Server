@@ -13,7 +13,7 @@ export interface RetryJob {
 /**
  * RetryQueueService keeps a list of retryable jobs for admin tooling.
  */
-class RetryQueueService {
+export class RetryQueueService {
   private readonly jobs = new Map<string, RetryJob>();
 
   constructor() {
@@ -72,3 +72,6 @@ class RetryQueueService {
 export const retryQueueService = new RetryQueueService();
 
 export type RetryQueueServiceType = RetryQueueService;
+
+export const createRetryQueueService = (): RetryQueueService =>
+  new RetryQueueService();

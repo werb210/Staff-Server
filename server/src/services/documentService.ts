@@ -6,10 +6,17 @@ import {
   type DocumentStatusResponse,
   type DocumentVersion,
 } from "../schemas/document.schema.js";
-import { azureBlobStorage } from "../utils/azureBlobStorage.js";
+import { azureBlobStorage, type AzureBlobStorageType } from "../utils/azureBlobStorage.js";
 import { createChecksum } from "../utils/checksum.js";
-import { aiService } from "./aiService.js";
-import { ocrService } from "./ocrService.js";
+import { aiService, type AiServiceType } from "./aiService.js";
+import { ocrService, type OcrServiceType } from "./ocrService.js";
+
+export interface DocumentServiceOptions {
+  ai?: AiServiceType;
+  ocr?: OcrServiceType;
+  storage?: AzureBlobStorageType;
+  seedDocuments?: Array<Partial<DocumentSaveInput> & { status: DocumentStatus }>;
+}
 
 interface DocumentHistoryPayload extends DocumentSaveInput {
   status: DocumentStatus;
@@ -23,17 +30,24 @@ interface DocumentHistoryPayload extends DocumentSaveInput {
 /**
  * DocumentService tracks uploaded document metadata in memory with versioning support.
  */
-class DocumentService {
+export class DocumentService {
   private readonly documents = new Map<string, DocumentMetadata>();
+  private readonly ai: AiServiceType;
+  private readonly ocr: OcrServiceType;
+  private readonly storage: AzureBlobStorageType;
 
-  constructor() {
-    const seedDocuments: Array<Partial<DocumentSaveInput> & { status: DocumentStatus }> = [
+  constructor(options: DocumentServiceOptions = {}) {
+    this.ai = options.ai ?? aiService;
+    this.ocr = options.ocr ?? ocrService;
+    this.storage = options.storage ?? azureBlobStorage;
+
+    const seedDocuments = options.seedDocuments ?? [
       {
         id: "9d7c1c70-0d21-4f32-8fd3-bf366d9d14d4",
         applicationId: "c27e0c87-3bd5-47cc-8d14-5c569ea2cc15",
         fileName: "bank-statement.pdf",
         contentType: "application/pdf",
-        status: "review",
+        status: "review" as const,
         uploadedBy: "alex.martin",
       },
       {
@@ -41,7 +55,7 @@ class DocumentService {
         applicationId: "8c0ca80e-efb6-4b8f-92dd-18de78274b3d",
         fileName: "tax-return-2023.pdf",
         contentType: "application/pdf",
-        status: "approved",
+        status: "approved" as const,
         uploadedBy: "olivia.lee",
       },
     ];
@@ -81,7 +95,7 @@ class DocumentService {
       uploadedAt,
       checksum: resolvedChecksum,
       blobUrl: resolvedBlobUrl,
-      sasUrl: azureBlobStorage.generateSasUrl("documents", blobPath),
+      sasUrl: this.storage.generateSasUrl("documents", blobPath),
       uploadedBy,
       note: note ?? undefined,
     };
@@ -89,10 +103,10 @@ class DocumentService {
 
   private buildMetadata(input: DocumentHistoryPayload): DocumentMetadata {
     const id = input.id ?? randomUUID();
-    const ocr = ocrService.analyze(input.fileName);
+    const ocr = this.ocr.analyze(input.fileName);
     const summary =
       input.aiSummary ??
-      aiService.summarizeDocument({
+      this.ai.summarizeDocument({
         fileName: input.fileName,
         ocrTextPreview: ocr.summary,
       });
@@ -115,7 +129,7 @@ class DocumentService {
       aiSummary: summary,
       explainability:
         input.explainability ??
-        aiService.buildDocumentExplainability({
+        this.ai.buildDocumentExplainability({
           id,
           applicationId: input.applicationId,
           fileName: input.fileName,
@@ -202,6 +216,8 @@ class DocumentService {
       status,
       version,
       uploadedAt: now,
+      uploadedBy: input.uploadedBy ?? existing?.uploadedBy,
+      note: input.note ?? existing?.note,
       versionHistory,
     });
 
@@ -210,91 +226,17 @@ class DocumentService {
   }
 
   /**
-   * Updates the status of a document (e.g. reviewed, rejected).
+   * Updates the status of a document.
    */
-  public updateStatus(id: string, status: DocumentStatus): DocumentMetadata {
+  public updateStatus(id: string, status: DocumentStatus): DocumentStatusResponse {
     const document = this.getDocument(id);
-    const updated: DocumentMetadata = {
-      ...document,
-      status,
-      lastAnalyzedAt: new Date().toISOString(),
-    };
+    const updated: DocumentMetadata = { ...document, status };
     this.documents.set(id, updated);
-    return updated;
-  }
-
-  /**
-   * Returns the status metadata for a document.
-   */
-  public getDocumentStatus(id: string): DocumentStatusResponse {
-    const document = this.getDocument(id);
     return {
-      id: document.id,
-      status: document.status,
-      version: document.version,
-      lastUpdatedAt: document.lastAnalyzedAt ?? document.uploadedAt,
-    };
-  }
-
-  /**
-   * Lists the versions available for a document including the latest.
-   */
-  public listVersions(id: string): DocumentVersion[] {
-    const document = this.getDocument(id);
-    return [
-      {
-        version: document.version,
-        uploadedAt: document.uploadedAt,
-        checksum: document.checksum,
-        blobUrl: document.blobUrl,
-        sasUrl: document.sasUrl,
-        uploadedBy: document.uploadedBy,
-        note: document.note,
-      },
-      ...document.versionHistory,
-    ];
-  }
-
-  /**
-   * Generates an upload URL for the provided document identifier.
-   */
-  public generateUploadUrl(documentId: string, fileName: string) {
-    const document = this.documents.get(documentId);
-    const nextVersion = document ? document.version + 1 : 1;
-    return azureBlobStorage.createUploadUrl(
-      "documents",
-      `${documentId}/v${nextVersion}/${fileName}`,
-    );
-  }
-
-  /**
-   * Returns a SAS URL to download the requested version of a document.
-   */
-  public getDownloadUrl(documentId: string, version?: number) {
-    const document = this.getDocument(documentId);
-    if (!version || version === document.version) {
-      return {
-        version: document.version,
-        sasUrl: azureBlobStorage.generateSasUrl(
-          "documents",
-          `${documentId}/v${document.version}/${document.fileName}`,
-        ),
-      };
-    }
-
-    const targetVersion = document.versionHistory.find(
-      (entry) => entry.version === version,
-    );
-    if (!targetVersion) {
-      throw new Error("Version not found");
-    }
-
-    return {
-      version: targetVersion.version,
-      sasUrl: azureBlobStorage.generateSasUrl(
-        "documents",
-        `${documentId}/v${targetVersion.version}/${document.fileName}`,
-      ),
+      id,
+      status,
+      version: updated.version,
+      lastUpdatedAt: new Date().toISOString(),
     };
   }
 }
@@ -302,3 +244,7 @@ class DocumentService {
 export const documentService = new DocumentService();
 
 export type DocumentServiceType = DocumentService;
+
+export const createDocumentService = (
+  options: DocumentServiceOptions = {},
+): DocumentService => new DocumentService(options);

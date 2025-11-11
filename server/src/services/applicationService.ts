@@ -7,17 +7,33 @@ import {
   type ApplicationUpdateInput,
 } from "../schemas/application.schema.js";
 import { type PipelineStage } from "../schemas/pipeline.schema.js";
-import { aiService } from "./aiService.js";
+import { aiService, type AiServiceType } from "./aiService.js";
+
+export interface ApplicationServiceOptions {
+  ai?: AiServiceType;
+  seedApplications?: Application[];
+}
 
 /**
  * ApplicationService stores applications in memory to simulate a database.
  */
-class ApplicationService {
+export class ApplicationService {
   private readonly applications = new Map<string, Application>();
+  private readonly ai: AiServiceType;
 
-  constructor() {
+  constructor(options: ApplicationServiceOptions = {}) {
+    this.ai = options.ai ?? aiService;
     const now = new Date();
-    const seed: Application[] = [
+    const seed: Application[] =
+      options.seedApplications ?? this.createDefaultSeed(now);
+
+    seed.forEach((application) =>
+      this.applications.set(application.id, application),
+    );
+  }
+
+  private createDefaultSeed(now: Date): Application[] {
+    return [
       {
         id: "c27e0c87-3bd5-47cc-8d14-5c569ea2cc15",
         applicantName: "Jane Doe",
@@ -65,10 +81,6 @@ class ApplicationService {
         completedAt: now.toISOString(),
       },
     ];
-
-    seed.forEach((application) =>
-      this.applications.set(application.id, application),
-    );
   }
 
   /**
@@ -90,7 +102,7 @@ class ApplicationService {
       status: application.status,
       score: application.score,
       submittedAt: application.submittedAt,
-      summary: aiService.summarizeApplication(application),
+      summary: this.ai.summarizeApplication(application),
     }));
   }
 
@@ -123,8 +135,8 @@ class ApplicationService {
    * Creates a new application from the supplied payload.
    */
   public createApplication(payload: ApplicationCreateInput): Application {
-    const id = randomUUID();
     const now = new Date().toISOString();
+    const id = randomUUID();
     const application: Application = {
       id,
       applicantName: payload.applicantName,
@@ -222,7 +234,7 @@ class ApplicationService {
    */
   public publishApplication(id: string, publishedBy: string): ApplicationPublic {
     const application = this.updateStatus(id, "approved");
-    const summary = aiService.summarizeApplication(application);
+    const summary = this.ai.summarizeApplication(application);
     return {
       id: application.id,
       applicantName: application.applicantName,
@@ -264,8 +276,7 @@ class ApplicationService {
         );
         const averageScore =
           apps.length > 0
-            ?
-                apps.reduce((sum, app) => sum + (app.score ?? 0), 0) /
+            ? apps.reduce((sum, app) => sum + (app.score ?? 0), 0) /
               apps.length
             : undefined;
         const sortedApplications = [...apps].sort((a, b) =>
@@ -289,3 +300,7 @@ class ApplicationService {
 export const applicationService = new ApplicationService();
 
 export type ApplicationServiceType = ApplicationService;
+
+export const createApplicationService = (
+  options: ApplicationServiceOptions = {},
+): ApplicationService => new ApplicationService(options);
