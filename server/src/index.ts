@@ -57,6 +57,11 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
+// Root endpoint for sanity check
+app.get("/", (_req: Request, res: Response) => {
+  res.json({ status: "server running" });
+});
+
 // Mount top-level routers
 app.use("/api/health", healthRouter);
 app.use("/api/applications", applicationsRouter);
