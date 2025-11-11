@@ -1,0 +1,30 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #f7f8fa;
+  color: #1a1a1a;
+}
+
+a {
+  color: #1e88e5;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-top: 1rem;
+}
+
+td, th {
+  border: 1px solid #ddd;
+  padding: 0.5rem;
+}
+
+button {
+  cursor: pointer;
+}

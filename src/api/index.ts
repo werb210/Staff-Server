@@ -5,7 +5,6 @@ import {
   CallLog,
   DocumentUploadInput,
   EmailMessage,
-  HealthStatus,
   Lender,
   LenderProduct,
   PipelineBoardData,
@@ -15,21 +14,35 @@ import {
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
+type ApiEnvelope<T> = {
+  message: string;
+  data: T;
+};
+
 export interface ApiError extends Error {
   status: number;
   data?: unknown;
 }
 
 const runtimeEnv = (() => {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return typeof import.meta !== "undefined" && (import.meta as any)?.env
-      ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ((import.meta as any).env as Record<string, string | undefined>)
-      : {};
-  } catch (error) {
-    return {} as Record<string, string | undefined>;
+  type EnvRecord = Record<string, string | undefined>;
+  const globalCandidate =
+    typeof globalThis !== "undefined"
+      ? ((globalThis as typeof globalThis & { __ENV__?: EnvRecord }).__ENV__ ?? null)
+      : null;
+
+  if (globalCandidate) {
+    return globalCandidate;
   }
+
+  if (typeof window !== "undefined") {
+    const browserCandidate = (window as typeof window & { __ENV__?: EnvRecord }).__ENV__;
+    if (browserCandidate) {
+      return browserCandidate;
+    }
+  }
+
+  return {} as EnvRecord;
 })();
 
 const getBaseUrl = () =>
@@ -72,6 +85,10 @@ async function request<T>(
     throw error;
   }
 
+  if (data && typeof data === "object" && "data" in data) {
+    return (data as ApiEnvelope<T>).data;
+  }
+
   return (data ?? (undefined as unknown as T)) as T;
 }
 
@@ -89,10 +106,8 @@ function getQueryString(params?: Record<string, string | number | undefined>) {
 
 export const apiClient = {
   // Applications
-  getApplications(params?: Record<string, string | number | undefined>) {
-    return request<Application[]>(
-      `/api/applications${getQueryString(params)}`
-    );
+  getApplications<T = Application>(params?: Record<string, string | number | undefined>) {
+    return request<T[]>(`/api/applications${getQueryString(params)}`);
   },
   getApplication(id: string) {
     return request<Application>(`/api/applications/${id}`);
@@ -115,10 +130,15 @@ export const apiClient = {
     );
   },
   uploadDocument(payload: DocumentUploadInput) {
-    return request<ApplicationDocument>(
-      `/api/documents`,
+    return request<{ metadata: ApplicationDocument; upload: { uploadUrl: string; expiresAt: string } }>(
+      `/api/applications/upload`,
       {
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          applicationId: payload.applicationId,
+          documentId: payload.documentId,
+          fileName: payload.fileName,
+          contentType: "application/pdf",
+        }),
       },
       "POST"
     );
@@ -129,9 +149,27 @@ export const apiClient = {
     return request<Lender[]>(`/api/lenders`);
   },
   getLenderProducts(lenderId?: string) {
-    return request<LenderProduct[]>(
-      `/api/lender-products${getQueryString({ lenderId })}`
+    if (lenderId) {
+      return request<LenderProduct[]>(`/api/lenders/${lenderId}/products`);
+    }
+    return request<LenderProduct[]>(`/api/lenders/products`);
+  },
+  getLenderRequirements(lenderId: string) {
+    return request<{ documentType: string; required: boolean; description: string }[]>(
+      `/api/lenders/${lenderId}/requirements`
     );
+  },
+  sendToLender(applicationId: string, lenderId: string) {
+    return request<Record<string, unknown>>(
+      `/api/lenders/send-to-lender`,
+      {
+        body: JSON.stringify({ applicationId, lenderId }),
+      },
+      "POST"
+    );
+  },
+  getLenderReports() {
+    return request<Record<string, unknown>[]>(`/api/lenders/reports`);
   },
 
   // Communication
@@ -179,24 +217,6 @@ export const apiClient = {
   getMarketingAutomations() {
     return request<Record<string, unknown>[]>(`/api/marketing/automation`);
   },
-  toggleAd(id: string, active: boolean) {
-    return request<Record<string, unknown>>(
-      `/api/marketing/ads/${id}`,
-      {
-        body: JSON.stringify({ active }),
-      },
-      "PUT"
-    );
-  },
-  toggleAutomation(id: string, active: boolean) {
-    return request<Record<string, unknown>>(
-      `/api/marketing/automation/${id}`,
-      {
-        body: JSON.stringify({ active }),
-      },
-      "PUT"
-    );
-  },
 
   // Admin
   getRetryQueue() {
@@ -207,16 +227,17 @@ export const apiClient = {
   },
 
   // Pipeline
-  getPipeline() {
-    return request<PipelineBoardData>(`/api/pipeline`);
+  async getPipeline(): Promise<PipelineBoardData> {
+    const stages = await request<PipelineBoardData["stages"]>(`/api/pipeline`);
+    return { stages };
   },
 
   // Health
   getHealth() {
-    return request<HealthStatus[]>(`/api/_int/health`);
+    return request<Record<string, unknown>>(`/api/health`);
   },
   getBuildGuard() {
-    return request<HealthStatus | Record<string, unknown>>(`/api/build-guard`);
+    return request<Record<string, unknown>>(`/api/_int/build-guard`);
   },
 };
 

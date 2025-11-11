@@ -3,15 +3,18 @@ import { randomUUID } from "crypto";
 export interface EmailMessage {
   id: string;
   to: string;
+  from: string;
   subject: string;
   body: string;
   sentAt: string;
+  status: "queued" | "sent";
 }
 
 export interface EmailPayload {
   to: string;
   subject: string;
   body: string;
+  from?: string;
 }
 
 /**
@@ -27,9 +30,11 @@ class EmailService {
     const message: EmailMessage = {
       id: randomUUID(),
       to: payload.to,
+      from: payload.from ?? "ops@boreal.example",
       subject: payload.subject,
       body: payload.body,
       sentAt: new Date().toISOString(),
+      status: "sent",
     };
     this.emails.unshift(message);
     return message;

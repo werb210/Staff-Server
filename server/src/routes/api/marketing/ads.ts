@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { logError, logInfo } from "../../../utils/logger.js";
 
 const router = Router();
 
@@ -11,6 +12,7 @@ const AdSchema = z.object({
 
 // Lists synthetic ad campaigns for dashboards.
 router.get("/", (_req, res) => {
+  logInfo("Listing marketing ads");
   res.json({
     message: "OK",
     data: [
@@ -22,8 +24,14 @@ router.get("/", (_req, res) => {
 
 // Validates ad payloads and echoes them back to the client.
 router.post("/", (req, res) => {
-  const ad = AdSchema.parse(req.body);
-  res.status(201).json({ message: "OK", data: ad });
+  try {
+    const ad = AdSchema.parse(req.body);
+    logInfo("Received marketing ad", ad);
+    res.status(201).json({ message: "OK", data: ad });
+  } catch (error) {
+    logError("Failed to validate ad", error);
+    res.status(400).json({ message: "Invalid ad payload" });
+  }
 });
 
 export default router;

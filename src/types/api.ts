@@ -1,6 +1,7 @@
 export type DocumentStatus =
-  | "pending"
+  | "uploaded"
   | "processing"
+  | "review"
   | "approved"
   | "rejected";
 
@@ -11,15 +12,32 @@ export interface Application {
   applicantPhone?: string;
   loanAmount: number;
   loanPurpose: string;
-  status: string;
+  status: "draft" | "submitted" | "review" | "approved" | "completed";
+  score?: number;
+  assignedTo?: string;
   createdAt: string;
   updatedAt?: string;
-  stage?: string;
+  submittedAt?: string;
+  submittedBy?: string;
+  completedAt?: string;
+  completedBy?: string;
+}
+
+export interface ApplicationSummary {
+  id: string;
+  applicantName: string;
+  loanAmount: number;
+  loanPurpose: string;
+  status: Application["status"];
+  score?: number;
+  submittedAt?: string;
+  summary?: string;
 }
 
 export interface DocumentUploadInput {
   applicationId: string;
-  documentType: string;
+  documentId: string;
+  documentType?: string;
   fileName: string;
   fileContent: string; // base64 encoded
 }
@@ -27,10 +45,15 @@ export interface DocumentUploadInput {
 export interface ApplicationDocument {
   id: string;
   applicationId: string;
-  documentType: string;
+  documentType?: string;
   status: DocumentStatus;
   uploadedAt: string;
   fileName: string;
+  checksum: string;
+  blobUrl: string;
+  sasUrl?: string;
+  aiSummary?: string;
+  explainability?: Record<string, string>;
 }
 
 export interface LenderProduct {
@@ -40,16 +63,19 @@ export interface LenderProduct {
   interestRate: number;
   minAmount: number;
   maxAmount: number;
-  terms?: string;
-  active: boolean;
+  termMonths: number;
+  documentation: { documentType: string; required: boolean; description: string }[];
+  recommendedScore: number;
 }
 
 export interface Lender {
   id: string;
   name: string;
   contactEmail: string;
+  contactPhone?: string;
   products?: LenderProduct[];
-  status?: string;
+  status?: "active" | "paused" | "onboarding";
+  rating?: number;
 }
 
 export interface SmsMessage {
@@ -58,16 +84,17 @@ export interface SmsMessage {
   from: string;
   message: string;
   sentAt: string;
-  status: string;
+  status: "queued" | "sent";
 }
 
 export interface EmailMessage {
   id: string;
   to: string;
+  from: string;
   subject: string;
   body: string;
   sentAt: string;
-  status: string;
+  status: "queued" | "sent";
 }
 
 export interface CallLog {
@@ -75,9 +102,9 @@ export interface CallLog {
   to: string;
   from: string;
   durationSeconds: number;
-  startedAt: string;
+  createdAt: string;
   notes?: string;
-  outcome: string;
+  outcome: "completed" | "no-answer" | "busy";
 }
 
 export interface BackupRecord {
@@ -101,7 +128,10 @@ export interface PipelineStage {
   id: string;
   name: string;
   position: number;
-  applications: Application[];
+  count: number;
+  totalLoanAmount: number;
+  averageScore?: number;
+  lastUpdatedAt: string;
 }
 
 export interface PipelineBoardData {

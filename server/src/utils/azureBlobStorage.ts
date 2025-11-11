@@ -20,6 +20,19 @@ class AzureBlobStorage {
   public generateSasUrl(container: string, blobName: string): string {
     return `https://example.blob.core.windows.net/${container}/${blobName}?sas-token=stub`;
   }
+
+  /**
+   * Returns an upload URL that front-ends can use to stream files directly to storage.
+   */
+  public createUploadUrl(container: string, blobName: string): {
+    uploadUrl: string;
+    expiresAt: string;
+  } {
+    return {
+      uploadUrl: this.generateSasUrl(container, `${blobName}?comp=block&upload`),
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+    };
+  }
 }
 
 export const azureBlobStorage = new AzureBlobStorage();

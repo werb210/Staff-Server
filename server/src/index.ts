@@ -63,7 +63,7 @@ app.use("/api/communication/sms", smsRouter);
 app.use("/api/communication/email", emailRouter);
 app.use("/api/communication/calls", callsRouter);
 
-app.use("/api/lenders/send", sendToLenderRouter);
+app.use("/api/lenders/send-to-lender", sendToLenderRouter);
 app.use("/api/lenders/reports", lenderReportsRouter);
 
 app.use("/api/marketing/ads", marketingAdsRouter);
@@ -72,8 +72,8 @@ app.use("/api/marketing/automation", marketingAutomationRouter);
 app.use("/api/admin/retry-queue", retryQueueRouter);
 app.use("/api/admin/backups", backupsRouter);
 
-app.use("/api/internal/health", internalHealthRouter);
-app.use("/api/internal/build-guard", buildGuardRouter);
+app.use("/api/_int/health", internalHealthRouter);
+app.use("/api/_int/build-guard", buildGuardRouter);
 
 app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
   logError("Request error", error);

@@ -1,9 +1,11 @@
 import { Router } from "express";
+import { logInfo } from "../utils/logger.js";
 
 const router = Router();
 
 // Returns a static set of operational tasks for the UI to render.
 router.get("/", (_req, res) => {
+  logInfo("Listing tasks");
   res.json({
     message: "OK",
     data: [

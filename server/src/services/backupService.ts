@@ -3,8 +3,10 @@ import { randomUUID } from "crypto";
 export interface BackupRecord {
   id: string;
   name: string;
-  status: "pending" | "completed";
+  status: "pending" | "completed" | "failed";
   createdAt: string;
+  completedAt?: string;
+  notes?: string;
 }
 
 /**
@@ -17,6 +19,8 @@ class BackupService {
       name: "nightly-1",
       status: "completed",
       createdAt: new Date().toISOString(),
+      completedAt: new Date().toISOString(),
+      notes: "Completed via scheduled workflow",
     },
   ];
 
@@ -36,6 +40,7 @@ class BackupService {
       name,
       status: "pending",
       createdAt: new Date().toISOString(),
+      notes: "Queued for execution",
     };
     this.backups.unshift(backup);
     return backup;

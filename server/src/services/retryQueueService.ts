@@ -5,7 +5,9 @@ export interface RetryJob {
   name: string;
   status: "queued" | "retrying" | "failed" | "completed";
   attempts: number;
+  scheduledFor: string;
   updatedAt: string;
+  lastError?: string;
 }
 
 /**
@@ -20,7 +22,9 @@ class RetryQueueService {
       name: "sync-application",
       status: "failed",
       attempts: 2,
+      scheduledFor: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
       updatedAt: new Date().toISOString(),
+      lastError: "Timeout while contacting upstream service",
     };
     this.jobs.set(seed.id, seed);
   }
@@ -41,6 +45,7 @@ class RetryQueueService {
       name,
       status: "queued",
       attempts: 0,
+      scheduledFor: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
       updatedAt: new Date().toISOString(),
     };
     this.jobs.set(job.id, job);
@@ -56,6 +61,7 @@ class RetryQueueService {
       ...job,
       status: "retrying",
       attempts: job.attempts + 1,
+      scheduledFor: new Date(Date.now() + 2 * 60 * 1000).toISOString(),
       updatedAt: new Date().toISOString(),
     };
     this.jobs.set(updated.id, updated);
