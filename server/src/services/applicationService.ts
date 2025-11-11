@@ -7,11 +7,22 @@ import {
   type ApplicationUpdateInput,
 } from "../schemas/application.schema.js";
 import { type PipelineStage } from "../schemas/pipeline.schema.js";
+import {
+  type ClientPortalSession,
+  ClientPortalSessionSchema,
+} from "../schemas/publicLogin.schema.js";
 import { aiService, type AiServiceType } from "./aiService.js";
 
 export interface ApplicationServiceOptions {
   ai?: AiServiceType;
   seedApplications?: Application[];
+}
+
+export class ApplicationPortalNotFoundError extends Error {
+  constructor(identifier: string) {
+    super(`No application found for ${identifier}`);
+    this.name = "ApplicationPortalNotFoundError";
+  }
 }
 
 /**
@@ -88,6 +99,17 @@ export class ApplicationService {
    */
   public listApplications(): Application[] {
     return Array.from(this.applications.values());
+  }
+
+  private findExistingApplication(id: string): Application | undefined {
+    return this.applications.get(id);
+  }
+
+  private findByEmail(email: string): Application | undefined {
+    const normalized = email.trim().toLowerCase();
+    return this.listApplications().find(
+      (application) => application.applicantEmail?.toLowerCase() === normalized,
+    );
   }
 
   /**
@@ -298,6 +320,85 @@ export class ApplicationService {
           applications: sortedApplications,
         };
       });
+  }
+
+  private buildPortalNextStep(status: ApplicationStatus): string {
+    switch (status) {
+      case "draft":
+        return "Resume your application to provide the remaining details.";
+      case "submitted":
+        return "We are reviewing your submission. Expect an update shortly.";
+      case "review":
+        return "Upload any requested documents to keep the process moving.";
+      case "approved":
+        return "Review and sign the agreement to finalize your funding.";
+      case "completed":
+        return "Your loan has been funded. Access your documents anytime.";
+      default:
+        return "Check your application progress for the latest updates.";
+    }
+  }
+
+  private resolvePortalApplication(
+    applicationId?: string,
+    applicantEmail?: string,
+  ): Application {
+    const fromId = applicationId
+      ? this.findExistingApplication(applicationId)
+      : undefined;
+    if (fromId) {
+      return fromId;
+    }
+
+    const fromEmail = applicantEmail ? this.findByEmail(applicantEmail) : undefined;
+    if (fromEmail) {
+      return fromEmail;
+    }
+
+    const identifier = applicationId ?? applicantEmail ?? "provided criteria";
+    throw new ApplicationPortalNotFoundError(identifier);
+  }
+
+  private buildPortalSession(
+    application: Application,
+    silo: string,
+  ): ClientPortalSession {
+    const preferredName = application.applicantName
+      .trim()
+      .split(" ")[0] || "there";
+    const session: ClientPortalSession = {
+      applicationId: application.id,
+      applicantName: application.applicantName,
+      applicantEmail: application.applicantEmail,
+      status: application.status,
+      redirectUrl: `/portal/applications/${application.id}`,
+      nextStep: this.buildPortalNextStep(application.status),
+      updatedAt: new Date().toISOString(),
+      silo,
+      message: `Welcome back, ${preferredName}!`,
+    };
+
+    return ClientPortalSessionSchema.parse(session);
+  }
+
+  public createClientPortalSession(options: {
+    applicationId?: string;
+    applicantEmail?: string;
+    silo: string;
+  }): ClientPortalSession {
+    const application = this.resolvePortalApplication(
+      options.applicationId,
+      options.applicantEmail,
+    );
+    return this.buildPortalSession(application, options.silo);
+  }
+
+  public getClientPortalSession(
+    applicationId: string,
+    silo: string,
+  ): ClientPortalSession {
+    const application = this.resolvePortalApplication(applicationId, undefined);
+    return this.buildPortalSession(application, silo);
   }
 }
 

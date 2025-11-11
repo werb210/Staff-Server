@@ -195,3 +195,15 @@ export interface MarketingItem {
   spend: number;
   lastUpdatedAt: string;
 }
+
+export interface ClientPortalSession {
+  applicationId: string;
+  applicantName: string;
+  applicantEmail: string;
+  status: Application["status"];
+  redirectUrl: string;
+  nextStep: string;
+  updatedAt: string;
+  silo: string;
+  message: string;
+}

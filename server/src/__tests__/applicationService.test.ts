@@ -1,4 +1,7 @@
-import { applicationService } from "../services/applicationService.js";
+import {
+  ApplicationPortalNotFoundError,
+  applicationService,
+} from "../services/applicationService.js";
 
 describe("applicationService", () => {
   it("creates applications with required fields", () => {
@@ -28,5 +31,26 @@ describe("applicationService", () => {
 
     expect(pipeline.length).toBeGreaterThan(0);
     expect(pipeline[0]).toHaveProperty("totalLoanAmount");
+  });
+
+  it("creates a client portal session for an existing applicant", () => {
+    const [first] = applicationService.listApplications();
+    const session = applicationService.createClientPortalSession({
+      applicantEmail: first.applicantEmail,
+      silo: "BF",
+    });
+
+    expect(session.applicationId).toBe(first.id);
+    expect(session.redirectUrl).toContain(first.id);
+    expect(session.message).toContain(first.applicantName.split(" ")[0]!);
+  });
+
+  it("throws when no application matches the portal request", () => {
+    expect(() =>
+      applicationService.createClientPortalSession({
+        applicantEmail: "missing@example.com",
+        silo: "BF",
+      }),
+    ).toThrow(ApplicationPortalNotFoundError);
   });
 });
