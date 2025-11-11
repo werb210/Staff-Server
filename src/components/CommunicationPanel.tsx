@@ -1,100 +1,68 @@
-import { FormEvent, useEffect, useState } from "react";
-import { apiClient } from "../api";
-import { CallLog, EmailMessage, SmsMessage } from "../types/api";
+import { FormEvent, useMemo, useState } from "react";
+import { useCommunication } from "../hooks/useCommunication";
+import type { CallLog } from "../types/api";
 import "../styles/layout.css";
 import "./FormStyles.css";
 
 type Tab = "sms" | "email" | "calls";
 
 export function CommunicationPanel() {
+  const {
+    smsThreads,
+    emailThreads,
+    callLogs,
+    loading,
+    error,
+    sendSms,
+    receiveSms,
+    sendEmail,
+    receiveEmail,
+    logCall,
+  } = useCommunication();
+
   const [activeTab, setActiveTab] = useState<Tab>("sms");
-  const [smsMessages, setSmsMessages] = useState<SmsMessage[]>([]);
-  const [emailMessages, setEmailMessages] = useState<EmailMessage[]>([]);
-  const [callLogs, setCallLogs] = useState<CallLog[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
   const [formState, setFormState] = useState({
     to: "",
     from: "",
     subject: "",
     body: "",
-    message: "",
     durationSeconds: 60,
     notes: "",
-    outcome: "Completed",
+    outcome: "completed" as CallLog["outcome"],
   });
-
-  useEffect(() => {
-    let isMounted = true;
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const [sms, emails, calls] = await Promise.all([
-          apiClient.getSmsMessages(),
-          apiClient.getEmailMessages(),
-          apiClient.getCallLogs(),
-        ]);
-        if (!isMounted) return;
-        setSmsMessages(sms);
-        setEmailMessages(emails);
-        setCallLogs(calls);
-      } catch (err) {
-        const message =
-          (err as { message?: string })?.message ?? "Failed to load communications.";
-        setError(message);
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    };
-
-    fetchData();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    setError(null);
+    setLocalError(null);
 
     if (!formState.to) {
-      setError("Recipient is required.");
+      setLocalError("Recipient is required.");
       return;
     }
 
-    if (activeTab !== "calls" && !formState.message && !formState.body) {
-      setError("Message content cannot be empty.");
+    if (activeTab !== "calls" && !formState.body) {
+      setLocalError("Message content cannot be empty.");
       return;
     }
 
     try {
       if (activeTab === "sms") {
-        const sms = await apiClient.sendSms({
-          to: formState.to,
-          from: formState.from || "",
-          message: formState.message,
-        });
-        setSmsMessages((prev) => [sms, ...prev]);
+        await sendSms({ to: formState.to, from: formState.from || undefined, body: formState.body });
       }
 
       if (activeTab === "email") {
-        const email = await apiClient.sendEmail({
-          to: formState.to,
-          subject: formState.subject,
-          body: formState.body,
-        });
-        setEmailMessages((prev) => [email, ...prev]);
+        await sendEmail({ to: formState.to, subject: formState.subject, body: formState.body });
       }
 
       if (activeTab === "calls") {
-        const call = await apiClient.logCall({
+        await logCall({
           to: formState.to,
           from: formState.from || "",
           durationSeconds: Number(formState.durationSeconds) || 0,
           notes: formState.notes,
           outcome: formState.outcome,
         });
-        setCallLogs((prev) => [call, ...prev]);
       }
 
       setFormState({
@@ -102,19 +70,121 @@ export function CommunicationPanel() {
         from: "",
         subject: "",
         body: "",
-        message: "",
         durationSeconds: 60,
         notes: "",
-        outcome: "Completed",
+        outcome: "completed",
       });
     } catch (err) {
-      const message =
-        (err as { message?: string })?.message ?? "Failed to send communication.";
-      setError(message);
+      const message = (err as { message?: string })?.message ?? "Failed to send communication.";
+      setLocalError(message);
     }
   };
 
-  const renderTabContent = () => {
+  const renderThreads = () => {
+    switch (activeTab) {
+      case "sms":
+        return (
+          <ul className="thread-list">
+            {smsThreads.map((thread) => (
+              <li key={thread.contact}>
+                <strong>{thread.contact}</strong>
+                <p>{thread.messages[0]?.body}</p>
+                <small>Last: {new Date(thread.messages[0]?.sentAt ?? Date.now()).toLocaleString()}</small>
+              </li>
+            ))}
+            {smsThreads.length === 0 && <li>No SMS conversations yet.</li>}
+          </ul>
+        );
+      case "email":
+        return (
+          <ul className="thread-list">
+            {emailThreads.map((thread) => (
+              <li key={thread.contact}>
+                <strong>{thread.contact}</strong>
+                <p>{thread.messages[0]?.subject}</p>
+                <small>Last: {new Date(thread.messages[0]?.sentAt ?? Date.now()).toLocaleString()}</small>
+              </li>
+            ))}
+            {emailThreads.length === 0 && <li>No email conversations yet.</li>}
+          </ul>
+        );
+      case "calls":
+        return (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>To</th>
+                <th>From</th>
+                <th>Duration</th>
+                <th>Outcome</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              {callLogs.map((call) => (
+                <tr key={call.id}>
+                  <td>{call.to}</td>
+                  <td>{call.from}</td>
+                  <td>{call.durationSeconds}s</td>
+                  <td>{call.outcome}</td>
+                  <td>{call.notes ?? "—"}</td>
+                </tr>
+              ))}
+              {callLogs.length === 0 && (
+                <tr>
+                  <td colSpan={5}>No calls logged.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const inboundActions = useMemo(() => {
+    if (activeTab === "sms") {
+      return (
+        <button
+          type="button"
+          className="secondary"
+          onClick={() =>
+            void receiveSms({
+              from: formState.to || "+15551234567",
+              to: formState.from || undefined,
+              body: "Thanks for reaching out!",
+            })
+          }
+        >
+          Receive SMS
+        </button>
+      );
+    }
+
+    if (activeTab === "email") {
+      return (
+        <button
+          type="button"
+          className="secondary"
+          onClick={() =>
+            void receiveEmail({
+              from: formState.to || "customer@example.com",
+              to: formState.from || "ops@boreal.example",
+              subject: `Re: ${formState.subject || "Follow up"}`,
+              body: "Appreciate the update!",
+            })
+          }
+        >
+          Receive Email
+        </button>
+      );
+    }
+
+    return null;
+  }, [activeTab, formState.to, formState.from, formState.subject, receiveSms, receiveEmail]);
+
+  const renderTabForm = () => {
     switch (activeTab) {
       case "sms":
         return (
@@ -139,10 +209,11 @@ export function CommunicationPanel() {
               Message
               <textarea
                 rows={3}
-                value={formState.message}
-                onChange={(event) => setFormState((prev) => ({ ...prev, message: event.target.value }))}
+                value={formState.body}
+                onChange={(event) => setFormState((prev) => ({ ...prev, body: event.target.value }))}
               />
             </label>
+            {inboundActions}
           </div>
         );
       case "email":
@@ -174,6 +245,7 @@ export function CommunicationPanel() {
                 onChange={(event) => setFormState((prev) => ({ ...prev, body: event.target.value }))}
               />
             </label>
+            {inboundActions}
           </div>
         );
       case "calls":
@@ -210,11 +282,16 @@ export function CommunicationPanel() {
               Outcome
               <select
                 value={formState.outcome}
-                onChange={(event) => setFormState((prev) => ({ ...prev, outcome: event.target.value }))}
+                onChange={(event) =>
+                  setFormState((prev) => ({
+                    ...prev,
+                    outcome: event.target.value as CallLog["outcome"],
+                  }))
+                }
               >
-                <option value="Completed">Completed</option>
-                <option value="Voicemail">Voicemail</option>
-                <option value="No Answer">No Answer</option>
+                <option value="completed">Completed</option>
+                <option value="no-answer">No Answer</option>
+                <option value="busy">Busy</option>
               </select>
             </label>
             <label>
@@ -232,124 +309,55 @@ export function CommunicationPanel() {
     }
   };
 
-  const renderList = () => {
-    switch (activeTab) {
-      case "sms":
-        return (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>To</th>
-                <th>From</th>
-                <th>Message</th>
-                <th>Sent At</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {smsMessages.map((sms) => (
-                <tr key={sms.id}>
-                  <td>{sms.to}</td>
-                  <td>{sms.from}</td>
-                  <td>{sms.message}</td>
-                  <td>{new Date(sms.sentAt).toLocaleString()}</td>
-                  <td>{sms.status}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        );
-      case "email":
-        return (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>To</th>
-                <th>Subject</th>
-                <th>Sent At</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {emailMessages.map((email) => (
-                <tr key={email.id}>
-                  <td>{email.to}</td>
-                  <td>{email.subject}</td>
-                  <td>{new Date(email.sentAt).toLocaleString()}</td>
-                  <td>{email.status}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        );
-      case "calls":
-        return (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>To</th>
-                <th>From</th>
-                <th>Duration</th>
-                <th>Outcome</th>
-                <th>Started</th>
-              </tr>
-            </thead>
-            <tbody>
-              {callLogs.map((call) => (
-                <tr key={call.id}>
-                  <td>{call.to}</td>
-                  <td>{call.from}</td>
-                  <td>{call.durationSeconds}s</td>
-                  <td>{call.outcome}</td>
-                  <td>{new Date(call.startedAt).toLocaleString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        );
-      default:
-        return null;
-    }
-  };
-
   return (
     <section className="card">
       <header className="card-header">
         <h2>Communications</h2>
-        <p>Review and send SMS, emails, and log calls with applicants.</p>
+        <p>Track SMS, email, and call interactions with applicants.</p>
       </header>
 
-      <div className="tabs">
-        {([
-          { id: "sms", label: "SMS" },
-          { id: "email", label: "Email" },
-          { id: "calls", label: "Calls" },
-        ] as const).map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            className={activeTab === tab.id ? "primary" : ""}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      {(error || localError) && <div className="error">{error ?? localError}</div>}
+      {loading && <div className="loading">Loading communications…</div>}
 
-      {error && <div className="error">{error}</div>}
-      {loading ? <div className="loading">Loading messages…</div> : null}
+      <div className="tabs">
+        <button
+          className={activeTab === "sms" ? "active" : ""}
+          onClick={() => setActiveTab("sms")}
+        >
+          SMS
+        </button>
+        <button
+          className={activeTab === "email" ? "active" : ""}
+          onClick={() => setActiveTab("email")}
+        >
+          Email
+        </button>
+        <button
+          className={activeTab === "calls" ? "active" : ""}
+          onClick={() => setActiveTab("calls")}
+        >
+          Calls
+        </button>
+      </div>
 
       <form className="panel" onSubmit={handleSubmit}>
         <div className="panel-header">
-          <h3>{activeTab === "sms" ? "Send SMS" : activeTab === "email" ? "Send Email" : "Log Call"}</h3>
+          <h3>{activeTab === "sms" ? "SMS" : activeTab === "email" ? "Email" : "Calls"}</h3>
+        </div>
+        {renderTabForm()}
+        <div className="panel-actions">
           <button type="submit" className="primary">
             {activeTab === "calls" ? "Log Call" : "Send"}
           </button>
         </div>
-        {renderTabContent()}
       </form>
 
-      <div className="panel">{renderList()}</div>
+      <div className="panel">
+        <div className="panel-header">
+          <h3>Recent Activity</h3>
+        </div>
+        {renderThreads()}
+      </div>
     </section>
   );
 }

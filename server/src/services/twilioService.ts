@@ -7,6 +7,7 @@ export interface SmsMessage {
   body: string;
   sentAt: string;
   status: "queued" | "sent";
+  direction: "inbound" | "outbound";
 }
 
 export interface CallLog {
@@ -35,6 +36,7 @@ class TwilioService {
       body: "Reminder: application review scheduled today",
       sentAt: now.toISOString(),
       status: "sent",
+      direction: "outbound",
     });
     this.calls.push({
       id: randomUUID(),
@@ -58,6 +60,24 @@ class TwilioService {
       body,
       sentAt: new Date().toISOString(),
       status: "sent",
+      direction: "outbound",
+    };
+    this.messages.unshift(message);
+    return message;
+  }
+
+  /**
+   * Records an inbound SMS from Twilio's webhook simulation.
+   */
+  public receiveSms(from: string, body: string, to = "+15557654321"): SmsMessage {
+    const message: SmsMessage = {
+      id: randomUUID(),
+      to,
+      from,
+      body,
+      sentAt: new Date().toISOString(),
+      status: "sent",
+      direction: "inbound",
     };
     this.messages.unshift(message);
     return message;
@@ -68,6 +88,23 @@ class TwilioService {
    */
   public listMessages(): SmsMessage[] {
     return [...this.messages];
+  }
+
+  /**
+   * Returns threaded conversations grouped by counterparty.
+   */
+  public listThreads(): Array<{ contact: string; messages: SmsMessage[] }> {
+    const grouped = new Map<string, SmsMessage[]>();
+    for (const message of this.messages) {
+      const contact = message.direction === "outbound" ? message.to : message.from;
+      const thread = grouped.get(contact) ?? [];
+      thread.push(message);
+      grouped.set(contact, thread);
+    }
+    return Array.from(grouped.entries()).map(([contact, messages]) => ({
+      contact,
+      messages: messages.sort((a, b) => b.sentAt.localeCompare(a.sentAt)),
+    }));
   }
 
   /**

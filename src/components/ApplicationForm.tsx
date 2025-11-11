@@ -1,5 +1,5 @@
 import { FormEvent, useMemo, useState } from "react";
-import { apiClient } from "../api";
+import { useApplications } from "../hooks/useApplications";
 import { Application } from "../types/api";
 import "./FormStyles.css";
 
@@ -13,7 +13,7 @@ const initialForm: Partial<Application> & {
   applicantPhone: "",
   loanAmount: 0,
   loanPurpose: "",
-  stage: "Intake",
+  status: "draft",
   desiredDocuments: [],
 };
 
@@ -24,7 +24,10 @@ const documentOptions = [
   "Credit Report",
 ];
 
+const DEFAULT_PRODUCT_ID = "385ca198-5b56-4587-a5b4-947ca9b61930";
+
 export function ApplicationForm() {
+  const { createApplication } = useApplications();
   const [step, setStep] = useState<Step>(0);
   const [formState, setFormState] = useState(initialForm);
   const [submitting, setSubmitting] = useState(false);
@@ -96,10 +99,18 @@ export function ApplicationForm() {
         applicantPhone: formState.applicantPhone?.trim(),
         loanAmount: Number(formState.loanAmount ?? 0),
         loanPurpose: formState.loanPurpose?.trim() ?? "",
-        stage: formState.stage ?? "Intake",
+        status: formState.status ?? "draft",
         desiredDocuments: formState.desiredDocuments,
       };
-      await apiClient.createApplication(payload);
+      await createApplication({
+        applicantName: payload.applicantName,
+        applicantEmail: payload.applicantEmail,
+        applicantPhone: payload.applicantPhone,
+        loanAmount: payload.loanAmount,
+        loanPurpose: payload.loanPurpose,
+        status: payload.status as Application["status"],
+        productId: DEFAULT_PRODUCT_ID,
+      });
       setSuccess("Application submitted successfully!");
       setFormState(initialForm);
       setStep(0);
@@ -186,15 +197,18 @@ export function ApplicationForm() {
               />
             </label>
             <label>
-              Initial Stage
+              Initial Status
               <select
-                value={formState.stage ?? "Intake"}
-                onChange={(event) => updateForm("stage", event.target.value)}
+                value={formState.status ?? "draft"}
+                onChange={(event) =>
+                  updateForm("status", event.target.value as Application["status"])
+                }
               >
-                <option value="Intake">Intake</option>
-                <option value="Review">Review</option>
-                <option value="Underwriting">Underwriting</option>
-                <option value="Closing">Closing</option>
+                <option value="draft">Draft</option>
+                <option value="submitted">Submitted</option>
+                <option value="review">Review</option>
+                <option value="approved">Approved</option>
+                <option value="completed">Completed</option>
               </select>
             </label>
           </div>

@@ -4,12 +4,16 @@ import {
   BackupRecord,
   CallLog,
   DocumentUploadInput,
+  DocumentVersion,
   EmailMessage,
+  EmailThread,
   Lender,
   LenderProduct,
+  MarketingItem,
   PipelineBoardData,
   RetryJob,
   SmsMessage,
+  SmsThread,
 } from "../types/api";
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -122,6 +126,19 @@ export const apiClient = {
       body: JSON.stringify(payload),
     }, "PUT");
   },
+  deleteApplication(id: string) {
+    return request<void>(`/api/applications/${id}`, {}, "DELETE");
+  },
+  assignApplication(id: string, payload: { assignedTo: string; stage?: Application["status"] }) {
+    return request<Application>(`/api/applications/${id}/assign`, {
+      body: JSON.stringify(payload),
+    }, "POST");
+  },
+  updateApplicationStatus(id: string, status: Application["status"]) {
+    return request<Application>(`/api/applications/${id}/status`, {
+      body: JSON.stringify({ status }),
+    }, "POST");
+  },
 
   // Documents
   getDocuments(applicationId?: string) {
@@ -129,18 +146,52 @@ export const apiClient = {
       `/api/documents${getQueryString({ applicationId })}`
     );
   },
-  uploadDocument(payload: DocumentUploadInput) {
-    return request<{ metadata: ApplicationDocument; upload: { uploadUrl: string; expiresAt: string } }>(
-      `/api/applications/upload`,
+  async uploadDocument(payload: DocumentUploadInput) {
+    const metadata = await request<ApplicationDocument>(
+      `/api/documents`,
       {
         body: JSON.stringify({
+          id: payload.documentId,
           applicationId: payload.applicationId,
-          documentId: payload.documentId,
           fileName: payload.fileName,
-          contentType: "application/pdf",
+          contentType: payload.contentType ?? "application/pdf",
+          uploadedBy: payload.uploadedBy ?? "staff.app",
+          note: payload.note,
         }),
       },
-      "POST"
+      "POST",
+    );
+
+    const upload = await request<{ uploadUrl: string; expiresAt: string }>(
+      `/api/documents/${metadata.id}/upload-url`,
+      {
+        body: JSON.stringify({ fileName: payload.fileName }),
+      },
+      "POST",
+    );
+
+    return { metadata, upload };
+  },
+  getDocumentVersions(id: string) {
+    return request<DocumentVersion[]>(`/api/documents/${id}/versions`);
+  },
+  getDocumentDownloadUrl(id: string, version?: number) {
+    return request<{ sasUrl: string; version: number }>(
+      `/api/documents/${id}/download${getQueryString({ version })}`,
+    );
+  },
+  updateDocumentStatus(id: string, status: string) {
+    return request<ApplicationDocument>(
+      `/api/documents/${id}/status`,
+      {
+        body: JSON.stringify({ status }),
+      },
+      "POST",
+    );
+  },
+  getDocumentStatus(id: string) {
+    return request<{ id: string; status: string; version: number; lastUpdatedAt: string }>(
+      `/api/documents/${id}/status`,
     );
   },
 
@@ -148,11 +199,57 @@ export const apiClient = {
   getLenders() {
     return request<Lender[]>(`/api/lenders`);
   },
+  createLender(payload: Partial<Lender> & { name: string; contactEmail: string }) {
+    return request<Lender>(
+      `/api/lenders`,
+      {
+        body: JSON.stringify(payload),
+      },
+      "POST",
+    );
+  },
+  updateLender(id: string, payload: Partial<Lender>) {
+    return request<Lender>(
+      `/api/lenders/${id}`,
+      {
+        body: JSON.stringify(payload),
+      },
+      "PUT",
+    );
+  },
+  deleteLender(id: string) {
+    return request<void>(`/api/lenders/${id}`, {}, "DELETE");
+  },
   getLenderProducts(lenderId?: string) {
     if (lenderId) {
       return request<LenderProduct[]>(`/api/lenders/${lenderId}/products`);
     }
     return request<LenderProduct[]>(`/api/lenders/products`);
+  },
+  createLenderProduct(lenderId: string, payload: Partial<LenderProduct> & { name: string; interestRate: number; minAmount: number; maxAmount: number; termMonths: number; documentation: LenderProduct["documentation"]; recommendedScore: number }) {
+    return request<LenderProduct>(
+      `/api/lenders/${lenderId}/products`,
+      {
+        body: JSON.stringify(payload),
+      },
+      "POST",
+    );
+  },
+  updateLenderProduct(lenderId: string, productId: string, payload: Partial<LenderProduct>) {
+    return request<LenderProduct>(
+      `/api/lenders/${lenderId}/products/${productId}`,
+      {
+        body: JSON.stringify(payload),
+      },
+      "PUT",
+    );
+  },
+  deleteLenderProduct(lenderId: string, productId: string) {
+    return request<void>(
+      `/api/lenders/${lenderId}/products/${productId}`,
+      {},
+      "DELETE",
+    );
   },
   getLenderRequirements(lenderId: string) {
     return request<{ documentType: string; required: boolean; description: string }[]>(
@@ -173,7 +270,7 @@ export const apiClient = {
   },
 
   // Communication
-  sendSms(payload: Pick<SmsMessage, "to" | "from" | "message">) {
+  sendSms(payload: { to: string; from?: string; body: string }) {
     return request<SmsMessage>(
       `/api/communication/sms`,
       {
@@ -182,13 +279,31 @@ export const apiClient = {
       "POST"
     );
   },
-  sendEmail(payload: Pick<EmailMessage, "to" | "subject" | "body"> & { from?: string }) {
+  receiveSms(payload: { from: string; to?: string; body: string }) {
+    return request<SmsMessage>(
+      `/api/communication/sms/receive`,
+      {
+        body: JSON.stringify(payload),
+      },
+      "POST",
+    );
+  },
+  sendEmail(payload: { to: string; subject: string; body: string; from?: string }) {
     return request<EmailMessage>(
       `/api/communication/email`,
       {
         body: JSON.stringify(payload),
       },
       "POST"
+    );
+  },
+  receiveEmail(payload: { from: string; to: string; subject: string; body: string }) {
+    return request<EmailMessage>(
+      `/api/communication/email/receive`,
+      {
+        body: JSON.stringify(payload),
+      },
+      "POST",
     );
   },
   logCall(payload: Pick<CallLog, "to" | "from" | "durationSeconds" | "notes" | "outcome">) {
@@ -203,8 +318,14 @@ export const apiClient = {
   getSmsMessages() {
     return request<SmsMessage[]>(`/api/communication/sms`);
   },
+  getSmsThreads() {
+    return request<SmsThread[]>(`/api/communication/sms/threads`);
+  },
   getEmailMessages() {
     return request<EmailMessage[]>(`/api/communication/email`);
+  },
+  getEmailThreads() {
+    return request<EmailThread[]>(`/api/communication/email/threads`);
   },
   getCallLogs() {
     return request<CallLog[]>(`/api/communication/calls`);
@@ -212,24 +333,80 @@ export const apiClient = {
 
   // Marketing
   getMarketingAds() {
-    return request<Record<string, unknown>[]>(`/api/marketing/ads`);
+    return request<MarketingItem[]>(`/api/marketing/ads`);
   },
   getMarketingAutomations() {
-    return request<Record<string, unknown>[]>(`/api/marketing/automation`);
+    return request<MarketingItem[]>(`/api/marketing/automation`);
+  },
+  toggleAd(id: string, active: boolean) {
+    return request<MarketingItem>(
+      `/api/marketing/ads/${id}/toggle`,
+      {
+        body: JSON.stringify({ active }),
+      },
+      "POST",
+    );
+  },
+  toggleAutomation(id: string, active: boolean) {
+    return request<MarketingItem>(
+      `/api/marketing/automation/${id}/toggle`,
+      {
+        body: JSON.stringify({ active }),
+      },
+      "POST",
+    );
   },
 
   // Admin
   getRetryQueue() {
     return request<RetryJob[]>(`/api/admin/retry-queue`);
   },
+  retryJob(id: string) {
+    return request<RetryJob>(
+      `/api/admin/retry-queue/retry`,
+      {
+        body: JSON.stringify({ id }),
+      },
+      "POST",
+    );
+  },
   getBackups() {
     return request<BackupRecord[]>(`/api/admin/backups`);
+  },
+  createBackup(name: string) {
+    return request<BackupRecord>(
+      `/api/admin/backups`,
+      {
+        body: JSON.stringify({ name }),
+      },
+      "POST",
+    );
   },
 
   // Pipeline
   async getPipeline(): Promise<PipelineBoardData> {
-    const stages = await request<PipelineBoardData["stages"]>(`/api/pipeline`);
-    return { stages };
+    return request<PipelineBoardData>(`/api/pipeline`);
+  },
+  transitionPipeline(payload: { applicationId: string; toStage: string; fromStage?: string; assignedTo?: string; note?: string }) {
+    return request<{ application: Application; board: PipelineBoardData }>(
+      `/api/pipeline/transition`,
+      {
+        body: JSON.stringify(payload),
+      },
+      "POST",
+    );
+  },
+  assignPipeline(payload: { id: string; assignedTo: string; stage?: string; note?: string }) {
+    return request<{ application: Application; assignment: { id: string; assignedTo: string; stage?: string; assignedAt: string; note?: string }; board: PipelineBoardData }>(
+      `/api/pipeline/assign`,
+      {
+        body: JSON.stringify(payload),
+      },
+      "POST",
+    );
+  },
+  getPipelineAssignments() {
+    return request<PipelineBoardData["assignments"]>(`/api/pipeline/assignments`);
   },
 
   // Health

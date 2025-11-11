@@ -16,6 +16,8 @@ router.post("/", (req, res) => {
       fileName: payload.fileName,
       contentType: payload.contentType,
       status: "processing",
+      uploadedBy: payload.uploadedBy,
+      note: payload.note,
     });
     const upload = documentService.generateUploadUrl(
       payload.documentId,

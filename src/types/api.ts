@@ -10,13 +10,14 @@ export interface Application {
   applicantName: string;
   applicantEmail: string;
   applicantPhone?: string;
+  productId: string;
   loanAmount: number;
   loanPurpose: string;
   status: "draft" | "submitted" | "review" | "approved" | "completed";
   score?: number;
   assignedTo?: string;
   createdAt: string;
-  updatedAt?: string;
+  updatedAt: string;
   submittedAt?: string;
   submittedBy?: string;
   completedAt?: string;
@@ -39,7 +40,10 @@ export interface DocumentUploadInput {
   documentId: string;
   documentType?: string;
   fileName: string;
-  fileContent: string; // base64 encoded
+  fileContent: string; // base64 encoded for stub uploads
+  contentType?: string;
+  note?: string;
+  uploadedBy?: string;
 }
 
 export interface ApplicationDocument {
@@ -48,12 +52,26 @@ export interface ApplicationDocument {
   documentType?: string;
   status: DocumentStatus;
   uploadedAt: string;
+  uploadedBy?: string;
+  note?: string;
+  version: number;
   fileName: string;
   checksum: string;
   blobUrl: string;
   sasUrl?: string;
   aiSummary?: string;
   explainability?: Record<string, string>;
+  versionHistory: DocumentVersion[];
+}
+
+export interface DocumentVersion {
+  version: number;
+  uploadedAt: string;
+  checksum: string;
+  blobUrl: string;
+  sasUrl: string;
+  uploadedBy?: string;
+  note?: string;
 }
 
 export interface LenderProduct {
@@ -66,6 +84,7 @@ export interface LenderProduct {
   termMonths: number;
   documentation: { documentType: string; required: boolean; description: string }[];
   recommendedScore: number;
+  active: boolean;
 }
 
 export interface Lender {
@@ -82,9 +101,10 @@ export interface SmsMessage {
   id: string;
   to: string;
   from: string;
-  message: string;
+  body: string;
   sentAt: string;
   status: "queued" | "sent";
+  direction: "inbound" | "outbound";
 }
 
 export interface EmailMessage {
@@ -95,6 +115,7 @@ export interface EmailMessage {
   body: string;
   sentAt: string;
   status: "queued" | "sent";
+  direction: "inbound" | "outbound";
 }
 
 export interface CallLog {
@@ -132,10 +153,20 @@ export interface PipelineStage {
   totalLoanAmount: number;
   averageScore?: number;
   lastUpdatedAt: string;
+  applications: Application[];
 }
 
 export interface PipelineBoardData {
   stages: PipelineStage[];
+  assignments: PipelineAssignment[];
+}
+
+export interface PipelineAssignment {
+  id: string;
+  assignedTo: string;
+  stage?: Application["status"];
+  assignedAt: string;
+  note?: string;
 }
 
 export interface HealthStatus {
@@ -143,4 +174,24 @@ export interface HealthStatus {
   status: "healthy" | "degraded" | "down";
   checkedAt: string;
   details?: Record<string, unknown>;
+}
+
+export interface SmsThread {
+  contact: string;
+  messages: SmsMessage[];
+}
+
+export interface EmailThread {
+  contact: string;
+  messages: EmailMessage[];
+}
+
+export interface MarketingItem {
+  id: string;
+  name: string;
+  description: string;
+  active: boolean;
+  channel: string;
+  spend: number;
+  lastUpdatedAt: string;
 }

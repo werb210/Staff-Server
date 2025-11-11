@@ -4,6 +4,7 @@ import {
   type ApplicationCreateInput,
   type ApplicationPublic,
   type ApplicationStatus,
+  type ApplicationUpdateInput,
 } from "../schemas/application.schema.js";
 import { type PipelineStage } from "../schemas/pipeline.schema.js";
 import { aiService } from "./aiService.js";
@@ -143,17 +144,53 @@ class ApplicationService {
   }
 
   /**
-   * Updates an application's status.
+   * Updates arbitrary fields on an application.
    */
-  public updateStatus(id: string, status: ApplicationStatus): Application {
-    const application = this.getApplication(id);
+  public updateApplication(
+    id: string,
+    updates: Omit<ApplicationUpdateInput, "id">,
+  ): Application {
+    const existing = this.getApplication(id);
     const updated: Application = {
-      ...application,
-      status,
+      ...existing,
+      ...updates,
       updatedAt: new Date().toISOString(),
     };
     this.applications.set(id, updated);
     return updated;
+  }
+
+  /**
+   * Updates an application's status.
+   */
+  public updateStatus(id: string, status: ApplicationStatus): Application {
+    return this.updateApplication(id, { status });
+  }
+
+  /**
+   * Assigns an application to a team member and optionally moves the stage.
+   */
+  public assignApplication(
+    id: string,
+    assignedTo: string,
+    stage?: ApplicationStatus,
+  ): Application {
+    const updates: Partial<Application> = {
+      assignedTo,
+    };
+    if (stage) {
+      updates.status = stage;
+    }
+    return this.updateApplication(id, updates);
+  }
+
+  /**
+   * Removes an application from the in-memory store.
+   */
+  public deleteApplication(id: string): Application {
+    const existing = this.getApplication(id);
+    this.applications.delete(id);
+    return existing;
   }
 
   /**
@@ -231,6 +268,9 @@ class ApplicationService {
                 apps.reduce((sum, app) => sum + (app.score ?? 0), 0) /
               apps.length
             : undefined;
+        const sortedApplications = [...apps].sort((a, b) =>
+          (b.updatedAt ?? b.createdAt).localeCompare(a.updatedAt ?? a.createdAt),
+        );
         return {
           id: randomUUID(),
           name: status,
@@ -240,6 +280,7 @@ class ApplicationService {
           totalLoanAmount,
           averageScore,
           lastUpdatedAt: new Date().toISOString(),
+          applications: sortedApplications,
         };
       });
   }

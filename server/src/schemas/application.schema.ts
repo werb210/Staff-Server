@@ -47,6 +47,12 @@ export const ApplicationCreateSchema = z.object({
 
 export type ApplicationCreateInput = z.infer<typeof ApplicationCreateSchema>;
 
+export const ApplicationUpdateSchema = ApplicationCreateSchema.partial().extend({
+  id: uuidSchema,
+});
+
+export type ApplicationUpdateInput = z.infer<typeof ApplicationUpdateSchema>;
+
 export const ApplicationStatusUpdateSchema = z.object({
   id: uuidSchema,
   status: ApplicationStatusSchema,
@@ -65,6 +71,12 @@ export const ApplicationCompleteSchema = z.object({
 export const ApplicationPublishSchema = z.object({
   id: uuidSchema,
   publishedBy: z.string().min(1),
+});
+
+export const ApplicationAssignmentSchema = z.object({
+  id: uuidSchema,
+  assignedTo: z.string().min(1),
+  stage: ApplicationStatusSchema.optional(),
 });
 
 export const ApplicationPublicSchema = ApplicationSchema.pick({

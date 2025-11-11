@@ -1,77 +1,31 @@
-import { useEffect, useState } from "react";
-import { apiClient } from "../api";
+import { useState } from "react";
+import { useMarketing } from "../hooks/useMarketing";
+import type { MarketingItem } from "../types/api";
 import "../styles/layout.css";
 import "./FormStyles.css";
 
-interface MarketingItem {
-  id: string;
-  name?: string;
-  status?: string;
-  description?: string;
-  active?: boolean;
-  [key: string]: unknown;
-}
-
 export function MarketingPanel() {
-  const [ads, setAds] = useState<MarketingItem[]>([]);
-  const [automations, setAutomations] = useState<MarketingItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { ads, automations, loading, error, toggleAd, toggleAutomation } = useMarketing();
+  const [localError, setLocalError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let isMounted = true;
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const [adsData, automationData] = await Promise.all([
-          apiClient.getMarketingAds(),
-          apiClient.getMarketingAutomations(),
-        ]);
-        if (!isMounted) return;
-        setAds(adsData as MarketingItem[]);
-        setAutomations(automationData as MarketingItem[]);
-      } catch (err) {
-        const message =
-          (err as { message?: string })?.message ?? "Unable to load marketing data.";
-        setError(message);
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    };
-
-    fetchData();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  const toggleAd = async (item: MarketingItem) => {
+  const handleToggleAd = async (id: string, active: boolean) => {
     try {
-      setError(null);
-      await apiClient.toggleAd(item.id, !item.active);
-      setAds((prev) =>
-        prev.map((ad) => (ad.id === item.id ? { ...ad, active: !item.active } : ad))
-      );
+      setLocalError(null);
+      await toggleAd(id, !active);
     } catch (err) {
-      const message =
-        (err as { message?: string })?.message ?? "Failed to update ad.";
-      setError(message);
+      const message = (err as { message?: string })?.message ?? "Failed to update ad.";
+      setLocalError(message);
     }
   };
 
-  const toggleAutomation = async (item: MarketingItem) => {
+  const handleToggleAutomation = async (id: string, active: boolean) => {
     try {
-      setError(null);
-      await apiClient.toggleAutomation(item.id, !item.active);
-      setAutomations((prev) =>
-        prev.map((automation) =>
-          automation.id === item.id ? { ...automation, active: !item.active } : automation
-        )
-      );
+      setLocalError(null);
+      await toggleAutomation(id, !active);
     } catch (err) {
       const message =
         (err as { message?: string })?.message ?? "Failed to update automation.";
-      setError(message);
+      setLocalError(message);
     }
   };
 
@@ -113,7 +67,7 @@ export function MarketingPanel() {
         <p>Monitor advertising campaigns and automation workflows.</p>
       </header>
 
-      {error && <div className="error">{error}</div>}
+      {(error || localError) && <div className="error">{error ?? localError}</div>}
       {loading && <div className="loading">Loading marketing data…</div>}
 
       {!loading && (
@@ -123,7 +77,7 @@ export function MarketingPanel() {
               <h3>Ads</h3>
             </div>
             {ads.length ? (
-              renderItems(ads, toggleAd)
+              renderItems(ads, (item) => handleToggleAd(item.id, item.active ?? false))
             ) : (
               <p>No ads configured.</p>
             )}
@@ -134,7 +88,9 @@ export function MarketingPanel() {
               <h3>Automations</h3>
             </div>
             {automations.length ? (
-              renderItems(automations, toggleAutomation)
+              renderItems(automations, (item) =>
+                handleToggleAutomation(item.id, item.active ?? false),
+              )
             ) : (
               <p>No automations configured.</p>
             )}
