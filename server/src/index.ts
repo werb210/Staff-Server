@@ -12,7 +12,10 @@ import documentsRouter, {
 } from "./routes/documents.js";
 import lendersRouter from "./routes/lenders.js";
 import lenderProductsRouter from "./routes/lenderProducts.js";
-import pipelineRouter from "./routes/pipeline.js";
+
+// ✔ FIXED — correct new pipeline router
+import pipelineRouter from "./routes/pipeline.routes.js";
+
 import tasksRouter from "./routes/tasks.js";
 import usersRouter from "./routes/users.js";
 import communicationRouter from "./routes/communication.js";
@@ -58,7 +61,10 @@ app.use(
 app.use("/api/documents", authMiddleware.verifyToken, documentsRouter);
 app.use("/api/lenders", authMiddleware.verifyToken, lendersRouter);
 app.use("/api/lender-products", lenderProductsRouter);
+
+// ✔ FIXED — fully working pipeline API
 app.use("/api/pipeline", pipelineRouter);
+
 app.use("/api/tasks", tasksRouter);
 app.use("/api/users", usersRouter);
 app.use(
