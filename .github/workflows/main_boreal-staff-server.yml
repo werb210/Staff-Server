@@ -38,7 +38,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: node-app
-          path: server
+          path: server/dist
 
   deploy:
     runs-on: ubuntu-latest
@@ -66,4 +66,4 @@ jobs:
         with:
           app-name: 'boreal-staff-server'
           slot-name: 'Production'
-          package: server
+          package: server/dist
