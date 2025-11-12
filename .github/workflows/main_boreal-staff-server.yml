@@ -1,6 +1,5 @@
-# File: .github/workflows/main_boreal-staff-server.yml
-# Docs: https://github.com/Azure/webapps-deploy
-# Purpose: Build and deploy full Node.js server folder to Azure Web App
+# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
+# More GitHub Actions for Azure: https://github.com/Azure/actions
 
 name: Build and deploy Node.js app to Azure Web App - boreal-staff-server
 
@@ -17,30 +16,33 @@ jobs:
       contents: read # Required for actions/checkout
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Set up Node.js version
         uses: actions/setup-node@v3
         with:
           node-version: '20.x'
 
-      - name: Install dependencies and build
+      - name: Install dependencies in server folder
         run: |
           cd server
           npm ci
+
+      - name: Build server
+        run: |
+          cd server
           npm run build --if-present
           npm run test --if-present
 
-      - name: Package server folder for deployment
+      - name: Package server folder
         run: |
           cd server
-          zip -r ../server-artifact.zip ./*
+          zip -r ../server-artifact.zip .
 
-      - name: Upload artifact for deployment
+      - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
-          name: server-artifact
+          name: node-app
           path: server-artifact.zip
 
   deploy:
@@ -51,10 +53,10 @@ jobs:
       contents: read # Required for actions/checkout
 
     steps:
-      - name: Download build artifact
+      - name: Download artifact from build job
         uses: actions/download-artifact@v4
         with:
-          name: server-artifact
+          name: node-app
 
       - name: Login to Azure
         uses: azure/login@v2
@@ -63,7 +65,7 @@ jobs:
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_BF97066D045D4C648F0920CF658AF414 }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_B20A60A88686402BADA7AD824579F2F8 }}
 
-      - name: Deploy full server to Azure Web App
+      - name: Deploy to Azure Web App
         id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
         with:
