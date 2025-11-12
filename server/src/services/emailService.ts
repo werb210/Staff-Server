@@ -1,7 +1,18 @@
 import { randomUUID } from "crypto";
 import axios from "axios";
 import sendGridMail from "@sendgrid/mail";
-import { logError, logInfo } from "../utils/logger.js";
+
+// If logger doesn't exist or fails, fallback to console.
+let safeLogInfo: (msg: string, meta?: any) => void = console.log;
+let safeLogError: (msg: string, meta?: any) => void = console.error;
+
+try {
+  const { logInfo, logError } = await import("../utils/logger.js");
+  safeLogInfo = logInfo ?? console.log;
+  safeLogError = logError ?? console.error;
+} catch {
+  // No logger found — safe fallback already set
+}
 
 export type EmailDirection = "incoming" | "outgoing";
 export type EmailStatus = "queued" | "sent" | "failed";
@@ -23,45 +34,28 @@ export interface EmailMessageRecord {
   metadata?: Record<string, unknown>;
 }
 
-export interface EmailThread {
-  contactId: string;
-  lastMessageAt: string | null;
-  messages: EmailMessageRecord[];
-}
-
-export interface EmailSendOptions {
-  to?: string;
-  userEmail?: string;
-  sendAsSystem?: boolean;
-  sentBy?: string;
-  metadata?: Record<string, unknown>;
-}
-
-export interface RecordInboundEmailOptions {
-  from: string;
-  to: string;
-  subject: string;
-  body: string;
-  metadata?: Record<string, unknown>;
-}
-
+// The in-memory array is fine TEMPORARILY while DB integration work is done.
 const emailMessages: EmailMessageRecord[] = [];
 const contactDirectory = new Map<string, string>();
-let isSendGridConfigured = false;
+
+/* -----------------------------------------------------
+   SendGrid Setup
+----------------------------------------------------- */
+
+let sendGridReady = false;
 
 const configureSendGrid = (): void => {
-  if (isSendGridConfigured) {
-    return;
-  }
-
+  if (sendGridReady) return;
   const apiKey = process.env.SENDGRID_API_KEY;
-  if (!apiKey) {
-    return;
-  }
+  if (!apiKey) return; // fail silently, but email will not send
 
   sendGridMail.setApiKey(apiKey);
-  isSendGridConfigured = true;
+  sendGridReady = true;
 };
+
+/* -----------------------------------------------------
+   Helpers
+----------------------------------------------------- */
 
 const registerContactEmail = (contactId: string, email: string): void => {
   if (email.trim().length > 0) {
@@ -74,7 +68,6 @@ const resolveContactEmail = (contactId: string, fallback?: string): string => {
     registerContactEmail(contactId, fallback);
     return fallback;
   }
-
   const found = contactDirectory.get(contactId);
   if (!found) {
     throw new Error(`Contact ${contactId} email is unknown`);
@@ -82,9 +75,11 @@ const resolveContactEmail = (contactId: string, fallback?: string): string => {
   return found;
 };
 
-const sendEmailWithSendGrid = async (
-  record: EmailMessageRecord,
-): Promise<void> => {
+/* -----------------------------------------------------
+   Send Email via SendGrid
+----------------------------------------------------- */
+
+const sendEmailViaSendGrid = async (record: EmailMessageRecord): Promise<void> => {
   configureSendGrid();
 
   const apiKey = process.env.SENDGRID_API_KEY;
@@ -92,7 +87,7 @@ const sendEmailWithSendGrid = async (
 
   if (!apiKey || !fromEmail) {
     record.status = "failed";
-    logError("SendGrid not fully configured", { recordId: record.id });
+    safeLogError("SendGrid not configured", { recordId: record.id });
     return;
   }
 
@@ -104,17 +99,21 @@ const sendEmailWithSendGrid = async (
       html: record.body,
       text: record.body,
     });
+
     record.status = "sent";
-    record.providerMessageId =
-      (response.headers["x-message-id"] as string | undefined) ?? undefined;
-    logInfo("Email sent via SendGrid", { recordId: record.id });
-  } catch (error) {
+    record.providerMessageId = response.headers["x-message-id"] as string | undefined;
+    safeLogInfo("Email sent via SendGrid", { id: record.id });
+  } catch (err) {
     record.status = "failed";
-    logError("Failed to send email via SendGrid", error);
+    safeLogError("Failed to send via SendGrid", err);
   }
 };
 
-const sendEmailWithGraph = async (
+/* -----------------------------------------------------
+   Send Email via Microsoft Graph (App-Only Flow)
+----------------------------------------------------- */
+
+const sendEmailViaGraph = async (
   record: EmailMessageRecord,
   senderEmail: string,
 ): Promise<void> => {
@@ -124,11 +123,12 @@ const sendEmailWithGraph = async (
 
   if (!tenantId || !clientId || !clientSecret) {
     record.status = "failed";
-    logError("Microsoft Graph not configured", { recordId: record.id });
+    safeLogError("Graph not configured", { id: record.id });
     return;
   }
 
   try {
+    // 1) Acquire token
     const tokenResponse = await axios.post(
       `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`,
       new URLSearchParams({
@@ -137,81 +137,64 @@ const sendEmailWithGraph = async (
         scope: "https://graph.microsoft.com/.default",
         grant_type: "client_credentials",
       }),
-      {
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-      },
+      { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
     );
 
-    const accessToken = tokenResponse.data?.access_token as string | undefined;
-    if (!accessToken) {
-      throw new Error("Access token missing from Graph response");
-    }
+    const accessToken = tokenResponse.data?.access_token;
+    if (!accessToken) throw new Error("Missing Graph access token");
 
+    // 2) Send email
     await axios.post(
       `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(senderEmail)}/sendMail`,
       {
         message: {
           subject: record.subject,
-          body: {
-            contentType: "HTML",
-            content: record.body,
-          },
-          toRecipients: [
-            {
-              emailAddress: {
-                address: record.to,
-              },
-            },
-          ],
+          body: { contentType: "HTML", content: record.body },
+          toRecipients: [{ emailAddress: { address: record.to } }],
         },
         saveToSentItems: true,
       },
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      },
+      { headers: { Authorization: `Bearer ${accessToken}` } }
     );
 
     record.status = "sent";
-    logInfo("Email dispatched via Microsoft Graph", { recordId: record.id });
-  } catch (error) {
+    safeLogInfo("Email sent via MS Graph", { id: record.id });
+  } catch (err) {
     record.status = "failed";
-    logError("Failed to send email via Microsoft Graph", error);
+    safeLogError("Failed to send via Microsoft Graph", err);
   }
 };
 
-export const getEmailThreads = async (
-  contactId: string,
-): Promise<EmailThread> => {
-  const messages = emailMessages
-    .filter((message) => message.contactId === contactId)
-    .sort(
-      (a, b) => new Date(b.createdAt).valueOf() - new Date(a.createdAt).valueOf(),
-    );
-
-  return {
-    contactId,
-    lastMessageAt: messages[0]?.createdAt ?? null,
-    messages,
-  };
-};
+/* -----------------------------------------------------
+   Public API
+----------------------------------------------------- */
 
 export const sendEmail = async (
   contactId: string,
   subject: string,
   body: string,
-  options: EmailSendOptions = {},
+  opts: {
+    to?: string;
+    userEmail?: string;
+    sendAsSystem?: boolean;
+    sentBy?: string;
+    metadata?: Record<string, unknown>;
+  } = {}
 ): Promise<EmailMessageRecord> => {
   const createdAt = new Date().toISOString();
-  const recipient = resolveContactEmail(contactId, options.to);
+  const recipient = resolveContactEmail(contactId, opts.to);
   registerContactEmail(contactId, recipient);
-  const sendAsSystem = options.sendAsSystem ?? false;
-  const senderEmail = sendAsSystem
-    ? process.env.SENDGRID_FROM_EMAIL ?? process.env.O365_SENDER_EMAIL ?? "noreply@staff.local"
-    : options.userEmail ?? process.env.O365_SENDER_EMAIL ?? "noreply@staff.local";
+
+  const sendAsSystem = opts.sendAsSystem ?? false;
+
+  const senderEmail =
+    sendAsSystem
+      ? process.env.SENDGRID_FROM_EMAIL ??
+        process.env.O365_SENDER_EMAIL ??
+        "noreply@staff.local"
+      : opts.userEmail ??
+        process.env.O365_SENDER_EMAIL ??
+        "noreply@staff.local";
 
   const record: EmailMessageRecord = {
     id: randomUUID(),
@@ -224,16 +207,17 @@ export const sendEmail = async (
     status: "queued",
     provider: sendAsSystem ? "sendgrid" : "graph",
     createdAt,
-    sentBy: options.sentBy,
-    metadata: options.metadata,
+    sentBy: opts.sentBy,
+    metadata: opts.metadata,
   };
 
   emailMessages.unshift(record);
 
+  // Fire async
   if (sendAsSystem) {
-    void sendEmailWithSendGrid(record);
+    void sendEmailViaSendGrid(record);
   } else {
-    void sendEmailWithGraph(record, senderEmail);
+    void sendEmailViaGraph(record, senderEmail);
   }
 
   return record;
@@ -241,10 +225,16 @@ export const sendEmail = async (
 
 export const recordInboundEmail = (
   contactId: string,
-  payload: RecordInboundEmailOptions,
+  payload: {
+    from: string;
+    to: string;
+    subject: string;
+    body: string;
+    metadata?: Record<string, unknown>;
+  }
 ): EmailMessageRecord => {
-  registerContactEmail(contactId, payload.from);
   const createdAt = new Date().toISOString();
+  registerContactEmail(contactId, payload.from);
 
   const record: EmailMessageRecord = {
     id: randomUUID(),
@@ -264,44 +254,30 @@ export const recordInboundEmail = (
   return record;
 };
 
-export interface EmailMessage {
-  id: string;
-  to: string;
-  from: string;
-  subject: string;
-  body: string;
-  sentAt: string;
-  status: "queued" | "sent" | "failed";
-  direction: "inbound" | "outbound";
-}
-
-export interface EmailPayload {
-  to: string;
-  subject: string;
-  body: string;
-  from?: string;
-}
-
-const mapRecordToLegacy = (record: EmailMessageRecord): EmailMessage => ({
-  id: record.id,
-  to: record.to,
-  from: record.from,
-  subject: record.subject,
-  body: record.body,
-  sentAt: record.createdAt,
-  status: record.status,
-  direction: record.direction === "outgoing" ? "outbound" : "inbound",
-});
-
 export class EmailService {
-  public async sendEmail(payload: EmailPayload): Promise<EmailMessage> {
-    const record = await sendEmail(payload.to, payload.subject, payload.body, {
-      to: payload.to,
-      sendAsSystem: true,
-      metadata: { legacy: true, from: payload.from },
-    });
+  public async sendEmail(payload: {
+    to: string;
+    from?: string;
+    subject: string;
+    body: string;
+  }) {
+    const record = await sendEmail(
+      payload.to,
+      payload.subject,
+      payload.body,
+      { to: payload.to, sendAsSystem: true }
+    );
 
-    return mapRecordToLegacy(record);
+    return {
+      id: record.id,
+      to: record.to,
+      from: record.from,
+      subject: record.subject,
+      body: record.body,
+      sentAt: record.createdAt,
+      status: record.status,
+      direction: record.direction === "outgoing" ? "outbound" : "inbound",
+    };
   }
 
   public receiveEmail(payload: {
@@ -309,39 +285,60 @@ export class EmailService {
     to: string;
     subject: string;
     body: string;
-  }): EmailMessage {
-    const record = recordInboundEmail(payload.from, {
-      from: payload.from,
-      to: payload.to,
-      subject: payload.subject,
-      body: payload.body,
-    });
+  }) {
+    const record = recordInboundEmail(payload.from, payload);
 
-    return mapRecordToLegacy(record);
+    return {
+      id: record.id,
+      to: record.to,
+      from: record.from,
+      subject: record.subject,
+      body: record.body,
+      sentAt: record.createdAt,
+      status: record.status,
+      direction: "inbound",
+    };
   }
 
-  public listEmails(): EmailMessage[] {
-    return emailMessages.map((message) => mapRecordToLegacy(message));
+  public listEmails() {
+    return emailMessages.map((m) => ({
+      id: m.id,
+      to: m.to,
+      from: m.from,
+      subject: m.subject,
+      body: m.body,
+      sentAt: m.createdAt,
+      status: m.status,
+      direction: m.direction === "outgoing" ? "outbound" : "inbound",
+    }));
   }
 
-  public listThreads(): Array<{ contact: string; messages: EmailMessage[] }> {
-    const grouped = new Map<string, EmailMessage[]>();
+  public listThreads() {
+    const map = new Map<string, EmailMessageRecord[]>();
 
-    for (const record of emailMessages) {
-      const contact = record.direction === "outgoing" ? record.to : record.from;
-      const legacy = mapRecordToLegacy(record);
-      const bucket = grouped.get(contact) ?? [];
-      bucket.push(legacy);
-      grouped.set(contact, bucket);
+    for (const msg of emailMessages) {
+      const key = msg.direction === "outgoing" ? msg.to : msg.from;
+      const arr = map.get(key) ?? [];
+      arr.push(msg);
+      map.set(key, arr);
     }
 
-    return Array.from(grouped.entries()).map(([contact, messages]) => ({
+    return Array.from(map.entries()).map(([contact, items]) => ({
       contact,
-      messages: messages.sort((a, b) => b.sentAt.localeCompare(a.sentAt)),
+      messages: items
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        .map((m) => ({
+          id: m.id,
+          to: m.to,
+          from: m.from,
+          subject: m.subject,
+          body: m.body,
+          sentAt: m.createdAt,
+          status: m.status,
+          direction: m.direction === "outgoing" ? "outbound" : "inbound",
+        })),
     }));
   }
 }
 
 export const emailService = new EmailService();
-export type EmailServiceType = EmailService;
-export const createEmailService = (): EmailService => new EmailService();
