@@ -3,7 +3,7 @@ import cors from "cors";
 import bodyParser from "body-parser";
 
 import { attachSiloContext } from "./middleware/siloContext.js";
-import { authenticateRequest } from "./middleware/authentication.js";
+import { verifyToken } from "./middleware/authMiddleware.js";
 import healthRouter from "./routes/health.js";
 import authRouter from "./routes/auth.js";
 import applicationsRouter from "./routes/applications/index.js";
@@ -42,11 +42,12 @@ app.get("/", (_req, res) => {
 });
 
 app.use("/api", attachSiloContext);
-app.use("/api", authenticateRequest);
 
 app.use("/api/health", healthRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/publicLogin", publicLoginRouter);
+
+app.use("/api", verifyToken);
 app.use("/api/applications", applicationsRouter);
 app.use("/api/documents", documentsRouter);
 app.use("/api/lenders", lendersRouter);

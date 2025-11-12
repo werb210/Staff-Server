@@ -1,5 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
+import { login, me } from "../controllers/authController.js";
+import { verifyToken } from "../middleware/authMiddleware.js";
 import { isPlaceholderSilo } from "../utils/placeholder.js";
 
 const PasskeyLoginSchema = z.object({
@@ -9,6 +11,9 @@ const PasskeyLoginSchema = z.object({
 });
 
 const router = Router();
+
+router.post("/login", login);
+router.get("/me", verifyToken, me);
 
 router.post("/passkey", (req, res) => {
   if (!req.silo) {
