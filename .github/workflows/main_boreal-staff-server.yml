@@ -34,11 +34,16 @@ jobs:
           npm run build --if-present
           npm run test --if-present
 
+      - name: Package server build for deployment
+        run: |
+          cd server
+          zip -r ../server-artifact.zip dist package.json package-lock.json node_modules
+
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
           name: node-app
-          path: server  # Full server folder, not just dist
+          path: server-artifact.zip
 
   deploy:
     runs-on: ubuntu-latest
@@ -66,4 +71,4 @@ jobs:
         with:
           app-name: 'boreal-staff-server'
           slot-name: 'Production'
-          package: server
+          package: node-app/server-artifact.zip
