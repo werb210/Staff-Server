@@ -15,8 +15,9 @@ export const DocumentVersionSchema = z.object({
   version: z.number().int().positive(),
   uploadedAt: z.string().datetime({ offset: true }),
   checksum: z.string().min(8),
-  blobUrl: z.string().url(),
-  sasUrl: z.string().url(),
+  blobName: z.string().min(1),
+  fileName: z.string().min(1),
+  contentType: z.string().min(1),
   uploadedBy: z.string().min(1).optional(),
   note: z.string().max(500).optional(),
 });
@@ -34,8 +35,7 @@ export const DocumentMetadataSchema = z.object({
   uploadedBy: z.string().min(1).optional(),
   note: z.string().max(500).optional(),
   checksum: z.string().min(8),
-  blobUrl: z.string().url(),
-  sasUrl: z.string().url(),
+  blobName: z.string().min(1),
   aiSummary: z.string().optional(),
   explainability: z
     .record(z.string().min(1), z.string().min(1))
@@ -49,9 +49,9 @@ export type DocumentMetadata = z.infer<typeof DocumentMetadataSchema>;
 
 export const DocumentUploadSchema = z.object({
   applicationId: uuidSchema,
-  documentId: uuidSchema,
-  fileName: z.string().min(1),
-  contentType: z.string().min(1),
+  documentId: uuidSchema.optional(),
+  fileName: z.string().min(1).optional(),
+  contentType: z.string().min(1).optional(),
   note: z.string().optional(),
   uploadedBy: z.string().min(1).optional(),
 });
@@ -69,7 +69,7 @@ export const DocumentSaveSchema = z.object({
   contentType: z.string().min(1),
   status: DocumentStatusSchema.optional(),
   checksum: z.string().min(8).optional(),
-  blobUrl: z.string().url().optional(),
+  blobName: z.string().min(1).optional(),
   aiSummary: z.string().optional(),
   explainability: z
     .record(z.string().min(1), z.string().min(1))

@@ -1,4 +1,6 @@
 import { randomUUID } from "crypto";
+import type { Response } from "express";
+import { basename } from "path";
 import {
   type DocumentMetadata,
   type DocumentSaveInput,
@@ -6,15 +8,18 @@ import {
   type DocumentStatusResponse,
   type DocumentVersion,
 } from "../schemas/document.schema.js";
-import { azureBlobStorage, type AzureBlobStorageType } from "../utils/azureBlobStorage.js";
 import { createChecksum } from "../utils/checksum.js";
 import { aiService, type AiServiceType } from "./aiService.js";
+import {
+  azureBlobService,
+  type AzureBlobServiceType,
+} from "./azureBlob.js";
 import { ocrService, type OcrServiceType } from "./ocrService.js";
 
 export interface DocumentServiceOptions {
   ai?: AiServiceType;
   ocr?: OcrServiceType;
-  storage?: AzureBlobStorageType;
+  storage?: AzureBlobServiceType;
   seedDocuments?: Array<Partial<DocumentSaveInput> & { status: DocumentStatus }>;
 }
 
@@ -24,6 +29,8 @@ interface DocumentHistoryPayload extends DocumentSaveInput {
   uploadedAt: string;
   uploadedBy?: string;
   note?: string;
+  checksum?: string;
+  blobName?: string;
   versionHistory?: DocumentVersion[];
 }
 
@@ -49,12 +56,12 @@ export class DocumentService {
   private readonly statusUpdates = new Map<string, string>();
   private readonly ai: AiServiceType;
   private readonly ocr: OcrServiceType;
-  private readonly storage: AzureBlobStorageType;
+  private readonly storage: AzureBlobServiceType;
 
   constructor(options: DocumentServiceOptions = {}) {
     this.ai = options.ai ?? aiService;
     this.ocr = options.ocr ?? ocrService;
-    this.storage = options.storage ?? azureBlobStorage;
+    this.storage = options.storage ?? azureBlobService;
 
     const seedDocuments = options.seedDocuments ?? [
       {
@@ -98,29 +105,63 @@ export class DocumentService {
     return document;
   }
 
+  private sanitizeFileName(fileName: string): string {
+    const baseName = basename(fileName);
+    const trimmed = baseName.trim();
+    if (trimmed.length === 0) {
+      return "document";
+    }
+    return trimmed;
+  }
+
+  private resolveBlobName(
+    id: string,
+    version: number,
+    fileName: string,
+    provided?: string,
+  ): string {
+    if (provided && provided.length > 0) {
+      return provided;
+    }
+    return `${id}/v${version}/${this.sanitizeFileName(fileName)}`;
+  }
+
   private createVersion({
     id,
     fileName,
+    contentType,
     version,
     checksum,
-    blobUrl,
+    blobName,
     uploadedBy,
     note,
     uploadedAt,
   }: DocumentHistoryPayload & { id: string }): DocumentVersion {
-    const blobPath = `${id}/v${version}/${fileName}`;
+    const resolvedBlobName = this.resolveBlobName(id, version, fileName, blobName);
     const resolvedChecksum = checksum ?? createChecksum(`${fileName}:${version}`);
-    const resolvedBlobUrl =
-      blobUrl ?? `https://example.blob.core.windows.net/documents/${blobPath}`;
 
     return {
       version,
       uploadedAt,
       checksum: resolvedChecksum,
-      blobUrl: resolvedBlobUrl,
-      sasUrl: this.storage.generateSasUrl("documents", blobPath),
+      blobName: resolvedBlobName,
+      fileName,
+      contentType,
       uploadedBy,
       note: note ?? undefined,
+    };
+  }
+
+  private toVersion(document: DocumentMetadata): DocumentVersion {
+    return {
+      version: document.version,
+      uploadedAt: document.uploadedAt,
+      checksum: document.checksum,
+      blobName: document.blobName,
+      fileName: document.fileName,
+      contentType: document.contentType,
+      uploadedBy: document.uploadedBy,
+      note: document.note,
     };
   }
 
@@ -146,8 +187,7 @@ export class DocumentService {
       uploadedAt: input.uploadedAt,
       uploadedBy: input.uploadedBy,
       checksum: currentVersion.checksum,
-      blobUrl: currentVersion.blobUrl,
-      sasUrl: currentVersion.sasUrl,
+      blobName: currentVersion.blobName,
       note: input.note,
       aiSummary: summary,
       explainability:
@@ -161,8 +201,7 @@ export class DocumentService {
           version: input.version,
           uploadedAt: input.uploadedAt,
           checksum: currentVersion.checksum,
-          blobUrl: currentVersion.blobUrl,
-          sasUrl: currentVersion.sasUrl,
+          blobName: currentVersion.blobName,
           aiSummary: summary,
           ocrTextPreview: ocr.summary,
           lastAnalyzedAt: input.uploadedAt,
@@ -219,18 +258,7 @@ export class DocumentService {
     const status = input.status ?? existing?.status ?? "processing";
 
     const versionHistory = existing
-      ? [
-          {
-            version: existing.version,
-            uploadedAt: existing.uploadedAt,
-            checksum: existing.checksum,
-            blobUrl: existing.blobUrl,
-            sasUrl: existing.sasUrl,
-            uploadedBy: existing.uploadedBy,
-            note: existing.note,
-          },
-          ...existing.versionHistory,
-        ]
+      ? [this.toVersion(existing), ...existing.versionHistory]
       : [];
 
     const metadata = this.buildMetadata({
@@ -247,6 +275,40 @@ export class DocumentService {
     this.documents.set(id, metadata);
     this.statusUpdates.set(id, metadata.uploadedAt);
     return metadata;
+  }
+
+  /**
+   * Uploads binary content to Azure Blob Storage and records a document version.
+   */
+  public async uploadDocument(input: {
+    applicationId: string;
+    documentId?: string;
+    fileName: string;
+    contentType: string;
+    data: Buffer;
+    uploadedBy?: string;
+    note?: string;
+    status?: DocumentStatus;
+  }): Promise<DocumentMetadata> {
+    const id = input.documentId ?? randomUUID();
+    const existing = this.documents.get(id);
+    const version = (existing?.version ?? 0) + 1;
+    const sanitizedFileName = this.sanitizeFileName(input.fileName);
+    const blobName = this.resolveBlobName(id, version, sanitizedFileName);
+    await this.storage.uploadFile(input.data, blobName, input.contentType);
+    const checksum = createChecksum(input.data);
+
+    return this.saveDocument({
+      id,
+      applicationId: input.applicationId,
+      fileName: sanitizedFileName,
+      contentType: input.contentType,
+      uploadedBy: input.uploadedBy,
+      note: input.note,
+      status: input.status ?? existing?.status ?? "processing",
+      checksum,
+      blobName,
+    });
   }
 
   /**
@@ -296,29 +358,16 @@ export class DocumentService {
    */
   public listVersions(id: string): DocumentVersion[] {
     const document = this.requireDocument(id);
-    const current: DocumentVersion = {
-      version: document.version,
-      uploadedAt: document.uploadedAt,
-      checksum: document.checksum,
-      blobUrl: document.blobUrl,
-      sasUrl: document.sasUrl,
-      uploadedBy: document.uploadedBy,
-      note: document.note,
-    };
-
-    return [current, ...document.versionHistory];
+    return [this.toVersion(document), ...document.versionHistory];
   }
 
   /**
-   * Resolves a SAS download URL for a specific document version.
+   * Resolves metadata for a specific document version.
    */
-  public getDownloadUrl(
-    id: string,
-    version?: number,
-  ): { sasUrl: string; version: number } {
+  public getVersionInfo(id: string, version?: number): DocumentVersion {
     const document = this.requireDocument(id);
     if (version === undefined || version === document.version) {
-      return { sasUrl: document.sasUrl, version: document.version };
+      return this.toVersion(document);
     }
 
     const history = document.versionHistory.find((entry) => entry.version === version);
@@ -326,24 +375,36 @@ export class DocumentService {
       throw new DocumentVersionNotFoundError(id, version);
     }
 
-    return { sasUrl: history.sasUrl, version: history.version };
+    return history;
   }
 
   /**
-   * Generates an upload URL for the current document version.
+   * Streams a document version directly to the response.
    */
-  public createUploadUrl(
+  public async streamVersion(
+    version: DocumentVersion,
+    res: Response,
+  ): Promise<void> {
+    await this.storage.streamFile(version.blobName, res);
+  }
+
+  /**
+   * Downloads the requested document version into memory.
+   */
+  public async downloadDocument(
     id: string,
-    fileName: string,
-  ): { uploadUrl: string; expiresAt: string; version: number } {
-    const document = this.requireDocument(id);
-    const sanitizedFileName = fileName.trim();
-    if (!sanitizedFileName) {
-      throw new Error("File name is required");
-    }
-    const blobName = `${id}/v${document.version}/${sanitizedFileName}`;
-    const upload = this.storage.createUploadUrl("documents", blobName);
-    return { ...upload, version: document.version };
+    version?: number,
+  ): Promise<{ buffer: Buffer; version: DocumentVersion }> {
+    const versionInfo = this.getVersionInfo(id, version);
+    const buffer = await this.storage.downloadFile(versionInfo.blobName);
+    return { buffer, version: versionInfo };
+  }
+
+  /**
+   * Downloads the binary content for a specific document version.
+   */
+  public async downloadVersionData(version: DocumentVersion): Promise<Buffer> {
+    return this.storage.downloadFile(version.blobName);
   }
 }
 

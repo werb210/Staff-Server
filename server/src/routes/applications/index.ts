@@ -211,13 +211,12 @@ router.post("/complete", (req, res) => {
   res.json({ message: "OK", data: completed });
 });
 
-const ApplicationUploadSchema = DocumentUploadSchema.pick({
-  applicationId: true,
-  fileName: true,
-  contentType: true,
-  uploadedBy: true,
-  note: true,
-}).extend({
+const ApplicationUploadSchema = z.object({
+  applicationId: DocumentUploadSchema.shape.applicationId,
+  fileName: z.string().min(1),
+  contentType: z.string().min(1),
+  uploadedBy: DocumentUploadSchema.shape.uploadedBy,
+  note: DocumentUploadSchema.shape.note,
   documentId: DocumentUploadSchema.shape.documentId.optional(),
 });
 

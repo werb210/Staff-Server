@@ -38,7 +38,7 @@ export class AiService {
     return {
       checksum: document.checksum,
       status: document.status,
-      blobUrl: document.blobUrl,
+      blobName: document.blobName,
     };
   }
 }
