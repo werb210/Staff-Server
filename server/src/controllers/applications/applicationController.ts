@@ -9,13 +9,15 @@ import {
   ApplicationPublishSchema,
 } from "../../schemas/application.schema.js";
 
+import { DocumentUploadSchema } from "../../schemas/document.schema.js";
+
 import {
   applicationService,
   type ApplicationServiceType,
 } from "../../services/applicationService.js";
 
 /* ---------------------------------------------------------
-   Helper: resolve correct ApplicationService (silo-aware)
+   Helper: Silo-aware service resolver
 --------------------------------------------------------- */
 function getService(req: Request): ApplicationServiceType {
   const siloReq = req as Request & {
@@ -30,17 +32,15 @@ function getService(req: Request): ApplicationServiceType {
 --------------------------------------------------------- */
 export const listApplications = (req: Request, res: Response) => {
   const service = getService(req);
-  const apps = service.listApplications();
-  res.json(apps);
+  res.json(service.listApplications());
 };
 
 /* ---------------------------------------------------------
-   GET SINGLE
+   GET
 --------------------------------------------------------- */
 export const getApplication = (req: Request, res: Response) => {
   const service = getService(req);
-  const app = service.getApplication(req.params.id);
-  res.json(app);
+  res.json(service.getApplication(req.params.id));
 };
 
 /* ---------------------------------------------------------
@@ -72,9 +72,7 @@ export const updateApplication = (req: Request, res: Response) => {
     return res.status(400).json({ message: "Invalid application payload" });
   }
 
-  // strip id before passing to service (it takes updates without id)
-  const { id: _discard, ...updates } = parsed.data as any;
-
+  const { id: _drop, ...updates } = parsed.data as any;
   const updated = service.updateApplication(req.params.id, updates);
   res.json(updated);
 };
@@ -134,6 +132,7 @@ export const assignApplication = (req: Request, res: Response) => {
     parsed.data.assignedTo,
     parsed.data.stage,
   );
+
   res.json(updated);
 };
 
@@ -143,9 +142,7 @@ export const assignApplication = (req: Request, res: Response) => {
 export const submitApplication = (req: Request, res: Response) => {
   const service = getService(req);
   const submittedBy = req.body.submittedBy ?? "system";
-
-  const updated = service.submitApplication(req.params.id, submittedBy);
-  res.json(updated);
+  res.json(service.submitApplication(req.params.id, submittedBy));
 };
 
 /* ---------------------------------------------------------
@@ -154,13 +151,11 @@ export const submitApplication = (req: Request, res: Response) => {
 export const completeApplication = (req: Request, res: Response) => {
   const service = getService(req);
   const completedBy = req.body.completedBy ?? "system";
-
-  const updated = service.completeApplication(req.params.id, completedBy);
-  res.json(updated);
+  res.json(service.completeApplication(req.params.id, completedBy));
 };
 
 /* ---------------------------------------------------------
-   PUBLISH (returns ApplicationPublic)
+   PUBLISH
 --------------------------------------------------------- */
 export const publishApplication = (req: Request, res: Response) => {
   const service = getService(req);
@@ -170,11 +165,12 @@ export const publishApplication = (req: Request, res: Response) => {
     return res.status(400).json({ message: "Invalid publish payload" });
   }
 
-  const published = service.publishApplication(
+  const output = service.publishApplication(
     req.params.id,
     parsed.data.publishedBy,
   );
-  res.json(published);
+
+  res.json(output);
 };
 
 /* ---------------------------------------------------------
@@ -182,6 +178,28 @@ export const publishApplication = (req: Request, res: Response) => {
 --------------------------------------------------------- */
 export const deleteApplication = (req: Request, res: Response) => {
   const service = getService(req);
-  const deleted = service.deleteApplication(req.params.id);
-  res.json(deleted);
+  res.json(service.deleteApplication(req.params.id));
+};
+
+/* ---------------------------------------------------------
+   UPLOAD DOCUMENT
+   Required by POST /api/applications/upload
+--------------------------------------------------------- */
+export const uploadDocument = async (req: Request, res: Response) => {
+  const silo = (req as any).silo;
+  if (!silo?.services?.documents) {
+    return res.status(500).json({ message: "Document service unavailable" });
+  }
+
+  const parsed = DocumentUploadSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: "Invalid upload payload" });
+  }
+
+  const saved = await silo.services.documents.save({
+    ...parsed.data,
+    data: Buffer.from([]),
+  });
+
+  res.status(201).json(saved);
 };
