@@ -3,7 +3,6 @@ import { applicationService } from "./applicationService.js";
 import { getDocumentsForApplication } from "./documentService.js";
 import { getAll as getAllLenders } from "./lendersService.js";
 import {
-  PipelineStageNameSchema,
   type PipelineStageName,
 } from "../schemas/pipeline.schema.js";
 
@@ -20,10 +19,10 @@ export const PIPELINE_STAGES: PipelineStageName[] = [
 ];
 
 /**
- * PipelineCard
+ * PipelineCard stored in memory
  */
 interface PipelineCard {
-  id: string; // cardId = applicationId
+  id: string; // applicationId = cardId
   applicationId: string;
   applicantName: string;
   amount: number;
@@ -33,7 +32,7 @@ interface PipelineCard {
 }
 
 /**
- * Timeline events
+ * Timeline event history
  */
 interface TimelineEvent {
   id: string;
@@ -44,13 +43,13 @@ interface TimelineEvent {
 }
 
 /**
- * Internal stores
+ * Internal memory stores
  */
 const cards = new Map<string, PipelineCard>();
 const timeline = new Map<string, TimelineEvent[]>();
 
 /**
- * Build a card from an application (SEED ONLY)
+ * Build card from application (ONLY used for first-time seed)
  */
 const buildInitialCard = (app: any): PipelineCard => {
   const now = new Date().toISOString();
@@ -58,17 +57,17 @@ const buildInitialCard = (app: any): PipelineCard => {
 
   const docs = getDocumentsForApplication(app.id);
 
-  // Rule #1: zero docs → Requires Docs
+  // Rule #1 – zero docs → Requires Docs
   if (docs.length === 0) {
     stage = "Requires Docs";
   }
 
-  // Rule #2: any rejected → Requires Docs
+  // Rule #2 – any rejected doc → Requires Docs
   if (docs.some((d) => d.status === "rejected")) {
     stage = "Requires Docs";
   }
 
-  // Map app.status → pipeline status
+  // Map application.status → pipeline stage
   switch (app.status) {
     case "review":
       stage = "In Review";
@@ -99,7 +98,8 @@ const buildInitialCard = (app: any): PipelineCard => {
 };
 
 /**
- * Keep card data synced with real applications
+ * Sync card metadata with actual applications
+ * NEVER overwrite user-controlled stage
  */
 const syncCards = () => {
   const apps = applicationService.listApplications();
@@ -108,11 +108,12 @@ const syncCards = () => {
     const existing = cards.get(app.id);
 
     if (!existing) {
+      // First time → build new card
       cards.set(app.id, buildInitialCard(app));
       return;
     }
 
-    // Sync metadata ONLY
+    // Sync metadata only
     existing.applicantName = app.applicantName;
     existing.amount = app.loanAmount ?? existing.amount;
     existing.updatedAt = app.updatedAt ?? existing.updatedAt;
@@ -123,7 +124,7 @@ const syncCards = () => {
 };
 
 /**
- * Ensure card exists
+ * Must exist or throw
  */
 const requireCard = (id: string): PipelineCard => {
   const card = cards.get(id);
@@ -134,7 +135,7 @@ const requireCard = (id: string): PipelineCard => {
 };
 
 /**
- * Public: list full board
+ * PUBLIC: return board stages
  */
 export const getAllStages = () => {
   syncCards();
@@ -143,6 +144,7 @@ export const getAllStages = () => {
     const stageCards = Array.from(cards.values()).filter(
       (c) => c.stage === stage
     );
+
     return {
       id: stage,
       name: stage,
@@ -156,13 +158,13 @@ export const getAllStages = () => {
       ),
       averageScore: undefined,
       lastUpdatedAt: new Date().toISOString(),
-      applications: [], // optional — UI does not require this here
+      applications: [],
     };
   });
 };
 
 /**
- * Public: list all cards
+ * PUBLIC: return all cards
  */
 export const getAllCards = () => {
   syncCards();
@@ -170,7 +172,7 @@ export const getAllCards = () => {
 };
 
 /**
- * Move card (BIG FIX compliant)
+ * BIG FIX: move card ONLY using validated pipeline stage
  */
 export const moveCard = (payload: {
   applicationId: string;
@@ -187,6 +189,7 @@ export const moveCard = (payload: {
   const card = requireCard(applicationId);
 
   const now = new Date().toISOString();
+
   const updated: PipelineCard = {
     ...card,
     stage: toStage,
