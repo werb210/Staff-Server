@@ -1,58 +1,43 @@
-import { Router } from "express";
-import multer from "multer";
+import express from "express";
+import cors from "cors";
+import bodyParser from "body-parser";
 
-import {
-  uploadDocument,
-  getDocument,
-  previewDocument,
-  downloadDocumentHandler,
-  acceptDocumentHandler,
-  rejectDocumentHandler,
-  reuploadDocumentHandler,
-  getDocumentsForApplicationHandler,
-  downloadAllDocumentsHandler,
-} from "../controllers/documentController.js";
+// Routes
+import documentRouter, {
+  applicationDocumentsRouter,
+} from "./routes/index.js"; // this matches YOUR file path
 
-const router = Router();
-const upload = multer({ storage: multer.memoryStorage() });
+// Create server instance
+const app = express();
 
-/* ---------------------------------------------------------
-   DOCUMENT-SCOPED ROUTES
---------------------------------------------------------- */
-
-router.get("/:id", getDocument);
-
-router.get("/:id/preview", previewDocument);
-
-router.get("/:id/download", downloadDocumentHandler);
-
-router.post("/:id/accept", acceptDocumentHandler);
-
-router.post("/:id/reject", rejectDocumentHandler);
-
-router.post("/:id/reupload", upload.single("file"), reuploadDocumentHandler);
+// Middleware
+app.use(cors());
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
 
 /* ---------------------------------------------------------
-   CREATE NEW DOCUMENT
+   HEALTH CHECK (required by tests + Azure deployment)
 --------------------------------------------------------- */
-
-router.post("/upload", upload.single("file"), uploadDocument);
+app.get("/api/_int/build", (_req, res) => {
+  res.json({ ok: true, message: "Server running" });
+});
 
 /* ---------------------------------------------------------
-   APPLICATION-SCOPED ROUTES
-   (used via: applicationDocumentsRouter in index.ts)
+   DOCUMENT ROUTES
 --------------------------------------------------------- */
+app.use("/api/documents", documentRouter);
 
-export const applicationDocumentsRouter = Router({ mergeParams: true });
+/* ---------------------------------------------------------
+   APPLICATION-SCOPED DOCUMENT ROUTES
+--------------------------------------------------------- */
+app.use("/api/applications", applicationDocumentsRouter);
 
-applicationDocumentsRouter.get(
-  "/:appId/documents",
-  getDocumentsForApplicationHandler
+/* ---------------------------------------------------------
+   SERVER START
+--------------------------------------------------------- */
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, () =>
+  console.log(`Server running on http://localhost:${PORT}`)
 );
 
-applicationDocumentsRouter.get(
-  "/:appId/documents/download-all",
-  downloadAllDocumentsHandler
-);
-
-export default router;
+export default app;
