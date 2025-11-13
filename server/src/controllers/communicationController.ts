@@ -1,21 +1,25 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
 import type { AuthenticatedUser } from "../services/authService.js";
+
 import {
   getThreads as getSmsThreads,
   getThread as getSmsThread,
   sendSMS as dispatchSms,
 } from "../services/smsService.js";
+
 import {
   getCalls as fetchCalls,
   initiateCall as startCall,
   endCall as finishCall,
   CallNotFoundError,
 } from "../services/callsService.js";
+
 import {
-  getEmailThreads as fetchEmailThreads,
   sendEmail as dispatchEmail,
+  emailService,
 } from "../services/emailService.js";
+
 import {
   getTemplates as fetchTemplates,
   createTemplate as persistTemplate,
@@ -23,7 +27,10 @@ import {
   deleteTemplate as removeTemplate,
   TemplateNotFoundError,
 } from "../services/templateService.js";
+
 import { logError } from "../utils/logger.js";
+
+/* -------------------- Validation Schemas -------------------- */
 
 const smsSendSchema = z.object({
   contactId: z.string().uuid(),
@@ -59,11 +66,11 @@ const templateCreateSchema = z.object({
 });
 
 const templateUpdateSchema = templateCreateSchema.partial().refine(
-  (value) => Object.keys(value).length > 0,
-  {
-    message: "At least one field must be provided",
-  },
+  (v) => Object.keys(v).length > 0,
+  { message: "At least one field is required" }
 );
+
+/* -------------------- Helpers -------------------- */
 
 const extractUser = (req: Request): AuthenticatedUser | undefined =>
   (req as Request & { user?: AuthenticatedUser }).user;
@@ -71,26 +78,24 @@ const extractUser = (req: Request): AuthenticatedUser | undefined =>
 const sendValidationError = (res: Response, message: string) =>
   res.status(400).json({ message });
 
+/* -------------------- SMS -------------------- */
+
 export const getSMSThreads = async (_req: Request, res: Response) => {
   const threads = await getSmsThreads();
   return res.json({ message: "OK", data: threads });
 };
 
 export const getSMSForContact = async (req: Request, res: Response) => {
-  const contactId = z.string().uuid().safeParse(req.params.contactId);
-  if (!contactId.success) {
-    return sendValidationError(res, "Invalid contact id");
-  }
+  const parsed = z.string().uuid().safeParse(req.params.contactId);
+  if (!parsed.success) return sendValidationError(res, "Invalid contact id");
 
-  const messages = await getSmsThread(contactId.data);
+  const messages = await getSmsThread(parsed.data);
   return res.json({ message: "OK", data: messages });
 };
 
 export const sendSMS = async (req: Request, res: Response) => {
   const parsed = smsSendSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return sendValidationError(res, "Invalid SMS payload");
-  }
+  if (!parsed.success) return sendValidationError(res, "Invalid SMS payload");
 
   const user = extractUser(req);
 
@@ -104,11 +109,13 @@ export const sendSMS = async (req: Request, res: Response) => {
     });
 
     return res.status(201).json({ message: "OK", data: message });
-  } catch (error) {
-    logError("Failed to send SMS", error);
+  } catch (err) {
+    logError("Failed to send SMS", err);
     return res.status(500).json({ message: "Failed to send SMS" });
   }
 };
+
+/* -------------------- Calls -------------------- */
 
 export const getCalls = async (_req: Request, res: Response) => {
   const calls = await fetchCalls();
@@ -117,9 +124,7 @@ export const getCalls = async (_req: Request, res: Response) => {
 
 export const initiateCall = async (req: Request, res: Response) => {
   const parsed = callInitiateSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return sendValidationError(res, "Invalid call payload");
-  }
+  if (!parsed.success) return sendValidationError(res, "Invalid call payload");
 
   const user = extractUser(req);
 
@@ -130,62 +135,64 @@ export const initiateCall = async (req: Request, res: Response) => {
       initiatedBy: user?.id,
       context: parsed.data.context,
     });
+
     return res.status(201).json({ message: "OK", data: call });
-  } catch (error) {
-    logError("Failed to initiate call", error);
+  } catch (err) {
+    logError("Failed to initiate call", err);
     return res.status(500).json({ message: "Failed to initiate call" });
   }
 };
 
 export const endCall = async (req: Request, res: Response) => {
   const parsed = callEndSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return sendValidationError(res, "Invalid call id");
-  }
+  if (!parsed.success) return sendValidationError(res, "Invalid call id");
 
   try {
     const call = await finishCall(parsed.data.callId);
     return res.json({ message: "OK", data: call });
-  } catch (error) {
-    if (error instanceof CallNotFoundError) {
+  } catch (err) {
+    if (err instanceof CallNotFoundError) {
       return res.status(404).json({ message: "Call not found" });
     }
-    logError("Failed to end call", error);
+    logError("Failed to end call", err);
     return res.status(500).json({ message: "Failed to end call" });
   }
 };
 
-export const getEmailThreads = async (req: Request, res: Response) => {
-  const contactId = z.string().uuid().safeParse(req.params.contactId);
-  if (!contactId.success) {
-    return sendValidationError(res, "Invalid contact id");
-  }
+/* -------------------- Email -------------------- */
 
-  const threads = await fetchEmailThreads(contactId.data);
+export const getEmailThreads = async (_req: Request, res: Response) => {
+  const threads = emailService.listThreads();
   return res.json({ message: "OK", data: threads });
 };
 
 export const sendEmail = async (req: Request, res: Response) => {
   const parsed = emailSendSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return sendValidationError(res, "Invalid email payload");
-  }
+  if (!parsed.success) return sendValidationError(res, "Invalid email payload");
 
   const user = extractUser(req);
 
   try {
-    const message = await dispatchEmail(parsed.data.contactId, parsed.data.subject, parsed.data.body, {
-      to: parsed.data.to,
-      userEmail: parsed.data.sendAsSystem ? undefined : user?.email,
-      sendAsSystem: parsed.data.sendAsSystem ?? false,
-      sentBy: user?.id,
-    });
+    const message = await dispatchEmail(
+      parsed.data.contactId,
+      parsed.data.subject,
+      parsed.data.body,
+      {
+        to: parsed.data.to,
+        userEmail: parsed.data.sendAsSystem ? undefined : user?.email,
+        sendAsSystem: parsed.data.sendAsSystem ?? false,
+        sentBy: user?.id,
+      }
+    );
+
     return res.status(201).json({ message: "OK", data: message });
-  } catch (error) {
-    logError("Failed to send email", error);
+  } catch (err) {
+    logError("Failed to send email", err);
     return res.status(500).json({ message: "Failed to send email" });
   }
 };
+
+/* -------------------- Templates -------------------- */
 
 export const getTemplates = async (_req: Request, res: Response) => {
   const templates = await fetchTemplates();
@@ -194,30 +201,20 @@ export const getTemplates = async (_req: Request, res: Response) => {
 
 export const createTemplate = async (req: Request, res: Response) => {
   const parsed = templateCreateSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return sendValidationError(res, "Invalid template payload");
-  }
+  if (!parsed.success) return sendValidationError(res, "Invalid template payload");
 
   const user = extractUser(req);
-
-  const template = await persistTemplate({
-    ...parsed.data,
-    createdBy: user?.id,
-  });
+  const template = await persistTemplate({ ...parsed.data, createdBy: user?.id });
 
   return res.status(201).json({ message: "OK", data: template });
 };
 
 export const updateTemplate = async (req: Request, res: Response) => {
   const id = z.string().uuid().safeParse(req.params.id);
-  if (!id.success) {
-    return sendValidationError(res, "Invalid template id");
-  }
+  if (!id.success) return sendValidationError(res, "Invalid template id");
 
   const parsed = templateUpdateSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return sendValidationError(res, "Invalid template payload");
-  }
+  if (!parsed.success) return sendValidationError(res, "Invalid template payload");
 
   const user = extractUser(req);
 
@@ -226,30 +223,29 @@ export const updateTemplate = async (req: Request, res: Response) => {
       ...parsed.data,
       updatedBy: user?.id,
     });
+
     return res.json({ message: "OK", data: template });
-  } catch (error) {
-    if (error instanceof TemplateNotFoundError) {
+  } catch (err) {
+    if (err instanceof TemplateNotFoundError) {
       return res.status(404).json({ message: "Template not found" });
     }
-    logError("Failed to update template", error);
+    logError("Failed to update template", err);
     return res.status(500).json({ message: "Failed to update template" });
   }
 };
 
 export const deleteTemplate = async (req: Request, res: Response) => {
   const id = z.string().uuid().safeParse(req.params.id);
-  if (!id.success) {
-    return sendValidationError(res, "Invalid template id");
-  }
+  if (!id.success) return sendValidationError(res, "Invalid template id");
 
   try {
     await removeTemplate(id.data);
     return res.status(204).send();
-  } catch (error) {
-    if (error instanceof TemplateNotFoundError) {
+  } catch (err) {
+    if (err instanceof TemplateNotFoundError) {
       return res.status(404).json({ message: "Template not found" });
     }
-    logError("Failed to delete template", error);
+    logError("Failed to delete template", err);
     return res.status(500).json({ message: "Failed to delete template" });
   }
 };
