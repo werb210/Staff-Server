@@ -1,15 +1,24 @@
 import { randomUUID } from "crypto";
 import {
+  ApplicationSchema,
+  ApplicationCreateSchema,
+  ApplicationUpdateSchema,
+  ApplicationStageSchema,
+  ApplicationStatusSchema,
+  ApplicationPublicSchema,
   type Application,
   type ApplicationCreateInput,
-  type ApplicationPublic,
   type ApplicationUpdateInput,
   type ApplicationStage,
+  type ApplicationStatus,
+  type ApplicationPublic,
 } from "../schemas/application.schema.js";
+
 import {
   type ClientPortalSession,
   ClientPortalSessionSchema,
 } from "../schemas/publicLogin.schema.js";
+
 import { aiService, type AiServiceType } from "./aiService.js";
 
 export interface ApplicationServiceOptions {
@@ -17,6 +26,7 @@ export interface ApplicationServiceOptions {
   seedApplications?: Application[];
 }
 
+/** Error for Portal session lookups */
 export class ApplicationPortalNotFoundError extends Error {
   constructor(identifier: string) {
     super(`No application found for ${identifier}`);
@@ -30,45 +40,58 @@ export class ApplicationService {
 
   constructor(options: ApplicationServiceOptions = {}) {
     this.ai = options.ai ?? aiService;
+
     const now = new Date();
+
     const seed: Application[] =
       options.seedApplications ?? this.defaultSeed(now);
+
     seed.forEach((app) => this.applications.set(app.id, app));
   }
 
+  /** Default seed for demo environment */
   private defaultSeed(now: Date): Application[] {
-    return [
-      {
-        id: "c27e0c87-3bd5-47cc-8d14-5c569ea2cc15",
-        externalId: undefined,
-        businessName: "Demo Manufacturing",
-        applicantName: "Jane Doe",
-        applicantEmail: "jane.doe@example.com",
-        applicantPhone: "+15551234567",
-        productId: "0d1bd95e-08b5-46b3-8df8-17f29cc3fc49",
-        productCategory: "equipment",
-        loanAmount: 250000,
-        loanPurpose: "Purchase new equipment",
-        stage: "in_review",
-        status: "review",
-        score: 78,
-        matchScore: 82,
-        assignedTo: "alex.martin",
-        referrerId: undefined,
-        silo: "BF",
-        aiSummary: undefined,
-        ocrExtracted: undefined,
-        createdAt: now.toISOString(),
-        updatedAt: now.toISOString(),
-        submittedAt: now.toISOString(),
-      },
-    ];
+    const base = {
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+      submittedAt: now.toISOString(),
+      completedAt: undefined,
+      completedBy: undefined,
+      submittedBy: "system",
+      score: 78,
+      matchScore: 82,
+      assignedTo: "alex.martin",
+      referrerId: undefined,
+      silo: "BF" as const,
+      aiSummary: undefined,
+      ocrExtracted: undefined,
+    };
+
+    const application: Application = ApplicationSchema.parse({
+      ...base,
+      id: "c27e0c87-3bd5-47cc-8d14-5c569ea2cc15",
+      externalId: undefined,
+      businessName: "Demo Manufacturing",
+      applicantName: "Jane Doe",
+      applicantEmail: "jane.doe@example.com",
+      applicantPhone: "+15551234567",
+      productId: "0d1bd95e-08b5-46b3-8df8-17f29cc3fc49",
+      productCategory: "equipment",
+      loanAmount: 250000,
+      loanPurpose: "Purchase new equipment",
+      stage: "in_review",
+      status: "review",
+    });
+
+    return [application];
   }
 
+  /** List ALL applications */
   public listApplications(): Application[] {
     return Array.from(this.applications.values());
   }
 
+  /** Private: lookup */
   private findById(id: string): Application | undefined {
     return this.applications.get(id);
   }
@@ -80,31 +103,37 @@ export class ApplicationService {
     );
   }
 
+  /** Public version for client portal */
   public listPublicApplications(): ApplicationPublic[] {
-    return this.listApplications().map((app) => ({
-      id: app.id,
-      businessName: app.businessName,
-      loanAmount: app.loanAmount,
-      loanPurpose: app.loanPurpose,
-      stage: app.stage,
-      score: app.score,
-      matchScore: app.matchScore,
-      submittedAt: app.submittedAt,
-      summary: this.ai.summarizeApplication(app),
-    }));
+    return this.listApplications().map((app) =>
+      ApplicationPublicSchema.parse({
+        id: app.id,
+        businessName: app.businessName,
+        loanAmount: app.loanAmount,
+        loanPurpose: app.loanPurpose,
+        stage: app.stage,
+        score: app.score,
+        matchScore: app.matchScore,
+        submittedAt: app.submittedAt,
+        summary: this.ai.summarizeApplication(app),
+      }),
+    );
   }
 
+  /** Get or create placeholder */
   public getApplication(id: string): Application {
     const existing = this.findById(id);
     if (existing) return existing;
 
     const now = new Date().toISOString();
-    const placeholder: Application = {
+
+    const placeholder: Application = ApplicationSchema.parse({
       id,
       externalId: undefined,
       businessName: "New Business",
       applicantName: "Unknown",
       applicantEmail: "unknown@example.com",
+      applicantPhone: undefined,
       productId: "00000000-0000-0000-0000-000000000000",
       productCategory: "general",
       loanAmount: 0,
@@ -120,78 +149,93 @@ export class ApplicationService {
       ocrExtracted: undefined,
       createdAt: now,
       updatedAt: now,
-    };
+      submittedAt: undefined,
+      submittedBy: undefined,
+      completedAt: undefined,
+      completedBy: undefined,
+    });
 
     this.applications.set(id, placeholder);
     return placeholder;
   }
 
-  public createApplication(payload: ApplicationCreateInput): Application {
+  /** Create new application */
+  public createApplication(input: ApplicationCreateInput): Application {
+    const payload = ApplicationCreateSchema.parse(input);
     const now = new Date().toISOString();
-    const id = randomUUID();
 
-    const application: Application = {
-      id,
+    const app: Application = ApplicationSchema.parse({
+      id: randomUUID(),
       externalId: undefined,
-      businessName: payload.businessName,
-      applicantName: payload.applicantName,
-      applicantEmail: payload.applicantEmail,
-      applicantPhone: payload.applicantPhone,
-      productId: payload.productId,
-      productCategory: payload.productCategory,
-      loanAmount: payload.loanAmount,
-      loanPurpose: payload.loanPurpose,
+      ...payload,
       stage: payload.stage ?? "new",
       status: payload.status ?? "draft",
       score: 0,
       matchScore: 0,
-      assignedTo: payload.assignedTo,
-      referrerId: payload.referrerId,
-      silo: payload.silo ?? "BF",
       aiSummary: undefined,
       ocrExtracted: undefined,
       createdAt: now,
       updatedAt: now,
-    };
+      submittedAt: undefined,
+      submittedBy: undefined,
+      completedAt: undefined,
+      completedBy: undefined,
+    });
 
-    this.applications.set(id, application);
-    return application;
+    this.applications.set(app.id, app);
+    return app;
   }
 
+  /** Update application (strict schema) */
   public updateApplication(
     id: string,
     updates: Omit<ApplicationUpdateInput, "id">,
   ): Application {
     const current = this.getApplication(id);
-    const updated: Application = {
+
+    const parsed = ApplicationUpdateSchema.parse({ id, ...updates });
+
+    const updated: Application = ApplicationSchema.parse({
       ...current,
-      ...updates,
+      ...parsed,
       updatedAt: new Date().toISOString(),
-    };
+    });
+
     this.applications.set(id, updated);
     return updated;
   }
 
+  /** Update stage only */
   public updateStage(id: string, stage: ApplicationStage): Application {
+    ApplicationStageSchema.parse(stage);
     return this.updateApplication(id, { stage });
   }
 
+  /** Update status only */
+  public updateStatus(id: string, status: ApplicationStatus): Application {
+    ApplicationStatusSchema.parse(status);
+    return this.updateApplication(id, { status });
+  }
+
+  /** Assign application */
   public assignApplication(
     id: string,
     assignedTo: string,
     stage?: ApplicationStage,
   ): Application {
-    const updates: Partial<Application> = { assignedTo };
-    if (stage) updates.stage = stage;
-    return this.updateApplication(id, updates);
+    const patch: Partial<Application> = { assignedTo };
+    if (stage) patch.stage = stage;
+    return this.updateApplication(id, patch);
   }
 
+  /** Delete application */
   public deleteApplication(id: string): Application {
     const existing = this.getApplication(id);
     this.applications.delete(id);
     return existing;
   }
 
+  /** Submit */
   public submitApplication(id: string, submittedBy: string): Application {
     const now = new Date().toISOString();
     return this.updateApplication(id, {
@@ -202,6 +246,7 @@ export class ApplicationService {
     });
   }
 
+  /** Complete */
   public completeApplication(id: string, completedBy: string): Application {
     return this.updateApplication(id, {
       status: "completed",
@@ -211,11 +256,11 @@ export class ApplicationService {
     });
   }
 
+  /** Publish → returns ApplicationPublic */
   public publishApplication(id: string, publishedBy: string): ApplicationPublic {
     const app = this.updateApplication(id, { status: "approved" });
-    const summary = this.ai.summarizeApplication(app);
 
-    return {
+    return ApplicationPublicSchema.parse({
       id: app.id,
       businessName: app.businessName,
       loanAmount: app.loanAmount,
@@ -224,10 +269,11 @@ export class ApplicationService {
       score: app.score,
       matchScore: app.matchScore,
       submittedAt: app.submittedAt,
-      summary: `${summary} (published by ${publishedBy})`,
-    };
+      summary: `${this.ai.summarizeApplication(app)} (published by ${publishedBy})`,
+    });
   }
 
+  /** Build pipeline board */
   public buildPipeline() {
     const stages: ApplicationStage[] = [
       "new",
@@ -239,20 +285,20 @@ export class ApplicationService {
       "declined",
     ];
 
-    return stages.map((stage, index) => {
+    return stages.map((stage, position) => {
       const apps = this.listApplications().filter((a) => a.stage === stage);
 
       return {
         id: randomUUID(),
         name: stage,
         stage,
-        position: index,
+        position,
         count: apps.length,
-        totalLoanAmount: apps.reduce((sum, a) => sum + a.loanAmount, 0),
+        totalLoanAmount: apps.reduce((s, a) => s + a.loanAmount, 0),
         averageScore:
-          apps.length > 0
-            ? apps.reduce((sum, a) => sum + (a.score ?? 0), 0) / apps.length
-            : 0,
+          apps.length === 0
+            ? 0
+            : apps.reduce((s, a) => s + (a.score ?? 0), 0) / apps.length,
         lastUpdatedAt: new Date().toISOString(),
         applications: apps.sort((a, b) =>
           b.updatedAt.localeCompare(a.updatedAt),
@@ -261,6 +307,7 @@ export class ApplicationService {
     });
   }
 
+  /** Resolve application for portal */
   private resolvePortalApplication(
     applicationId?: string,
     applicantEmail?: string,
@@ -269,15 +316,18 @@ export class ApplicationService {
       const byId = this.findById(applicationId);
       if (byId) return byId;
     }
+
     if (applicantEmail) {
       const byEmail = this.findByEmail(applicantEmail);
       if (byEmail) return byEmail;
     }
+
     throw new ApplicationPortalNotFoundError(
       applicationId ?? applicantEmail ?? "unknown",
     );
   }
 
+  /** Portal session builder */
   private buildPortalSession(
     app: Application,
     silo: string,
@@ -297,6 +347,7 @@ export class ApplicationService {
     });
   }
 
+  /** Next-step logic for portal */
   private nextStep(stage: ApplicationStage): string {
     switch (stage) {
       case "new":
@@ -318,6 +369,7 @@ export class ApplicationService {
     }
   }
 
+  /** Create portal session */
   public createClientPortalSession(options: {
     applicationId?: string;
     applicantEmail?: string;
@@ -330,6 +382,7 @@ export class ApplicationService {
     return this.buildPortalSession(app, options.silo);
   }
 
+  /** Get portal session by ID */
   public getClientPortalSession(
     applicationId: string,
     silo: string,
