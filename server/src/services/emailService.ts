@@ -5,20 +5,12 @@ import sendGridMail from "@sendgrid/mail";
 /* -----------------------------------------------------
    Safe Logger Imports
 ----------------------------------------------------- */
-let safeLogInfo: (msg: string, meta?: any) => void = console.log;
-let safeLogError: (msg: string, meta?: any) => void = console.error;
-
-try {
-  const { logInfo, logError } = await import("../utils/logger.js");
-  safeLogInfo = logInfo ?? console.log;
-  safeLogError = logError ?? console.error;
-} catch {
-  /* ignore */
-}
+import { logInfo as safeLogInfo, logError as safeLogError } from "../utils/logger.js";
 
 /* -----------------------------------------------------
    Types
 ----------------------------------------------------- */
+
 export type EmailDirection = "incoming" | "outgoing";
 export type EmailStatus = "queued" | "sent" | "failed";
 export type EmailProvider = "sendgrid" | "graph" | "manual";
@@ -37,6 +29,26 @@ export interface EmailMessageRecord {
   sentBy?: string;
   providerMessageId?: string;
   metadata?: Record<string, unknown>;
+}
+
+export interface EmailServiceType {
+  sendEmail(payload: {
+    to: string;
+    from?: string;
+    subject: string;
+    body: string;
+  }): Promise<unknown>;
+
+  receiveEmail(payload: {
+    from: string;
+    to: string;
+    subject: string;
+    body: string;
+  }): unknown;
+
+  listEmails(): unknown[];
+
+  listThreads(): unknown[];
 }
 
 /* -----------------------------------------------------
@@ -60,7 +72,7 @@ const configureSendGrid = (): void => {
 };
 
 /* -----------------------------------------------------
-   Helpers
+   Contact Helpers
 ----------------------------------------------------- */
 const registerContactEmail = (contactId: string, email: string): void => {
   if (email.trim().length > 0) {
@@ -129,7 +141,6 @@ const sendEmailViaGraph = async (
   }
 
   try {
-    // 1) Acquire token
     const tokenResponse = await axios.post(
       `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`,
       new URLSearchParams({
@@ -144,7 +155,6 @@ const sendEmailViaGraph = async (
     const accessToken = tokenResponse.data?.access_token;
     if (!accessToken) throw new Error("Missing Graph access token");
 
-    // 2) Send email
     await axios.post(
       `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(senderEmail)}/sendMail`,
       {
@@ -167,7 +177,7 @@ const sendEmailViaGraph = async (
 };
 
 /* -----------------------------------------------------
-   Core Send API
+   Outbound Email Wrapper
 ----------------------------------------------------- */
 export const sendEmail = async (
   contactId: string,
@@ -223,7 +233,7 @@ export const sendEmail = async (
 };
 
 /* -----------------------------------------------------
-   Inbound email (manual)
+   Inbound Email
 ----------------------------------------------------- */
 export const recordInboundEmail = (
   contactId: string,
@@ -257,16 +267,16 @@ export const recordInboundEmail = (
 };
 
 /* -----------------------------------------------------
-   Email Service Class
+   Email Service
 ----------------------------------------------------- */
-export class EmailService {
+export class EmailService implements EmailServiceType {
   public async sendEmail(payload: {
     to: string;
     from?: string;
     subject: string;
     body: string;
   }) {
-    const record = await sendEmail(
+    const rec = await sendEmail(
       payload.to,
       payload.subject,
       payload.body,
@@ -274,14 +284,14 @@ export class EmailService {
     );
 
     return {
-      id: record.id,
-      to: record.to,
-      from: record.from,
-      subject: record.subject,
-      body: record.body,
-      sentAt: record.createdAt,
-      status: record.status,
-      direction: record.direction === "outgoing" ? "outbound" : "inbound",
+      id: rec.id,
+      to: rec.to,
+      from: rec.from,
+      subject: rec.subject,
+      body: rec.body,
+      sentAt: rec.createdAt,
+      status: rec.status,
+      direction: rec.direction === "outgoing" ? "outbound" : "inbound",
     };
   }
 
@@ -291,16 +301,16 @@ export class EmailService {
     subject: string;
     body: string;
   }) {
-    const record = recordInboundEmail(payload.from, payload);
+    const rec = recordInboundEmail(payload.from, payload);
 
     return {
-      id: record.id,
-      to: record.to,
-      from: record.from,
-      subject: record.subject,
-      body: record.body,
-      sentAt: record.createdAt,
-      status: record.status,
+      id: rec.id,
+      to: rec.to,
+      from: rec.from,
+      subject: rec.subject,
+      body: rec.body,
+      sentAt: rec.createdAt,
+      status: rec.status,
       direction: "inbound",
     };
   }
@@ -322,15 +332,14 @@ export class EmailService {
     const map = new Map<string, EmailMessageRecord[]>();
 
     for (const msg of emailMessages) {
-      const key = msg.contactId;
-      const arr = map.get(key) ?? [];
+      const arr = map.get(msg.contactId) ?? [];
       arr.push(msg);
-      map.set(key, arr);
+      map.set(msg.contactId, arr);
     }
 
-    return Array.from(map.entries()).map(([contactId, items]) => ({
+    return Array.from(map.entries()).map(([contactId, msgs]) => ({
       contactId,
-      messages: items
+      messages: msgs
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
         .map((m) => ({
           id: m.id,
@@ -347,14 +356,13 @@ export class EmailService {
 }
 
 /* -----------------------------------------------------
-   Additional Exports Needed by Controller
+   Exports required by controllers
 ----------------------------------------------------- */
-
 export const getEmailThreads = () => emailService.listThreads();
 
+/* -----------------------------------------------------
+   Factory + Singleton
+----------------------------------------------------- */
 export const createEmailService = () => new EmailService();
 
-/* -----------------------------------------------------
-   Default singleton
------------------------------------------------------ */
 export const emailService = new EmailService();
