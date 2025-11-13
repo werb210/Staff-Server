@@ -1,104 +1,58 @@
-import express, { type NextFunction, type Request, type Response } from "express";
-import cors from "cors";
-import bodyParser from "body-parser";
+import { Router } from "express";
+import multer from "multer";
 
-import { attachSiloContext } from "./middleware/siloContext.js";
-import * as authMiddleware from "./middleware/authMiddleware.js";
-import healthRouter from "./routes/health.js";
-import authRouter from "./routes/auth.js";
-import applicationsRouter from "./routes/applications/index.js";
-import documentsRouter, {
-  applicationDocumentsRouter,
-} from "./routes/documents.js";
-import lendersRouter from "./routes/lenders.js";
-import lenderProductsRouter from "./routes/lenderProducts.js";
+import {
+  uploadDocument,
+  getDocument,
+  previewDocument,
+  downloadDocumentHandler,
+  acceptDocumentHandler,
+  rejectDocumentHandler,
+  reuploadDocumentHandler,
+  getDocumentsForApplicationHandler,
+  downloadAllDocumentsHandler,
+} from "../controllers/documentController.js";
 
-// ✔ FIXED — correct new pipeline router
-import pipelineRouter from "./routes/pipeline.routes.js";
+const router = Router();
+const upload = multer({ storage: multer.memoryStorage() });
 
-import tasksRouter from "./routes/tasks.js";
-import usersRouter from "./routes/users.js";
-import communicationRouter from "./routes/communication.js";
-import marketingAdsRouter from "./routes/marketing/ads.js";
-import marketingAutomationRouter from "./routes/marketing/automation.js";
-import retryQueueRouter from "./routes/admin/retryQueue.js";
-import backupsRouter from "./routes/admin/backups.js";
-import ocrInsightsRouter from "./routes/ocrInsights.js";
-import aiSummaryRouter from "./routes/aiSummary.js";
-import notificationsRouter from "./routes/notifications.js";
-import internalHealthRouter from "./routes/internal/health.js";
-import buildGuardRouter from "./routes/internal/buildGuard.js";
-import publicLoginRouter from "./routes/api/publicLogin.js";
-import contactsRouter from "./routes/contacts.js";
-import { loadEnv } from "./utils/env.js";
-import { logError, logInfo } from "./utils/logger.js";
+/* ---------------------------------------------------------
+   DOCUMENT-SCOPED ROUTES
+--------------------------------------------------------- */
 
-loadEnv();
+router.get("/:id", getDocument);
 
-const app = express();
+router.get("/:id/preview", previewDocument);
 
-app.use(cors());
-app.use(bodyParser.json({ limit: "5mb" }));
-app.use(bodyParser.urlencoded({ extended: true }));
+router.get("/:id/download", downloadDocumentHandler);
 
-app.get("/", (_req, res) => {
-  res.json({ message: "Staff API", version: "2.0" });
-});
+router.post("/:id/accept", acceptDocumentHandler);
 
-app.use("/api", attachSiloContext);
+router.post("/:id/reject", rejectDocumentHandler);
 
-app.use("/api/health", healthRouter);
-app.use("/api/auth", authRouter);
-app.use("/api/publicLogin", publicLoginRouter);
+router.post("/:id/reupload", upload.single("file"), reuploadDocumentHandler);
 
-app.use("/api", authMiddleware.verifyToken);
-app.use("/api/applications", applicationsRouter);
-app.use(
-  "/api/applications",
-  authMiddleware.verifyToken,
-  applicationDocumentsRouter,
+/* ---------------------------------------------------------
+   CREATE NEW DOCUMENT
+--------------------------------------------------------- */
+
+router.post("/upload", upload.single("file"), uploadDocument);
+
+/* ---------------------------------------------------------
+   APPLICATION-SCOPED ROUTES
+   (used via: applicationDocumentsRouter in index.ts)
+--------------------------------------------------------- */
+
+export const applicationDocumentsRouter = Router({ mergeParams: true });
+
+applicationDocumentsRouter.get(
+  "/:appId/documents",
+  getDocumentsForApplicationHandler
 );
-app.use("/api/documents", authMiddleware.verifyToken, documentsRouter);
-app.use("/api/lenders", authMiddleware.verifyToken, lendersRouter);
-app.use("/api/lender-products", lenderProductsRouter);
 
-// ✔ FIXED — fully working pipeline API
-app.use("/api/pipeline", pipelineRouter);
-
-app.use("/api/tasks", tasksRouter);
-app.use("/api/users", usersRouter);
-app.use(
-  "/api/contacts",
-  authMiddleware.verifyToken,
-  contactsRouter,
+applicationDocumentsRouter.get(
+  "/:appId/documents/download-all",
+  downloadAllDocumentsHandler
 );
-app.use(
-  "/api/communication",
-  authMiddleware.verifyToken,
-  communicationRouter,
-);
-app.use("/api/marketing/ads", marketingAdsRouter);
-app.use("/api/marketing/automation", marketingAutomationRouter);
-app.use("/api/admin/retry-queue", retryQueueRouter);
-app.use("/api/admin/backups", backupsRouter);
-app.use("/api/ocr-insights", ocrInsightsRouter);
-app.use("/api/ai-summary", aiSummaryRouter);
-app.use("/api/notifications", notificationsRouter);
-app.use("/api/_int/health", internalHealthRouter);
-app.use("/api/_int/build-guard", buildGuardRouter);
 
-app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
-  logError("Request error", error);
-  const message = error instanceof Error ? error.message : "Unexpected error";
-  res.status(500).json({ message });
-});
-
-const PORT = Number(process.env.PORT ?? 5000);
-
-if (process.env.NODE_ENV !== "test") {
-  app.listen(PORT, () => {
-    logInfo(`Server listening on port ${PORT}`);
-  });
-}
-
-export default app;
+export default router;
