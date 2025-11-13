@@ -1,7 +1,3 @@
-#!/usr/bin/env bash
-set -euo pipefail
-
-cat > server/src/services/documentService.ts <<'EOF'
 import { createHash, randomUUID } from "crypto";
 import JSZip from "jszip";
 import type { Response } from "express";
@@ -257,7 +253,7 @@ export class DocumentService {
     fileName: string;
     contentType: string;
     data: Buffer;
-  }) {
+  }): Promise<DocumentWithVersions> {
     if (input.documentId) {
       return saveDocumentVersion({
         documentId: input.documentId,
@@ -278,7 +274,7 @@ export class DocumentService {
     );
   }
 
-  updateStatus(id: string, status: DocumentStatus) {
+  updateStatus(id: string, status: DocumentStatus): DocumentWithVersions {
     DocumentStatusSchema.parse(status);
     if (status === "accepted") return acceptDocument(id);
     if (status === "rejected") return rejectDocument(id);
@@ -293,7 +289,7 @@ export class DocumentService {
     return [...requireDoc(id).versions];
   }
 
-  async streamVersion(id: string, res: Response) {
+  async streamVersion(id: string, res: Response): Promise<void> {
     await streamDocument(id, res);
   }
 
@@ -311,6 +307,3 @@ export class DocumentService {
 export const documentService = new DocumentService();
 export const createDocumentService = (): DocumentService => new DocumentService();
 export type DocumentServiceType = DocumentService;
-EOF
-
-echo "[✅] documentService.ts rewritten and fixed"
