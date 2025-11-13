@@ -1,70 +1,38 @@
+// server/src/schemas/lenderProduct.schema.ts
 import { z } from "zod";
-import { uuidSchema } from "../utils/uuidValidator.js";
 
-export const LenderSchema = z.object({
-  id: uuidSchema,
+/* ---------------------------------------------------------
+   BASE PRODUCT SCHEMA
+--------------------------------------------------------- */
+export const LenderProductBaseSchema = z.object({
   name: z.string().min(1),
-  contactEmail: z.string().email(),
-  contactPhone: z.string().optional(),
-  status: z.enum(["active", "paused", "onboarding"]).default("active"),
-  rating: z.number().min(0).max(5).optional(),
-});
-
-export type Lender = z.infer<typeof LenderSchema>;
-
-export const LenderDocumentRequirementSchema = z.object({
-  documentType: z.string().min(1),
-  required: z.boolean(),
-  description: z.string().min(1),
-});
-
-export type LenderDocumentRequirement = z.infer<
-  typeof LenderDocumentRequirementSchema
->;
-
-export const LenderProductSchema = z.object({
-  id: uuidSchema,
-  lenderId: uuidSchema,
-  name: z.string().min(1),
-  interestRate: z.number().min(0),
+  country: z.string().min(2),
   minAmount: z.number().nonnegative(),
   maxAmount: z.number().positive(),
-  termMonths: z.number().int().positive(),
-  documentation: z.array(LenderDocumentRequirementSchema),
-  recommendedScore: z.number().min(0).max(100),
-  active: z.boolean().default(true),
+  productType: z.string().min(1),
+  interestRate: z.number().min(0),
+  requirements: z.record(z.any()).optional().default({}),
+});
+
+/* ---------------------------------------------------------
+   CREATE
+--------------------------------------------------------- */
+export const LenderProductCreateSchema = LenderProductBaseSchema;
+
+/* ---------------------------------------------------------
+   UPDATE (partial)
+--------------------------------------------------------- */
+export const LenderProductUpdateSchema = LenderProductBaseSchema.partial();
+
+/* ---------------------------------------------------------
+   FULL PRODUCT
+--------------------------------------------------------- */
+export const LenderProductSchema = LenderProductBaseSchema.extend({
+  id: z.string().uuid(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
 });
 
 export type LenderProduct = z.infer<typeof LenderProductSchema>;
-
-export const LenderReportSchema = z.object({
-  id: uuidSchema,
-  lenderId: uuidSchema,
-  status: z.string().min(1),
-  generatedAt: z.string().datetime({ offset: true }),
-  totalApplications: z.number().int().nonnegative(),
-  avgDecisionTimeHours: z.number().nonnegative(),
-  topProducts: z.array(LenderProductSchema.pick({ id: true, name: true })),
-});
-
-export type LenderReport = z.infer<typeof LenderReportSchema>;
-
-export const LenderCreateSchema = LenderSchema.omit({ id: true });
-
-export type LenderCreateInput = z.infer<typeof LenderCreateSchema>;
-
-export const LenderUpdateSchema = LenderCreateSchema.partial().extend({
-  id: uuidSchema,
-});
-
-export type LenderUpdateInput = z.infer<typeof LenderUpdateSchema>;
-
-export const LenderProductCreateSchema = LenderProductSchema.omit({ id: true });
-
 export type LenderProductCreateInput = z.infer<typeof LenderProductCreateSchema>;
-
-export const LenderProductUpdateSchema = LenderProductCreateSchema.partial().extend({
-  id: uuidSchema,
-});
-
 export type LenderProductUpdateInput = z.infer<typeof LenderProductUpdateSchema>;
