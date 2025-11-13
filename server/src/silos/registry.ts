@@ -53,18 +53,8 @@ function createBFContext(): SiloContext {
   const backups = createBackupService();
   const retryQueue = createRetryQueueService();
   const tasks = createTaskService([
-    {
-      id: "bf-task-1",
-      name: "Review underwriting checklist",
-      dueAt: new Date().toISOString(),
-      status: "in-progress",
-    },
-    {
-      id: "bf-task-2",
-      name: "Prepare closing documents",
-      dueAt: new Date(Date.now() + 3600 * 1000).toISOString(),
-      status: "pending",
-    },
+    { id: "bf-task-1", name: "Review underwriting checklist", dueAt: new Date().toISOString(), status: "in-progress" },
+    { id: "bf-task-2", name: "Prepare closing documents", dueAt: new Date(Date.now() + 3600 * 1000).toISOString(), status: "pending" },
   ]);
   const contacts = createContactsService([
     {
@@ -77,58 +67,14 @@ function createBFContext(): SiloContext {
       createdAt: "2024-05-01T10:00:00.000Z",
       updatedAt: "2024-05-10T16:30:00.000Z",
       timeline: [
-        {
-          id: "bf-contact-1-event-1",
-          type: "call",
-          message: "Completed onboarding call with borrower.",
-          createdAt: "2024-05-02T14:30:00.000Z",
-        },
-        {
-          id: "bf-contact-1-event-2",
-          type: "email",
-          message: "Sent checklist of required financial statements.",
-          createdAt: "2024-05-06T18:15:00.000Z",
-        },
-      ],
-    },
-    {
-      id: "bf-contact-2",
-      firstName: "Logan",
-      lastName: "Chen",
-      email: "logan.chen@bf.example",
-      phone: "+15555557654",
-      companyName: "Harbor Retail Group",
-      createdAt: "2024-04-18T09:45:00.000Z",
-      updatedAt: "2024-05-08T11:00:00.000Z",
-      timeline: [
-        {
-          id: "bf-contact-2-event-1",
-          type: "sms",
-          message: "Texted borrower about updated appraisal timeline.",
-          createdAt: "2024-04-20T15:05:00.000Z",
-        },
-        {
-          id: "bf-contact-2-event-2",
-          type: "note",
-          message: "Underwriter reviewing debt schedule attachments.",
-          createdAt: "2024-05-07T13:22:00.000Z",
-        },
+        { id: "bf-contact-1-event-1", type: "call", message: "Completed onboarding call with borrower.", createdAt: "2024-05-02T14:30:00.000Z" },
+        { id: "bf-contact-1-event-2", type: "email", message: "Sent checklist of required financial statements.", createdAt: "2024-05-06T18:15:00.000Z" },
       ],
     },
   ]);
   const users = createUserService([
-    {
-      id: "bf-user-1",
-      name: "Olivia Operations",
-      email: "olivia.ops@bf.example",
-      role: "manager",
-    },
-    {
-      id: "bf-user-2",
-      name: "Mason Analyst",
-      email: "mason.analyst@bf.example",
-      role: "agent",
-    },
+    { id: "bf-user-1", name: "Olivia Operations", email: "olivia.ops@bf.example", role: "manager" },
+    { id: "bf-user-2", name: "Mason Analyst", email: "mason.analyst@bf.example", role: "agent" },
   ]);
 
   const auth = new PasskeyAuthService({
@@ -155,10 +101,7 @@ function createBFContext(): SiloContext {
       tasks,
       users,
       contacts,
-      metadata: {
-        silo: "BF",
-        documentStatusDefault: "review",
-      },
+      metadata: { silo: "BF", documentStatusDefault: "review" },
     },
     auth,
   };
@@ -176,14 +119,7 @@ function createSLFContext(): SiloContext {
   const marketing = createMarketingService();
   const backups = createBackupService();
   const retryQueue = createRetryQueueService();
-  const tasks = createTaskService([
-    {
-      id: "slf-task-1",
-      name: "Contact borrower",
-      dueAt: new Date().toISOString(),
-      status: "pending",
-    },
-  ]);
+  const tasks = createTaskService([{ id: "slf-task-1", name: "Contact borrower", dueAt: new Date().toISOString(), status: "pending" }]);
   const contacts = createContactsService([
     {
       id: "slf-contact-1",
@@ -195,35 +131,14 @@ function createSLFContext(): SiloContext {
       createdAt: "2024-03-11T12:20:00.000Z",
       updatedAt: "2024-04-02T09:10:00.000Z",
       timeline: [
-        {
-          id: "slf-contact-1-event-1",
-          type: "email",
-          message: "Shared updated financial package with underwriting team.",
-          createdAt: "2024-03-15T17:45:00.000Z",
-        },
-        {
-          id: "slf-contact-1-event-2",
-          type: "system",
-          message: "Automated credit pull completed.",
-          createdAt: "2024-03-18T08:00:00.000Z",
-        },
+        { id: "slf-contact-1-event-1", type: "email", message: "Shared updated financial package with underwriting team.", createdAt: "2024-03-15T17:45:00.000Z" },
+        { id: "slf-contact-1-event-2", type: "system", message: "Automated credit pull completed.", createdAt: "2024-03-18T08:00:00.000Z" },
       ],
     },
   ]);
-  const users = createUserService([
-    {
-      id: "slf-user-1",
-      name: "Sam Lending",
-      email: "sam.ops@slf.example",
-      role: "manager",
-    },
-  ]);
+  const users = createUserService([{ id: "slf-user-1", name: "Sam Lending", email: "sam.ops@slf.example", role: "manager" }]);
 
-  const auth = new PasskeyAuthService({
-    silo: "SLF",
-    secret: "slf-secret",
-    users: commonUsers.SLF,
-  });
+  const auth = new PasskeyAuthService({ silo: "SLF", secret: "slf-secret", users: commonUsers.SLF });
 
   return {
     silo: "SLF",
@@ -243,10 +158,7 @@ function createSLFContext(): SiloContext {
       tasks,
       users,
       contacts,
-      metadata: {
-        silo: "SLF",
-        documentStatusDefault: "processing",
-      },
+      metadata: { silo: "SLF", documentStatusDefault: "processing" },
     },
     auth,
   };
@@ -287,16 +199,13 @@ function createBIContext(): SiloContext {
       tasks,
       users,
       contacts,
-      metadata: {
-        silo: "BI",
-        documentStatusDefault: "processing",
-      },
+      metadata: { silo: "BI", documentStatusDefault: "processing" },
     },
     auth: placeholderAuth,
   };
 }
 
-const registry: Record<SiloKey, SiloContext> = {
+export const registry: Record<SiloKey, SiloContext> = {
   BF: createBFContext(),
   SLF: createSLFContext(),
   BI: createBIContext(),
