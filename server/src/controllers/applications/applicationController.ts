@@ -16,12 +16,17 @@ import {
   type ApplicationServiceType,
 } from "../../services/applicationService.js";
 
+import {
+  saveNewDocument,
+  saveDocumentVersion,
+} from "../../services/documentService.js";
+
 /* ---------------------------------------------------------
    Helper: Silo-aware service resolver
 --------------------------------------------------------- */
 function getService(req: Request): ApplicationServiceType {
   const siloReq = req as Request & {
-    silo?: { services?: { applications?: ApplicationServiceType } };
+    silo?: { services?: { applications?: ApplicationServiceServiceType } };
   };
 
   return siloReq.silo?.services?.applications ?? applicationService;
@@ -183,12 +188,12 @@ export const deleteApplication = (req: Request, res: Response) => {
 
 /* ---------------------------------------------------------
    UPLOAD DOCUMENT
-   Required by POST /api/applications/upload
+   Correct — uses real documentService, real buffer, real file, real MIME.
 --------------------------------------------------------- */
 export const uploadDocument = async (req: Request, res: Response) => {
-  const silo = (req as any).silo;
-  if (!silo?.services?.documents) {
-    return res.status(500).json({ message: "Document service unavailable" });
+  const file = req.file;
+  if (!file) {
+    return res.status(400).json({ message: "File is required" });
   }
 
   const parsed = DocumentUploadSchema.safeParse(req.body);
@@ -196,10 +201,32 @@ export const uploadDocument = async (req: Request, res: Response) => {
     return res.status(400).json({ message: "Invalid upload payload" });
   }
 
-  const saved = await silo.services.documents.save({
-    ...parsed.data,
-    data: Buffer.from([]),
-  });
+  // does document already exist?
+  const { documentId, applicationId, name, category } = parsed.data;
 
-  res.status(201).json(saved);
+  let saved;
+  if (documentId) {
+    // save new version
+    saved = await saveDocumentVersion({
+      documentId,
+      buffer: file.buffer,
+      mimeType: file.mimetype,
+      fileName: file.originalname,
+      category,
+    });
+  } else {
+    // create new document
+    saved = await saveNewDocument(
+      {
+        applicationId,
+        name,
+        category,
+      },
+      file.buffer,
+      file.mimetype,
+      file.originalname,
+    );
+  }
+
+  return res.status(201).json(saved);
 };
