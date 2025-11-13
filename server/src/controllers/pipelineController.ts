@@ -35,16 +35,12 @@ export const getCards = (_req: Request, res: Response) => {
 
 /**
  * PUT /api/pipeline/cards/:id/move
- * Uses Zod to validate payload
- * Enforces Big Fix rule:
- *   - ID is ALWAYS cardId, never applicationId
- *   - fromStage is ignored (never trust client)
- *   - Only toStage is authoritative
+ * Applies Big Fix validation
  */
 export const moveCardHandler = (req: Request, res: Response) => {
   const parsed = PipelineTransitionSchema.safeParse({
-    applicationId: req.params.id,      // we map route ID → cardId
-    fromStage: req.body.fromStage,     // validated but not trusted
+    applicationId: req.params.id,
+    fromStage: req.body.fromStage,
     toStage: req.body.toStage,
     assignedTo: req.body.assignedTo,
     note: req.body.note,
@@ -58,12 +54,7 @@ export const moveCardHandler = (req: Request, res: Response) => {
   }
 
   try {
-    const cardId = parsed.data.applicationId;
-    const newStage = parsed.data.toStage;
-
-    // Pipeline service requires (cardId, newStage)
-    const updated = moveCard(cardId, newStage);
-
+    const updated = moveCard(parsed.data);
     return res.json({ data: updated });
   } catch (err) {
     return res.status(400).json({ message: (err as Error).message });
@@ -72,7 +63,6 @@ export const moveCardHandler = (req: Request, res: Response) => {
 
 /**
  * GET /api/pipeline/cards/:id/application
- * Drawer → Application tab
  */
 export const getApplicationDataHandler = (req: Request, res: Response) => {
   try {
@@ -85,12 +75,11 @@ export const getApplicationDataHandler = (req: Request, res: Response) => {
 
 /**
  * GET /api/pipeline/cards/:id/documents
- * Drawer → Documents tab
  */
 export const getApplicationDocumentsHandler = (req: Request, res: Response) => {
   try {
-    const documents = getApplicationDocuments(req.params.id);
-    return res.json({ data: documents });
+    const docs = getApplicationDocuments(req.params.id);
+    return res.json({ data: docs });
   } catch (err) {
     return res.status(404).json({ message: (err as Error).message });
   }
@@ -98,7 +87,6 @@ export const getApplicationDocumentsHandler = (req: Request, res: Response) => {
 
 /**
  * GET /api/pipeline/cards/:id/lenders
- * Drawer → Lenders tab
  */
 export const getApplicationLendersHandler = (req: Request, res: Response) => {
   try {
