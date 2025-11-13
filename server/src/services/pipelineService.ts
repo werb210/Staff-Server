@@ -1,253 +1,220 @@
 import { randomUUID } from "crypto";
-import {
-  getDocumentsForApplication,
-} from "./documentService.js";
+import { applicationService } from "./applicationService.js";
+import { getDocumentsForApplication } from "./documentService.js";
 import { getAll as getAllLenders } from "./lendersService.js";
+import {
+  type PipelineTransitionInput,
+} from "../schemas/pipeline.schema.js";
 
-export type PipelineStage =
-  | "New"
-  | "In Review"
-  | "Requires Docs"
-  | "Sent to Lender"
-  | "Accepted";
-
-interface PipelineCard {
-  id: string;
-  applicationId: string;
-  applicantName: string;
-  stage: PipelineStage;
-  amount: number;
-  updatedAt: string;
-  assignedTo?: string;
-}
-
-interface TimelineEvent {
-  id: string;
-  cardId: string;
-  fromStage: PipelineStage;
-  toStage: PipelineStage;
-  createdAt: string;
-}
-
-interface ApplicationDetails {
-  id: string;
-  businessName: string;
-  applicantName: string;
-  amount: number;
-  stage: PipelineStage;
-  createdAt: string;
-  updatedAt: string;
-  assignedTo?: string;
-  bankAnalysis: {
-    coverageRatio: number;
-    liquidity: number;
-    comments: string;
-  };
-  financialData: {
-    revenue: number;
-    ebitda: number;
-    debt: number;
-  };
-}
-
-const STAGES: PipelineStage[] = [
+/**
+ * Official Pipeline Columns
+ */
+export const PIPELINE_STAGES = [
   "New",
   "In Review",
   "Requires Docs",
   "Sent to Lender",
   "Accepted",
-];
+] as const;
+
+export type PipelineStage = (typeof PIPELINE_STAGES)[number];
+
+interface PipelineCard {
+  id: string;              // applicationId (canonical)
+  applicationId: string;
+  applicantName: string;
+  stage: PipelineStage;
+  updatedAt: string;
+  amount: number;
+  assignedTo?: string;
+}
+
+interface TimelineEvent {
+  id: string;
+  applicationId: string;
+  fromStage: PipelineStage;
+  toStage: PipelineStage;
+  createdAt: string;
+}
 
 const cards = new Map<string, PipelineCard>();
-const timeline = new Map<string, TimelineEvent[]>();
-const applications = new Map<string, ApplicationDetails>();
+const history = new Map<string, TimelineEvent[]>();
 
-const init = () => {
-  if (cards.size > 0) {
-    return;
+/**
+ * Create a card from a real ApplicationService application
+ */
+const buildCardFromApplication = (app: any): PipelineCard => {
+  const now = new Date().toISOString();
+
+  let stage: PipelineStage = "New";
+
+  // Rule #1: no docs -> Requires Docs
+  const docs = getDocumentsForApplication(app.id);
+  if (docs.length === 0) {
+    stage = "Requires Docs";
   }
-  const now = new Date();
-  const seeds: Array<{
-    id: string;
-    applicantName: string;
-    businessName: string;
-    amount: number;
-    stage: PipelineStage;
-    assignedTo?: string;
-  }> = [
-    {
-      id: "c27e0c87-3bd5-47cc-8d14-5c569ea2cc15",
-      applicantName: "Jane Doe",
-      businessName: "Harbor Coffee",
-      amount: 250000,
-      stage: "In Review",
-      assignedTo: "alex.martin",
-    },
-    {
-      id: "8c0ca80e-efb6-4b8f-92dd-18de78274b3d",
-      applicantName: "Michael Smith",
-      businessName: "Summit Logistics",
-      amount: 750000,
-      stage: "Requires Docs",
-    },
-    {
-      id: "9cf47b18-e789-4c58-9d22-b79c15b0c52e",
-      applicantName: "Ava Patel",
-      businessName: "Brightline Studios",
-      amount: 120000,
-      stage: "Sent to Lender",
-      assignedTo: "kai.wilson",
-    },
-  ];
-  seeds.forEach((seed, index) => {
-    const createdAt = new Date(now.getTime() - index * 3600 * 1000).toISOString();
-    const card: PipelineCard = {
-      id: randomUUID(),
-      applicationId: seed.id,
-      applicantName: seed.applicantName,
-      stage: seed.stage,
-      amount: seed.amount,
-      updatedAt: createdAt,
-      assignedTo: seed.assignedTo,
-    };
-    cards.set(card.id, card);
-    applications.set(seed.id, {
-      id: seed.id,
-      businessName: seed.businessName,
-      applicantName: seed.applicantName,
-      amount: seed.amount,
-      stage: seed.stage,
-      createdAt,
-      updatedAt: createdAt,
-      assignedTo: seed.assignedTo,
-      bankAnalysis: {
-        coverageRatio: 1.32,
-        liquidity: 4.1,
-        comments: "Healthy cash flow with consistent deposits",
-      },
-      financialData: {
-        revenue: 1800000,
-        ebitda: 320000,
-        debt: 450000,
-      },
-    });
+
+  // Rule #2: any doc rejected -> Requires Docs
+  if (docs.some((d) => d.status === "rejected")) {
+    stage = "Requires Docs";
+  }
+
+  // Existing application status → Map to pipeline stage
+  switch (app.status) {
+    case "review":
+      stage = "In Review";
+      break;
+    case "approved":
+      stage = "Sent to Lender";
+      break;
+    case "completed":
+      stage = "Accepted";
+      break;
+  }
+
+  return {
+    id: app.id,
+    applicationId: app.id,
+    applicantName: app.applicantName,
+    amount: app.loanAmount ?? 0,
+    updatedAt: app.updatedAt ?? now,
+    assignedTo: app.assignedTo,
+    stage,
+  };
+};
+
+/**
+ * Build all cards from real applications
+ */
+const rebuildCards = () => {
+  cards.clear();
+  const apps = applicationService.listApplications();
+  apps.forEach((app) => {
+    const card = buildCardFromApplication(app);
+    cards.set(app.id, card);
   });
 };
 
-init();
+rebuildCards();
 
-const ensureCard = (cardId: string): PipelineCard => {
-  const card = cards.get(cardId);
+/**
+ * Helpers
+ */
+const requireCard = (id: string): PipelineCard => {
+  const card = cards.get(id);
   if (!card) {
-    throw new Error("Pipeline card not found");
+    throw new Error(`Card ${id} not found`);
   }
   return card;
 };
 
-const ensureApplication = (applicationId: string): ApplicationDetails => {
-  const application = applications.get(applicationId);
-  if (!application) {
-    throw new Error("Application not found");
-  }
-  return application;
+/**
+ * Return stages + cards
+ */
+export const getAllStages = () => {
+  rebuildCards();
+
+  return PIPELINE_STAGES.map((stage) => {
+    const stageCards = Array.from(cards.values()).filter(
+      (c) => c.stage === stage
+    );
+
+    return {
+      id: stage,
+      name: stage,
+      cards: stageCards,
+    };
+  });
 };
 
-export const getAllStages = () =>
-  STAGES.map((stage) => ({
-    id: stage,
-    name: stage,
-    cards: Array.from(cards.values()).filter((card) => card.stage === stage).map(
-      (card) => ({
-        id: card.id,
-        applicationId: card.applicationId,
-        applicantName: card.applicantName,
-        amount: card.amount,
-        updatedAt: card.updatedAt,
-        assignedTo: card.assignedTo,
-      }),
-    ),
-  }));
+export const getAllCards = () => {
+  rebuildCards();
+  return Array.from(cards.values());
+};
 
-export const getAllCards = (): PipelineCard[] => Array.from(cards.values());
+/**
+ * Apply transition rules
+ */
+export const moveCard = (payload: PipelineTransitionInput) => {
+  const { applicationId, toStage } = payload;
 
-export const moveCard = (cardId: string, newStage: PipelineStage) => {
-  if (!STAGES.includes(newStage)) {
-    throw new Error("Invalid stage");
-  }
-  const card = ensureCard(cardId);
-  const previousStage = card.stage;
+  const card = requireCard(applicationId);
+
   const now = new Date().toISOString();
+  const previousStage = card.stage;
+
   const updated: PipelineCard = {
     ...card,
-    stage: newStage,
+    stage: toStage,
     updatedAt: now,
   };
-  cards.set(cardId, updated);
-  const application = ensureApplication(card.applicationId);
-  applications.set(application.id, {
-    ...application,
-    stage: newStage,
-    updatedAt: now,
-  });
-  const entry: TimelineEvent = {
+
+  cards.set(applicationId, updated);
+
+  const timelineEntry: TimelineEvent = {
     id: randomUUID(),
-    cardId,
+    applicationId,
     fromStage: previousStage,
-    toStage: newStage,
+    toStage,
     createdAt: now,
   };
-  const history = timeline.get(cardId) ?? [];
-  timeline.set(cardId, [...history, entry]);
+
+  const events = history.get(applicationId) ?? [];
+  history.set(applicationId, [...events, timelineEntry]);
+
   return updated;
 };
 
-export const getApplicationData = (cardId: string) => {
-  const card = ensureCard(cardId);
-  const application = ensureApplication(card.applicationId);
-  const documents = getDocumentsForApplication(application.id);
-  const lenders = getAllLenders().slice(0, 3);
+/**
+ * Drawer → Application tab
+ */
+export const getApplicationData = (applicationId: string) => {
+  const apps = applicationService.listApplications();
+  const app = apps.find((a) => a.id === applicationId);
+  if (!app) {
+    throw new Error("Application not found");
+  }
+
+  const docs = getDocumentsForApplication(applicationId);
+  const lenders = getAllLenders().slice(0, 5);
+
   return {
-    application,
-    bankAnalysis: application.bankAnalysis,
-    financialData: application.financialData,
-    documents,
+    application: app,
+    documents: docs,
     lenderMatches: lenders,
-    timeline: timeline.get(cardId) ?? [],
+    timeline: history.get(applicationId) ?? [],
   };
 };
 
-export const getApplicationDocuments = (cardId: string) => {
-  const card = ensureCard(cardId);
-  return getDocumentsForApplication(card.applicationId);
+/**
+ * Drawer → Documents tab
+ */
+export const getApplicationDocuments = (applicationId: string) => {
+  return getDocumentsForApplication(applicationId);
 };
 
-export const getApplicationLenders = (cardId: string) => {
-  ensureCard(cardId);
+/**
+ * Drawer → Lenders tab
+ */
+export const getApplicationLenders = (_applicationId: string) => {
   return getAllLenders();
 };
 
-// Legacy class API retained for compatibility with existing placeholder tooling.
+/**
+ * Legacy wrapper
+ */
 export class PipelineService {
   public getBoard() {
-    return { stages: getAllStages(), cards: getAllCards() };
+    return {
+      stages: getAllStages(),
+      cards: getAllCards(),
+    };
   }
 
-  public listAssignments() {
-    return [];
-  }
-
-  public transitionApplication(payload: { cardId: string; toStage: PipelineStage }) {
-    const card = moveCard(payload.cardId, payload.toStage);
-    return { card };
-  }
-
-  public assignApplication() {
-    return {};
+  public transitionApplication(input: PipelineTransitionInput) {
+    return { card: moveCard(input) };
   }
 }
 
-export const createPipelineService = (_options: unknown = {}) => new PipelineService();
-
-export type PipelineServiceType = PipelineService;
-
+export const createPipelineService = () => new PipelineService();
 export const pipelineService = new PipelineService();
