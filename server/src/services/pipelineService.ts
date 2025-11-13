@@ -99,7 +99,7 @@ const buildInitialCard = (app: any): PipelineCard => {
 
 /**
  * Sync card metadata with actual applications
- * NEVER overwrite user-controlled stage
+ * NEVER overwrite pipeline stage
  */
 const syncCards = () => {
   const apps = applicationService.listApplications();
@@ -108,7 +108,6 @@ const syncCards = () => {
     const existing = cards.get(app.id);
 
     if (!existing) {
-      // First time → build new card
       cards.set(app.id, buildInitialCard(app));
       return;
     }
@@ -172,7 +171,7 @@ export const getAllCards = () => {
 };
 
 /**
- * BIG FIX: move card ONLY using validated pipeline stage
+ * Move card — BIG FIX Compliant
  */
 export const moveCard = (payload: {
   applicationId: string;
@@ -187,7 +186,6 @@ export const moveCard = (payload: {
   }
 
   const card = requireCard(applicationId);
-
   const now = new Date().toISOString();
 
   const updated: PipelineCard = {
@@ -244,8 +242,11 @@ export const getApplicationDocuments = (applicationId: string) => {
 
 /**
  * Drawer – Lenders tab
+ *
+ * CRITICAL FIX:
+ * Must accept applicationId even if not used
  */
-export const getApplicationLenders = () => {
+export const getApplicationLenders = (_applicationId: string) => {
   return getAllLenders();
 };
 
