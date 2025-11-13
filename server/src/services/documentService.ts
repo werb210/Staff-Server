@@ -1,4 +1,3 @@
-// server/src/services/documentService.ts
 import { createHash, randomUUID } from "crypto";
 import JSZip from "jszip";
 import type { Response } from "express";
@@ -292,6 +291,16 @@ export const streamDocument = async (id: string, res: Response): Promise<void> =
 };
 
 /* ------------------------------------------------------------------------
+   DELETE DOCUMENT (required by controller)
+------------------------------------------------------------------------ */
+
+export const deleteDocument = (id: string): DocumentWithVersions => {
+  const doc = requireDoc(id);
+  documents.delete(id);
+  return doc;
+};
+
+/* ------------------------------------------------------------------------
    Legacy-Compatible DocumentService API
 ------------------------------------------------------------------------ */
 
@@ -358,6 +367,10 @@ export class DocumentService {
     const result = await downloadDocument(id);
     if (!result) throw new Error("Document not found");
     return { buffer: result.buffer };
+  }
+
+  delete(id: string) {
+    return deleteDocument(id);
   }
 }
 
