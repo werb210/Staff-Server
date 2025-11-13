@@ -2,29 +2,44 @@ import { randomUUID } from "crypto";
 import { applicationService } from "./applicationService.js";
 import { getDocumentsForApplication } from "./documentService.js";
 import { getAll as getAllLenders } from "./lendersService.js";
-import { type PipelineStage, PIPELINE_STAGES } from "../schemas/pipeline.schema.js";
+import {
+  PipelineStageNameSchema,
+  type PipelineStageName,
+} from "../schemas/pipeline.schema.js";
 
 /**
- * Canonical PipelineCard stored in memory
+ * Canonical stage list (must match pipeline.schema.ts EXACTLY)
+ */
+export const PIPELINE_STAGES: PipelineStageName[] = [
+  "New",
+  "Requires Docs",
+  "In Review",
+  "Sent to Lenders",
+  "Approved",
+  "Declined",
+];
+
+/**
+ * PipelineCard
  */
 interface PipelineCard {
-  id: string;              // cardId = applicationId
+  id: string; // cardId = applicationId
   applicationId: string;
   applicantName: string;
   amount: number;
-  stage: PipelineStage;
+  stage: PipelineStageName;
   updatedAt: string;
   assignedTo?: string;
 }
 
 /**
- * Card timeline
+ * Timeline events
  */
 interface TimelineEvent {
   id: string;
   applicationId: string;
-  fromStage: PipelineStage;
-  toStage: PipelineStage;
+  fromStage: PipelineStageName;
+  toStage: PipelineStageName;
   createdAt: string;
 }
 
@@ -35,34 +50,40 @@ const cards = new Map<string, PipelineCard>();
 const timeline = new Map<string, TimelineEvent[]>();
 
 /**
- * Build a card from a real application (for initialization only)
+ * Build a card from an application (SEED ONLY)
  */
 const buildInitialCard = (app: any): PipelineCard => {
   const now = new Date().toISOString();
-  let stage: PipelineStage = "New";
+  let stage: PipelineStageName = "New";
 
   const docs = getDocumentsForApplication(app.id);
 
-  // Rule #1 – no docs → Requires Docs
+  // Rule #1: zero docs → Requires Docs
   if (docs.length === 0) {
     stage = "Requires Docs";
   }
 
-  // Rule #2 – rejected docs → Requires Docs
+  // Rule #2: any rejected → Requires Docs
   if (docs.some((d) => d.status === "rejected")) {
     stage = "Requires Docs";
   }
 
-  // Map application status → pipeline stage
+  // Map app.status → pipeline status
   switch (app.status) {
     case "review":
       stage = "In Review";
       break;
+
     case "approved":
-      stage = "Sent to Lender";
+      stage = "Sent to Lenders";
       break;
+
     case "completed":
-      stage = "Accepted";
+      stage = "Approved";
+      break;
+
+    case "declined":
+      stage = "Declined";
       break;
   }
 
@@ -78,34 +99,31 @@ const buildInitialCard = (app: any): PipelineCard => {
 };
 
 /**
- * Build or sync cards without overwriting user transitions
+ * Keep card data synced with real applications
  */
-const syncCards = (): void => {
+const syncCards = () => {
   const apps = applicationService.listApplications();
 
   apps.forEach((app) => {
     const existing = cards.get(app.id);
 
     if (!existing) {
-      // First time seeing this application → build a new card
-      const card = buildInitialCard(app);
-      cards.set(app.id, card);
+      cards.set(app.id, buildInitialCard(app));
       return;
     }
 
-    // Card already exists → sync metadata only
+    // Sync metadata ONLY
     existing.applicantName = app.applicantName;
     existing.amount = app.loanAmount ?? existing.amount;
     existing.updatedAt = app.updatedAt ?? existing.updatedAt;
     existing.assignedTo = app.assignedTo;
 
-    // DO NOT overwrite stage — user action overrides rules
     cards.set(app.id, existing);
   });
 };
 
 /**
- * Helper: require card
+ * Ensure card exists
  */
 const requireCard = (id: string): PipelineCard => {
   const card = cards.get(id);
@@ -116,24 +134,35 @@ const requireCard = (id: string): PipelineCard => {
 };
 
 /**
- * PUBLIC: return all stages with cards
+ * Public: list full board
  */
 export const getAllStages = () => {
   syncCards();
 
   return PIPELINE_STAGES.map((stage) => {
-    const stageCards = Array.from(cards.values()).filter((c) => c.stage === stage);
-
+    const stageCards = Array.from(cards.values()).filter(
+      (c) => c.stage === stage
+    );
     return {
       id: stage,
       name: stage,
+      stage,
       cards: stageCards,
+      position: PIPELINE_STAGES.indexOf(stage),
+      count: stageCards.length,
+      totalLoanAmount: stageCards.reduce(
+        (sum, c) => sum + (c.amount ?? 0),
+        0
+      ),
+      averageScore: undefined,
+      lastUpdatedAt: new Date().toISOString(),
+      applications: [], // optional — UI does not require this here
     };
   });
 };
 
 /**
- * PUBLIC: return all cards
+ * Public: list all cards
  */
 export const getAllCards = () => {
   syncCards();
@@ -141,52 +170,56 @@ export const getAllCards = () => {
 };
 
 /**
- * PUBLIC: Move card
- * Big Fix rule: moveCard(cardId, newStage)
+ * Move card (BIG FIX compliant)
  */
-export const moveCard = (cardId: string, newStage: PipelineStage) => {
+export const moveCard = (payload: {
+  applicationId: string;
+  toStage: PipelineStageName;
+}) => {
   syncCards();
 
-  const card = requireCard(cardId);
+  const { applicationId, toStage } = payload;
 
-  if (!PIPELINE_STAGES.includes(newStage)) {
-    throw new Error(`Invalid stage: ${newStage}`);
+  if (!PIPELINE_STAGES.includes(toStage)) {
+    throw new Error(`Invalid stage: ${toStage}`);
   }
 
-  const now = new Date().toISOString();
-  const previousStage = card.stage;
+  const card = requireCard(applicationId);
 
+  const now = new Date().toISOString();
   const updated: PipelineCard = {
     ...card,
-    stage: newStage,
+    stage: toStage,
     updatedAt: now,
   };
 
-  cards.set(cardId, updated);
+  cards.set(applicationId, updated);
 
   const event: TimelineEvent = {
     id: randomUUID(),
-    applicationId: card.applicationId,
-    fromStage: previousStage,
-    toStage: newStage,
+    applicationId,
+    fromStage: card.stage,
+    toStage,
     createdAt: now,
   };
 
-  const events = timeline.get(cardId) ?? [];
-  timeline.set(cardId, [...events, event]);
+  const events = timeline.get(applicationId) ?? [];
+  timeline.set(applicationId, [...events, event]);
 
   return updated;
 };
 
 /**
- * Drawer → Application tab
+ * Drawer – Application tab
  */
 export const getApplicationData = (applicationId: string) => {
-  const apps = applicationService.listApplications();
-  const app = apps.find((a) => a.id === applicationId);
-  if (!app) {
-    throw new Error("Application not found");
-  }
+  syncCards();
+
+  const app = applicationService.listApplications().find(
+    (a) => a.id === applicationId
+  );
+
+  if (!app) throw new Error("Application not found");
 
   const docs = getDocumentsForApplication(applicationId);
   const lenders = getAllLenders().slice(0, 5);
@@ -200,21 +233,21 @@ export const getApplicationData = (applicationId: string) => {
 };
 
 /**
- * Drawer → Documents tab
+ * Drawer – Documents tab
  */
 export const getApplicationDocuments = (applicationId: string) => {
   return getDocumentsForApplication(applicationId);
 };
 
 /**
- * Drawer → Lenders tab
+ * Drawer – Lenders tab
  */
-export const getApplicationLenders = (_applicationId: string) => {
+export const getApplicationLenders = () => {
   return getAllLenders();
 };
 
 /**
- * Legacy compatibility
+ * Legacy wrapper
  */
 export class PipelineService {
   public getBoard() {
@@ -224,8 +257,11 @@ export class PipelineService {
     };
   }
 
-  public transitionApplication(cardId: string, toStage: PipelineStage) {
-    return { card: moveCard(cardId, toStage) };
+  public transitionApplication(input: {
+    applicationId: string;
+    toStage: PipelineStageName;
+  }) {
+    return { card: moveCard(input) };
   }
 }
 
