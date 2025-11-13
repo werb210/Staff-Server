@@ -250,16 +250,16 @@ export const getDocumentsForApplication = (applicationId: string) =>
   documentService.listDocuments(applicationId);
 export const getDocumentById = (id: string) =>
   documentService.getDocument(id);
-export const saveNewDocumentExport = (...args: Parameters<DocumentService['saveNewDocument']>) =>
+export const saveNewDocument = (...args: Parameters<DocumentService['saveNewDocument']>) =>
   documentService.saveNewDocument(...args);
-export const saveDocumentVersionExport = (...args: Parameters<DocumentService['saveDocumentVersion']>) =>
+export const saveDocumentVersion = (...args: Parameters<DocumentService['saveDocumentVersion']>) =>
   documentService.saveDocumentVersion(...args);
-export const acceptDocumentExport = (id: string) => documentService.acceptDocument(id);
-export const rejectDocumentExport = (id: string) => documentService.rejectDocument(id);
-export const reuploadDocumentExport = (...args: Parameters<DocumentService['uploadDocument']>) =>
+export const acceptDocument = (id: string) => documentService.acceptDocument(id);
+export const rejectDocument = (id: string) => documentService.rejectDocument(id);
+export const reuploadDocument = (...args: Parameters<DocumentService['uploadDocument']>) =>
   documentService.uploadDocument(...args);
-export const downloadDocumentExport = (id: string) => documentService.downloadDocument(id);
-export const downloadMultipleDocumentsExport = async (ids: string[]) => {
+export const downloadDocument = (id: string) => documentService.downloadDocument(id);
+export const downloadMultipleDocuments = async (ids: string[]) => {
   const zip = new JSZip();
   await Promise.all(
     ids.map(async (id) => {
@@ -269,5 +269,5 @@ export const downloadMultipleDocumentsExport = async (ids: string[]) => {
   );
   return zip.generateAsync({ type: "nodebuffer" });
 };
-export const streamDocumentExport = (id: string, res: Response) =>
+export const streamDocument = (id: string, res: Response) =>
   documentService.streamVersion(id, res);
