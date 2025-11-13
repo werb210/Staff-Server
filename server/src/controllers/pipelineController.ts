@@ -7,10 +7,15 @@ import {
   getApplicationLenders,
   moveCard,
 } from "../services/pipelineService.js";
-import { PipelineTransitionSchema } from "../schemas/pipeline.schema.js";
+import {
+  PipelineTransitionSchema,
+  PipelineStageNameSchema,
+  type PipelineStageName,
+} from "../schemas/pipeline.schema.js";
 
 /**
  * GET /api/pipeline/stages
+ * Return ordered board with all canonical stages
  */
 export const getStages = (_req: Request, res: Response) => {
   try {
@@ -23,6 +28,7 @@ export const getStages = (_req: Request, res: Response) => {
 
 /**
  * GET /api/pipeline/cards
+ * Return list of canonical PipelineCards
  */
 export const getCards = (_req: Request, res: Response) => {
   try {
@@ -34,14 +40,60 @@ export const getCards = (_req: Request, res: Response) => {
 };
 
 /**
+ * Normalizes various inputs ("sent_to_lenders", "Sent to Lender", etc.)
+ * to **canonical pipeline stage names**
+ */
+const normalizeStage = (value: unknown): PipelineStageName | undefined => {
+  if (typeof value !== "string") return undefined;
+
+  const trimmed = value.trim().toLowerCase();
+
+  switch (trimmed) {
+    case "new":
+    case "new application":
+      return "New";
+
+    case "requires docs":
+    case "requires_documents":
+    case "requires_documents":
+    case "requiresdocs":
+      return "Requires Docs";
+
+    case "in review":
+    case "review":
+      return "In Review";
+
+    case "sent to lenders":
+    case "sent to lender":
+    case "ready_for_lenders":
+    case "ready for lenders":
+      return "Sent to Lenders";
+
+    case "approved":
+      return "Approved";
+
+    case "declined":
+    case "rejected":
+      return "Declined";
+
+    default:
+      return undefined;
+  }
+};
+
+/**
  * PUT /api/pipeline/cards/:id/move
- * Applies Big Fix validation
+ * Validates → normalizes → applies Big Fix transition
  */
 export const moveCardHandler = (req: Request, res: Response) => {
+  // Normalize incoming stage names BEFORE schema validation
+  const normalizedToStage = normalizeStage(req.body.toStage);
+  const normalizedFromStage = normalizeStage(req.body.fromStage);
+
   const parsed = PipelineTransitionSchema.safeParse({
     applicationId: req.params.id,
-    fromStage: req.body.fromStage,
-    toStage: req.body.toStage,
+    fromStage: normalizedFromStage,
+    toStage: normalizedToStage,
     assignedTo: req.body.assignedTo,
     note: req.body.note,
   });
@@ -54,7 +106,11 @@ export const moveCardHandler = (req: Request, res: Response) => {
   }
 
   try {
-    const updated = moveCard(parsed.data);
+    const updated = moveCard({
+      applicationId: parsed.data.applicationId,
+      toStage: parsed.data.toStage,
+    });
+
     return res.json({ data: updated });
   } catch (err) {
     return res.status(400).json({ message: (err as Error).message });
@@ -63,6 +119,7 @@ export const moveCardHandler = (req: Request, res: Response) => {
 
 /**
  * GET /api/pipeline/cards/:id/application
+ * Drawer → Application tab
  */
 export const getApplicationDataHandler = (req: Request, res: Response) => {
   try {
@@ -75,6 +132,7 @@ export const getApplicationDataHandler = (req: Request, res: Response) => {
 
 /**
  * GET /api/pipeline/cards/:id/documents
+ * Drawer → Documents tab
  */
 export const getApplicationDocumentsHandler = (req: Request, res: Response) => {
   try {
@@ -87,6 +145,7 @@ export const getApplicationDocumentsHandler = (req: Request, res: Response) => {
 
 /**
  * GET /api/pipeline/cards/:id/lenders
+ * Drawer → Lenders tab
  */
 export const getApplicationLendersHandler = (req: Request, res: Response) => {
   try {
