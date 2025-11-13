@@ -35,13 +35,16 @@ export const getCards = (_req: Request, res: Response) => {
 
 /**
  * PUT /api/pipeline/cards/:id/move
- * Uses your updated PipelineTransitionSchema
- * Applies Big Fix rule: never trust client; always validate transition
+ * Uses Zod to validate payload
+ * Enforces Big Fix rule:
+ *   - ID is ALWAYS cardId, never applicationId
+ *   - fromStage is ignored (never trust client)
+ *   - Only toStage is authoritative
  */
 export const moveCardHandler = (req: Request, res: Response) => {
   const parsed = PipelineTransitionSchema.safeParse({
-    applicationId: req.params.id,
-    fromStage: req.body.fromStage,
+    applicationId: req.params.id,      // we map route ID → cardId
+    fromStage: req.body.fromStage,     // validated but not trusted
     toStage: req.body.toStage,
     assignedTo: req.body.assignedTo,
     note: req.body.note,
@@ -55,7 +58,12 @@ export const moveCardHandler = (req: Request, res: Response) => {
   }
 
   try {
-    const updated = moveCard(parsed.data);
+    const cardId = parsed.data.applicationId;
+    const newStage = parsed.data.toStage;
+
+    // Pipeline service requires (cardId, newStage)
+    const updated = moveCard(cardId, newStage);
+
     return res.json({ data: updated });
   } catch (err) {
     return res.status(400).json({ message: (err as Error).message });
@@ -81,8 +89,8 @@ export const getApplicationDataHandler = (req: Request, res: Response) => {
  */
 export const getApplicationDocumentsHandler = (req: Request, res: Response) => {
   try {
-    const docs = getApplicationDocuments(req.params.id);
-    return res.json({ data: docs });
+    const documents = getApplicationDocuments(req.params.id);
+    return res.json({ data: documents });
   } catch (err) {
     return res.status(404).json({ message: (err as Error).message });
   }
