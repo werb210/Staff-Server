@@ -32,32 +32,32 @@ export const ApplicationStatusSchema = z.enum([
 export type ApplicationStatus = z.infer<typeof ApplicationStatusSchema>;
 
 /**
- * Core application model (canonical shape)
- * Must match Staff Portal useQuery(), CRM sync, and the Pipeline drawer.
+ * Core application model
  */
 export const ApplicationSchema = z.object({
   id: uuidSchema,
-  externalId: z.string().optional(),                // legacy ID for SignNow/old systems
-  businessName: z.string().min(1),                 // added for AI Summary + lender matching
+  externalId: z.string().optional(),
+
+  businessName: z.string().min(1),
   applicantName: z.string().min(1),
   applicantEmail: z.string().email(),
   applicantPhone: phoneSchema.optional(),
 
   productId: uuidSchema,
-  productCategory: z.string().min(1),              // added for lender matching
+  productCategory: z.string().min(1),
   loanAmount: z.number().positive(),
   loanPurpose: z.string().min(1),
 
-  stage: ApplicationStageSchema,                   // pipeline stage
+  stage: ApplicationStageSchema,
   status: ApplicationStatusSchema,
 
-  score: z.number().min(0).max(100).optional(),    // AI risk score
-  matchScore: z.number().min(0).max(100).optional(), // lender match score
+  score: z.number().min(0).max(100).optional(),
+  matchScore: z.number().min(0).max(100).optional(),
 
   assignedTo: z.string().optional(),
-  referrerId: z.string().optional(),               // supports referrer portal
+  referrerId: z.string().optional(),
 
-  silo: z.enum(["BF", "SLF"]).default("BF"),       // BF/SLF separation
+  silo: z.enum(["BF", "SLF"]).default("BF"),
 
   createdAt: z.string().datetime({ offset: true }),
   updatedAt: z.string().datetime({ offset: true }),
@@ -66,7 +66,6 @@ export const ApplicationSchema = z.object({
   completedAt: z.string().datetime({ offset: true }).optional(),
   completedBy: z.string().optional(),
 
-  // AI summary and OCR fields
   aiSummary: z.string().optional(),
   ocrExtracted: z.record(z.any()).optional(),
 });
@@ -74,7 +73,7 @@ export const ApplicationSchema = z.object({
 export type Application = z.infer<typeof ApplicationSchema>;
 
 /**
- * WHAT CLIENT OR PORTAL CAN SEND DURING CREATION
+ * CREATE
  */
 export const ApplicationCreateSchema = z.object({
   businessName: z.string().min(1),
@@ -95,7 +94,7 @@ export const ApplicationCreateSchema = z.object({
 export type ApplicationCreateInput = z.infer<typeof ApplicationCreateSchema>;
 
 /**
- * FOR UPDATES – partial allowed
+ * UPDATE
  */
 export const ApplicationUpdateSchema = ApplicationCreateSchema.partial().extend({
   id: uuidSchema,
@@ -104,7 +103,7 @@ export const ApplicationUpdateSchema = ApplicationCreateSchema.partial().extend(
 export type ApplicationUpdateInput = z.infer<typeof ApplicationUpdateSchema>;
 
 /**
- * ACTION-SPECIFIC SCHEMAS
+ * ACTION SCHEMAS
  */
 export const ApplicationStageUpdateSchema = z.object({
   id: uuidSchema,
@@ -127,7 +126,7 @@ export const ApplicationCompleteSchema = z.object({
 });
 
 /**
- * PUBLIC API SCHEMA (for external integrations)
+ * PUBLIC VERSION
  */
 export const ApplicationPublicSchema = ApplicationSchema.pick({
   id: true,
@@ -143,3 +142,15 @@ export const ApplicationPublicSchema = ApplicationSchema.pick({
 });
 
 export type ApplicationPublic = z.infer<typeof ApplicationPublicSchema>;
+
+/**
+ * ---------------------------
+ *   MISSING SCHEMAS ADDED
+ * ---------------------------
+ */
+
+/** Required by routes — alias of ApplicationStageUpdateSchema */
+export const ApplicationAssignmentSchema = ApplicationStageUpdateSchema;
+
+/** Required by routes — alias of ApplicationPublicSchema */
+export const ApplicationPublishSchema = ApplicationPublicSchema;
