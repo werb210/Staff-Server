@@ -1,3 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cat > server/src/services/documentService.ts <<'EOF'
 import { createHash, randomUUID } from "crypto";
 import JSZip from "jszip";
 import type { Response } from "express";
@@ -24,32 +28,21 @@ import {
   streamBlob,
 } from "./azureBlob.js";
 
-/* ------------------------------------------------------------------------
-   In-memory store (temporary until DB integration)
------------------------------------------------------------------------- */
+/* In-memory store */
 const documents = new Map<string, DocumentWithVersions>();
 
-/* ------------------------------------------------------------------------
-   Helpers
------------------------------------------------------------------------- */
-
 const now = (): string => new Date().toISOString();
-
 const sanitizeName = (name: string): string =>
   name.trim().replace(/[^a-zA-Z0-9._-]/g, "-") || "document";
-
 const sha256 = (buffer: Buffer): string =>
   createHash("sha256").update(buffer).digest("hex");
-
 const blobPath = (docId: string, version: number, fileName: string): string =>
   `${docId}/v${version}/${sanitizeName(fileName)}`;
-
 const requireDoc = (id: string): DocumentWithVersions => {
   const record = documents.get(id);
   if (!record) throw new Error(`Document ${id} not found`);
   return record;
 };
-
 const storeDoc = (record: DocumentWithVersions): DocumentWithVersions => {
   const validated = DocumentWithVersionsSchema.parse(record);
   documents.set(validated.id, validated);
@@ -78,10 +71,7 @@ const buildVersion = (p: {
   return DocumentVersionSchema.parse(v);
 };
 
-/* ------------------------------------------------------------------------
-   CREATE NEW DOCUMENT
------------------------------------------------------------------------- */
-
+/* CREATE NEW DOCUMENT */
 export const saveNewDocument = async (
   meta: DocumentUploadMetadata,
   buffer: Buffer,
@@ -97,7 +87,6 @@ export const saveNewDocument = async (
   const blobName = blobPath(id, version, fileName);
 
   await uploadBuffer(buffer, blobName, mimeType);
-
   const checksum = sha256(buffer);
 
   const base: DocumentWithVersions = {
@@ -131,18 +120,11 @@ export const saveNewDocument = async (
   return storeDoc(base);
 };
 
-/* ------------------------------------------------------------------------
-   FETCH BY ID
------------------------------------------------------------------------- */
+/* FETCH BY ID */
+export const getDocumentById = (id: string): DocumentWithVersions =>
+  DocumentWithVersionsSchema.parse(requireDoc(id));
 
-export const getDocumentById = (id: string): DocumentWithVersions => {
-  return DocumentWithVersionsSchema.parse(requireDoc(id));
-};
-
-/* ------------------------------------------------------------------------
-   SAVE NEW VERSION
------------------------------------------------------------------------- */
-
+/* SAVE NEW VERSION */
 export const saveDocumentVersion = async (p: {
   documentId: string;
   buffer: Buffer;
@@ -155,11 +137,9 @@ export const saveDocumentVersion = async (p: {
   const version = record.version + 1;
   const updated = now();
   const fileName = sanitizeName(p.fileName ?? record.fileName);
-
   const blobName = blobPath(record.id, version, fileName);
 
   await uploadBuffer(p.buffer, blobName, p.mimeType);
-
   const checksum = sha256(p.buffer);
 
   const versionObj = buildVersion({
@@ -191,17 +171,13 @@ export const saveDocumentVersion = async (p: {
   return storeDoc(merged);
 };
 
-/* ------------------------------------------------------------------------
-   ACCEPT / REJECT
------------------------------------------------------------------------- */
-
+/* ACCEPT / REJECT */
 export const acceptDocument = (id: string): DocumentWithVersions => {
   const doc = requireDoc(id);
   doc.status = "accepted";
   doc.updatedAt = now();
   return storeDoc(doc);
 };
-
 export const rejectDocument = (id: string): DocumentWithVersions => {
   const doc = requireDoc(id);
   doc.status = "rejected";
@@ -209,101 +185,60 @@ export const rejectDocument = (id: string): DocumentWithVersions => {
   return storeDoc(doc);
 };
 
-/* ------------------------------------------------------------------------
-   REUPLOAD WRAPPER
------------------------------------------------------------------------- */
-
+/* REUPLOAD */
 export const reuploadDocument = async (
   id: string,
   buffer: Buffer,
   mimeType: string,
   fileName: string,
   category?: Document["category"]
-): Promise<DocumentWithVersions> => {
-  return saveDocumentVersion({
-    documentId: id,
-    buffer,
-    mimeType,
-    fileName,
-    category,
-  });
-};
+): Promise<DocumentWithVersions> =>
+  saveDocumentVersion({ documentId: id, buffer, mimeType, fileName, category });
 
-/* ------------------------------------------------------------------------
-   LIST DOCUMENTS FOR APPLICATION
------------------------------------------------------------------------- */
+/* LIST FOR APPLICATION */
+export const getDocumentsForApplication = (applicationId: string): Document[] =>
+  Array.from(documents.values())
+    .filter((doc) => doc.applicationId === applicationId)
+    .map((doc) => DocumentSchema.parse({ ...doc }));
 
-export const getDocumentsForApplication = (
-  applicationId: string
-): Document[] => {
-  const output: Document[] = [];
-  for (const doc of documents.values()) {
-    if (doc.applicationId === applicationId) {
-      output.push(DocumentSchema.parse({ ...doc }));
-    }
-  }
-  return output;
-};
-
-/* ------------------------------------------------------------------------
-   DOWNLOAD SINGLE DOCUMENT
------------------------------------------------------------------------- */
-
+/* DOWNLOAD SINGLE DOCUMENT */
 export const downloadDocument = async (
   id: string
 ): Promise<{ buffer: Buffer; document: DocumentWithVersions } | null> => {
   const doc = documents.get(id);
   if (!doc) return null;
-
   const buffer = await downloadBuffer(doc.blobName);
   return { buffer, document: doc };
 };
 
-/* ------------------------------------------------------------------------
-   DOWNLOAD MULTIPLE AS ZIP
------------------------------------------------------------------------- */
-
+/* DOWNLOAD MULTIPLE AS ZIP */
 export const downloadMultipleDocuments = async (ids: string[]): Promise<Buffer> => {
   const zip = new JSZip();
-
   await Promise.all(
     ids.map(async (id) => {
       const doc = documents.get(id);
       if (!doc) return;
-
       const buffer = await downloadBuffer(doc.blobName);
-
-      const name = `${sanitizeName(doc.name)}-v${doc.version}`;
-      zip.file(name, buffer);
+      zip.file(`${sanitizeName(doc.name)}-v${doc.version}`, buffer);
     })
   );
-
   return zip.generateAsync({ type: "nodebuffer" });
 };
 
-/* ------------------------------------------------------------------------
-   STREAM DOCUMENT (for previews)
------------------------------------------------------------------------- */
-
+/* STREAM DOCUMENT */
 export const streamDocument = async (id: string, res: Response): Promise<void> => {
   const doc = requireDoc(id);
   await streamBlob(doc.blobName, res);
 };
 
-/* ------------------------------------------------------------------------
-   DELETE DOCUMENT (required by controller)
------------------------------------------------------------------------- */
-
+/* DELETE DOCUMENT */
 export const deleteDocument = (id: string): DocumentWithVersions => {
   const doc = requireDoc(id);
   documents.delete(id);
   return doc;
 };
 
-/* ------------------------------------------------------------------------
-   Legacy-Compatible DocumentService API
------------------------------------------------------------------------- */
-
+/* DocumentService Class */
 export class DocumentService {
   listDocuments(applicationId?: string): DocumentWithVersions[] {
     if (!applicationId) return Array.from(documents.values());
@@ -331,7 +266,6 @@ export class DocumentService {
         fileName: input.fileName,
       });
     }
-
     return saveNewDocument(
       {
         applicationId: input.applicationId,
@@ -375,6 +309,8 @@ export class DocumentService {
 }
 
 export const documentService = new DocumentService();
-export const createDocumentService = (..._args: any[]): DocumentService =>
-  new DocumentService();
+export const createDocumentService = (): DocumentService => new DocumentService();
 export type DocumentServiceType = DocumentService;
+EOF
+
+echo "[✅] documentService.ts rewritten and fixed"
