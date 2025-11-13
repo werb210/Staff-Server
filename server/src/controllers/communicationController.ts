@@ -30,9 +30,7 @@ import {
 
 import { logError } from "../utils/logger.js";
 
-/* ---------------------------------------------------------
-   Validation Schemas
---------------------------------------------------------- */
+/* -------------------- Validation -------------------- */
 
 const smsSendSchema = z.object({
   contactId: z.string().uuid(),
@@ -72,9 +70,7 @@ const templateUpdateSchema = templateCreateSchema.partial().refine(
   { message: "At least one field is required" }
 );
 
-/* ---------------------------------------------------------
-   Helpers
---------------------------------------------------------- */
+/* -------------------- Helpers -------------------- */
 
 const extractUser = (req: Request): AuthenticatedUser | undefined =>
   (req as Request & { user?: AuthenticatedUser }).user;
@@ -82,31 +78,19 @@ const extractUser = (req: Request): AuthenticatedUser | undefined =>
 const sendValidationError = (res: Response, message: string) =>
   res.status(400).json({ message });
 
-/* ---------------------------------------------------------
-   SMS
---------------------------------------------------------- */
+/* -------------------- SMS -------------------- */
 
 export const getSMSThreads = async (_req: Request, res: Response) => {
-  try {
-    const threads = await getSmsThreads();
-    return res.json({ message: "OK", data: threads });
-  } catch (err) {
-    logError("Failed to get SMS threads", err);
-    return res.status(500).json({ message: "Failed to get SMS threads" });
-  }
+  const threads = await getSmsThreads();
+  return res.json({ message: "OK", data: threads });
 };
 
 export const getSMSForContact = async (req: Request, res: Response) => {
   const parsed = z.string().uuid().safeParse(req.params.contactId);
   if (!parsed.success) return sendValidationError(res, "Invalid contact id");
 
-  try {
-    const messages = await getSmsThread(parsed.data);
-    return res.json({ message: "OK", data: messages });
-  } catch (err) {
-    logError("Failed to get SMS thread", err);
-    return res.status(500).json({ message: "Failed to load SMS thread" });
-  }
+  const messages = await getSmsThread(parsed.data);
+  return res.json({ message: "OK", data: messages });
 };
 
 export const sendSMS = async (req: Request, res: Response) => {
@@ -131,18 +115,11 @@ export const sendSMS = async (req: Request, res: Response) => {
   }
 };
 
-/* ---------------------------------------------------------
-   Calls
---------------------------------------------------------- */
+/* -------------------- Calls -------------------- */
 
 export const getCalls = async (_req: Request, res: Response) => {
-  try {
-    const calls = await fetchCalls();
-    return res.json({ message: "OK", data: calls });
-  } catch (err) {
-    logError("Failed to fetch calls", err);
-    return res.status(500).json({ message: "Failed to get calls" });
-  }
+  const calls = await fetchCalls();
+  return res.json({ message: "OK", data: calls });
 };
 
 export const initiateCall = async (req: Request, res: Response) => {
@@ -182,18 +159,11 @@ export const endCall = async (req: Request, res: Response) => {
   }
 };
 
-/* ---------------------------------------------------------
-   Email
---------------------------------------------------------- */
+/* -------------------- Email -------------------- */
 
 export const getEmailThreads = async (_req: Request, res: Response) => {
-  try {
-    const threads = emailService.listThreads();
-    return res.json({ message: "OK", data: threads });
-  } catch (err) {
-    logError("Failed to get email threads", err);
-    return res.status(500).json({ message: "Failed to get email threads" });
-  }
+  const threads = emailService.listThreads();
+  return res.json({ message: "OK", data: threads });
 };
 
 export const sendEmail = async (req: Request, res: Response) => {
@@ -222,18 +192,11 @@ export const sendEmail = async (req: Request, res: Response) => {
   }
 };
 
-/* ---------------------------------------------------------
-   Templates
---------------------------------------------------------- */
+/* -------------------- Templates -------------------- */
 
 export const getTemplates = async (_req: Request, res: Response) => {
-  try {
-    const templates = await fetchTemplates();
-    return res.json({ message: "OK", data: templates });
-  } catch (err) {
-    logError("Failed to load templates", err);
-    return res.status(500).json({ message: "Failed to load templates" });
-  }
+  const templates = await fetchTemplates();
+  return res.json({ message: "OK", data: templates });
 };
 
 export const createTemplate = async (req: Request, res: Response) => {
@@ -241,18 +204,9 @@ export const createTemplate = async (req: Request, res: Response) => {
   if (!parsed.success) return sendValidationError(res, "Invalid template payload");
 
   const user = extractUser(req);
+  const template = await persistTemplate({ ...parsed.data, createdBy: user?.id });
 
-  try {
-    const template = await persistTemplate({
-      ...parsed.data,
-      createdBy: user?.id,
-    });
-
-    return res.status(201).json({ message: "OK", data: template });
-  } catch (err) {
-    logError("Failed to create template", err);
-    return res.status(500).json({ message: "Failed to create template" });
-  }
+  return res.status(201).json({ message: "OK", data: template });
 };
 
 export const updateTemplate = async (req: Request, res: Response) => {
