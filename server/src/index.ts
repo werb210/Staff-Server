@@ -24,7 +24,7 @@ import documentsRouter from "./routes/documents.js";
 import pipelineRouter from "./routes/pipeline.js";
 import communicationRouter from "./routes/communication.js";
 
-// Local DB (strong types)
+// Local DB
 import { db } from "./services/db.js";
 import { describeDatabaseUrl } from "./utils/env.js";
 
@@ -38,7 +38,7 @@ interface Table<T> {
 
 type SafeTable<T> = Table<T> | undefined;
 
-/** Ensures strong typing for db.*.data */
+/** Safely read any in-memory table */
 const readTable = <T>(table: SafeTable<T>): T[] => {
   if (!table || !Array.isArray(table.data)) return [];
   return table.data;
