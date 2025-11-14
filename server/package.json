@@ -15,6 +15,7 @@
   "type": "module",
   "dependencies": {
     "@azure/storage-blob": "^12.29.1",
+    "@prisma/client": "^5.22.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
@@ -29,8 +30,12 @@
     "@types/node": "^24.10.1",
     "@types/uuid": "^10.0.0",
     "nodemon": "^3.1.11",
+    "prisma": "^5.22.0",
     "ts-node": "^10.9.2",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3"
+  },
+  "prisma": {
+    "schema": "prisma/schema.prisma"
   }
 }
