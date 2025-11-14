@@ -3,71 +3,73 @@ import jwt from "jsonwebtoken";
 import { PrismaClient, type Silo, type User } from "@prisma/client";
 
 const prisma = new PrismaClient();
+const JWT_SECRET = process.env.JWT_SECRET || "local-dev-secret";
 
-const JWT_SECRET = process.env.JWT_SECRET || "CHANGE_ME";
-const JWT_EXPIRES = "7d";
-
-export type PublicUser = Omit<User, "password">;
-
-export interface AuthTokenPayload extends jwt.JwtPayload {
+export interface JwtUserPayload extends jwt.JwtPayload {
   id: string;
   email: string;
-  roles: string[];
+  role: string;
   silos: Silo[];
 }
 
-function sanitizeUser(user: User): PublicUser {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { password, ...rest } = user;
+export type PublicUser = Omit<User, "passwordHash">;
+
+function toPublicUser(user: User): PublicUser {
+  const { passwordHash, ...rest } = user;
   return rest;
+}
+
+export async function hashPassword(password: string) {
+  return bcrypt.hash(password, 10);
+}
+
+export async function verifyPassword(password: string, hash: string) {
+  return bcrypt.compare(password, hash);
+}
+
+export function signJwt(user: PublicUser) {
+  const payload: JwtUserPayload = {
+    id: user.id,
+    email: user.email,
+    role: user.role,
+    silos: user.silos,
+  };
+
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
+}
+
+export function verifyJwt(token: string): JwtUserPayload {
+  return jwt.verify(token, JWT_SECRET) as JwtUserPayload;
+}
+
+export async function findUserByEmail(email: string) {
+  return prisma.user.findUnique({ where: { email } });
+}
+
+export async function findUserById(id: string) {
+  return prisma.user.findUnique({ where: { id } });
 }
 
 export async function createUser(data: {
   email: string;
   password: string;
-  roles: string[];
+  role: string;
   silos: Silo[];
-}): Promise<PublicUser> {
-  const hashed = await bcrypt.hash(data.password, 10);
+}) {
+  const passwordHash = await hashPassword(data.password);
+
   const user = await prisma.user.create({
     data: {
       email: data.email,
-      password: hashed,
-      roles: data.roles,
+      passwordHash,
+      role: data.role,
       silos: data.silos,
     },
   });
 
-  return sanitizeUser(user);
+  return toPublicUser(user);
 }
 
-export async function authenticate(email: string, password: string): Promise<
-  | {
-      token: string;
-      user: PublicUser;
-    }
-  | null
-> {
-  const user = await prisma.user.findUnique({ where: { email } });
-  if (!user) return null;
-
-  const valid = await bcrypt.compare(password, user.password);
-  if (!valid) return null;
-
-  const token = jwt.sign(
-    {
-      id: user.id,
-      email: user.email,
-      roles: user.roles,
-      silos: user.silos,
-    },
-    JWT_SECRET,
-    { expiresIn: JWT_EXPIRES }
-  );
-
-  return { token, user: sanitizeUser(user) };
-}
-
-export function verifyToken(token: string): AuthTokenPayload {
-  return jwt.verify(token, JWT_SECRET) as AuthTokenPayload;
+export function sanitizeUser(user: User) {
+  return toPublicUser(user);
 }
