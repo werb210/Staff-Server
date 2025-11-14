@@ -1,170 +1,70 @@
-import { createHash, randomUUID } from "crypto";
-import { gzipSync } from "zlib";
 import type { Express } from "express";
-import type { Document } from "@prisma/client";
-import {
-  prisma,
-  requireUserSiloAccess,
-  type Silo,
-  type UserContext,
-} from "./prisma.js";
-
-export interface DownloadedDocument {
-  buffer: Buffer;
-  mimeType: string;
-  name: string;
-}
-
-const documentStorage = new Map<string, DownloadedDocument>();
+import JSZip from "jszip";
+import { db, type Silo } from "./db.js";
+import { downloadBuffer, uploadBuffer } from "./azureBlob.js";
 
 export const documentService = {
-  async upload(
-    user: UserContext,
-    silo: Silo,
-    appId: string,
-    file: Express.Multer.File
-  ): Promise<Document> {
-    requireUserSiloAccess(user.silos, silo);
+  async upload(silo: Silo, appId: string, file: Express.Multer.File) {
+    const id = db.id();
+    const key = `${silo}/documents/${id}-${file.originalname}`;
 
-    if (!user.id) throw new Error("Missing user id for document upload");
+    await uploadBuffer(key, file.buffer, file.mimetype);
 
-    const application = await prisma.application.findFirst({
-      where: { id: appId, silo },
-    });
-    if (!application) {
-      throw new Error("Application not found for document upload");
-    }
+    const record = {
+      id,
+      applicationId: appId,
+      name: file.originalname,
+      mimeType: file.mimetype,
+      size: file.size,
+      key,
+      status: "pending",
+      uploadedAt: new Date().toISOString(),
+    };
 
-    const checksum = createHash("sha256").update(file.buffer).digest("hex");
-
-    const created = await prisma.document.create({
-      data: {
-        applicationId: appId,
-        silo,
-        name: file.originalname,
-        category: file.fieldname && file.fieldname !== "file"
-          ? file.fieldname
-          : null,
-        mimeType: file.mimetype || "application/octet-stream",
-        sizeBytes: file.size,
-        s3Key: `memory://${randomUUID()}`,
-        checksum,
-        userId: user.id,
-      },
-    });
-
-    documentStorage.set(created.id, {
-      buffer: file.buffer,
-      mimeType: created.mimeType,
-      name: created.name,
-    });
-
-    return created;
+    db.documents[silo].data.push(record);
+    return record;
   },
 
-  async get(
-    user: UserContext,
-    silo: Silo,
-    id: string
-  ): Promise<Document | null> {
-    const doc = await prisma.document.findFirst({ where: { id, silo } });
-    if (!doc) return null;
+  async get(silo: Silo, id: string) {
+    return db.documents[silo].data.find((d) => d.id === id);
+  },
 
-    requireUserSiloAccess(user.silos, doc.silo);
+  async download(silo: Silo, id: string) {
+    const doc = await this.get(silo, id);
+    if (!doc) throw new Error("Document not found");
+    const buffer = await downloadBuffer(doc.key);
+    return { buffer, mimeType: doc.mimeType, name: doc.name };
+  },
+
+  async accept(silo: Silo, id: string, userId: string) {
+    const doc = await this.get(silo, id);
+    if (!doc) throw new Error("Document not found");
+    doc.status = "accepted";
+    (doc as any).acceptedBy = userId;
+    (doc as any).acceptedAt = new Date().toISOString();
     return doc;
   },
 
-  async download(
-    user: UserContext,
-    silo: Silo,
-    id: string
-  ): Promise<DownloadedDocument | null> {
-    const doc = await this.get(user, silo, id);
-    if (!doc) return null;
+  async reject(silo: Silo, id: string, userId: string) {
+    const doc = await this.get(silo, id);
+    if (!doc) throw new Error("Document not found");
+    doc.status = "rejected";
+    (doc as any).rejectedBy = userId;
+    (doc as any).rejectedAt = new Date().toISOString();
+    return doc;
+  },
 
-    const stored = documentStorage.get(id);
-    if (!stored) {
-      return {
-        buffer: Buffer.alloc(0),
-        mimeType: doc.mimeType,
-        name: doc.name,
-      };
+  async downloadAll(silo: Silo, appId: string) {
+    const docs = db.documents[silo].data.filter((d) => d.applicationId === appId);
+    const zip = new JSZip();
+
+    for (const doc of docs) {
+      const buffer = await downloadBuffer(doc.key);
+      zip.file(doc.name, buffer);
     }
 
-    return stored;
-  },
-
-  async accept(
-    user: UserContext,
-    silo: Silo,
-    id: string,
-    reviewerId: string
-  ): Promise<Document | null> {
-    return this.updateStatus(user, silo, id, reviewerId, "ACCEPTED");
-  },
-
-  async reject(
-    user: UserContext,
-    silo: Silo,
-    id: string,
-    reviewerId: string
-  ): Promise<Document | null> {
-    return this.updateStatus(user, silo, id, reviewerId, "REJECTED");
-  },
-
-  async downloadAll(
-    user: UserContext,
-    silo: Silo,
-    appId: string
-  ): Promise<{ zipBuffer: Buffer; fileName: string } | null> {
-    requireUserSiloAccess(user.silos, silo);
-
-    const documents = await prisma.document.findMany({
-      where: { applicationId: appId, silo },
-      orderBy: { createdAt: "asc" },
-    });
-
-    if (!documents.length) return null;
-
-    const archivePayload = JSON.stringify(
-      documents.map((doc: Document) => ({
-        id: doc.id,
-        name: doc.name,
-        mimeType: doc.mimeType,
-        sizeBytes: doc.sizeBytes,
-        status: doc.status,
-        checksum: doc.checksum,
-      })),
-      null,
-      2
-    );
-
-    const zipBuffer = gzipSync(Buffer.from(archivePayload, "utf8"));
-
-    return {
-      zipBuffer,
-      fileName: `documents-${appId}.zip`,
-    };
-  },
-
-  async updateStatus(
-    user: UserContext,
-    silo: Silo,
-    id: string,
-    reviewerId: string,
-    status: "ACCEPTED" | "REJECTED"
-  ): Promise<Document | null> {
-    requireUserSiloAccess(user.silos, silo);
-
-    const existing = await prisma.document.findFirst({ where: { id, silo } });
-    if (!existing) return null;
-
-    return prisma.document.update({
-      where: { id },
-      data: {
-        status,
-        userId: reviewerId,
-      },
-    });
+    const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
+    const fileName = `documents-${appId}.zip`;
+    return { zipBuffer, fileName };
   },
 };

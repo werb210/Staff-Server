@@ -1,64 +1,35 @@
-import type { Application, ApplicationStage } from "@prisma/client";
-import {
-  prisma,
-  requireUserSiloAccess,
-  type Silo,
-  type UserContext,
-} from "./prisma.js";
+import { db, type Silo } from "./db.js";
 
-type PipelineBoard = {
-  silo: Silo;
-  stages: Record<ApplicationStage, Application[]>;
-};
+const STAGES = [
+  "new",
+  "requires_docs",
+  "in_review",
+  "ready_for_lenders",
+  "sent_to_lenders",
+  "approved",
+  "declined",
+] as const;
 
-type MovePayload = {
-  stage?: ApplicationStage;
-};
+export type PipelineStage = (typeof STAGES)[number];
 
 export const pipelineService = {
-  async getBoard(user: UserContext, silo: Silo): Promise<PipelineBoard> {
-    requireUserSiloAccess(user.silos, silo);
-
-    const applications = await prisma.application.findMany({
-      where: { silo },
-      orderBy: { createdAt: "desc" },
-    });
-
-    const stages: Record<ApplicationStage, Application[]> = {
-      NEW: [],
-      IN_REVIEW: [],
-      REQUIRES_DOCS: [],
-      READY_FOR_LENDERS: [],
-      SENT_TO_LENDER: [],
-      ACCEPTED: [],
-      DECLINED: [],
-    };
-
-    for (const app of applications) {
-      stages[app.stage].push(app);
-    }
-
-    return { silo, stages };
+  getBoard(silo: Silo) {
+    return db.pipeline[silo].data;
   },
 
-  async move(
-    user: UserContext,
-    silo: Silo,
-    appId: string,
-    payload: MovePayload
-  ): Promise<Application | null> {
-    requireUserSiloAccess(user.silos, silo);
+  move(silo: Silo, appId: string, { toStage }: { toStage: PipelineStage }) {
+    if (!STAGES.includes(toStage)) throw new Error("Invalid pipeline stage");
 
-    if (!payload.stage) {
-      throw new Error("Missing target stage for pipeline move");
+    const list = db.pipeline[silo].data;
+    const idx = list.findIndex((c) => c.appId === appId);
+
+    if (idx === -1) {
+      const card = { id: db.id(), appId, stage: toStage };
+      list.push(card);
+      return card;
     }
 
-    const existing = await prisma.application.findFirst({ where: { id: appId, silo } });
-    if (!existing) return null;
-
-    return prisma.application.update({
-      where: { id: appId },
-      data: { stage: payload.stage },
-    });
+    list[idx].stage = toStage;
+    return list[idx];
   },
 };

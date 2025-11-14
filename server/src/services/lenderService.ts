@@ -1,93 +1,43 @@
-import type { Lender, LenderProduct, Prisma } from "@prisma/client";
-import {
-  prisma,
-  requireUserSiloAccess,
-  type Silo,
-  type UserContext,
-} from "./prisma.js";
+import { db, type Silo } from "./db.js";
 
 export const lenderService = {
-  async list(user: UserContext, silo: Silo): Promise<Lender[]> {
-    requireUserSiloAccess(user.silos, silo);
-
-    return prisma.lender.findMany({
-      where: { silo },
-      include: { products: true },
-      orderBy: { name: "asc" },
-    });
+  list(silo: Silo) {
+    return db.lenders[silo].data;
   },
 
-  async create(
-    user: UserContext,
-    silo: Silo,
-    data: Prisma.LenderCreateInput | Prisma.LenderUncheckedCreateInput
-  ): Promise<Lender> {
-    requireUserSiloAccess(user.silos, silo);
-
-    return prisma.lender.create({
-      data: {
-        ...data,
-        silo,
-      },
-    });
+  create(silo: Silo, data: any) {
+    const record = { id: db.id(), ...data, createdAt: new Date().toISOString() };
+    db.lenders[silo].data.push(record);
+    return record;
   },
 
-  async update(
-    user: UserContext,
-    silo: Silo,
-    id: string,
-    data: Prisma.LenderUpdateInput
-  ): Promise<Lender | null> {
-    requireUserSiloAccess(user.silos, silo);
-
-    const existing = await prisma.lender.findFirst({ where: { id, silo } });
-    if (!existing) return null;
-
-    return prisma.lender.update({
-      where: { id },
-      data,
-    });
+  update(silo: Silo, id: string, updates: any) {
+    const list = db.lenders[silo].data;
+    const idx = list.findIndex((l) => l.id === id);
+    if (idx === -1) return null;
+    list[idx] = { ...list[idx], ...updates };
+    return list[idx];
   },
 
-  async remove(user: UserContext, silo: Silo, id: string): Promise<boolean> {
-    requireUserSiloAccess(user.silos, silo);
-
-    const result = await prisma.lender.deleteMany({ where: { id, silo } });
-    return result.count > 0;
+  remove(silo: Silo, id: string) {
+    const list = db.lenders[silo].data;
+    const exists = list.some((l) => l.id === id);
+    db.lenders[silo].data = list.filter((l) => l.id !== id);
+    return exists;
   },
 
-  async listProducts(
-    user: UserContext,
-    silo: Silo,
-    lenderId: string
-  ): Promise<LenderProduct[]> {
-    requireUserSiloAccess(user.silos, silo);
-
-    return prisma.lenderProduct.findMany({
-      where: { silo, lenderId },
-      orderBy: { name: "asc" },
-    });
+  listProducts(silo: Silo, lenderId: string) {
+    return db.products[silo].data.filter((p) => p.lenderId === lenderId);
   },
 
-  async createProduct(
-    user: UserContext,
-    silo: Silo,
-    lenderId: string,
-    data:
-      | Prisma.LenderProductCreateInput
-      | Prisma.LenderProductUncheckedCreateInput
-  ): Promise<LenderProduct | null> {
-    requireUserSiloAccess(user.silos, silo);
-
-    const lender = await prisma.lender.findFirst({ where: { id: lenderId, silo } });
-    if (!lender) return null;
-
-    return prisma.lenderProduct.create({
-      data: {
-        ...data,
-        silo,
-        lenderId,
-      },
-    });
+  createProduct(silo: Silo, lenderId: string, data: any) {
+    const record = {
+      id: db.id(),
+      lenderId,
+      ...data,
+      createdAt: new Date().toISOString(),
+    };
+    db.products[silo].data.push(record);
+    return record;
   },
 };

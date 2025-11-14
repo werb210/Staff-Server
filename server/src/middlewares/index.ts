@@ -1,3 +1,3 @@
-export * from "./auth";
-export * from "./siloGuard";
-export * from "./errorHandler";
+export * from "./auth.js";
+export * from "./siloGuard.js";
+export * from "./errorHandler.js";

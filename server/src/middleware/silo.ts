@@ -1,9 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
-import { PrismaClient } from "@prisma/client";
 
 import { AllSilos, type Silo } from "../silos/siloTypes.js";
-
-const prisma = new PrismaClient();
+import { prisma } from "../services/prisma.js";
 
 /**
  * Silo Enforcement Middleware

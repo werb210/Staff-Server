@@ -1,39 +1,14 @@
-import { randomUUID } from "crypto";
-import { requireUserSiloAccess, type Silo, type UserContext } from "./prisma.js";
-
-type NotificationPayload = Record<string, unknown>;
-
-type NotificationRecord = {
-  id: string;
-  silo: Silo;
-  userId: string | undefined;
-  payload: NotificationPayload;
-  createdAt: Date;
-};
-
-const notifications: NotificationRecord[] = [];
+import { db, type Silo } from "./db.js";
 
 export const notificationService = {
-  async trigger(
-    user: UserContext,
-    silo: Silo,
-    payload: NotificationPayload
-  ): Promise<NotificationRecord> {
-    requireUserSiloAccess(user.silos, silo);
-
-    const record: NotificationRecord = {
-      id: randomUUID(),
+  trigger(silo: Silo, data: any) {
+    const record = {
+      id: db.id(),
       silo,
-      userId: user.id,
-      payload,
-      createdAt: new Date(),
+      ...data,
+      createdAt: new Date().toISOString(),
     };
-
-    notifications.push(record);
+    db.notifications[silo].data.push(record);
     return record;
-  },
-
-  list() {
-    return [...notifications];
   },
 };
