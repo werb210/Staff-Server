@@ -1,19 +1,18 @@
 import { Router } from "express";
 import {
-  fetchApplication,
-  fetchApplicationsForSilo,
-  changeApplicationStage,
-} from "../controllers/applications/applicationController.js";
+  getApplications,
+  createApplication,
+  getApplicationById,
+  updateApplication,
+  deleteApplication,
+} from "../controllers/applicationsController.js";
 
 const router = Router();
 
-// /applications/silo/BF
-router.get("/silo/:silo", fetchApplicationsForSilo);
-
-// /applications/:id
-router.get("/:id", fetchApplication);
-
-// /applications/:id/stage
-router.post("/:id/stage", changeApplicationStage);
+router.get("/:silo", getApplications);
+router.post("/:silo", createApplication);
+router.get("/:silo/:appId", getApplicationById);
+router.put("/:silo/:appId", updateApplication);
+router.delete("/:silo/:appId", deleteApplication);
 
 export default router;

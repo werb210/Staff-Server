@@ -2,29 +2,34 @@ import { Router } from "express";
 import multer from "multer";
 
 import {
-  fetchDocument,
-  fetchDocumentsForApplication,
-  handleUploadDocument,
-  acceptDocument,
-  rejectDocument,
-} from "../controllers/documents/documentController.js";
+  uploadDocument,
+  getDocument,
+  previewDocument,
+  downloadDocumentHandler,
+  acceptDocumentHandler,
+  rejectDocumentHandler,
+  downloadAllDocumentsHandler,
+} from "../controllers/documentsController.js";
 
-const router = Router();
+const documentsRouter = Router();
+const applicationDocumentsRouter = Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
-// /documents/:id
-router.get("/:id", fetchDocument);
+documentsRouter.get("/:silo/:id", getDocument);
+documentsRouter.get("/:silo/:id/preview", previewDocument);
+documentsRouter.get("/:silo/:id/download", downloadDocumentHandler);
+documentsRouter.post("/:silo/:id/accept", acceptDocumentHandler);
+documentsRouter.post("/:silo/:id/reject", rejectDocumentHandler);
 
-// /documents/application/:appId
-router.get("/application/:appId", fetchDocumentsForApplication);
+applicationDocumentsRouter.post(
+  "/:silo/:appId/documents",
+  upload.single("file"),
+  uploadDocument
+);
+applicationDocumentsRouter.get(
+  "/:silo/:appId/documents/archive",
+  downloadAllDocumentsHandler
+);
 
-// /documents/upload
-router.post("/upload", upload.single("file"), handleUploadDocument);
-
-// /documents/:id/accept
-router.post("/:id/accept", acceptDocument);
-
-// /documents/:id/reject
-router.post("/:id/reject", rejectDocument);
-
-export default router;
+export { applicationDocumentsRouter };
+export default documentsRouter;

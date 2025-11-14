@@ -1,15 +1,12 @@
 import { Router } from "express";
 import {
-  fetchPipeline,
-  changeCardStage,
-} from "../controllers/pipeline/pipelineController.js";
+  getPipeline,
+  moveCard,
+} from "../controllers/pipelineController.js";
 
 const router = Router();
 
-// /pipeline/silo/BF
-router.get("/silo/:silo", fetchPipeline);
-
-// /pipeline/card/:cardId/stage
-router.post("/card/:cardId/stage", changeCardStage);
+router.get("/:silo", getPipeline);
+router.post("/:silo/:appId/move", moveCard);
 
 export default router;
