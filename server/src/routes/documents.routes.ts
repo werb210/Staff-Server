@@ -1,32 +1,30 @@
 import { Router } from "express";
+import multer from "multer";
 
-const documentsRouter = Router();
+import {
+  fetchDocument,
+  fetchDocumentsForApplication,
+  handleUploadDocument,
+  acceptDocument,
+  rejectDocument,
+} from "../controllers/documents/documentController.js";
 
-/**
- * Documents root for a silo-scoped user.
- */
-documentsRouter.get("/", (req, res) => {
-  res.json({
-    ok: true,
-    route: "documents root",
-    silo: req.silo ?? null,
-    userId: req.user?.id ?? null,
-  });
-});
+const router = Router();
+const upload = multer({ storage: multer.memoryStorage() });
 
-const applicationDocumentsRouter = Router();
+// /documents/:id
+router.get("/:id", fetchDocument);
 
-/**
- * Simple placeholder endpoint for application scoped documents.
- */
-applicationDocumentsRouter.get("/:applicationId/documents", (req, res) => {
-  res.json({
-    ok: true,
-    route: "application documents",
-    applicationId: req.params.applicationId,
-    silo: req.silo ?? null,
-  });
-});
+// /documents/application/:appId
+router.get("/application/:appId", fetchDocumentsForApplication);
 
-export default documentsRouter;
-export { applicationDocumentsRouter };
+// /documents/upload
+router.post("/upload", upload.single("file"), handleUploadDocument);
+
+// /documents/:id/accept
+router.post("/:id/accept", acceptDocument);
+
+// /documents/:id/reject
+router.post("/:id/reject", rejectDocument);
+
+export default router;
