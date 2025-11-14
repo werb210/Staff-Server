@@ -16,25 +16,38 @@ import {
 const router = Router({ mergeParams: true });
 
 // -----------------------------------------------------
-// Async wrapper (strict TS)
+// Strict async wrapper
 // -----------------------------------------------------
+type AsyncRouteHandler = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => Promise<unknown>;
+
 const wrap =
-  (fn: (req: Request, res: Response, next: NextFunction) => Promise<unknown>) =>
-  (req: Request, res: Response, next: NextFunction) =>
-    Promise.resolve(fn(req, res, next)).catch(next);
+  (fn: AsyncRouteHandler) =>
+  (req: Request, res: Response, next: NextFunction): void => {
+    void Promise.resolve(fn(req, res, next)).catch(next);
+  };
 
 // -----------------------------------------------------
-// Validate appId param
+// Validate :appId param (strict TS signature)
 // -----------------------------------------------------
 router.param(
   "appId",
-  (req: Request, res: Response, next: NextFunction, value: string) => {
+  (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+    value: string
+  ): void => {
     if (!value || typeof value !== "string" || value.length < 8) {
-      return res.status(400).json({
+      res.status(400).json({
         ok: false,
         error: "Invalid application ID",
         received: value,
       });
+      return;
     }
     next();
   }
