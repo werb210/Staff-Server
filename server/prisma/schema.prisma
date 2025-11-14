@@ -1,4 +1,3 @@
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -33,35 +32,61 @@ model User {
 }
 
 model Application {
-  id            String     @id @default(uuid())
-  externalId    String?    @unique
-  businessName  String
-  applicantName String
+  id             String   @id @default(uuid())
+  externalId     String?  @unique
+  businessName   String
+  applicantName  String
   applicantPhone String
-  silo          Silo
-  status        String     @default("new")
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  silo           Silo
+  status         String   @default("new")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  documents     Document[]
-  user          User?      @relation(fields: [userId], references: [id])
-  userId        String?
+  documents Document[]
+  user      User?      @relation(fields: [userId], references: [id])
+  userId    String?
 }
 
 model Document {
-  id            String         @id @default(uuid())
-  applicationId String
-  fileName      String
-  mimeType      String
-  sizeBytes     Int
-  checksum      String
-  blobPath      String
-  status        DocumentStatus @default(pending)
-  version       Int            @default(1)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id             String         @id @default(uuid())
+  applicationId  String
+  documentType   String?
+  fileName       String
+  mimeType       String
+  sizeBytes      Int
+  checksum       String
+  blobPath       String
+  blobUrl        String
+  status         DocumentStatus @default(pending)
+  version        Int            @default(1)
+  uploadedBy     String?
+  note           String?
+  aiSummary      String?
+  explainability Json?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
-  application   Application    @relation(fields: [applicationId], references: [id])
+  application Application       @relation(fields: [applicationId], references: [id])
+  versions    DocumentVersion[]
+}
+
+model DocumentVersion {
+  id         String   @id @default(uuid())
+  documentId String
+  version    Int
+  fileName   String
+  mimeType   String
+  sizeBytes  Int
+  checksum   String
+  blobPath   String
+  blobUrl    String
+  uploadedBy String?
+  note       String?
+  createdAt  DateTime @default(now())
+
+  document Document @relation(fields: [documentId], references: [id])
+
+  @@unique([documentId, version])
 }
 
 model Contact {
@@ -93,4 +118,3 @@ model Deal {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
-
