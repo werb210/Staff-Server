@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import type { Express } from "express";
 import JSZip from "jszip";
+
 import {
   PrismaClient,
   Prisma,
@@ -21,20 +22,40 @@ import {
 
 const prisma = new PrismaClient();
 
+/* ------------------------------------------------------------------
+   TYPES
+------------------------------------------------------------------- */
+
 type AllowedSilos = readonly Silo[] | readonly string[];
 
+interface DownloadedFile {
+  buffer: Buffer;
+  mimeType: string;
+  fileName: string;
+}
+
+/** Ensures req.file exists */
+export interface FileUpload extends Express.Multer.File {
+  buffer: Buffer;
+}
+
+/** Document + relations returned from Prisma */
 type DocumentWithRelations = DocumentModel & {
   application: Pick<Application, "silo">;
   versions: DocumentVersionModel[];
 };
 
-const sha256 = (buffer: Buffer) =>
+/* ------------------------------------------------------------------
+   HELPERS
+------------------------------------------------------------------- */
+
+const sha256 = (buffer: Buffer): string =>
   crypto.createHash("sha256").update(buffer).digest("hex");
 
-const ensureSiloAccess = (silos: AllowedSilos, silo: Silo) =>
-  silos.includes(silo);
+const toSingleSilo = (silo: Silo): readonly Silo[] => [silo] as const;
 
-const toSingleSilo = (silo: Silo) => [silo] as const;
+const ensureSiloAccess = (allowed: AllowedSilos, silo: Silo): boolean =>
+  allowed.includes(silo);
 
 const mapVersion = (version: DocumentVersionModel) => ({
   version: version.version,
@@ -47,13 +68,18 @@ const mapVersion = (version: DocumentVersionModel) => ({
 });
 
 const mapDocument = (document: DocumentWithRelations) => {
-  const sortedVersions = [...document.versions].sort((a, b) => b.version - a.version);
+  const sortedVersions = [...document.versions].sort(
+    (a, b) => b.version - a.version
+  );
+
   return {
     id: document.id,
     applicationId: document.applicationId,
     documentType: document.documentType ?? null,
     status: document.status.toUpperCase(),
-    uploadedAt: sortedVersions[0]?.createdAt.toISOString() ?? document.createdAt.toISOString(),
+    uploadedAt:
+      sortedVersions[0]?.createdAt.toISOString() ??
+      document.createdAt.toISOString(),
     uploadedBy: document.uploadedBy ?? sortedVersions[0]?.uploadedBy ?? null,
     note: document.note ?? sortedVersions[0]?.note ?? null,
     version: document.version,
@@ -68,7 +94,13 @@ const mapDocument = (document: DocumentWithRelations) => {
   };
 };
 
-const fetchDocument = async (id: string): Promise<DocumentWithRelations | null> =>
+/* ------------------------------------------------------------------
+   FETCH HELPERS
+------------------------------------------------------------------- */
+
+const fetchDocument = async (
+  id: string
+): Promise<DocumentWithRelations | null> =>
   prisma.document.findUnique({
     where: { id },
     include: { application: { select: { silo: true } }, versions: true },
@@ -83,13 +115,21 @@ const fetchDocuments = async (where: Prisma.DocumentWhereInput) =>
 
 const ensureApplicationAccess = async (
   appId: string,
-  allowedSilos: AllowedSilos,
+  allowedSilos: AllowedSilos
 ): Promise<Application | null> => {
-  const application = await prisma.application.findUnique({ where: { id: appId } });
+  const application = await prisma.application.findUnique({
+    where: { id: appId },
+  });
+
   if (!application) return null;
   if (!ensureSiloAccess(allowedSilos, application.silo)) return null;
+
   return application;
 };
+
+/* ------------------------------------------------------------------
+   UPSERT DOCUMENT VERSION
+------------------------------------------------------------------- */
 
 const upsertDocumentVersion = async (
   payload: {
@@ -102,24 +142,34 @@ const upsertDocumentVersion = async (
     note?: string;
     uploadedBy?: string;
   },
-  allowedSilos: AllowedSilos,
+  allowedSilos: AllowedSilos
 ) => {
-  const application = await ensureApplicationAccess(payload.applicationId, allowedSilos);
+  const application = await ensureApplicationAccess(
+    payload.applicationId,
+    allowedSilos
+  );
   if (!application) return null;
 
   const checksum = sha256(payload.buffer);
   const sizeBytes = payload.buffer.length;
 
   const existing = await fetchDocument(payload.id);
+
   if (existing && existing.applicationId !== payload.applicationId) {
     throw new Error("Document application mismatch");
   }
 
   const nextVersion = existing ? existing.version + 1 : 1;
-  const blobPath = `applications/${payload.applicationId}/${payload.id}/v${nextVersion}-${Date.now()}-${payload.fileName}`;
-  const blobUrl = await uploadBufferToAzure(payload.buffer, blobPath, payload.contentType);
 
-  const versionData = {
+  const blobPath = `applications/${payload.applicationId}/${payload.id}/v${nextVersion}-${Date.now()}-${payload.fileName}`;
+
+  const blobUrl = await uploadBufferToAzure(
+    payload.buffer,
+    blobPath,
+    payload.contentType
+  );
+
+  const versionData: Prisma.DocumentVersionCreateInput = {
     documentId: payload.id,
     version: nextVersion,
     fileName: payload.fileName,
@@ -130,7 +180,7 @@ const upsertDocumentVersion = async (
     blobUrl,
     uploadedBy: payload.uploadedBy,
     note: payload.note,
-  } satisfies Parameters<typeof prisma.documentVersion.create>[0]["data"];
+  };
 
   if (!existing) {
     await prisma.document.create({
@@ -174,9 +224,13 @@ const upsertDocumentVersion = async (
   return updated ? mapDocument(updated) : null;
 };
 
+/* ------------------------------------------------------------------
+   PUBLIC DOCUMENT API
+------------------------------------------------------------------- */
+
 export const listDocuments = async (
   allowedSilos: AllowedSilos,
-  applicationId?: string,
+  applicationId?: string
 ) => {
   const where: Prisma.DocumentWhereInput = {
     ...(applicationId ? { applicationId } : {}),
@@ -187,17 +241,21 @@ export const listDocuments = async (
   return documents.map(mapDocument);
 };
 
-export const getDocument = async (id: string, allowedSilos: AllowedSilos) => {
+export const getDocument = async (
+  id: string,
+  allowedSilos: AllowedSilos
+) => {
   const document = await fetchDocument(id);
   if (!document) return null;
   if (!ensureSiloAccess(allowedSilos, document.application.silo)) return null;
+
   return mapDocument(document);
 };
 
 export const uploadDocumentFromFile = async (
   appId: string,
-  file: Express.Multer.File,
-  allowedSilos: AllowedSilos,
+  file: FileUpload,
+  allowedSilos: AllowedSilos
 ) =>
   upsertDocumentVersion(
     {
@@ -207,7 +265,7 @@ export const uploadDocumentFromFile = async (
       contentType: file.mimetype,
       buffer: file.buffer,
     },
-    allowedSilos,
+    allowedSilos
   );
 
 export const registerDocumentFromPayload = async (
@@ -221,19 +279,20 @@ export const registerDocumentFromPayload = async (
     uploadedBy?: string;
     documentType?: string;
   },
-  allowedSilos: AllowedSilos,
+  allowedSilos: AllowedSilos
 ) => {
   const dataPart = payload.fileContent.includes(",")
     ? payload.fileContent.split(",", 2)[1]
     : payload.fileContent;
 
   let buffer: Buffer;
+
   try {
     buffer = Buffer.from(dataPart, "base64");
     if (buffer.length === 0) {
       buffer = Buffer.from(payload.fileContent);
     }
-  } catch (error) {
+  } catch {
     buffer = Buffer.from(payload.fileContent);
   }
 
@@ -248,13 +307,13 @@ export const registerDocumentFromPayload = async (
       uploadedBy: payload.uploadedBy,
       documentType: payload.documentType,
     },
-    allowedSilos,
+    allowedSilos
   );
 };
 
 export const getDocumentsForApplication = async (
   appId: string,
-  allowedSilos: AllowedSilos,
+  allowedSilos: AllowedSilos
 ) => {
   const documents = await listDocuments(allowedSilos, appId);
   return documents.length ? documents : null;
@@ -263,22 +322,21 @@ export const getDocumentsForApplication = async (
 export const downloadDocument = async (
   id: string,
   allowedSilos: AllowedSilos,
-  version?: number,
-) => {
+  version?: number
+): Promise<DownloadedFile | null> => {
   const document = await fetchDocument(id);
   if (!document) return null;
   if (!ensureSiloAccess(allowedSilos, document.application.silo)) return null;
 
   const record = version
-    ? document.versions.find((entry) => entry.version === version)
+    ? document.versions.find((v) => v.version === version)
     : [...document.versions].sort((a, b) => b.version - a.version)[0];
 
   if (!record) return null;
 
   const buffer = await downloadBufferFromAzure(record.blobPath);
+
   return {
-    document: mapDocument(document),
-    version: record.version,
     buffer,
     mimeType: record.mimeType,
     fileName: record.fileName,
@@ -287,7 +345,7 @@ export const downloadDocument = async (
 
 export const getDocumentVersions = async (
   id: string,
-  allowedSilos: AllowedSilos,
+  allowedSilos: AllowedSilos
 ) => {
   const document = await fetchDocument(id);
   if (!document) return null;
@@ -295,12 +353,12 @@ export const getDocumentVersions = async (
 
   return [...document.versions]
     .sort((a, b) => b.version - a.version)
-    .map((version) => ({
-      ...mapVersion(version),
+    .map((v) => ({
+      ...mapVersion(v),
       sasUrl: (() => {
         try {
-          return generateDownloadSasUrl(version.blobPath);
-        } catch (error) {
+          return generateDownloadSasUrl(v.blobPath);
+        } catch {
           return null;
         }
       })(),
@@ -310,7 +368,7 @@ export const getDocumentVersions = async (
 export const updateDocumentStatus = async (
   id: string,
   status: DocumentModel["status"],
-  allowedSilos: AllowedSilos,
+  allowedSilos: AllowedSilos
 ) => {
   const document = await fetchDocument(id);
   if (!document) return null;
@@ -327,7 +385,7 @@ export const updateDocumentStatus = async (
 
 export const getDocumentStatus = async (
   id: string,
-  allowedSilos: AllowedSilos,
+  allowedSilos: AllowedSilos
 ) => {
   const document = await fetchDocument(id);
   if (!document) return null;
@@ -344,38 +402,45 @@ export const getDocumentStatus = async (
 export const getDownloadUrl = async (
   id: string,
   allowedSilos: AllowedSilos,
-  version?: number,
+  version?: number
 ) => {
   const document = await fetchDocument(id);
   if (!document) return null;
   if (!ensureSiloAccess(allowedSilos, document.application.silo)) return null;
 
   const record = version
-    ? document.versions.find((entry) => entry.version === version)
+    ? document.versions.find((e) => e.version === version)
     : [...document.versions].sort((a, b) => b.version - a.version)[0];
 
   if (!record) return null;
 
   try {
-    const sasUrl = generateDownloadSasUrl(record.blobPath);
-    return { sasUrl, version: record.version };
-  } catch (error) {
-    return { sasUrl: getBlobUrl(record.blobPath), version: record.version };
+    return {
+      sasUrl: generateDownloadSasUrl(record.blobPath),
+      version: record.version,
+    };
+  } catch {
+    return {
+      sasUrl: getBlobUrl(record.blobPath),
+      version: record.version,
+    };
   }
 };
 
 export const getUploadUrl = async (
   id: string,
-  allowedSilos: AllowedSilos,
+  allowedSilos: AllowedSilos
 ) => {
   const document = await fetchDocument(id);
   if (!document) return null;
   if (!ensureSiloAccess(allowedSilos, document.application.silo)) return null;
 
   try {
-    const sasUrl = generateUploadSasUrl(document.blobPath);
-    return { uploadUrl: sasUrl, expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString() };
-  } catch (error) {
+    return {
+      uploadUrl: generateUploadSasUrl(document.blobPath),
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+    };
+  } catch {
     return {
       uploadUrl: document.blobUrl,
       expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
@@ -383,8 +448,12 @@ export const getUploadUrl = async (
   }
 };
 
+/* ------------------------------------------------------------------
+   EXPORTED SERVICE FOR CONTROLLERS
+------------------------------------------------------------------- */
+
 export const documentService = {
-  async upload(silo: Silo, appId: string, file: Express.Multer.File) {
+  async upload(silo: Silo, appId: string, file: FileUpload) {
     return uploadDocumentFromFile(appId, file, toSingleSilo(silo));
   },
 
@@ -393,14 +462,7 @@ export const documentService = {
   },
 
   async download(silo: Silo, id: string) {
-    const result = await downloadDocument(id, toSingleSilo(silo));
-    if (!result) return null;
-
-    return {
-      buffer: result.buffer,
-      mimeType: result.mimeType,
-      name: result.fileName,
-    };
+    return downloadDocument(id, toSingleSilo(silo));
   },
 
   async accept(silo: Silo, id: string, _userId?: string) {
@@ -413,15 +475,16 @@ export const documentService = {
 
   async downloadAll(silo: Silo, appId: string) {
     const documents = await listDocuments(toSingleSilo(silo), appId);
-    if (documents.length === 0) return null;
+
+    if (!documents.length) return null;
 
     const zip = new JSZip();
 
-    for (const document of documents) {
-      const latest = await downloadDocument(document.id, toSingleSilo(silo));
+    for (const doc of documents) {
+      const latest = await downloadDocument(doc.id, toSingleSilo(silo));
       if (!latest) continue;
 
-      zip.file(document.fileName, latest.buffer);
+      zip.file(doc.fileName, latest.buffer);
     }
 
     const zipBuffer = await zip.generateAsync({
