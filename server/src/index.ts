@@ -23,37 +23,35 @@ import documentsRouter from "./routes/documents.js";
 import pipelineRouter from "./routes/pipeline.js";
 import communicationRouter from "./routes/communication.js";
 
-// Local DB
+// In-memory DB
 import { db } from "./services/db.js";
 import { describeDatabaseUrl } from "./utils/env.js";
 
-/* ------------------------------------------------------------------
-   TYPES
-------------------------------------------------------------------- */
+/* -----------------------------------------------------
+   SAFE TABLE ACCESSOR
+----------------------------------------------------- */
 
-interface Table<T> {
-  data: T[];
-}
+const getTableCount = (table: any): number => {
+  if (!table || !Array.isArray(table.data)) return 0;
+  return table.data.length;
+};
 
-type SafeTable<T> = Table<T> | undefined;
-
-/** Safely read any in-memory table */
-const readTable = <T>(table: SafeTable<T>): T[] => {
+const getTableRows = (table: any): any[] => {
   if (!table || !Array.isArray(table.data)) return [];
   return table.data;
 };
 
-/* ------------------------------------------------------------------
+/* -----------------------------------------------------
    APP INIT
-------------------------------------------------------------------- */
+----------------------------------------------------- */
 
 const app = express();
 const SERVICE_NAME = "staff-backend";
 const PORT = Number(process.env.PORT || 5000);
 
-/* ------------------------------------------------------------------
+/* -----------------------------------------------------
    ENV VALIDATION
-------------------------------------------------------------------- */
+----------------------------------------------------- */
 
 if (!process.env.DATABASE_URL) {
   console.warn(
@@ -61,9 +59,9 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-/* ------------------------------------------------------------------
-   GLOBAL MIDDLEWARE
-------------------------------------------------------------------- */
+/* -----------------------------------------------------
+   MIDDLEWARE
+----------------------------------------------------- */
 
 app.use(cors({ origin: true, credentials: true }));
 app.use(helmet() as unknown as RequestHandler);
@@ -72,17 +70,17 @@ app.use(bodyParser.json({ limit: "25mb" }));
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(morgan("combined"));
 
-/* ------------------------------------------------------------------
+/* -----------------------------------------------------
    ROOT ROUTE
-------------------------------------------------------------------- */
+----------------------------------------------------- */
 
 app.get("/", (_req: Request, res: Response) => {
   res.send("Staff API is running");
 });
 
-/* ------------------------------------------------------------------
+/* -----------------------------------------------------
    PUBLIC HEALTH
-------------------------------------------------------------------- */
+----------------------------------------------------- */
 
 app.get("/api/health", (_req: Request, res: Response) => {
   res.status(200).json({
@@ -92,21 +90,21 @@ app.get("/api/health", (_req: Request, res: Response) => {
   });
 });
 
-/* ------------------------------------------------------------------
+/* -----------------------------------------------------
    PUBLIC APPLICATIONS LIST
-------------------------------------------------------------------- */
+----------------------------------------------------- */
 
 app.get("/api/applications", (_req: Request, res: Response) => {
-  const apps = readTable(db.applications);
+  const apps = getTableRows(db.applications);
   res.status(200).json({
     status: "ok",
     applications: apps,
   });
 });
 
-/* ------------------------------------------------------------------
-   INTERNAL HEALTH & DIAGNOSTICS
-------------------------------------------------------------------- */
+/* -----------------------------------------------------
+   INTERNAL HEALTH / BUILD INFO / ROUTE MAP
+----------------------------------------------------- */
 
 app.get("/api/_int/health", (_req, res) => {
   res.status(200).json({
@@ -130,29 +128,19 @@ app.get("/api/_int/build", (_req, res) => {
 
 app.get("/api/_int/db", (_req, res) => {
   const metadata = describeDatabaseUrl(process.env.DATABASE_URL);
-
-  const apps = readTable(db.applications);
-  const docs = readTable(db.documents);
-  const lenders = readTable(db.lenders);
-  const pipeline = readTable(db.pipeline);
-  const comm = readTable(db.communications);
-  const notes = readTable(db.notifications);
-  const users = readTable(db.users);
-  const audit = Array.isArray(db.auditLogs) ? db.auditLogs : [];
-
   res.status(200).json({
     ok: true,
     service: SERVICE_NAME,
     connection: metadata,
     tables: {
-      applications: apps.length,
-      documents: docs.length,
-      lenders: lenders.length,
-      pipeline: pipeline.length,
-      communications: comm.length,
-      notifications: notes.length,
-      users: users.length,
-      auditLogs: audit.length,
+      applications: getTableCount(db.applications),
+      documents: getTableCount(db.documents),
+      lenders: getTableCount(db.lenders),
+      pipeline: getTableCount(db.pipeline),
+      communications: getTableCount(db.communications),
+      notifications: getTableCount(db.notifications),
+      users: getTableCount(db.users),
+      auditLogs: Array.isArray(db.auditLogs) ? db.auditLogs.length : 0,
     },
   });
 });
@@ -178,9 +166,9 @@ app.get("/api/_int/routes", (_req, res) => {
   });
 });
 
-/* ------------------------------------------------------------------
+/* -----------------------------------------------------
    API ROUTERS
-------------------------------------------------------------------- */
+----------------------------------------------------- */
 
 app.use("/api/auth", authRouter);
 app.use("/api/contacts", contactsRouter);
@@ -190,18 +178,18 @@ app.use("/api/pipeline", pipelineRouter);
 app.use("/api/documents", documentsRouter);
 app.use("/api/comm", communicationRouter);
 
-// Multitenant routes
+// Multi-tenant
 app.use("/api", apiRouter);
 
-/* ------------------------------------------------------------------
+/* -----------------------------------------------------
    GLOBAL ERROR HANDLER
-------------------------------------------------------------------- */
+----------------------------------------------------- */
 
 app.use(errorHandler);
 
-/* ------------------------------------------------------------------
+/* -----------------------------------------------------
    START SERVER
-------------------------------------------------------------------- */
+----------------------------------------------------- */
 
 app.listen(PORT, () => {
   console.log(`🚀 Staff API running on port ${PORT}`);
