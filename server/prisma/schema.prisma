@@ -1,3 +1,4 @@
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -14,96 +15,52 @@ enum Silo {
 }
 
 enum DocumentStatus {
-  PENDING
-  ACCEPTED
-  REJECTED
-}
-
-enum ApplicationStage {
-  NEW
-  IN_REVIEW
-  REQUIRES_DOCS
-  READY_FOR_LENDERS
-  SENT_TO_LENDER
-  ACCEPTED
-  DECLINED
+  pending
+  accepted
+  rejected
 }
 
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
-  name      String
+  password  String
+  roles     String[]
   silos     Silo[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   applications Application[]
-  documents     Document[]
 }
 
 model Application {
-  id            String            @id @default(uuid())
-  silo          Silo
+  id            String     @id @default(uuid())
+  externalId    String?    @unique
   businessName  String
-  amount        Int
-  stage         ApplicationStage  @default(NEW)
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
+  applicantName String
+  applicantPhone String
+  silo          Silo
+  status        String     @default("new")
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
 
-  userId String
-  user   User      @relation(fields: [userId], references: [id])
-
-  documents Document[]
+  documents     Document[]
+  user          User?      @relation(fields: [userId], references: [id])
+  userId        String?
 }
 
 model Document {
-  id            String          @id @default(uuid())
-  silo          Silo
-  name          String
-  category      String?
+  id            String         @id @default(uuid())
+  applicationId String
+  fileName      String
   mimeType      String
   sizeBytes     Int
-  s3Key         String
-  status        DocumentStatus  @default(PENDING)
   checksum      String
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
+  blobPath      String
+  status        DocumentStatus @default(pending)
+  version       Int            @default(1)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
-  applicationId String
-  application   Application @relation(fields: [applicationId], references: [id])
-
-  userId String
-  user   User        @relation(fields: [userId], references: [id])
-}
-
-model Lender {
-  id        String   @id @default(uuid())
-  name      String
-  silo      Silo
-  email     String?
-  createdAt DateTime @default(now())
-
-  products LenderProduct[]
-}
-
-model LenderProduct {
-  id           String   @id @default(uuid())
-  silo         Silo
-  lenderId     String
-  name         String
-  minAmount    Int?
-  maxAmount    Int?
-  country      String?
-  createdAt    DateTime @default(now())
-
-  lender Lender @relation(fields: [lenderId], references: [id])
-}
-
-model AuditLog {
-  id        String   @id @default(uuid())
-  silo      Silo
-  userId    String?
-  message   String
-  createdAt DateTime @default(now())
+  application   Application    @relation(fields: [applicationId], references: [id])
 }
 
