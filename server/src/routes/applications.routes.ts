@@ -1,4 +1,3 @@
-// routes/applications.routes.ts
 // -----------------------------------------------------
 // Silo-scoped application routes
 // Mounted at: /api/:silo/applications
@@ -13,20 +12,19 @@ import {
   deleteApplication,
 } from "../controllers/applicationsController.js";
 
-// Express router with mergeParams so :silo is inherited
+// Router inherits :silo from parent (/api/:silo)
 const router = Router({ mergeParams: true });
 
 // -----------------------------------------------------
-// Helper — async wrapper with strict TS types
+// Async wrapper (strict TS)
 // -----------------------------------------------------
 const wrap =
-  (fn: (req: Request, res: Response, next: NextFunction) => Promise<any>) =>
-  (req: Request, res: Response, next: NextFunction) => {
+  (fn: (req: Request, res: Response, next: NextFunction) => Promise<unknown>) =>
+  (req: Request, res: Response, next: NextFunction) =>
     Promise.resolve(fn(req, res, next)).catch(next);
-  };
 
 // -----------------------------------------------------
-// Validate appId parameter (TypeScript-safe)
+// Validate appId param
 // -----------------------------------------------------
 router.param(
   "appId",
