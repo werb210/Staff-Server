@@ -3,7 +3,6 @@ import express, {
   type RequestHandler,
   type Request,
   type Response,
-  type NextFunction,
 } from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -32,14 +31,13 @@ import { describeDatabaseUrl } from "./utils/env.js";
    TYPES
 ------------------------------------------------------------------- */
 
-// In-memory table generics (db.applications.data, db.documents.data, etc.)
 interface Table<T> {
   data: T[];
 }
 
 type SafeTable<T> = Table<T> | undefined;
 
-/** Ensures strong typing for db.*.data */
+/** Ensures strong typing for db.* tables */
 const readTable = <T>(table: SafeTable<T>): T[] => {
   if (!table || !Array.isArray(table.data)) return [];
   return table.data;
@@ -58,9 +56,7 @@ const PORT = Number(process.env.PORT || 5000);
 ------------------------------------------------------------------- */
 
 if (!process.env.DATABASE_URL) {
-  console.warn(
-    "⚠️  Warning: DATABASE_URL is not set. Using in-memory database only."
-  );
+  console.warn("⚠️  Warning: DATABASE_URL is not set. Using in-memory DB only.");
 }
 
 /* ------------------------------------------------------------------
@@ -133,7 +129,6 @@ app.get("/api/_int/build", (_req, res) => {
 app.get("/api/_int/db", (_req, res) => {
   const metadata = describeDatabaseUrl(process.env.DATABASE_URL);
 
-  // Strongly typed safe reads
   const apps = readTable(db.applications);
   const docs = readTable(db.documents);
   const lenders = readTable(db.lenders);
