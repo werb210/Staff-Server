@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "module": "Node16",
+    "moduleResolution": "Node16",
+    "noEmit": false,
+    "rootDir": "server/src",
+    "allowJs": true
+  },
+  "include": ["server/src"],
+  "exclude": ["node_modules", "server/src/__tests__"]
+}
