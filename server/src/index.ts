@@ -48,7 +48,7 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(morgan("combined"));
 
 // -----------------------------------------------
-// ROOT ROUTE (fixed)
+// ROOT ROUTE FIX
 // -----------------------------------------------
 app.get("/", (_req, res) => {
   res.send("Staff API is running");
