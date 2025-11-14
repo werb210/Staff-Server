@@ -1,5 +1,10 @@
 import "dotenv/config";
-import express, { type RequestHandler, Request, Response, NextFunction } from "express";
+import express, {
+  type RequestHandler,
+  type Request,
+  type Response,
+  type NextFunction,
+} from "express";
 import cors from "cors";
 import helmet from "helmet";
 import compression from "compression";
@@ -23,23 +28,45 @@ import communicationRouter from "./routes/communication.js";
 import { db } from "./services/db.js";
 import { describeDatabaseUrl } from "./utils/env.js";
 
-// -----------------------------------------------------
-// APP INIT
-// -----------------------------------------------------
+/* ------------------------------------------------------------------
+   TYPES
+------------------------------------------------------------------- */
+
+// In-memory table generics (db.applications.data, db.documents.data, etc.)
+interface Table<T> {
+  data: T[];
+}
+
+type SafeTable<T> = Table<T> | undefined;
+
+/** Ensures strong typing for db.*.data */
+const readTable = <T>(table: SafeTable<T>): T[] => {
+  if (!table || !Array.isArray(table.data)) return [];
+  return table.data;
+};
+
+/* ------------------------------------------------------------------
+   APP INIT
+------------------------------------------------------------------- */
+
 const app = express();
 const SERVICE_NAME = "staff-backend";
 const PORT = Number(process.env.PORT || 5000);
 
-// -----------------------------------------------------
-// ENV VALIDATION
-// -----------------------------------------------------
+/* ------------------------------------------------------------------
+   ENV VALIDATION
+------------------------------------------------------------------- */
+
 if (!process.env.DATABASE_URL) {
-  console.warn("⚠️  Warning: DATABASE_URL is not set. Using in-memory database only.");
+  console.warn(
+    "⚠️  Warning: DATABASE_URL is not set. Using in-memory database only."
+  );
 }
 
-// -----------------------------------------------------
-// GLOBAL MIDDLEWARE
-// -----------------------------------------------------
+/* ------------------------------------------------------------------
+   GLOBAL MIDDLEWARE
+------------------------------------------------------------------- */
+
 app.use(cors({ origin: true, credentials: true }));
 app.use(helmet() as unknown as RequestHandler);
 app.use(compression() as unknown as RequestHandler);
@@ -47,19 +74,18 @@ app.use(bodyParser.json({ limit: "25mb" }));
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(morgan("combined"));
 
-// Small helper to force TS to accept `.data` on your in-memory tables
-const safe = <T>(value: any): T => value as T;
+/* ------------------------------------------------------------------
+   ROOT ROUTE
+------------------------------------------------------------------- */
 
-// -----------------------------------------------------
-// ROOT ROUTE
-// -----------------------------------------------------
 app.get("/", (_req: Request, res: Response) => {
   res.send("Staff API is running");
 });
 
-// -----------------------------------------------------
-// PUBLIC HEALTH
-// -----------------------------------------------------
+/* ------------------------------------------------------------------
+   PUBLIC HEALTH
+------------------------------------------------------------------- */
+
 app.get("/api/health", (_req: Request, res: Response) => {
   res.status(200).json({
     status: "ok",
@@ -68,20 +94,22 @@ app.get("/api/health", (_req: Request, res: Response) => {
   });
 });
 
-// -----------------------------------------------------
-// PUBLIC APPLICATIONS LIST
-// -----------------------------------------------------
+/* ------------------------------------------------------------------
+   PUBLIC APPLICATIONS LIST
+------------------------------------------------------------------- */
+
 app.get("/api/applications", (_req: Request, res: Response) => {
-  const apps = safe<any[]>(db.applications?.data ?? []);
+  const apps = readTable(db.applications);
   res.status(200).json({
     status: "ok",
     applications: apps,
   });
 });
 
-// -----------------------------------------------------
-// INTERNAL HEALTH & DIAGNOSTICS
-// -----------------------------------------------------
+/* ------------------------------------------------------------------
+   INTERNAL HEALTH & DIAGNOSTICS
+------------------------------------------------------------------- */
+
 app.get("/api/_int/health", (_req, res) => {
   res.status(200).json({
     ok: true,
@@ -95,8 +123,8 @@ app.get("/api/_int/build", (_req, res) => {
     ok: true,
     service: SERVICE_NAME,
     version: serverPackageJson.version ?? "0.0.0",
-    node: process.version,
     environment: process.env.NODE_ENV ?? "development",
+    node: process.version,
     commit: process.env.GIT_COMMIT_SHA ?? null,
     buildTime: process.env.BUILD_TIME ?? new Date().toISOString(),
   });
@@ -105,15 +133,15 @@ app.get("/api/_int/build", (_req, res) => {
 app.get("/api/_int/db", (_req, res) => {
   const metadata = describeDatabaseUrl(process.env.DATABASE_URL);
 
-  // Fix type errors by safely reading .data everywhere
-  const apps = safe<any[]>(db.applications?.data ?? []);
-  const docs = safe<any[]>(db.documents?.data ?? []);
-  const lenders = safe<any[]>(db.lenders?.data ?? []);
-  const pipeline = safe<any[]>(db.pipeline?.data ?? []);
-  const comm = safe<any[]>(db.communications?.data ?? []);
-  const notes = safe<any[]>(db.notifications?.data ?? []);
-  const users = safe<any[]>(db.users?.data ?? []);
-  const audit = safe<any[]>(db.auditLogs ?? []);
+  // Strongly typed safe reads
+  const apps = readTable(db.applications);
+  const docs = readTable(db.documents);
+  const lenders = readTable(db.lenders);
+  const pipeline = readTable(db.pipeline);
+  const comm = readTable(db.communications);
+  const notes = readTable(db.notifications);
+  const users = readTable(db.users);
+  const audit = Array.isArray(db.auditLogs) ? db.auditLogs : [];
 
   res.status(200).json({
     ok: true,
@@ -148,14 +176,15 @@ app.get("/api/_int/routes", (_req, res) => {
       "/api/:silo/applications",
       "/api/:silo/lenders",
       "/api/:silo/pipeline",
-      "/api/:silo/notifications"
+      "/api/:silo/notifications",
     ],
   });
 });
 
-// -----------------------------------------------------
-// API ROUTERS
-// -----------------------------------------------------
+/* ------------------------------------------------------------------
+   API ROUTERS
+------------------------------------------------------------------- */
+
 app.use("/api/auth", authRouter);
 app.use("/api/contacts", contactsRouter);
 app.use("/api/companies", companiesRouter);
@@ -164,17 +193,19 @@ app.use("/api/pipeline", pipelineRouter);
 app.use("/api/documents", documentsRouter);
 app.use("/api/comm", communicationRouter);
 
-// All silo routes
+// Multitenant routes
 app.use("/api", apiRouter);
 
-// -----------------------------------------------------
-// GLOBAL ERROR HANDLER
-// -----------------------------------------------------
+/* ------------------------------------------------------------------
+   GLOBAL ERROR HANDLER
+------------------------------------------------------------------- */
+
 app.use(errorHandler);
 
-// -----------------------------------------------------
-// START SERVER
-// -----------------------------------------------------
+/* ------------------------------------------------------------------
+   START SERVER
+------------------------------------------------------------------- */
+
 app.listen(PORT, () => {
   console.log(`🚀 Staff API running on port ${PORT}`);
 });
