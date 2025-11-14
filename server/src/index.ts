@@ -48,7 +48,8 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(morgan("combined"));
 
 // -----------------------------------------------
-// ROOT ROUTE
+// ROOT ROUTE (fixed)
+// Must come BEFORE any routers
 // -----------------------------------------------
 app.get("/", (_req, res) => {
   res.send("Staff API is running");
@@ -151,7 +152,7 @@ app.get("/api/_int/routes", (_req, res) => {
 });
 
 // -----------------------------------------------
-// MAIN API ROUTER
+// MAIN API ROUTER (silo-aware)
 // -----------------------------------------------
 app.use("/api/auth", authRouter);
 app.use("/api/contacts", contactsRouter);
