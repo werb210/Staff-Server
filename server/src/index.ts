@@ -1,5 +1,5 @@
 import "dotenv/config";
-import express from "express";
+import express, { type RequestHandler } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import compression from "compression";
@@ -20,7 +20,7 @@ import communicationRouter from "./routes/communication.js";
 // EXPRESS APP INITIALIZATION
 // -----------------------------------------------
 const app = express();
-const PORT = process.env.PORT ? Number(process.env.PORT) : 8080;
+const PORT = process.env.PORT ? Number(process.env.PORT) : 3001;
 
 // -----------------------------------------------
 // REQUIRED ENV VALIDATION
@@ -37,8 +37,8 @@ for (const key of requiredEnv) {
 // GLOBAL MIDDLEWARE
 // -----------------------------------------------
 app.use(cors({ origin: true, credentials: true }));
-app.use(helmet());
-app.use(compression());
+app.use(helmet() as unknown as RequestHandler);
+app.use(compression() as unknown as RequestHandler);
 app.use(bodyParser.json({ limit: "25mb" }));
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(morgan("combined"));

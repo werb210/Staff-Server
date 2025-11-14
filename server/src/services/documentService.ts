@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import type { Express } from "express";
+import JSZip from "jszip";
 import {
   PrismaClient,
   Prisma,
@@ -32,6 +33,8 @@ const sha256 = (buffer: Buffer) =>
 
 const ensureSiloAccess = (silos: AllowedSilos, silo: Silo) =>
   silos.includes(silo);
+
+const toSingleSilo = (silo: Silo) => [silo] as const;
 
 const mapVersion = (version: DocumentVersionModel) => ({
   version: version.version,
@@ -378,4 +381,57 @@ export const getUploadUrl = async (
       expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
     };
   }
+};
+
+export const documentService = {
+  async upload(silo: Silo, appId: string, file: Express.Multer.File) {
+    return uploadDocumentFromFile(appId, file, toSingleSilo(silo));
+  },
+
+  async get(silo: Silo, id: string) {
+    return getDocument(id, toSingleSilo(silo));
+  },
+
+  async download(silo: Silo, id: string) {
+    const result = await downloadDocument(id, toSingleSilo(silo));
+    if (!result) return null;
+
+    return {
+      buffer: result.buffer,
+      mimeType: result.mimeType,
+      name: result.fileName,
+    };
+  },
+
+  async accept(silo: Silo, id: string, _userId?: string) {
+    return updateDocumentStatus(id, DocumentStatus.accepted, toSingleSilo(silo));
+  },
+
+  async reject(silo: Silo, id: string, _userId?: string) {
+    return updateDocumentStatus(id, DocumentStatus.rejected, toSingleSilo(silo));
+  },
+
+  async downloadAll(silo: Silo, appId: string) {
+    const documents = await listDocuments(toSingleSilo(silo), appId);
+    if (documents.length === 0) return null;
+
+    const zip = new JSZip();
+
+    for (const document of documents) {
+      const latest = await downloadDocument(document.id, toSingleSilo(silo));
+      if (!latest) continue;
+
+      zip.file(document.fileName, latest.buffer);
+    }
+
+    const zipBuffer = await zip.generateAsync({
+      type: "nodebuffer",
+      compression: "DEFLATE",
+    });
+
+    return {
+      fileName: `application-${appId}-documents.zip`,
+      zipBuffer,
+    };
+  },
 };
