@@ -1,0 +1,106 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+//
+// ────────────────────────────────────────────────
+//   ███╗   ███╗███████╗██╗     ██╗ ██████╗
+//   ████╗ ████║██╔════╝██║     ██║██╔═══██╗
+//   ██╔████╔██║█████╗  ██║     ██║██║   ██║
+//   ██║╚██╔╝██║██╔══╝  ██║     ██║██║   ██║
+//   ██║ ╚═╝ ██║███████╗███████╗██║╚██████╔╝
+//   ╚═╝     ╚═╝╚══════╝╚══════╝╚═╝ ╚═════╝
+//     Silo-Enforced DB Schema (BF/BI/SLF)
+// ────────────────────────────────────────────────
+//
+
+// --- ENUMS -----------------------------------------------------------
+
+enum Silo {
+  BF
+  BI
+  SLF
+}
+
+enum DocumentStatus {
+  uploaded
+  accepted
+  rejected
+}
+
+// --- USERS -----------------------------------------------------------
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String
+  role      String
+  silos     Silo[]   // multi-silo support
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // relations
+  applications Application[]
+  documents     Document[]
+}
+
+// --- APPLICATIONS ----------------------------------------------------
+
+model Application {
+  id          String   @id @default(uuid())
+  silo        Silo
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // business fields
+  businessName     String?
+  applicantName    String?
+  applicantPhone   String?
+  requestedAmount  Int?
+
+  createdBy User @relation(fields: [createdById], references: [id])
+  documents Document[]
+}
+
+// --- DOCUMENTS -------------------------------------------------------
+
+model Document {
+  id            String   @id @default(uuid())
+  applicationId String?
+  userId        String?
+  silo          Silo
+  name          String
+  category      String?
+  documentType  String?
+  sizeBytes     Int?
+  checksum      String?
+  status        DocumentStatus @default(uploaded)
+  blobKey       String?        // Azure Blob key
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  application Application? @relation(fields: [applicationId], references: [id])
+  user        User?        @relation(fields: [userId],        references: [id])
+
+  versions DocumentVersion[]
+}
+
+// --- DOCUMENT VERSIONING ---------------------------------------------
+
+model DocumentVersion {
+  id          String   @id @default(uuid())
+  documentId  String
+  version     Int
+  blobKey     String?
+  checksum    String?
+  sizeBytes   Int?
+  createdAt   DateTime @default(now())
+
+  document Document @relation(fields: [documentId], references: [id])
+}
