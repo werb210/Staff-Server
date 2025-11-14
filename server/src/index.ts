@@ -12,6 +12,7 @@ import authRouter from "./routes/auth.js";
 import contactsRouter from "./routes/contacts.js";
 import companiesRouter from "./routes/companies.js";
 import dealsRouter from "./routes/deals.js";
+import documentsRouter from "./routes/documents.js";
 import pipelineRouter from "./routes/pipeline.js";
 
 // -----------------------------------------------
@@ -61,11 +62,11 @@ app.get("/api/_int/routes", (_req, res) => {
       "/api/companies",
       "/api/deals",
       "/api/:silo/applications",
-      "/api/:silo/documents",
       "/api/:silo/lenders",
       "/api/:silo/pipeline",
       "/api/:silo/communications",
       "/api/:silo/notifications",
+      "/api/documents",
     ],
   });
 });
@@ -78,6 +79,7 @@ app.use("/api/contacts", contactsRouter);
 app.use("/api/companies", companiesRouter);
 app.use("/api/deals", dealsRouter);
 app.use("/api/pipeline", pipelineRouter);
+app.use("/api/documents", documentsRouter);
 app.use("/api", apiRouter);
 
 // -----------------------------------------------
