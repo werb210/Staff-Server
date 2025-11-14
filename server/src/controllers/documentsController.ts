@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
-import type { Silo } from "../services/db";
-import { documentService } from "../services/documentService";
-import type { JwtUserPayload } from "../middlewares/auth";
+import type { Silo } from "../services/db.js";
+import { documentService } from "../services/documentService.js";
+import type { JwtUserPayload } from "../middlewares/auth.js";
 
 /* -----------------------------------------------------
    LOCAL FALLBACK TYPES
