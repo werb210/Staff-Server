@@ -1,9 +1,4 @@
-export type DocumentStatus =
-  | "uploaded"
-  | "processing"
-  | "review"
-  | "approved"
-  | "rejected";
+export type DocumentStatus = "PENDING" | "ACCEPTED" | "REJECTED";
 
 export interface Application {
   id: string;

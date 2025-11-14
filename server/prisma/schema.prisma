@@ -7,20 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-//
-// ────────────────────────────────────────────────
-//   ███╗   ███╗███████╗██╗     ██╗ ██████╗
-//   ████╗ ████║██╔════╝██║     ██║██╔═══██╗
-//   ██╔████╔██║█████╗  ██║     ██║██║   ██║
-//   ██║╚██╔╝██║██╔══╝  ██║     ██║██║   ██║
-//   ██║ ╚═╝ ██║███████╗███████╗██║╚██████╔╝
-//   ╚═╝     ╚═╝╚══════╝╚══════╝╚═╝ ╚═════╝
-//     Silo-Enforced DB Schema (BF/BI/SLF)
-// ────────────────────────────────────────────────
-//
-
-// --- ENUMS -----------------------------------------------------------
-
 enum Silo {
   BF
   BI
@@ -28,79 +14,96 @@ enum Silo {
 }
 
 enum DocumentStatus {
-  uploaded
-  accepted
-  rejected
+  PENDING
+  ACCEPTED
+  REJECTED
 }
 
-// --- USERS -----------------------------------------------------------
+enum ApplicationStage {
+  NEW
+  IN_REVIEW
+  REQUIRES_DOCS
+  READY_FOR_LENDERS
+  SENT_TO_LENDER
+  ACCEPTED
+  DECLINED
+}
 
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
   name      String
-  role      String
-  silos     Silo[]   // multi-silo support
+  silos     Silo[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // relations
   applications Application[]
   documents     Document[]
 }
 
-// --- APPLICATIONS ----------------------------------------------------
-
 model Application {
-  id          String   @id @default(uuid())
-  silo        Silo
-  createdById String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String            @id @default(uuid())
+  silo          Silo
+  businessName  String
+  amount        Int
+  stage         ApplicationStage  @default(NEW)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
 
-  // business fields
-  businessName     String?
-  applicantName    String?
-  applicantPhone   String?
-  requestedAmount  Int?
+  userId String
+  user   User      @relation(fields: [userId], references: [id])
 
-  createdBy User @relation(fields: [createdById], references: [id])
   documents Document[]
 }
 
-// --- DOCUMENTS -------------------------------------------------------
-
 model Document {
-  id            String   @id @default(uuid())
-  applicationId String?
-  userId        String?
+  id            String          @id @default(uuid())
   silo          Silo
   name          String
   category      String?
-  documentType  String?
-  sizeBytes     Int?
-  checksum      String?
-  status        DocumentStatus @default(uploaded)
-  blobKey       String?        // Azure Blob key
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  mimeType      String
+  sizeBytes     Int
+  s3Key         String
+  status        DocumentStatus  @default(PENDING)
+  checksum      String
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
 
-  application Application? @relation(fields: [applicationId], references: [id])
-  user        User?        @relation(fields: [userId],        references: [id])
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id])
 
-  versions DocumentVersion[]
+  userId String
+  user   User        @relation(fields: [userId], references: [id])
 }
 
-// --- DOCUMENT VERSIONING ---------------------------------------------
+model Lender {
+  id        String   @id @default(uuid())
+  name      String
+  silo      Silo
+  email     String?
+  createdAt DateTime @default(now())
 
-model DocumentVersion {
-  id          String   @id @default(uuid())
-  documentId  String
-  version     Int
-  blobKey     String?
-  checksum    String?
-  sizeBytes   Int?
-  createdAt   DateTime @default(now())
-
-  document Document @relation(fields: [documentId], references: [id])
+  products LenderProduct[]
 }
+
+model LenderProduct {
+  id           String   @id @default(uuid())
+  silo         Silo
+  lenderId     String
+  name         String
+  minAmount    Int?
+  maxAmount    Int?
+  country      String?
+  createdAt    DateTime @default(now())
+
+  lender Lender @relation(fields: [lenderId], references: [id])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  silo      Silo
+  userId    String?
+  message   String
+  createdAt DateTime @default(now())
+}
+

@@ -111,12 +111,13 @@ export function DocumentUpload({ applicationId }: { applicationId?: string }) {
   };
 
   const statusColor: Record<DocumentStatus, string> = {
-    uploaded: "info",
-    processing: "info",
-    review: "warning",
-    approved: "success",
-    rejected: "error",
+    PENDING: "info",
+    ACCEPTED: "success",
+    REJECTED: "error",
   };
+
+  const formatStatus = (status: DocumentStatus) =>
+    status.charAt(0) + status.slice(1).toLowerCase();
 
   return (
     <section className="card">
@@ -188,7 +189,7 @@ export function DocumentUpload({ applicationId }: { applicationId?: string }) {
                 <td>{doc.documentType ?? doc.note ?? "—"}</td>
                 <td>
                   <span className={`badge ${statusColor[doc.status] ?? "info"}`}>
-                    {doc.status}
+                    {formatStatus(doc.status)}
                   </span>
                 </td>
                 <td>{new Date(doc.uploadedAt).toLocaleString()}</td>
