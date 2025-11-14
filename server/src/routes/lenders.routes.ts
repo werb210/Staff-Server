@@ -10,13 +10,13 @@ import {
   createLenderProduct,
 } from "../controllers/lendersController.js";
 
-const router = Router();
+const router = Router({ mergeParams: true });
 
-router.get("/:silo", listLenders);
-router.post("/:silo", createLender);
-router.put("/:silo/:lenderId", updateLender);
-router.delete("/:silo/:lenderId", deleteLender);
-router.get("/:silo/:lenderId/products", getLenderProducts);
-router.post("/:silo/:lenderId/products", createLenderProduct);
+router.get("/", listLenders);
+router.post("/", createLender);
+router.put("/:lenderId", updateLender);
+router.delete("/:lenderId", deleteLender);
+router.get("/:lenderId/products", getLenderProducts);
+router.post("/:lenderId/products", createLenderProduct);
 
 export default router;

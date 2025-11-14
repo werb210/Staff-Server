@@ -7,12 +7,12 @@ import {
   deleteApplication,
 } from "../controllers/applicationsController.js";
 
-const router = Router();
+const router = Router({ mergeParams: true });
 
-router.get("/:silo", getApplications);
-router.post("/:silo", createApplication);
-router.get("/:silo/:appId", getApplicationById);
-router.put("/:silo/:appId", updateApplication);
-router.delete("/:silo/:appId", deleteApplication);
+router.get("/", getApplications);
+router.post("/", createApplication);
+router.get("/:appId", getApplicationById);
+router.put("/:appId", updateApplication);
+router.delete("/:appId", deleteApplication);
 
 export default router;

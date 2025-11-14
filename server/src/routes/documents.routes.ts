@@ -1,6 +1,5 @@
 import { Router } from "express";
 import multer from "multer";
-
 import {
   uploadDocument,
   getDocument,
@@ -11,25 +10,19 @@ import {
   downloadAllDocumentsHandler,
 } from "../controllers/documentsController.js";
 
-const documentsRouter = Router();
-const applicationDocumentsRouter = Router();
+const router = Router({ mergeParams: true });
 const upload = multer({ storage: multer.memoryStorage() });
 
-documentsRouter.get("/:silo/:id", getDocument);
-documentsRouter.get("/:silo/:id/preview", previewDocument);
-documentsRouter.get("/:silo/:id/download", downloadDocumentHandler);
-documentsRouter.post("/:silo/:id/accept", acceptDocumentHandler);
-documentsRouter.post("/:silo/:id/reject", rejectDocumentHandler);
-
-applicationDocumentsRouter.post(
-  "/:silo/:appId/documents",
+router.post(
+  "/applications/:appId/upload",
   upload.single("file"),
   uploadDocument
 );
-applicationDocumentsRouter.get(
-  "/:silo/:appId/documents/archive",
-  downloadAllDocumentsHandler
-);
+router.get("/applications/:appId/download-all", downloadAllDocumentsHandler);
+router.get("/:id", getDocument);
+router.get("/:id/preview", previewDocument);
+router.get("/:id/download", downloadDocumentHandler);
+router.post("/:id/accept", acceptDocumentHandler);
+router.post("/:id/reject", rejectDocumentHandler);
 
-export { applicationDocumentsRouter };
-export default documentsRouter;
+export default router;

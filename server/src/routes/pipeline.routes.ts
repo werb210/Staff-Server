@@ -1,12 +1,9 @@
 import { Router } from "express";
-import {
-  getPipeline,
-  moveCard,
-} from "../controllers/pipelineController.js";
+import { getPipeline, moveCard } from "../controllers/pipelineController.js";
 
-const router = Router();
+const router = Router({ mergeParams: true });
 
-router.get("/:silo", getPipeline);
-router.post("/:silo/:appId/move", moveCard);
+router.get("/", getPipeline);
+router.post("/move/:appId", moveCard);
 
 export default router;

@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { triggerNotification } from "../controllers/notificationsController.js";
 
-const router = Router();
+const router = Router({ mergeParams: true });
 
-router.post("/:silo", triggerNotification);
+router.post("/", triggerNotification);
 
 export default router;
