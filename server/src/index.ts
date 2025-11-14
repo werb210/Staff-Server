@@ -151,7 +151,7 @@ app.get("/api/_int/routes", (_req, res) => {
 });
 
 // -----------------------------------------------
-// MAIN API ROUTER
+// MAIN API ROUTER (silo-aware)
 // -----------------------------------------------
 app.use("/api/auth", authRouter);
 app.use("/api/contacts", contactsRouter);
