@@ -1,14 +1,15 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { PrismaClient, type User } from "@prisma/client";
-import type { JwtUserPayload, Silo } from "../types/index.js";
+import type { JwtUserPayload, Silo, User as DomainUser } from "../types/index.js";
+import { requirePrismaClient } from "./prismaClient.js";
 
-const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || "local-dev-secret";
 
-export type PublicUser = Omit<User, "passwordHash">;
+type StoredUser = DomainUser & { passwordHash: string };
 
-function toPublicUser(user: User): PublicUser {
+export type PublicUser = Omit<StoredUser, "passwordHash">;
+
+function toPublicUser(user: StoredUser): PublicUser {
   const { passwordHash, ...rest } = user;
   return rest;
 }
@@ -37,11 +38,15 @@ export function verifyJwt(token: string): JwtUserPayload {
 }
 
 export async function findUserByEmail(email: string) {
-  return prisma.user.findUnique({ where: { email } });
+  const prisma = await requirePrismaClient();
+  const user = await prisma.user.findUnique({ where: { email } });
+  return user ? (user as StoredUser) : null;
 }
 
 export async function findUserById(id: string) {
-  return prisma.user.findUnique({ where: { id } });
+  const prisma = await requirePrismaClient();
+  const user = await prisma.user.findUnique({ where: { id } });
+  return user ? (user as StoredUser) : null;
 }
 
 export async function createUser(data: {
@@ -52,18 +57,19 @@ export async function createUser(data: {
 }) {
   const passwordHash = await hashPassword(data.password);
 
-  const user = await prisma.user.create({
+  const prisma = await requirePrismaClient();
+  const user = (await prisma.user.create({
     data: {
       email: data.email,
       passwordHash,
       role: data.role,
       silos: data.silos,
     },
-  });
+  })) as StoredUser;
 
   return toPublicUser(user);
 }
 
-export function sanitizeUser(user: User) {
-  return toPublicUser(user);
+export function sanitizeUser(user: StoredUser | PublicUser) {
+  return toPublicUser(user as StoredUser);
 }

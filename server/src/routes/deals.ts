@@ -1,8 +1,7 @@
 import { Router } from "express";
-import { PrismaClient } from "@prisma/client";
 import { requireAuth } from "../auth/authMiddleware.js";
+import { requirePrismaClient } from "../services/prismaClient.js";
 
-const prisma = new PrismaClient();
 const router = Router();
 
 router.get("/", requireAuth, async (req, res) => {
@@ -11,6 +10,7 @@ router.get("/", requireAuth, async (req, res) => {
     return res.status(401).json({ error: "Not authenticated" });
   }
 
+  const prisma = await requirePrismaClient();
   const deals = await prisma.deal.findMany({
     where: {
       silo: { in: user.silos },

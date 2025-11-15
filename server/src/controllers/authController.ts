@@ -7,9 +7,7 @@ import {
   signJwt,
   sanitizeUser,
 } from "../services/index.js";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { requirePrismaClient } from "../services/prismaClient.js";
 
 export async function login(req: Request, res: Response) {
   const { email, password } = req.body ?? {};
@@ -41,6 +39,7 @@ export async function createUser(req: Request, res: Response) {
 
   const passwordHash = await hashPassword(password);
 
+  const prisma = await requirePrismaClient();
   const user = await prisma.user.create({
     data: {
       email,

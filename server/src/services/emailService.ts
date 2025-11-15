@@ -1,13 +1,11 @@
 import sgMail from "@sendgrid/mail";
-import {
-  PrismaClient,
-  CommunicationType,
-  CommunicationDirection,
-} from "@prisma/client";
 
 import type { JwtUserPayload } from "../types/index.js";
-
-const prisma = new PrismaClient();
+import {
+  CommunicationDirection,
+  CommunicationType,
+} from "./communicationTypes.js";
+import { requirePrismaClient } from "./prismaClient.js";
 
 let sendGridConfigured = false;
 
@@ -33,6 +31,7 @@ export async function sendEmail(
   subject: string,
   body: string,
 ) {
+  const prisma = await requirePrismaClient();
   const contact = await prisma.contact.findUnique({
     where: { id: contactId },
   });
@@ -77,6 +76,7 @@ export async function sendEmail(
 }
 
 export async function listEmails(user: JwtUserPayload) {
+  const prisma = await requirePrismaClient();
   return prisma.communicationLog.findMany({
     where: {
       type: CommunicationType.EMAIL,

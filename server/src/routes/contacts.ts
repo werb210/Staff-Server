@@ -1,9 +1,8 @@
 import { Router } from "express";
-import { PrismaClient } from "@prisma/client";
 import type { Silo } from "../types/index.js";
 import { requireAuth } from "../auth/authMiddleware.js";
+import { requirePrismaClient } from "../services/prismaClient.js";
 
-const prisma = new PrismaClient();
 const router = Router();
 
 type CreateContactPayload = {
@@ -23,6 +22,7 @@ router.get("/", requireAuth, async (req, res) => {
     return res.status(401).json({ error: "Not authenticated" });
   }
 
+  const prisma = await requirePrismaClient();
   const contacts = await prisma.contact.findMany({
     where: {
       silo: { in: user.silos },
@@ -54,6 +54,7 @@ router.post("/", requireAuth, async (req, res) => {
     return res.status(403).json({ error: "Silo access denied" });
   }
 
+  const prisma = await requirePrismaClient();
   const contact = await prisma.contact.create({
     data: {
       firstName,
@@ -73,6 +74,7 @@ router.get("/:id", requireAuth, async (req, res) => {
     return res.status(401).json({ error: "Not authenticated" });
   }
 
+  const prisma = await requirePrismaClient();
   const contact = await prisma.contact.findUnique({
     where: { id: req.params.id },
   });

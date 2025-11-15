@@ -1,5 +1,5 @@
 import twilio from "twilio";
-import type { Silo } from "@prisma/client";
+import type { Silo } from "../types/index.js";
 
 let twilioClient: ReturnType<typeof twilio> | null = null;
 

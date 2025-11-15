@@ -1,18 +1,16 @@
-import {
-  PrismaClient,
-  CommunicationType,
-  CommunicationDirection,
-} from "@prisma/client";
-
 import type { JwtUserPayload } from "../types/index.js";
 import {
   getTwilioClient,
   resolveNumberForSilo,
 } from "./communicationProviders.js";
-
-const prisma = new PrismaClient();
+import {
+  CommunicationDirection,
+  CommunicationType,
+} from "./communicationTypes.js";
+import { requirePrismaClient } from "./prismaClient.js";
 
 export async function startCall(contactId: string, user: JwtUserPayload) {
+  const prisma = await requirePrismaClient();
   const contact = await prisma.contact.findUnique({
     where: { id: contactId },
   });
@@ -58,6 +56,7 @@ export async function startCall(contactId: string, user: JwtUserPayload) {
 }
 
 export async function listCalls(user: JwtUserPayload) {
+  const prisma = await requirePrismaClient();
   return prisma.communicationLog.findMany({
     where: {
       type: CommunicationType.CALL,
