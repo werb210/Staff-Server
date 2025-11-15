@@ -6,7 +6,7 @@
     "dev": "tsx --watch server/src/index.ts",
     "build": "tsc -p server/tsconfig.json",
     "build:server": "npm run build",
-    "start": "node server/dist/index.js",
+    "start": "node server/dist/src/index.js",
     "start:server": "npm run start",
     "typecheck": "tsc --noEmit -p server/tsconfig.json",
     "test": "jest",
