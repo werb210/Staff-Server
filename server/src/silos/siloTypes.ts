@@ -1,3 +1,2 @@
-export type Silo = "BF" | "BI" | "SLF";
-
-export const AllSilos: Silo[] = ["BF", "BI", "SLF"];
+export const AllSilos = ["BF", "BI", "SLF"] as const;
+export type Silo = (typeof AllSilos)[number];
