@@ -7,7 +7,7 @@ import {
   acceptDocumentHandler,
   rejectDocumentHandler,
   downloadAllDocumentsHandler,
-} from "../controllers/documentsController.js";
+} from "../controllers/index.js";
 
 const router = Router({ mergeParams: true });
 

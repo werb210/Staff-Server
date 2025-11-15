@@ -1,16 +1,10 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { PrismaClient, type Silo, type User } from "@prisma/client";
+import { PrismaClient, type User } from "@prisma/client";
+import type { JwtUserPayload, Silo } from "../types/index.js";
 
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || "local-dev-secret";
-
-export interface JwtUserPayload extends jwt.JwtPayload {
-  id: string;
-  email: string;
-  role: string;
-  silos: Silo[];
-}
 
 export type PublicUser = Omit<User, "passwordHash">;
 

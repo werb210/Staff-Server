@@ -1,6 +1,6 @@
 import { db } from "../db.js";
 import { uuid } from "../utils/uuid.js";
-import type { ApplicationRecord, Silo } from "../../types/application.js";
+import type { ApplicationRecord, Silo } from "../types/index.js";
 
 export const applicationService = {
   list(silo: Silo): ApplicationRecord[] {
@@ -11,7 +11,10 @@ export const applicationService = {
     return db.applications[silo]?.data.find(a => a.id === id) ?? null;
   },
 
-  create(silo: Silo, data: Omit<ApplicationRecord,"id"|"createdAt"|"updatedAt">): ApplicationRecord {
+  create(
+    silo: Silo,
+    data: Omit<ApplicationRecord, "id" | "createdAt" | "updatedAt" | "silo">
+  ): ApplicationRecord {
     const record: ApplicationRecord = {
       id: uuid(),
       createdAt: new Date(),

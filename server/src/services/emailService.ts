@@ -5,7 +5,7 @@ import {
   CommunicationDirection,
 } from "@prisma/client";
 
-import type { JwtUserPayload } from "../auth/authService.js";
+import type { JwtUserPayload } from "../types/index.js";
 
 const prisma = new PrismaClient();
 

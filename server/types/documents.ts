@@ -1,1 +1,1 @@
-export type { DocumentRecord, Silo } from "../src/services/db.js";
+export type { DocumentRecord, Silo } from "../src/types/index.js";

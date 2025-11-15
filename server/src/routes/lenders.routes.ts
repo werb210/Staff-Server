@@ -4,11 +4,11 @@ import {
   createLender,
   updateLender,
   deleteLender,
-} from "../controllers/lenderController.js";
+} from "../controllers/index.js";
 import {
   getLenderProducts,
   createLenderProduct,
-} from "../controllers/lendersController.js";
+} from "../controllers/index.js";
 
 const router = Router({ mergeParams: true });
 

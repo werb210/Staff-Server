@@ -1,9 +1,7 @@
 import type { Request, Response } from "express";
 
-import type { JwtUserPayload } from "../auth/authService.js";
-import { smsService } from "../services/smsService.js";
-import { startCall, listCalls } from "../services/callsService.js";
-import { sendEmail, listEmails } from "../services/emailService.js";
+import type { JwtUserPayload } from "../types/index.js";
+import { smsService, startCall, listCalls, sendEmail, listEmails } from "../services/index.js";
 
 const getUser = (req: Request): JwtUserPayload | null => {
   const user = req.user as JwtUserPayload | undefined;

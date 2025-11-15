@@ -1,46 +1,19 @@
 import { randomUUID } from "crypto";
 
-export type Silo = "BF" | "BI" | "SLF";
+import type {
+  ApplicationRecord,
+  DocumentRecord,
+  PipelineRecord,
+  Silo,
+} from "../types/index.js";
 
-export interface ApplicationRecord {
-  id: string;
-  silo: Silo;
-  createdAt: Date;
-  updatedAt: Date;
-  [key: string]: unknown;
-}
-
-export interface DocumentRecord {
-  id: string;
-  silo: Silo;
-  applicationId?: string;
-  name?: string;
-  mimeType?: string;
-  sizeBytes?: number;
-  content?: Buffer;
-  createdAt: Date;
-  updatedAt: Date;
-  [key: string]: unknown;
-  accepted?: boolean;
-  acceptedBy?: string | null;
-  rejected?: boolean;
-  rejectedBy?: string | null;
-}
+export type { ApplicationRecord, DocumentRecord, PipelineRecord, Silo } from "../types/index.js";
 
 export interface LenderRecord {
   id: string;
   silo: Silo;
   name: string;
   products?: unknown[];
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface PipelineRecord {
-  id: string;
-  silo: Silo;
-  appId: string;
-  stage: string;
   createdAt: Date;
   updatedAt: Date;
 }

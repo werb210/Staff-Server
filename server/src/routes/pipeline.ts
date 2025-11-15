@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { requireAuth } from "../auth/authMiddleware.js";
-import { pipelineService } from "../services/pipelineService.js";
-import type { Silo } from "../services/db.js";
+import { pipelineService } from "../services/index.js";
+import type { Silo } from "../types/index.js";
 
 const toSilos = (value: unknown): Silo[] => {
   if (!Array.isArray(value)) return [];

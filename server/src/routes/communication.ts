@@ -8,7 +8,7 @@ import {
   callList,
   emailSend,
   emailList,
-} from "../controllers/communicationController.js";
+} from "../controllers/index.js";
 
 const router = Router();
 

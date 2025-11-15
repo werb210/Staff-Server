@@ -1,6 +1,6 @@
-import { db, type Silo } from "./db.js";
+import { db } from "../db.js";
 import { uuid } from "../utils/uuid.js";
-import type { PipelineRecord, Stage } from "../types/pipeline.js";
+import type { PipelineRecord, Stage, Silo } from "../types/index.js";
 
 export const pipelineService = {
   list(silo: Silo): PipelineRecord[] {

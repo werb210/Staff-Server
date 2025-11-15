@@ -1,7 +1,8 @@
 import type { Request, Response, NextFunction } from "express";
 
-import { AllSilos, type Silo } from "../silos/siloTypes.js";
-import { prisma } from "../services/prisma.js";
+import { AllSilos } from "../silos/siloTypes.js";
+import { prisma } from "../services/index.js";
+import type { Silo } from "../types/index.js";
 
 /**
  * Silo Enforcement Middleware

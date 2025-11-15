@@ -1,7 +1,7 @@
 import { prisma } from "./prisma.js";
-import type { Silo } from "./db.js";
+import type { Silo } from "../types/index.js";
 
-export async function createUser(data: any) {
+export async function createUserRecord(data: any) {
   return prisma.user.create({ data });
 }
 

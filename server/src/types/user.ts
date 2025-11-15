@@ -1,4 +1,4 @@
-import type { Silo } from "../silos/siloTypes.js";
+import type { Silo } from "./silo.js";
 
 export interface User {
   id: string;
