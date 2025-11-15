@@ -12,20 +12,20 @@ import morgan from "morgan";
 
 import serverPackageJson from "../package.json" with { type: "json" };
 
-// Routers (FIXED: .js → .ts)
-import { errorHandler } from "./middlewares/errorHandler.ts";
-import apiRouter from "./routes/index.ts";
-import authRouter from "./routes/auth.ts";
-import contactsRouter from "./routes/contacts.ts";
-import companiesRouter from "./routes/companies.ts";
-import dealsRouter from "./routes/deals.ts";
-import documentsRouter from "./routes/documents.ts";
-import pipelineRouter from "./routes/pipeline.ts";
-import communicationRouter from "./routes/communication.ts";
+// Routers (NodeNext requires .js extensions)
+import { errorHandler } from "./middlewares/errorHandler.js";
+import apiRouter from "./routes/index.js";
+import authRouter from "./routes/auth.js";
+import contactsRouter from "./routes/contacts.js";
+import companiesRouter from "./routes/companies.js";
+import dealsRouter from "./routes/deals.js";
+import documentsRouter from "./routes/documents.js";
+import pipelineRouter from "./routes/pipeline.js";
+import communicationRouter from "./routes/communication.js";
 
-// In-memory DB (FIXED: .js → .ts)
-import { db } from "./services/db.ts";
-import { describeDatabaseUrl } from "./utils/env.ts";
+// In-memory DB (NodeNext requires .js extensions)
+import { db } from "./services/db.js";
+import { describeDatabaseUrl } from "./utils/env.js";
 
 /* -----------------------------------------------------
    SAFE TABLE ACCESSOR

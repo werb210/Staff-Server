@@ -1,41 +1,42 @@
-import { db, type Silo } from "./db.ts";
-
-const STAGES = [
-  "new",
-  "requires_docs",
-  "in_review",
-  "ready_for_lenders",
-  "sent_to_lenders",
-  "approved",
-  "declined",
-] as const;
-
-export type PipelineStage = (typeof STAGES)[number];
+import { db, type Silo } from "./db.js";
+import { uuid } from "../utils/uuid.js";
+import type { PipelineRecord, Stage } from "../types/pipeline.js";
 
 export const pipelineService = {
-  getBoard(silo: Silo) {
-    return db.pipeline[silo].data;
+  list(silo: Silo): PipelineRecord[] {
+    return db.pipeline[silo]?.data ?? [];
   },
 
-  move(silo: Silo, appId: string, { toStage }: { toStage: PipelineStage }) {
-    if (!STAGES.includes(toStage)) {
-      throw new Error("Invalid pipeline stage");
-    }
-
-    const list = db.pipeline[silo].data;
-    const idx = list.findIndex((c) => c.appId === appId);
-
-    if (idx === -1) {
-      const card = {
-        id: db.id(),
-        appId,
-        stage: toStage,
-      };
-      list.push(card);
-      return card;
-    }
-
-    list[idx].stage = toStage;
-    return list[idx];
+  get(silo: Silo, id: string): PipelineRecord | null {
+    return db.pipeline[silo]?.data.find(c => c.id === id) ?? null;
   },
+
+  create(silo: Silo, appId: string, stage: Stage): PipelineRecord {
+    const record: PipelineRecord = {
+      id: uuid(),
+      appId,
+      stage,
+      silo,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    db.pipeline[silo].data.push(record);
+    return record;
+  },
+
+  updateStage(silo: Silo, id: string, stage: Stage): PipelineRecord | null {
+    const table = db.pipeline[silo];
+    const card = table.data.find(c => c.id === id);
+    if (!card) return null;
+    card.stage = stage;
+    card.updatedAt = new Date();
+    return card;
+  },
+
+  delete(silo: Silo, id: string): boolean {
+    const table = db.pipeline[silo];
+    const before = table.data.length;
+    table.data = table.data.filter(c => c.id !== id);
+    return table.data.length < before;
+  }
 };

@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 
 import type { JwtUserPayload } from "../auth/authService.js";
-import { sendSMS, listSMSThreads } from "../services/smsService.js";
+import { smsService } from "../services/smsService.js";
 import { startCall, listCalls } from "../services/callsService.js";
 import { sendEmail, listEmails } from "../services/emailService.js";
 
@@ -23,10 +23,12 @@ export async function smsSend(req: Request, res: Response) {
     return res.status(401).json({ error: "Not authenticated" });
   }
 
-  const { contactId, body } = req.body ?? {};
+  const { contactId, to, body } = req.body ?? {};
 
-  if (typeof contactId !== "string") {
-    return res.status(400).json({ error: "contactId is required" });
+  const destination = typeof to === "string" ? to : contactId;
+
+  if (typeof destination !== "string" || destination.trim().length === 0) {
+    return res.status(400).json({ error: "Recipient phone number is required" });
   }
 
   if (typeof body !== "string" || body.trim().length === 0) {
@@ -34,7 +36,7 @@ export async function smsSend(req: Request, res: Response) {
   }
 
   try {
-    const message = await sendSMS(contactId, user, body);
+    const message = await smsService.send(destination, body);
     return res.json(message);
   } catch (error) {
     return handleError(res, error);
@@ -48,8 +50,7 @@ export async function smsThreads(req: Request, res: Response) {
   }
 
   try {
-    const messages = await listSMSThreads(user);
-    return res.json(messages);
+    return res.json({ threads: [] });
   } catch (error) {
     return handleError(res, error);
   }

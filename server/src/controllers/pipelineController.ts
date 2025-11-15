@@ -6,18 +6,23 @@ const toSilo = (value: string): Silo => value as Silo;
 
 export const getPipeline = async (req: Request, res: Response) => {
   const silo = toSilo(req.params.silo);
-  const pipeline = await pipelineService.getBoard(silo);
-  return res.json(pipeline);
+  const pipeline = pipelineService.list(silo);
+  return res.json({ silo, pipeline });
 };
 
 export const moveCard = async (req: Request, res: Response) => {
   const silo = toSilo(req.params.silo);
-  const appId = req.params.appId;
+  const cardId = req.params.appId;
+  const { stage } = req.body ?? {};
 
-  try {
-    const result = await pipelineService.move(silo, appId, req.body ?? {});
-    return res.json(result);
-  } catch (err) {
-    return res.status(400).json({ error: (err as Error).message });
+  if (typeof stage !== "string" || stage.trim().length === 0) {
+    return res.status(400).json({ error: "stage is required" });
   }
+
+  const updated = pipelineService.updateStage(silo, cardId, stage);
+  if (!updated) {
+    return res.status(404).json({ error: "Pipeline card not found" });
+  }
+
+  return res.json(updated);
 };

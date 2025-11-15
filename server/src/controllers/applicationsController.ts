@@ -10,7 +10,7 @@ const toSilo = (value: string): Silo => value as Silo;
 export const getApplications = async (req: Request, res: Response) => {
   const silo = toSilo(req.params.silo);
 
-  const apps = await applicationService.listBySilo(silo);
+  const apps = applicationService.list(silo);
   return res.status(200).json({
     ok: true,
     silo,
@@ -26,9 +26,8 @@ export const createApplication = async (req: Request, res: Response) => {
   const silo = toSilo(req.params.silo);
   const payload = req.body ?? {};
 
-  const created = await applicationService.create({
+  const created = applicationService.create(silo, {
     ...payload,
-    silo,
     userId: req.user?.id ?? null,
   });
 
@@ -46,7 +45,7 @@ export const getApplicationById = async (req: Request, res: Response) => {
   const silo = toSilo(req.params.silo);
   const id = req.params.appId;
 
-  const app = await applicationService.getById(silo, id);
+  const app = applicationService.get(silo, id);
   if (!app) {
     return res.status(404).json({
       ok: false,
@@ -69,7 +68,7 @@ export const updateApplication = async (req: Request, res: Response) => {
   const silo = toSilo(req.params.silo);
   const id = req.params.appId;
 
-  const updated = await applicationService.update(silo, id, req.body ?? {});
+  const updated = applicationService.update(silo, id, req.body ?? {});
   if (!updated) {
     return res.status(404).json({
       ok: false,
@@ -92,7 +91,7 @@ export const deleteApplication = async (req: Request, res: Response) => {
   const silo = toSilo(req.params.silo);
   const id = req.params.appId;
 
-  const deleted = await applicationService.remove(silo, id);
+  const deleted = applicationService.delete(silo, id);
   if (!deleted) {
     return res.status(404).json({
       ok: false,

@@ -1,91 +1,50 @@
 import { randomUUID } from "crypto";
 
-/**
- * -----------------------------------------------------
- * SILO TYPES
- * -----------------------------------------------------
- */
 export type Silo = "BF" | "BI" | "SLF";
 
-/**
- * -----------------------------------------------------
- * APPLICATION RECORD
- * -----------------------------------------------------
- */
 export interface ApplicationRecord {
   id: string;
   silo: Silo;
-  userId?: string | null;
-
-  // dynamic application fields
-  [key: string]: any;
-
-  createdAt: string;
-  updatedAt: string;
+  createdAt: Date;
+  updatedAt: Date;
+  [key: string]: unknown;
 }
 
-/**
- * -----------------------------------------------------
- * DOCUMENT RECORD
- * -----------------------------------------------------
- */
 export interface DocumentRecord {
   id: string;
-  appId: string;
   silo: Silo;
-  name: string;
-  category?: string | null;
-  mimeType?: string | null;
-  checksum?: string | null;
-  sizeBytes?: number | null;
-
-  // For local testing buffer may exist
-  buffer?: Buffer;
-
-  createdAt: string;
-  updatedAt: string;
-
+  applicationId?: string;
+  name?: string;
+  mimeType?: string;
+  sizeBytes?: number;
+  content?: Buffer;
+  createdAt: Date;
+  updatedAt: Date;
+  [key: string]: unknown;
   accepted?: boolean;
   acceptedBy?: string | null;
   rejected?: boolean;
   rejectedBy?: string | null;
 }
 
-/**
- * -----------------------------------------------------
- * LENDER RECORD
- * -----------------------------------------------------
- */
 export interface LenderRecord {
   id: string;
   silo: Silo;
   name: string;
-  products?: any[];
-
-  createdAt: string;
-  updatedAt: string;
+  products?: unknown[];
+  createdAt: Date;
+  updatedAt: Date;
 }
 
-/**
- * -----------------------------------------------------
- * PIPELINE RECORD
- * -----------------------------------------------------
- */
 export interface PipelineRecord {
   id: string;
   silo: Silo;
   appId: string;
   stage: string;
-
-  createdAt: string;
-  updatedAt: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
-/**
- * -----------------------------------------------------
- * COMMUNICATION RECORD
- * -----------------------------------------------------
- */
 export interface CommunicationRecord {
   id: string;
   silo: Silo;
@@ -93,42 +52,24 @@ export interface CommunicationRecord {
   contactId?: string;
   direction: "inbound" | "outbound";
   type: "sms" | "call" | "email";
-
   message?: string;
-  meta?: any;
-
-  createdAt: string;
+  meta?: unknown;
+  createdAt: Date;
 }
 
-/**
- * -----------------------------------------------------
- * NOTIFICATION RECORD
- * -----------------------------------------------------
- */
 export interface NotificationRecord {
   id: string;
   silo: Silo;
   appId?: string;
   type: string;
-  payload?: any;
-
-  createdAt: string;
+  payload?: unknown;
+  createdAt: Date;
 }
 
-/**
- * -----------------------------------------------------
- * GENERIC TABLE
- * -----------------------------------------------------
- */
 interface Table<T> {
   data: T[];
 }
 
-/**
- * -----------------------------------------------------
- * IN-MEMORY DATABASE
- * -----------------------------------------------------
- */
 class InMemoryDB {
   applications: Record<Silo, Table<ApplicationRecord>> = {
     BF: { data: [] },
@@ -148,7 +89,7 @@ class InMemoryDB {
     SLF: { data: [] },
   };
 
-  products: Record<Silo, Table<any>> = {
+  products: Record<Silo, Table<unknown>> = {
     BF: { data: [] },
     BI: { data: [] },
     SLF: { data: [] },
@@ -172,13 +113,11 @@ class InMemoryDB {
     SLF: { data: [] },
   };
 
-  // user table not silo-specific
   users: Table<any> = { data: [] };
 
-  // audit log always global
-  auditLogs: any[] = [];
+  auditLogs: unknown[] = [];
 
-  id() {
+  id(): string {
     return randomUUID();
   }
 }

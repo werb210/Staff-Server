@@ -1,23 +1,29 @@
 import type { Request, Response } from "express";
+import JSZip from "jszip";
 import type { Silo } from "../services/db.js";
 import { documentService } from "../services/documentService.js";
-import type { JwtUserPayload } from "../middlewares/auth.js";
 
 /* -----------------------------------------------------
    LOCAL FALLBACK TYPES
 ----------------------------------------------------- */
 
 interface UploadedFile {
-  buffer: Buffer;
+  fieldname: string;
   originalname: string;
+  encoding: string;
   mimetype: string;
   size: number;
+  destination?: string;
+  filename?: string;
+  path?: string;
+  buffer: Buffer;
+  stream?: NodeJS.ReadableStream;
 }
 
-interface TypedRequestWithFile extends Request {
+type TypedRequestWithFile = Request & {
   file?: UploadedFile;
-  user?: JwtUserPayload;
-}
+  user?: { id?: string };
+};
 
 /** Convert string → Silo (no validation here) */
 const asSilo = (v: string): Silo => v as Silo;
@@ -40,12 +46,13 @@ export const uploadDocument = async (
     });
   }
 
-  const doc = await documentService.upload(silo, appId, req.file);
-  if (!doc) {
-    return res.status(404).json({
-      error: "Application not found or silo blocked",
-    });
-  }
+  const doc = documentService.create(silo, {
+    applicationId: appId,
+    name: req.file.originalname,
+    mimeType: req.file.mimetype,
+    sizeBytes: req.file.size,
+    content: req.file.buffer,
+  });
 
   return res.status(201).json(doc);
 };
@@ -58,7 +65,7 @@ export const getDocument = async (req: Request, res: Response) => {
   const silo = asSilo(req.params.silo);
   const id = req.params.id;
 
-  const doc = await documentService.get(silo, id);
+  const doc = documentService.get(id, silo);
   if (!doc) return res.status(404).json({ error: "Not found" });
 
   return res.json(doc);
@@ -72,11 +79,13 @@ export const previewDocument = async (req: Request, res: Response) => {
   const silo = asSilo(req.params.silo);
   const id = req.params.id;
 
-  const file = await documentService.download(silo, id);
-  if (!file) return res.status(404).json({ error: "Not found" });
+  const file = documentService.get(id, silo);
+  if (!file || !file.content) {
+    return res.status(404).json({ error: "Not found" });
+  }
 
-  res.setHeader("Content-Type", file.mimeType);
-  return res.send(file.buffer);
+  res.setHeader("Content-Type", file.mimeType ?? "application/octet-stream");
+  return res.send(file.content);
 };
 
 /* -----------------------------------------------------
@@ -90,16 +99,18 @@ export const downloadDocumentHandler = async (
   const silo = asSilo(req.params.silo);
   const id = req.params.id;
 
-  const file = await documentService.download(silo, id);
-  if (!file) return res.status(404).json({ error: "Not found" });
+  const file = documentService.get(id, silo);
+  if (!file || !file.content) {
+    return res.status(404).json({ error: "Not found" });
+  }
 
-  res.setHeader("Content-Type", file.mimeType);
+  res.setHeader("Content-Type", file.mimeType ?? "application/octet-stream");
   res.setHeader(
     "Content-Disposition",
-    `attachment; filename="${file.name}"`
+    `attachment; filename="${file.name ?? "document"}"`
   );
 
-  return res.send(file.buffer);
+  return res.send(file.content);
 };
 
 /* -----------------------------------------------------
@@ -113,11 +124,12 @@ export const acceptDocumentHandler = async (
   const silo = asSilo(req.params.silo);
   const id = req.params.id;
 
-  const updated = await documentService.accept(
-    silo,
-    id,
-    req.user?.id ?? "system"
-  );
+  const updated = documentService.update(silo, id, {
+    accepted: true,
+    acceptedBy: req.user?.id ?? "system",
+    rejected: false,
+    rejectedBy: null,
+  });
 
   if (!updated) return res.status(404).json({ error: "Not found" });
 
@@ -135,11 +147,12 @@ export const rejectDocumentHandler = async (
   const silo = asSilo(req.params.silo);
   const id = req.params.id;
 
-  const updated = await documentService.reject(
-    silo,
-    id,
-    req.user?.id ?? "system"
-  );
+  const updated = documentService.update(silo, id, {
+    rejected: true,
+    rejectedBy: req.user?.id ?? "system",
+    accepted: false,
+    acceptedBy: null,
+  });
 
   if (!updated) return res.status(404).json({ error: "Not found" });
 
@@ -157,14 +170,25 @@ export const downloadAllDocumentsHandler = async (
   const silo = asSilo(req.params.silo);
   const appId = req.params.appId;
 
-  const pack = await documentService.downloadAll(silo, appId);
-  if (!pack) return res.status(404).json({ error: "Not found" });
+  const docs = documentService.list(appId, silo);
+  if (docs.length === 0) {
+    return res.status(404).json({ error: "Not found" });
+  }
+
+  const zip = new JSZip();
+  docs.forEach((doc) => {
+    if (doc.content) {
+      zip.file(doc.name ?? `${doc.id}.bin`, doc.content);
+    }
+  });
+
+  const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
 
   res.setHeader("Content-Type", "application/zip");
   res.setHeader(
     "Content-Disposition",
-    `attachment; filename="${pack.fileName}"`
+    `attachment; filename="${appId}-documents.zip"`
   );
 
-  return res.send(pack.zipBuffer);
+  return res.send(zipBuffer);
 };

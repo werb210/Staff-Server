@@ -28,15 +28,21 @@ export const prisma = {
     },
   },
   user: {
-    async create({ data }: { data: any }) {
+    async create({ data }: { data: any }): Promise<any> {
       const record = { id: db.id(), ...data, createdAt: new Date().toISOString() };
       db.users.data.push(record);
       return record;
     },
-    async findUnique({ where }: { where: { id: string } }) {
+    async findUnique({ where }: { where: { id: string } }): Promise<any | null> {
       return db.users.data.find((u) => u.id === where.id) ?? null;
     },
-    async update({ where, data }: { where: { id: string }; data: any }) {
+    async update({
+      where,
+      data,
+    }: {
+      where: { id: string };
+      data: any;
+    }): Promise<any> {
       const idx = db.users.data.findIndex((u) => u.id === where.id);
       if (idx === -1) throw new Error("User not found");
       db.users.data[idx] = { ...db.users.data[idx], ...data };

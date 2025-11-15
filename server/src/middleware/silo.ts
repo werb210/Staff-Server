@@ -29,6 +29,8 @@ export async function siloMiddleware(
       return res.status(401).json({ error: "Invalid user" });
     }
 
+    const typedUser = user as { silos?: Silo[]; id: string };
+
     const siloHeader = req.headers["x-silo"];
 
     if (!siloHeader || typeof siloHeader !== "string") {
@@ -43,8 +45,8 @@ export async function siloMiddleware(
       return res.status(400).json({ error: "Invalid silo header" });
     }
 
-    const userSilos = Array.isArray(user.silos)
-      ? (user.silos as Silo[])
+    const userSilos = Array.isArray(typedUser.silos)
+      ? (typedUser.silos as Silo[])
       : [];
 
     if (!userSilos.includes(silo)) {
@@ -53,8 +55,8 @@ export async function siloMiddleware(
         .json({ error: `Access denied. User does not belong to silo ${silo}.` });
     }
 
-    req.silo = silo;
-    req.user = user;
+    (req as any).silo = silo;
+    (req as any).user = typedUser;
 
     return next();
   } catch (err) {
