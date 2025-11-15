@@ -1,0 +1,78 @@
+server/src/routes/ai.routes.ts: export default router;
+server/src/routes/applications.routes.ts: export default router;
+server/src/routes/auth.ts: export default router;
+server/src/routes/communication.ts: export default router;
+server/src/routes/companies.ts: export default router;
+server/src/routes/contacts.ts: export default router;
+server/src/routes/deals.ts: export default router;
+server/src/routes/documents.ts: export default router;
+server/src/routes/index.ts: export * from "./ai.routes.js";
+server/src/routes/index.ts: export * from "./applications.routes.js";
+server/src/routes/index.ts: export * from "./auth.js";
+server/src/routes/index.ts: export * from "./communication.js";
+server/src/routes/index.ts: export * from "./companies.js";
+server/src/routes/index.ts: export * from "./contacts.js";
+server/src/routes/index.ts: export * from "./deals.js";
+server/src/routes/index.ts: export * from "./documents.js";
+server/src/routes/index.ts: export * from "./lenders.routes.js";
+server/src/routes/index.ts: export * from "./notifications.routes.js";
+server/src/routes/index.ts: export * from "./pipeline.routes.js";
+server/src/routes/index.ts: export * from "./pipeline.js";
+server/src/routes/index.ts: export { default as aiRouter } from "./ai.routes.js";
+server/src/routes/index.ts: export { default as applicationsRouter } from "./applications.routes.js";
+server/src/routes/index.ts: export { default as authRouter } from "./auth.js";
+server/src/routes/index.ts: export { default as communicationRouter } from "./communication.js";
+server/src/routes/index.ts: export { default as companiesRouter } from "./companies.js";
+server/src/routes/index.ts: export { default as contactsRouter } from "./contacts.js";
+server/src/routes/index.ts: export { default as dealsRouter } from "./deals.js";
+server/src/routes/index.ts: export { default as documentsRouter } from "./documents.js";
+server/src/routes/index.ts: export { default as lendersRouter } from "./lenders.routes.js";
+server/src/routes/index.ts: export { default as notificationsRouter } from "./notifications.routes.js";
+server/src/routes/index.ts: export { default as pipelineRouter } from "./pipeline.routes.js";
+server/src/routes/index.ts: export { default as pipelineLegacyRouter } from "./pipeline.js";
+server/src/routes/index.ts: export default router;
+server/src/routes/lenders.routes.ts: export default router;
+server/src/routes/notifications.routes.ts: export default router;
+server/src/routes/pipeline.routes.ts: export default router;
+server/src/routes/pipeline.ts: export default router;
+server/src/controllers/aiController.ts: export async function generateAISummary(req: Request, res: Response) {
+server/src/controllers/aiController.ts: export async function generateAIInsights(req: Request, res: Response) {
+server/src/controllers/applicationsController.ts: export const getApplications = async (req: Request, res: Response) => {
+server/src/controllers/applicationsController.ts: export const createApplication = async (req: Request, res: Response) => {
+server/src/controllers/applicationsController.ts: export const getApplicationById = async (req: Request, res: Response) => {
+server/src/controllers/applicationsController.ts: export const updateApplication = async (req: Request, res: Response) => {
+server/src/controllers/applicationsController.ts: export const deleteApplication = async (req: Request, res: Response) => {
+server/src/controllers/authController.ts: export async function login(req: Request, res: Response) {
+server/src/controllers/authController.ts: export async function createUser(req: Request, res: Response) {
+server/src/controllers/authController.ts: export async function me(req: Request, res: Response) {
+server/src/controllers/communicationController.ts: export async function smsSend(req: Request, res: Response) {
+server/src/controllers/communicationController.ts: export async function smsThreads(req: Request, res: Response) {
+server/src/controllers/communicationController.ts: export async function callStart(req: Request, res: Response) {
+server/src/controllers/communicationController.ts: export async function callList(req: Request, res: Response) {
+server/src/controllers/communicationController.ts: export async function emailSend(req: Request, res: Response) {
+server/src/controllers/communicationController.ts: export async function emailList(req: Request, res: Response) {
+server/src/controllers/documentsController.ts: export const uploadDocument = async (
+server/src/controllers/documentsController.ts: export const getDocument = async (req: Request, res: Response) => {
+server/src/controllers/documentsController.ts: export const previewDocument = async (req: Request, res: Response) => {
+server/src/controllers/documentsController.ts: export const downloadDocumentHandler = async (
+server/src/controllers/documentsController.ts: export const acceptDocumentHandler = async (
+server/src/controllers/documentsController.ts: export const rejectDocumentHandler = async (
+server/src/controllers/documentsController.ts: export const downloadAllDocumentsHandler = async (
+server/src/controllers/index.ts: export * from "./aiController.js";
+server/src/controllers/index.ts: export * from "./applicationsController.js";
+server/src/controllers/index.ts: export * from "./authController.js";
+server/src/controllers/index.ts: export * from "./communicationController.js";
+server/src/controllers/index.ts: export * from "./documentsController.js";
+server/src/controllers/index.ts: export * from "./lenderController.js";
+server/src/controllers/index.ts: export * from "./lendersController.js";
+server/src/controllers/index.ts: export * from "./notificationsController.js";
+server/src/controllers/index.ts: export * from "./pipelineController.js";
+server/src/controllers/lenderController.ts: export const listLenders = async (req: Request, res: Response) => {
+server/src/controllers/lenderController.ts: export const createLender = async (req: Request, res: Response) => {
+server/src/controllers/lenderController.ts: export const updateLender = async (req: Request, res: Response) => {
+server/src/controllers/lenderController.ts: export const deleteLender = async (req: Request, res: Response) => {
+server/src/controllers/lendersController.ts: export const getLenderProducts = async (req: Request, res: Response) => {
+server/src/controllers/lendersController.ts: export const createLenderProduct = async (req: Request, res: Response) => {
+server/src/controllers/notificationsController.ts: export const triggerNotification = async (req: Request, res: Response) => {
+server/src/controllers/pipelineController.ts: export const getPipeline = async (req: Request, res: Response) => {
+server/src/controllers/pipelineController.ts: export const moveCard = async (req: Request, res: Response) => {
