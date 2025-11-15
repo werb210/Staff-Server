@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { PrismaClient, type Silo } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
+import type { Silo } from "../types/index.js";
 import { requireAuth } from "../auth/authMiddleware.js";
 
 const prisma = new PrismaClient();

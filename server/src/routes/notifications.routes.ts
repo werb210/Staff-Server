@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { triggerNotification } from "../controllers/notificationsController.js";
+import { triggerNotification } from "../controllers/index.js";
 
 const router = Router({ mergeParams: true });
 

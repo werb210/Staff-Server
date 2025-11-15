@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 
-import { verifyJwt, type JwtUserPayload } from "./authService.js";
+import { verifyJwt } from "../services/index.js";
+import type { JwtUserPayload } from "../types/index.js";
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
   const token = req.headers.authorization?.replace("Bearer ", "");

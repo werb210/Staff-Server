@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { aiService } from "../../services/ai/aiService.js";
+import { aiService } from "../services/index.js";
 
 export async function generateAISummary(req: Request, res: Response) {
   const user = req.user;

@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import JSZip from "jszip";
-import type { Silo } from "../services/db.js";
-import { documentService } from "../services/documentService.js";
+import type { Silo } from "../types/index.js";
+import { documentService } from "../services/index.js";
 
 /* -----------------------------------------------------
    LOCAL FALLBACK TYPES

@@ -10,7 +10,7 @@ import {
   getApplicationById,
   updateApplication,
   deleteApplication,
-} from "../controllers/applicationsController.js";
+} from "../controllers/index.js";
 
 // Router inherits :silo from parent (/api/:silo)
 const router = Router({ mergeParams: true });

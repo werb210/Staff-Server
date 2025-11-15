@@ -6,7 +6,7 @@ import {
   findUserById,
   signJwt,
   sanitizeUser,
-} from "../auth/authService.js";
+} from "../services/index.js";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();

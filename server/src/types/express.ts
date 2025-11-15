@@ -1,5 +1,4 @@
-import type { JwtUserPayload } from "../auth/authService.js";
-import type { Silo } from "@prisma/client";
+import type { JwtUserPayload, Silo } from "../types/index.js";
 
 declare global {
   namespace Express {

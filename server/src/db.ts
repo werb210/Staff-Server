@@ -1,7 +1,7 @@
-export { db } from "./services/db.js";
+export { db } from "./services/index.js";
 export type {
   Silo,
   ApplicationRecord,
   DocumentRecord,
   PipelineRecord,
-} from "./services/db.js";
+} from "./services/index.js";

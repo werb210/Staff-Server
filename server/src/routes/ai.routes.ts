@@ -2,7 +2,7 @@ import { Router } from "express";
 import {
   generateAISummary,
   generateAIInsights,
-} from "../controllers/ai/aiController.js";
+} from "../controllers/index.js";
 
 const router = Router();
 

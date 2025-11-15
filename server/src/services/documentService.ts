@@ -1,6 +1,25 @@
 import { db } from "../db.js";
 import { uuid } from "../utils/uuid.js";
-import type { DocumentRecord, Silo } from "../types/documents.js";
+import type { DocumentRecord, Silo } from "../types/index.js";
+
+type DocumentCreateInput = {
+  applicationId: string;
+  name: string;
+  mimeType: string;
+  sizeBytes: number;
+} & Partial<
+  Omit<
+    DocumentRecord,
+    | "id"
+    | "createdAt"
+    | "updatedAt"
+    | "silo"
+    | "applicationId"
+    | "name"
+    | "mimeType"
+    | "sizeBytes"
+  >
+>;
 
 export const documentService = {
   list(appId: string, silo: Silo): DocumentRecord[] {
@@ -11,13 +30,19 @@ export const documentService = {
     return db.documents[silo]?.data.find(d => d.id === id) ?? null;
   },
 
-  create(silo: Silo, data: Omit<DocumentRecord,"id"|"createdAt"|"updatedAt">): DocumentRecord {
+  create(silo: Silo, data: DocumentCreateInput): DocumentRecord {
+    const { applicationId, name, mimeType, sizeBytes, ...rest } = data;
+
     const record: DocumentRecord = {
       id: uuid(),
       createdAt: new Date(),
       updatedAt: new Date(),
-      ...data,
-      silo
+      applicationId,
+      name,
+      mimeType,
+      sizeBytes,
+      silo,
+      ...rest,
     };
     db.documents[silo].data.push(record);
     return record;

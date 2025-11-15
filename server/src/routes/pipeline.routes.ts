@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getPipeline, moveCard } from "../controllers/pipelineController.js";
+import { getPipeline, moveCard } from "../controllers/index.js";
 
 const router = Router({ mergeParams: true });
 

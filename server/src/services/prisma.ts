@@ -1,6 +1,7 @@
-import { db, type Silo } from "./db.js";
+import { db } from "../db.js";
+import type { Silo } from "../types/index.js";
 
-export type { Silo } from "./db.js";
+export type { Silo } from "../types/index.js";
 
 export type UserContext = { id?: string; silos: Silo[] };
 

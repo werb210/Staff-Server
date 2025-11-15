@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
-import type { Silo } from "../services/db.js";
-import { notificationService } from "../services/notificationService.js";
+import type { Silo } from "../types/index.js";
+import { notificationService } from "../services/index.js";
 
 const toSilo = (value: string): Silo => value as Silo;
 

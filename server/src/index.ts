@@ -14,17 +14,18 @@ import serverPackageJson from "../package.json" with { type: "json" };
 
 // Routers (NodeNext requires .js extensions)
 import { errorHandler } from "./middlewares/errorHandler.js";
-import apiRouter from "./routes/index.js";
-import authRouter from "./routes/auth.js";
-import contactsRouter from "./routes/contacts.js";
-import companiesRouter from "./routes/companies.js";
-import dealsRouter from "./routes/deals.js";
-import documentsRouter from "./routes/documents.js";
-import pipelineRouter from "./routes/pipeline.js";
-import communicationRouter from "./routes/communication.js";
+import apiRouter, {
+  authRouter,
+  contactsRouter,
+  companiesRouter,
+  dealsRouter,
+  documentsRouter,
+  pipelineRouter,
+  communicationRouter,
+} from "./routes/index.js";
 
 // In-memory DB (NodeNext requires .js extensions)
-import { db } from "./services/db.js";
+import { db } from "./services/index.js";
 import { describeDatabaseUrl } from "./utils/env.js";
 
 /* -----------------------------------------------------
