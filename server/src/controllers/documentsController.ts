@@ -1,14 +1,26 @@
 // server/src/controllers/documentsController.ts
+
 import type { Request, Response } from "express";
-import { documentService } from "../services/documentService.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
 export const documentsController = {
-  upload: asyncHandler(async (req: Request, res: Response) => {
-    const file = req.file;
-    if (!file) return res.status(400).json({ ok: false, error: "No file" });
+  list: asyncHandler(async (_req: Request, res: Response) => {
+    res.json({ ok: true, data: [] });
+  }),
 
-    const result = await documentService.upload(file.buffer, file.originalname);
-    res.json({ ok: true, uploaded: result });
+  upload: asyncHandler(async (req: Request, res: Response) => {
+    const doc = {
+      id: Date.now().toString(),
+      name: req.body.name,
+    };
+
+    res.status(201).json({ ok: true, data: doc });
+  }),
+
+  getById: asyncHandler(async (req: Request, res: Response) => {
+    res.json({
+      ok: true,
+      data: { id: req.params.id, name: "Demo Document" },
+    });
   }),
 };
