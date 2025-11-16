@@ -4,7 +4,7 @@ import { notificationsService } from "../services/notificationsService.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
 export const notificationsController = {
-  list: asyncHandler(async (_req: Request, res: Response) => {
-    res.json({ ok: true, data: await notificationsService.list() });
+  all: asyncHandler(async (_req: Request, res: Response) => {
+    res.json({ ok: true, data: await notificationsService.all() });
   }),
 };
