@@ -1,5 +1,4 @@
 // server/src/controllers/notificationsController.ts
-
 import type { Request, Response } from "express";
 import { notificationsService } from "../services/notificationsService.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
@@ -10,5 +9,3 @@ export const notificationsController = {
     res.json({ ok: true, data });
   }),
 };
-
-export default notificationsController;
