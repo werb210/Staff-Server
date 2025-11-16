@@ -1,15 +1,15 @@
-// server/src/middlewares/authMiddleware.ts
+// server/src/routes/index.ts
 
-import type { Request, Response, NextFunction } from "express";
+// PUBLIC ROUTES – must be FIRST
+router.use("/health", healthRouter);
+router.use("/ai", aiRouter);
 
-export function authMiddleware(req: Request, res: Response, next: NextFunction) {
-  const auth = req.headers.authorization;
+// PROTECTED ROUTES
+router.use(authMiddleware);
+router.use("/applications", applicationsRouter);
+router.use("/documents", documentsRouter);
+router.use("/lenders", lendersRouter);
+router.use("/notifications", notificationsRouter);
 
-  if (!auth) {
-    return res.status(401).json({ ok: false, error: "Unauthorized" });
-  }
-
-  next();
-}
-
-export default authMiddleware;
+// SILO ROUTES
+router.use("/:silo", siloGuard, applicationsRouter);
