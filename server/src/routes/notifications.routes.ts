@@ -4,6 +4,6 @@ import { notificationsController } from "../controllers/notificationsController.
 
 const router = Router();
 
-router.get("/", notificationsController.list);
+router.get("/", notificationsController.all);
 
 export default router;
