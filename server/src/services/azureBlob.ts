@@ -1,148 +1,125 @@
+// server/src/services/azureBlob.ts
 import {
-  BlobSASPermissions,
   BlobServiceClient,
-  ContainerClient,
-  SASProtocol,
   StorageSharedKeyCredential,
   generateBlobSASQueryParameters,
+  BlobSASPermissions,
 } from "@azure/storage-blob";
+import env from "../utils/env.js";
+import { Readable } from "stream";
 
-const parseConnectionString = (value: string) => {
-  const entries = value
-    .split(";")
-    .map((part) => part.split("=", 2))
-    .filter((tuple): tuple is [string, string] => tuple.length === 2 && tuple[0].length > 0);
-  return Object.fromEntries(entries) as Record<string, string>;
-};
+// -----------------------------------------------------
+// INIT AZURE BLOB SERVICE
+// -----------------------------------------------------
+const connectionString = env.AZURE_BLOB_CONNECTION_STRING;
+const containerName = env.AZURE_BLOB_CONTAINER;
 
-interface ClientBundle {
-  containerName: string;
-  containerClient: ContainerClient;
-  sharedKeyCredential: StorageSharedKeyCredential | null;
+if (!connectionString) throw new Error("Missing AZURE_BLOB_CONNECTION_STRING");
+if (!containerName) throw new Error("Missing AZURE_BLOB_CONTAINER");
+
+// parse account + key from connection string
+function parseConnectionString(cs: string) {
+  const parts = cs.split(";");
+  const account = parts.find((p) => p.startsWith("AccountName="))?.split("=")[1];
+  const key = parts.find((p) => p.startsWith("AccountKey="))?.split("=")[1];
+  if (!account || !key) throw new Error("Invalid Azure connection string");
+  return { account, key };
 }
 
-let cachedBundle: ClientBundle | null = null;
+const { account, key } = parseConnectionString(connectionString);
+const sharedKey = new StorageSharedKeyCredential(account, key);
 
-const resolveClients = (): ClientBundle => {
-  if (cachedBundle) return cachedBundle;
+const blobService = BlobServiceClient.fromConnectionString(connectionString);
+const container = blobService.getContainerClient(containerName);
 
-  const connectionString =
-    process.env.AZURE_STORAGE_CONNECTION ?? process.env.AZURE_STORAGE_CONNECTION_STRING;
-  if (!connectionString) {
-    throw new Error("AZURE_STORAGE_CONNECTION is required for blob operations");
-  }
+// Ensure container exists
+export async function ensureContainer() {
+  await container.createIfNotExists();
+}
 
-  const containerName = process.env.AZURE_BLOB_CONTAINER ?? "documents";
-  const blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
-  const containerClient = blobServiceClient.getContainerClient(containerName);
-
-  const connectionParts = parseConnectionString(connectionString);
-  const accountName =
-    connectionParts.AccountName ?? process.env.AZURE_STORAGE_ACCOUNT ?? "";
-  const accountKey = connectionParts.AccountKey ?? process.env.AZURE_STORAGE_KEY ?? "";
-
-  const sharedKeyCredential =
-    accountName && accountKey
-      ? new StorageSharedKeyCredential(accountName, accountKey)
-      : null;
-
-  cachedBundle = { containerName, containerClient, sharedKeyCredential };
-  return cachedBundle;
-};
-
-const ensureContainer = async () => {
-  const { containerClient } = resolveClients();
-  await containerClient.createIfNotExists();
-};
-
-const streamToBuffer = async (readable: NodeJS.ReadableStream | null | undefined) => {
-  if (!readable) return Buffer.alloc(0);
-  const chunks: Buffer[] = [];
-  for await (const chunk of readable) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  }
-  return Buffer.concat(chunks);
-};
-
-export const uploadBufferToAzure = async (
-  buffer: Buffer,
+// -----------------------------------------------------
+// UPLOAD BUFFER
+// -----------------------------------------------------
+export async function uploadBuffer(
   key: string,
-  mime: string,
-) => {
-  const { containerClient } = resolveClients();
+  data: Buffer,
+  contentType: string
+): Promise<string> {
   await ensureContainer();
-  const blob = containerClient.getBlockBlobClient(key);
-  await blob.uploadData(buffer, { blobHTTPHeaders: { blobContentType: mime } });
-  return blob.url;
-};
+  const block = container.getBlockBlobClient(key);
 
-export const downloadBufferFromAzure = async (key: string) => {
-  const { containerClient } = resolveClients();
-  await ensureContainer();
-  const blob = containerClient.getBlockBlobClient(key);
-  const response = await blob.download();
-  return streamToBuffer(response.readableStreamBody);
-};
+  await block.uploadData(data, {
+    blobHTTPHeaders: {
+      blobContentType: contentType,
+    },
+  });
 
-export const getBlobUrl = (key: string) => {
-  const { containerClient } = resolveClients();
-  const blob = containerClient.getBlockBlobClient(key);
-  return blob.url;
-};
+  return key;
+}
 
-const ensureSharedKey = () => {
-  const { sharedKeyCredential } = resolveClients();
-  if (!sharedKeyCredential) {
-    throw new Error(
-      "Azure Storage shared key credentials are required to generate SAS URLs",
-    );
+// -----------------------------------------------------
+// DOWNLOAD AS RAW BUFFER
+// -----------------------------------------------------
+export async function getBuffer(key: string): Promise<Buffer | null> {
+  const block = container.getBlockBlobClient(key);
+  if (!(await block.exists())) return null;
+
+  const dl = await block.download();
+  const chunks: Uint8Array[] = [];
+
+  for await (const chunk of dl.readableStreamBody as any) {
+    chunks.push(chunk instanceof Buffer ? new Uint8Array(chunk) : chunk);
   }
-  return sharedKeyCredential;
-};
 
-const generateBlobSasUrl = (
+  const total = chunks.reduce((acc, c) => acc + c.length, 0);
+  const buf = Buffer.alloc(total);
+  let offset = 0;
+
+  for (const chunk of chunks) {
+    buf.set(chunk, offset);
+    offset += chunk.length;
+  }
+
+  return buf;
+}
+
+// -----------------------------------------------------
+// STREAM FOR PREVIEW
+// -----------------------------------------------------
+export async function getStream(key: string): Promise<Readable | null> {
+  const block = container.getBlockBlobClient(key);
+  if (!(await block.exists())) return null;
+
+  const dl = await block.download();
+  return dl.readableStreamBody as Readable;
+}
+
+// -----------------------------------------------------
+// GET SAS (SIGNED URL)
+// -----------------------------------------------------
+export async function getPresignedUrl(
   key: string,
-  permissions: BlobSASPermissions,
-  expiresInSeconds = 15 * 60,
-) => {
-  const { containerClient, containerName } = resolveClients();
-  const credential = ensureSharedKey();
-  const blobClient = containerClient.getBlockBlobClient(key);
-  const expiresOn = new Date(Date.now() + expiresInSeconds * 1000);
-  const startsOn = new Date(Date.now() - 60 * 1000);
+  expiresInSeconds = 3600
+): Promise<string> {
+  const block = container.getBlockBlobClient(key);
 
   const sas = generateBlobSASQueryParameters(
     {
       containerName,
       blobName: key,
-      permissions,
-      protocol: SASProtocol.Https,
-      startsOn,
-      expiresOn,
+      permissions: BlobSASPermissions.parse("r"),
+      expiresOn: new Date(Date.now() + expiresInSeconds * 1000),
     },
-    credential,
-  );
+    sharedKey
+  ).toString();
 
-  return `${blobClient.url}?${sas.toString()}`;
+  return `${block.url}?${sas}`;
+}
+
+// EXPORT DEFAULT
+export default {
+  uploadBuffer,
+  getBuffer,
+  getStream,
+  getPresignedUrl,
 };
-
-export const generateUploadSasUrl = (key: string, expiresInSeconds?: number) =>
-  generateBlobSasUrl(
-    key,
-    BlobSASPermissions.parse("cw"),
-    expiresInSeconds,
-  );
-
-export const generateDownloadSasUrl = (key: string, expiresInSeconds?: number) =>
-  generateBlobSasUrl(
-    key,
-    BlobSASPermissions.parse("r"),
-    expiresInSeconds,
-  );
-
-// Backwards compatible names
-export const uploadBuffer = async (key: string, buffer: Buffer, mime: string) =>
-  uploadBufferToAzure(buffer, key, mime);
-
-export const downloadBuffer = async (key: string) =>
-  downloadBufferFromAzure(key);

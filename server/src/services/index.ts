@@ -1,19 +1,30 @@
-export * from "./aiService.js";
-export * from "./applicationService.js";
-export * from "./auditService.js";
+// Unified service exports for Staff Server
+
 export * from "./authService.js";
 export * from "./azureBlob.js";
-export * from "./callsService.js";
-export * from "./communicationProviders.js";
-export * from "./communicationTypes.js";
-export * from "./db.js";
-export * from "./documentService.js";
-export * from "./emailService.js";
-export * from "./lenderService.js";
+
+// Lenders (correct folder path)
 export * from "./lenders/lenderService.js";
-export * from "./notificationService.js";
-export * from "./pipelineService.js";
-export * from "./prisma.js";
-export * from "./prismaClient.js";
-export * from "./smsService.js";
-export * from "./userService.js";
+
+// Applications
+export * from "./applications/applicationsService.js";
+
+// Documents
+export * from "./documents/documentService.js";
+
+// Notifications
+export * from "./notifications/notificationService.js";
+
+// Pipeline
+export * from "./pipeline/pipelineService.js";
+
+// Communication
+export * from "./communication/communicationService.js";
+
+// Contacts / Companies / Deals (if present)
+export * from "./contacts/contactsService.js";
+export * from "./companies/companiesService.js";
+export * from "./deals/dealsService.js";
+
+// AI
+export * from "./ai/aiService.js";

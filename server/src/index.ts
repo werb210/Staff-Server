@@ -1,222 +1,104 @@
+// server/src/index.ts
+
 import "dotenv/config";
-import express, {
-  type RequestHandler,
-  type Request,
-  type Response,
-} from "express";
+import express from "express";
+import path from "path";
+import { fileURLToPath } from "url";
 import cors from "cors";
-import helmet from "helmet";
-import compression from "compression";
 import bodyParser from "body-parser";
-import morgan from "morgan";
 
-import serverPackageJson from "../package.json" with { type: "json" };
+import env from "./utils/env.js";
+import { registry } from "./db/registry.js";
+import apiRouter from "./routes/index.js";
 
-// Routers (NodeNext requires .js extensions)
-import { errorHandler } from "./middlewares/errorHandler.js";
-import apiRouter, {
-  authRouter,
-  contactsRouter,
-  companiesRouter,
-  dealsRouter,
-  documentsRouter,
-  pipelineRouter,
-  communicationRouter,
-} from "./routes/index.js";
+// ------------------------------------------------------------------
+// FIX: __dirname for ESM
+// ------------------------------------------------------------------
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-// In-memory DB (NodeNext requires .js extensions)
-import { db } from "./services/index.js";
-import type { Table } from "./services/db.js";
-import { describeDatabaseUrl } from "./utils/env.js";
-
-/* -----------------------------------------------------
-   SAFE TABLE ACCESSOR
------------------------------------------------------ */
-
-const toTableArray = <T>(
-  tableOrTables: Table<T> | Table<T>[] | null | undefined
-): Table<T>[] => {
-  if (!tableOrTables) {
-    return [];
-  }
-
-  return Array.isArray(tableOrTables) ? tableOrTables : [tableOrTables];
-};
-
-const getTableCount = <T>(
-  tableOrTables: Table<T> | Table<T>[] | null | undefined
-): number => {
-  return toTableArray(tableOrTables).reduce((count, table) => {
-    if (!Array.isArray(table.data)) {
-      return count;
-    }
-
-    return count + table.data.length;
-  }, 0);
-};
-
-const getTableRows = <T>(
-  tableOrTables: Table<T> | Table<T>[] | null | undefined
-): T[] => {
-  return toTableArray(tableOrTables).flatMap((table) => {
-    if (!Array.isArray(table.data)) {
-      return [];
-    }
-
-    return table.data;
-  });
-};
-
-/* -----------------------------------------------------
-   APP INIT
------------------------------------------------------ */
-
+// ------------------------------------------------------------------
+// APP INIT
+// ------------------------------------------------------------------
 const app = express();
-const SERVICE_NAME = "staff-backend";
-const PORT = Number(process.env.PORT || 5000);
+const PORT = env.PORT || 5000;
 
-/* -----------------------------------------------------
-   ENV VALIDATION
------------------------------------------------------ */
+// ------------------------------------------------------------------
+// CORS — PRODUCTION SAFE
+// ------------------------------------------------------------------
+//
+// Azure App Service requires explicit origin settings.
+// Replace with your true production UI domain.
+//
+const PROD_ORIGIN = "https://staff.boreal.financial";
 
-if (!process.env.DATABASE_URL) {
-  console.warn(
-    "⚠️  Warning: DATABASE_URL is not set. Using in-memory database only."
-  );
-}
+app.use(
+  cors({
+    origin: PROD_ORIGIN,
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
 
-/* -----------------------------------------------------
-   MIDDLEWARE
------------------------------------------------------ */
+// ------------------------------------------------------------------
+// BODY PARSERS
+// ------------------------------------------------------------------
+app.use(bodyParser.json({ limit: "20mb" }));
+app.use(express.urlencoded({ extended: true, limit: "20mb" }));
 
-app.use(cors({ origin: true, credentials: true }));
-app.use(helmet() as unknown as RequestHandler);
-app.use(compression() as unknown as RequestHandler);
-app.use(bodyParser.json({ limit: "25mb" }));
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(morgan("combined"));
-
-/* -----------------------------------------------------
-   ROOT ROUTE
------------------------------------------------------ */
-
-app.get("/", (_req: Request, res: Response) => {
-  res.send("Staff API is running");
+// ------------------------------------------------------------------
+// INTERNAL HEALTH ENDPOINTS
+// ------------------------------------------------------------------
+app.get("/api/_int/health", (_, res) => {
+  res.status(200).json({ ok: true, ts: Date.now() });
 });
 
-/* -----------------------------------------------------
-   PUBLIC HEALTH
------------------------------------------------------ */
+app.get("/api/_int/build", (_, res) => {
+  res.status(200).json({ ok: true, source: "build-check" });
+});
 
-app.get("/api/health", (_req: Request, res: Response) => {
-  res.status(200).json({
-    status: "ok",
-    service: SERVICE_NAME,
-    time: new Date().toISOString(),
+app.get("/api/_int/db", async (_, res) => {
+  try {
+    const now = await registry.system.query("SELECT NOW()");
+    res.status(200).json({ ok: true, dbTime: now.rows[0] });
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// DEBUG: list all registered routes
+app.get("/api/_int/routes", (_, res) => {
+  const routes: any[] = [];
+
+  app._router.stack.forEach((middleware: any) => {
+    if (middleware.route) {
+      routes.push(middleware.route.path);
+    } else if (middleware.name === "router" && middleware.handle.stack) {
+      middleware.handle.stack.forEach((handler: any) => {
+        if (handler.route) routes.push(handler.route.path);
+      });
+    }
   });
+
+  res.status(200).json({ ok: true, routes });
 });
 
-/* -----------------------------------------------------
-   PUBLIC APPLICATIONS LIST
------------------------------------------------------ */
-
-app.get("/api/applications", (_req: Request, res: Response) => {
-  const apps = getTableRows(Object.values(db.applications));
-  res.status(200).json({
-    status: "ok",
-    applications: apps,
-  });
-});
-
-/* -----------------------------------------------------
-   INTERNAL HEALTH / BUILD INFO / ROUTE MAP
------------------------------------------------------ */
-
-app.get("/api/_int/health", (_req, res) => {
-  res.status(200).json({
-    ok: true,
-    service: SERVICE_NAME,
-    time: new Date().toISOString(),
-  });
-});
-
-app.get("/api/_int/build", (_req, res) => {
-  res.status(200).json({
-    ok: true,
-    service: SERVICE_NAME,
-    version: serverPackageJson.version ?? "0.0.0",
-    environment: process.env.NODE_ENV ?? "development",
-    node: process.version,
-    commit: process.env.GIT_COMMIT_SHA ?? null,
-    buildTime: process.env.BUILD_TIME ?? new Date().toISOString(),
-  });
-});
-
-app.get("/api/_int/db", (_req, res) => {
-  const metadata = describeDatabaseUrl(process.env.DATABASE_URL);
-  res.status(200).json({
-    ok: true,
-    service: SERVICE_NAME,
-    connection: metadata,
-    tables: {
-      applications: getTableCount(Object.values(db.applications)),
-      documents: getTableCount(Object.values(db.documents)),
-      lenders: getTableCount(Object.values(db.lenders)),
-      pipeline: getTableCount(Object.values(db.pipeline)),
-      communications: getTableCount(Object.values(db.communications)),
-      notifications: getTableCount(Object.values(db.notifications)),
-      users: getTableCount(db.users),
-      auditLogs: db.auditLogs.length,
-    },
-  });
-});
-
-app.get("/api/_int/routes", (_req, res) => {
-  res.status(200).json({
-    ok: true,
-    mounted: [
-      "/api/health",
-      "/api/applications",
-      "/api/auth",
-      "/api/contacts",
-      "/api/companies",
-      "/api/deals",
-      "/api/pipeline",
-      "/api/documents",
-      "/api/comm",
-      "/api/:silo/applications",
-      "/api/:silo/lenders",
-      "/api/:silo/pipeline",
-      "/api/:silo/notifications",
-    ],
-  });
-});
-
-/* -----------------------------------------------------
-   API ROUTERS
------------------------------------------------------ */
-
-app.use("/api/auth", authRouter);
-app.use("/api/contacts", contactsRouter);
-app.use("/api/companies", companiesRouter);
-app.use("/api/deals", dealsRouter);
-app.use("/api/pipeline", pipelineRouter);
-app.use("/api/documents", documentsRouter);
-app.use("/api/comm", communicationRouter);
-
-// Multi-tenant
+// ------------------------------------------------------------------
+// MAIN API ROUTER
+// ------------------------------------------------------------------
 app.use("/api", apiRouter);
 
-/* -----------------------------------------------------
-   GLOBAL ERROR HANDLER
------------------------------------------------------ */
+// ------------------------------------------------------------------
+// ROOT
+// ------------------------------------------------------------------
+app.get("/", (_, res) => {
+  res.status(200).send("Boreal Staff API is running");
+});
 
-app.use(errorHandler);
-
-/* -----------------------------------------------------
-   START SERVER
------------------------------------------------------ */
-
+// ------------------------------------------------------------------
+// START SERVER
+// ------------------------------------------------------------------
 app.listen(PORT, () => {
   console.log(`🚀 Staff API running on port ${PORT}`);
 });

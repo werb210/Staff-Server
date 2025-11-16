@@ -1,194 +1,164 @@
-import type { Request, Response } from "express";
-import JSZip from "jszip";
-import type { Silo } from "../types/index.js";
-import { documentService } from "../services/index.js";
+// server/src/controllers/documentsController.ts
 
-/* -----------------------------------------------------
-   LOCAL FALLBACK TYPES
------------------------------------------------------ */
+import { Request, Response } from "express";
+import { registry } from "../db/registry.js";
+import {
+  uploadBuffer,
+  getPresignedUrl,
+  getStream,
+} from "../services/azureBlob.js";
+import { v4 as uuid } from "uuid";
 
-interface UploadedFile {
-  fieldname: string;
-  originalname: string;
-  encoding: string;
-  mimetype: string;
-  size: number;
-  destination?: string;
-  filename?: string;
-  path?: string;
-  buffer: Buffer;
-  stream?: NodeJS.ReadableStream;
+interface FileUploadRequest extends Request {
+  file?: Express.Multer.File;
 }
 
-type TypedRequestWithFile = Request & {
-  file?: UploadedFile;
-  user?: { id?: string };
-};
-
-/** Convert string → Silo (no validation here) */
-const asSilo = (v: string): Silo => v as Silo;
-
-/* -----------------------------------------------------
-   UPLOAD DOCUMENT (NO MULTER)
------------------------------------------------------ */
-
-export const uploadDocument = async (
-  req: TypedRequestWithFile,
+/**
+ * POST /api/documents/upload
+ */
+export async function uploadDocument(
+  req: FileUploadRequest,
   res: Response
-) => {
-  const silo = asSilo(req.params.silo);
-  const appId = req.params.appId;
+) {
+  try {
+    const { applicationId } = req.body;
 
-  if (!req.file) {
-    return res.status(400).json({
-      error:
-        "File upload unavailable — multer is not installed in this environment",
-    });
-  }
-
-  const doc = documentService.create(silo, {
-    applicationId: appId,
-    name: req.file.originalname,
-    mimeType: req.file.mimetype,
-    sizeBytes: req.file.size,
-    content: req.file.buffer,
-  });
-
-  return res.status(201).json(doc);
-};
-
-/* -----------------------------------------------------
-   GET DOCUMENT METADATA
------------------------------------------------------ */
-
-export const getDocument = async (req: Request, res: Response) => {
-  const silo = asSilo(req.params.silo);
-  const id = req.params.id;
-
-  const doc = documentService.get(id, silo);
-  if (!doc) return res.status(404).json({ error: "Not found" });
-
-  return res.json(doc);
-};
-
-/* -----------------------------------------------------
-   PREVIEW DOCUMENT (INLINE)
------------------------------------------------------ */
-
-export const previewDocument = async (req: Request, res: Response) => {
-  const silo = asSilo(req.params.silo);
-  const id = req.params.id;
-
-  const file = documentService.get(id, silo);
-  if (!file || !file.content) {
-    return res.status(404).json({ error: "Not found" });
-  }
-
-  res.setHeader("Content-Type", file.mimeType ?? "application/octet-stream");
-  return res.send(file.content);
-};
-
-/* -----------------------------------------------------
-   DOWNLOAD SINGLE DOCUMENT
------------------------------------------------------ */
-
-export const downloadDocumentHandler = async (
-  req: Request,
-  res: Response
-) => {
-  const silo = asSilo(req.params.silo);
-  const id = req.params.id;
-
-  const file = documentService.get(id, silo);
-  if (!file || !file.content) {
-    return res.status(404).json({ error: "Not found" });
-  }
-
-  res.setHeader("Content-Type", file.mimeType ?? "application/octet-stream");
-  res.setHeader(
-    "Content-Disposition",
-    `attachment; filename="${file.name ?? "document"}"`
-  );
-
-  return res.send(file.content);
-};
-
-/* -----------------------------------------------------
-   ACCEPT DOCUMENT
------------------------------------------------------ */
-
-export const acceptDocumentHandler = async (
-  req: TypedRequestWithFile,
-  res: Response
-) => {
-  const silo = asSilo(req.params.silo);
-  const id = req.params.id;
-
-  const updated = documentService.update(silo, id, {
-    accepted: true,
-    acceptedBy: req.user?.id ?? "system",
-    rejected: false,
-    rejectedBy: null,
-  });
-
-  if (!updated) return res.status(404).json({ error: "Not found" });
-
-  return res.json(updated);
-};
-
-/* -----------------------------------------------------
-   REJECT DOCUMENT
------------------------------------------------------ */
-
-export const rejectDocumentHandler = async (
-  req: TypedRequestWithFile,
-  res: Response
-) => {
-  const silo = asSilo(req.params.silo);
-  const id = req.params.id;
-
-  const updated = documentService.update(silo, id, {
-    rejected: true,
-    rejectedBy: req.user?.id ?? "system",
-    accepted: false,
-    acceptedBy: null,
-  });
-
-  if (!updated) return res.status(404).json({ error: "Not found" });
-
-  return res.json(updated);
-};
-
-/* -----------------------------------------------------
-   DOWNLOAD ALL DOCUMENTS (ZIP)
------------------------------------------------------ */
-
-export const downloadAllDocumentsHandler = async (
-  req: Request,
-  res: Response
-) => {
-  const silo = asSilo(req.params.silo);
-  const appId = req.params.appId;
-
-  const docs = documentService.list(appId, silo);
-  if (docs.length === 0) {
-    return res.status(404).json({ error: "Not found" });
-  }
-
-  const zip = new JSZip();
-  docs.forEach((doc) => {
-    if (doc.content) {
-      zip.file(doc.name ?? `${doc.id}.bin`, doc.content);
+    if (!applicationId || typeof applicationId !== "string") {
+      return res.status(400).json({ error: "Missing or invalid applicationId" });
     }
-  });
 
-  const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
 
-  res.setHeader("Content-Type", "application/zip");
-  res.setHeader(
-    "Content-Disposition",
-    `attachment; filename="${appId}-documents.zip"`
-  );
+    const file = req.file;
+    const documentId = uuid();
 
-  return res.send(zipBuffer);
+    const blobKey = `apps/${applicationId}/${documentId}/${Date.now()}-${file.originalname}`;
+
+    // Upload to Azure Blob
+    await uploadBuffer(blobKey, file.buffer, file.mimetype || "application/octet-stream");
+
+    // Persist DB record
+    const saved = await registry.documents.insert({
+      applicationId,
+      name: file.originalname,
+      mimeType: file.mimetype || "application/octet-stream",
+      sizeBytes: file.size,
+      blobKey,
+    });
+
+    return res.status(201).json(saved);
+  } catch (err: any) {
+    console.error("Upload document error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+/**
+ * GET /api/documents/:applicationId
+ */
+export async function listDocuments(req: Request, res: Response) {
+  try {
+    const { applicationId } = req.params;
+
+    if (!applicationId) {
+      return res.status(400).json({ error: "Missing applicationId" });
+    }
+
+    const docs = await registry.documents.findMany({
+      where: { applicationId },
+      orderBy: { createdAt: "asc" },
+    });
+
+    return res.json(docs);
+  } catch (err: any) {
+    console.error("List documents error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+/**
+ * GET /api/documents/download/:documentId
+ */
+export async function getDownloadUrl(req: Request, res: Response) {
+  try {
+    const { documentId } = req.params;
+
+    if (!documentId) {
+      return res.status(400).json({ error: "Missing documentId" });
+    }
+
+    const doc = await registry.documents.findUnique({
+      where: { id: documentId },
+    });
+
+    if (!doc || !doc.blobKey) {
+      return res.status(404).json({ error: "Document not found" });
+    }
+
+    const url = await getPresignedUrl(doc.blobKey);
+    return res.json({ url });
+  } catch (err: any) {
+    console.error("Get download URL error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+/**
+ * GET /api/documents/content/:documentId
+ */
+export async function getDocumentContent(req: Request, res: Response) {
+  try {
+    const { documentId } = req.params;
+
+    const doc = await registry.documents.findUnique({
+      where: { id: documentId },
+    });
+
+    if (!doc || !doc.blobKey) {
+      return res.status(404).json({ error: "Document not found" });
+    }
+
+    const stream = await getStream(doc.blobKey);
+    if (!stream) return res.status(404).json({ error: "Blob not found" });
+
+    res.setHeader("Content-Type", doc.mimeType || "application/octet-stream");
+    stream.pipe(res);
+  } catch (err: any) {
+    console.error("Get document content error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+/**
+ * DELETE /api/documents/:documentId
+ */
+export async function deleteDocument(req: Request, res: Response) {
+  try {
+    const { documentId } = req.params;
+
+    const doc = await registry.documents.findUnique({
+      where: { id: documentId },
+    });
+
+    if (!doc) {
+      return res.status(404).json({ error: "Document not found" });
+    }
+
+    await registry.documents.delete({ where: { id: documentId } });
+
+    return res.status(204).send();
+  } catch (err: any) {
+    console.error("Delete document error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+export default {
+  uploadDocument,
+  listDocuments,
+  getDownloadUrl,
+  getDocumentContent,
+  deleteDocument,
 };

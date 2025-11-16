@@ -1,65 +1,37 @@
-// -----------------------------------------------------
-// Silo-scoped application routes
-// Mounted at: /api/:silo/applications
-// -----------------------------------------------------
+// server/src/routes/applications.routes.ts
+import { Router } from "express";
 
-import { Router, Request, Response, NextFunction } from "express";
+// Controllers (tsc will output .js in dist/)
 import {
-  getApplications,
   createApplication,
   getApplicationById,
   updateApplication,
+  listApplications,
   deleteApplication,
-} from "../controllers/index.js";
+} from "../controllers/applicationsController.js";
 
-// Router inherits :silo from parent (/api/:silo)
-const router = Router({ mergeParams: true });
+const router = Router();
 
-// -----------------------------------------------------
-// Strict async wrapper
-// -----------------------------------------------------
-type AsyncRouteHandler = (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => Promise<unknown>;
+/**
+ * ----------------------------------------------------
+ * APPLICATION ROUTES
+ * ----------------------------------------------------
+ * These routes handle CRUD operations for funding applications.
+ */
 
-const wrap =
-  (fn: AsyncRouteHandler) =>
-  (req: Request, res: Response, next: NextFunction): void => {
-    void Promise.resolve(fn(req, res, next)).catch(next);
-  };
+// GET /applications
+router.get("/", listApplications);
 
-// -----------------------------------------------------
-// Validate :appId param (strict TS signature)
-// -----------------------------------------------------
-router.param(
-  "appId",
-  (
-    req: Request,
-    res: Response,
-    next: NextFunction,
-    value: string
-  ): void => {
-    if (!value || typeof value !== "string" || value.length < 8) {
-      res.status(400).json({
-        ok: false,
-        error: "Invalid application ID",
-        received: value,
-      });
-      return;
-    }
-    next();
-  }
-);
+// POST /applications
+router.post("/", createApplication);
 
-// -----------------------------------------------------
-// ROUTES
-// -----------------------------------------------------
-router.get("/", wrap(getApplications));
-router.post("/", wrap(createApplication));
-router.get("/:appId", wrap(getApplicationById));
-router.put("/:appId", wrap(updateApplication));
-router.delete("/:appId", wrap(deleteApplication));
+// GET /applications/:id
+router.get("/:id", getApplicationById);
+
+// PUT /applications/:id
+router.put("/:id", updateApplication);
+
+// DELETE /applications/:id
+router.delete("/:id", deleteApplication);
 
 export default router;

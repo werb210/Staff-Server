@@ -1,70 +1,77 @@
-// routes/index.ts
-// -----------------------------------------------------
-// Unified API router for silo + non-silo routes.
-// All global middleware is mounted in index.ts.
-// -----------------------------------------------------
-
-export * from "./ai.routes.js";
-export * from "./applications.routes.js";
-export * from "./auth.js";
-export * from "./communication.js";
-export * from "./companies.js";
-export * from "./contacts.js";
-export * from "./deals.js";
-export * from "./documents.js";
-export * from "./lenders.routes.js";
-export * from "./notifications.routes.js";
-export * from "./pipeline.routes.js";
-export * from "./pipeline.js";
-
-export { default as aiRouter } from "./ai.routes.js";
-export { default as applicationsRouter } from "./applications.routes.js";
-export { default as authRouter } from "./auth.js";
-export { default as communicationRouter } from "./communication.js";
-export { default as companiesRouter } from "./companies.js";
-export { default as contactsRouter } from "./contacts.js";
-export { default as dealsRouter } from "./deals.js";
-export { default as documentsRouter } from "./documents.js";
-export { default as lendersRouter } from "./lenders.routes.js";
-export { default as notificationsRouter } from "./notifications.routes.js";
-export { default as pipelineRouter } from "./pipeline.routes.js";
-export { default as pipelineLegacyRouter } from "./pipeline.js";
-
+// server/src/routes/index.ts
 import { Router } from "express";
-import { authMiddleware, siloGuard } from "../middlewares/index.js";
 
-import applicationsRouterDefault from "./applications.routes.js";
-import lendersRouterDefault from "./lenders.routes.js";
-import pipelineRouterDefault from "./pipeline.routes.js";
-import notificationsRouterDefault from "./notifications.routes.js";
-import aiRouterDefault from "./ai.routes.js";
+// Middleware
+import authMiddleware from "../middlewares/auth.js";
+import siloGuard from "../middlewares/siloGuard.js";
+
+// Routers
+import aiRouter from "./ai.routes.js";
+import applicationsRouter from "./applications.routes.js";
+import authRouter from "./auth.js";
+import communicationRouter from "./communication.js";
+import companiesRouter from "./companies.js";
+import contactsRouter from "./contacts.js";
+import dealsRouter from "./deals.js";
+import documentsRouter from "./documents.js";
+import lendersRouter from "./lenders.routes.js";
+import notificationsRouter from "./notifications.routes.js";
+import pipelineRouter from "./pipeline.routes.js";
 
 const router = Router();
 
-// -----------------------------------------------------
-// AUTH REQUIRED FOR ALL ROUTES BELOW
-// -----------------------------------------------------
+/**
+ * ----------------------------------------------------
+ * PUBLIC ROUTES
+ * ----------------------------------------------------
+ */
+router.use("/auth", authRouter);
+
+/**
+ * ----------------------------------------------------
+ * AUTHENTICATED ROUTES
+ * ----------------------------------------------------
+ */
 router.use(authMiddleware);
 
-// -----------------------------------------------------
-// SILO ROUTES: /api/:silo/*
-// -----------------------------------------------------
-const siloRouter = Router({ mergeParams: true });
+/**
+ * ----------------------------------------------------
+ * GLOBAL ROUTES (NO SILO REQUIRED)
+ * ----------------------------------------------------
+ */
+router.use("/ai", aiRouter);
+router.use("/companies", companiesRouter);
+router.use("/contacts", contactsRouter);
+router.use("/deals", dealsRouter);
 
-siloRouter.use("/applications", applicationsRouterDefault);
-siloRouter.use("/lenders", lendersRouterDefault);
-siloRouter.use("/pipeline", pipelineRouterDefault);
-siloRouter.use("/notifications", notificationsRouterDefault);
+/**
+ * ----------------------------------------------------
+ * GLOBAL BUSINESS ROUTES
+ * These operate at top level (BF-only)
+ * ----------------------------------------------------
+ */
+router.use("/applications", applicationsRouter);
+router.use("/documents", documentsRouter);
+router.use("/lenders", lendersRouter);
+router.use("/notifications", notificationsRouter);
+router.use("/communication", communicationRouter);
+router.use("/pipeline", pipelineRouter);
 
-// Example:
-// /api/bf/applications
-// /api/slf/lenders
-router.use("/:silo", siloGuard, siloRouter);
+/**
+ * ----------------------------------------------------
+ * SILO ROUTES (SLF / BF)
+ * Same routers but silo-guarded
+ * ----------------------------------------------------
+ */
+const siloRoutes = Router();
+siloRoutes.use(siloGuard);
+siloRoutes.use("/applications", applicationsRouter);
+siloRoutes.use("/documents", documentsRouter);
+siloRoutes.use("/lenders", lendersRouter);
+siloRoutes.use("/notifications", notificationsRouter);
+siloRoutes.use("/communication", communicationRouter);
+siloRoutes.use("/pipeline", pipelineRouter);
 
-// -----------------------------------------------------
-// NON-SILO AI ROUTES (GLOBAL)
-// Example: /api/ai/summarize
-// -----------------------------------------------------
-router.use("/ai", aiRouterDefault);
+router.use("/:silo", siloRoutes);
 
 export default router;

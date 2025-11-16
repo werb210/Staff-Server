@@ -1,65 +1,36 @@
-export type DatabaseUrlMetadata =
-  | {
-      status: "missing";
-      driver: null;
-      sanitizedUrl: null;
-      host: null;
-      port: null;
-    }
-  | {
-      status: "invalid";
-      driver: null;
-      sanitizedUrl: string;
-      host: null;
-      port: null;
-    }
-  | {
-      status: "ok";
-      driver: string;
-      sanitizedUrl: string;
-      host: string | null;
-      port: string | null;
-    };
+// server/src/utils/env.ts
 
-const REDACTED = "****";
+import dotenv from "dotenv";
+dotenv.config();
 
-export function describeDatabaseUrl(value: string | undefined): DatabaseUrlMetadata {
+/**
+ * Centralized environment variable loader.
+ * Ensures all required env vars exist and provides typed access.
+ */
+function requireEnv(name: string): string {
+  const value = process.env[name];
   if (!value) {
-    return {
-      status: "missing",
-      driver: null,
-      sanitizedUrl: null,
-      host: null,
-      port: null,
-    };
+    throw new Error(`Missing required environment variable: ${name}`);
   }
-
-  try {
-    const parsed = new URL(value);
-    const driver = parsed.protocol.replace(/:$/, "");
-
-    if (parsed.password) {
-      parsed.password = REDACTED;
-    }
-
-    if (parsed.username) {
-      parsed.username = REDACTED;
-    }
-
-    return {
-      status: "ok",
-      driver,
-      sanitizedUrl: parsed.toString(),
-      host: parsed.hostname || null,
-      port: parsed.port || null,
-    };
-  } catch (error) {
-    return {
-      status: "invalid",
-      driver: null,
-      sanitizedUrl: value,
-      host: null,
-      port: null,
-    };
-  }
+  return value;
 }
+
+const env = {
+  NODE_ENV: process.env.NODE_ENV ?? "development",
+
+  // Database
+  DATABASE_URL: requireEnv("DATABASE_URL"),
+
+  // JWT
+  JWT_SECRET: requireEnv("JWT_SECRET"),
+  JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN ?? "7d",
+
+  // Azure Blob Storage
+  AZURE_BLOB_CONNECTION_STRING: requireEnv("AZURE_BLOB_CONNECTION_STRING"),
+  AZURE_BLOB_CONTAINER: requireEnv("AZURE_BLOB_CONTAINER"),
+
+  // Server
+  PORT: process.env.PORT ?? "5000",
+};
+
+export default env;

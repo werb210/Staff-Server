@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx --watch server/src/index.ts",
-    "build": "tsc -p server/tsconfig.json",
-    "start": "node server/dist/index.js",
+    "build": "tsc -p server/tsconfig.json --outDir dist/server/src",
+    "start": "node dist/server/src/index.js",
     "typecheck": "tsc -p server/tsconfig.json --noEmit",
     "test": "echo \"no tests yet\""
   },

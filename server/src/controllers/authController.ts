@@ -1,69 +1,111 @@
-import type { Request, Response } from "express";
+import { Request, Response } from "express";
 import {
-  hashPassword,
-  verifyPassword,
-  findUserByEmail,
-  findUserById,
-  signJwt,
-  sanitizeUser,
-} from "../services/index.js";
-import { requirePrismaClient } from "../services/prismaClient.js";
+  loginUser,
+  getUserById,
+  createUser as createUserService,
+} from "../services/authService.js";
 
+import { sanitizeUser } from "../utils/sanitizeUser.js";
+
+/**
+ * POST /auth/login
+ */
 export async function login(req: Request, res: Response) {
-  const { email, password } = req.body ?? {};
-  if (!email || !password) {
-    return res.status(400).json({ error: "Email and password are required" });
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: "Missing email or password" });
+    }
+
+    const user = await loginUser(email, password);
+    if (!user) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    const ensuredUser = {
+      ...user,
+      name:
+        typeof user.name === "string" && user.name.trim().length > 0
+          ? user.name.trim()
+          : "Unknown User",
+    };
+
+    return res.json(sanitizeUser(ensuredUser));
+  } catch (err: any) {
+    console.error("Login error:", err);
+    return res.status(500).json({ error: "Internal server error" });
   }
-
-  const user = await findUserByEmail(email);
-  if (!user) return res.status(400).json({ error: "Invalid credentials" });
-
-  const valid = await verifyPassword(password, user.passwordHash);
-  if (!valid) return res.status(400).json({ error: "Invalid credentials" });
-
-  const token = signJwt(sanitizeUser(user));
-  return res.json({ token, user: sanitizeUser(user) });
 }
 
-export async function createUser(req: Request, res: Response) {
-  const { email, password, role, silos } = req.body ?? {};
-  if (!email || !password || !role) {
-    return res
-      .status(400)
-      .json({ error: "Email, password, and role are required" });
+/**
+ * GET /auth/me
+ */
+export async function getProfile(req: Request, res: Response) {
+  try {
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const user = await getUserById(userId);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const ensuredUser = {
+      ...user,
+      name:
+        typeof user.name === "string" && user.name.trim().length > 0
+          ? user.name.trim()
+          : "Unknown User",
+    };
+
+    return res.json(sanitizeUser(ensuredUser));
+  } catch (err: any) {
+    console.error("Get profile error:", err);
+    return res.status(500).json({ error: "Internal server error" });
   }
+}
 
-  if (!Array.isArray(silos)) {
-    return res.status(400).json({ error: "Silos must be an array" });
-  }
+/**
+ * POST /auth/users
+ */
+export async function register(req: Request, res: Response) {
+  try {
+    const { email, password, role, silos, name } = req.body;
 
-  const passwordHash = await hashPassword(password);
+    if (!email || !password) {
+      return res.status(400).json({ error: "Missing email or password" });
+    }
 
-  const prisma = await requirePrismaClient();
-  const user = await prisma.user.create({
-    data: {
+    const safeName =
+      typeof name === "string" && name.trim().length > 0
+        ? name.trim()
+        : "Unknown User";
+
+    const newUser = await createUserService({
       email,
-      passwordHash,
-      role,
-      silos,
-    },
-  });
+      password,
+      role: role || "staff",
+      silos: silos || [],
+      name: safeName,
+    });
 
-  return res.json(sanitizeUser(user));
+    const ensuredUser = {
+      ...newUser,
+      name: safeName,
+    };
+
+    return res.status(201).json(sanitizeUser(ensuredUser));
+  } catch (err: any) {
+    console.error("Register error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
 }
 
-export async function me(req: Request, res: Response) {
-  const user = req.user;
-  if (!user) {
-    return res.status(401).json({ error: "Not authenticated" });
-  }
-
-  if (!user.id) return res.json(user);
-
-  const fullUser = await findUserById(user.id);
-  if (!fullUser) {
-    return res.status(404).json({ error: "User not found" });
-  }
-
-  return res.json(sanitizeUser(fullUser));
-}
+export default {
+  login,
+  getProfile,
+  register,
+};

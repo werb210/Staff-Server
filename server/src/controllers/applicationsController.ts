@@ -1,108 +1,83 @@
+// server/src/controllers/applicationsController.ts
+
 import type { Request, Response } from "express";
-import type { Silo } from "../types/index.js";
-import { applicationService } from "../services/index.js";
+import {
+  createApplicationRecord,
+  getApplicationRecordById,
+  updateApplicationRecord,
+  deleteApplicationRecord,
+  listAllApplications,
+} from "../services/applicationService.js";
 
-const toSilo = (value: string): Silo => value as Silo;
+/**
+ * ----------------------------------------------------
+ * CONTROLLER: LIST APPLICATIONS
+ * ----------------------------------------------------
+ */
+export async function listApplications(req: Request, res: Response) {
+  const apps = await listAllApplications();
+  res.json({ ok: true, data: apps });
+}
 
-// -----------------------------------------------------
-// GET ALL APPLICATIONS FOR SILO
-// -----------------------------------------------------
-export const getApplications = async (req: Request, res: Response) => {
-  const silo = toSilo(req.params.silo);
+/**
+ * ----------------------------------------------------
+ * CONTROLLER: CREATE APPLICATION
+ * ----------------------------------------------------
+ */
+export async function createApplication(req: Request, res: Response) {
+  const created = await createApplicationRecord(req.body);
+  res.status(201).json({ ok: true, data: created });
+}
 
-  const apps = applicationService.list(silo);
-  return res.status(200).json({
-    ok: true,
-    silo,
-    count: apps.length,
-    applications: apps,
-  });
-};
+/**
+ * ----------------------------------------------------
+ * CONTROLLER: GET APPLICATION BY ID
+ * ----------------------------------------------------
+ */
+export async function getApplicationById(req: Request, res: Response) {
+  const { id } = req.params;
+  const app = await getApplicationRecordById(id);
 
-// -----------------------------------------------------
-// CREATE APPLICATION
-// -----------------------------------------------------
-export const createApplication = async (req: Request, res: Response) => {
-  const silo = toSilo(req.params.silo);
-  const payload = req.body ?? {};
-
-  const created = applicationService.create(silo, {
-    ...payload,
-    userId: req.user?.id ?? null,
-  });
-
-  return res.status(201).json({
-    ok: true,
-    silo,
-    application: created,
-  });
-};
-
-// -----------------------------------------------------
-// GET BY ID
-// -----------------------------------------------------
-export const getApplicationById = async (req: Request, res: Response) => {
-  const silo = toSilo(req.params.silo);
-  const id = req.params.appId;
-
-  const app = applicationService.get(silo, id);
   if (!app) {
-    return res.status(404).json({
-      ok: false,
-      error: "Application not found",
-      id,
-      silo,
-    });
+    return res.status(404).json({ ok: false, error: "Application not found" });
   }
 
-  return res.status(200).json({
-    ok: true,
-    application: app,
-  });
-};
+  res.json({ ok: true, data: app });
+}
 
-// -----------------------------------------------------
-// UPDATE
-// -----------------------------------------------------
-export const updateApplication = async (req: Request, res: Response) => {
-  const silo = toSilo(req.params.silo);
-  const id = req.params.appId;
+/**
+ * ----------------------------------------------------
+ * CONTROLLER: UPDATE APPLICATION
+ * ----------------------------------------------------
+ */
+export async function updateApplication(req: Request, res: Response) {
+  const { id } = req.params;
+  const updated = await updateApplicationRecord(id, req.body);
 
-  const updated = applicationService.update(silo, id, req.body ?? {});
-  if (!updated) {
-    return res.status(404).json({
-      ok: false,
-      error: "Application not found",
-      id,
-      silo,
-    });
-  }
+  res.json({ ok: true, data: updated });
+}
 
-  return res.status(200).json({
-    ok: true,
-    application: updated,
-  });
-};
+/**
+ * ----------------------------------------------------
+ * CONTROLLER: DELETE APPLICATION
+ * ----------------------------------------------------
+ */
+export async function deleteApplication(req: Request, res: Response) {
+  const { id } = req.params;
 
-// -----------------------------------------------------
-// DELETE
-// -----------------------------------------------------
-export const deleteApplication = async (req: Request, res: Response) => {
-  const silo = toSilo(req.params.silo);
-  const id = req.params.appId;
+  const deleted = await deleteApplicationRecord(id);
+  res.json({ ok: true, data: deleted });
+}
 
-  const deleted = applicationService.delete(silo, id);
-  if (!deleted) {
-    return res.status(404).json({
-      ok: false,
-      error: "Application not found",
-      id,
-      silo,
-    });
-  }
-
-  return res.status(200).json({
-    ok: true,
-    deleted: true,
-  });
+/**
+ * ----------------------------------------------------
+ * DEFAULT EXPORT (for index.ts wildcard)
+ * ----------------------------------------------------
+ */
+export default {
+  listApplications,
+  createApplication,
+  getApplicationById,
+  updateApplication,
+  deleteApplication,
 };

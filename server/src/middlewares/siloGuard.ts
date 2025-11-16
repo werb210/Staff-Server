@@ -1,30 +1,42 @@
-import type { Request, Response, NextFunction } from "express";
+// server/src/middlewares/siloGuard.ts
+import { Response, NextFunction } from "express";
+import { AuthenticatedRequest } from "./auth.js";
 
-/**
- * Enforces silo restriction for all routes.
- *
- * Supports:
- *   /silo/BF
- *   /silo/BI
- *   /silo/SLF
- *
- * If a user is NOT allowed into that silo => 403
- */
-export const siloGuard = (req: Request, res: Response, next: NextFunction) => {
-  const user = req.user;
-  if (!user) return res.status(401).json({ error: "Unauthenticated" });
+export default function siloGuard(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const siloParam = req.params.silo;
 
-  const siloParam = req.params.silo as "BF" | "BI" | "SLF" | undefined;
+    if (!siloParam || typeof siloParam !== "string") {
+      return res.status(400).json({ error: "Missing silo parameter" });
+    }
 
-  // If the route has no :silo param, allow by default (Handled by app layer)
-  if (!siloParam) return next();
+    if (!req.user) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
 
-  if (!user.silos.includes(siloParam)) {
-    return res.status(403).json({
-      error: `Access denied: user does not belong to silo ${siloParam}`,
-      allowed: user.silos,
-    });
+    const userSilos = req.user.silos || [];
+
+    // Normalize both sides
+    const target = siloParam.toLowerCase();
+
+    const allowed = userSilos.some(
+      (s: string) => typeof s === "string" && s.toLowerCase() === target
+    );
+
+    if (!allowed) {
+      return res.status(403).json({
+        error: "Access denied for this silo",
+        silo: siloParam,
+      });
+    }
+
+    return next();
+  } catch (err: any) {
+    console.error("siloGuard error:", err);
+    return res.status(500).json({ error: "Internal server error" });
   }
-
-  return next();
-};
+}

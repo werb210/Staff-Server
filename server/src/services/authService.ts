@@ -1,75 +1,88 @@
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
-import type { JwtUserPayload, Silo, User as DomainUser } from "../types/index.js";
-import { requirePrismaClient } from "./prismaClient.js";
+// server/src/services/authService.ts
+import bcrypt from "bcrypt";
+import { registry } from "../db/registry.js";
+import { StoredUser, Silo } from "../types/user.js";
 
-const JWT_SECRET = process.env.JWT_SECRET || "local-dev-secret";
-
-type StoredUser = DomainUser & { passwordHash: string };
-
-export type PublicUser = Omit<StoredUser, "passwordHash">;
-
-function toPublicUser(user: StoredUser): PublicUser {
-  const { passwordHash, ...rest } = user;
-  return rest;
-}
-
-export async function hashPassword(password: string) {
-  return bcrypt.hash(password, 10);
-}
-
-export async function verifyPassword(password: string, hash: string) {
-  return bcrypt.compare(password, hash);
-}
-
-export function signJwt(user: PublicUser) {
-  const payload: JwtUserPayload = {
-    id: user.id,
-    email: user.email,
-    role: user.role,
-    silos: user.silos,
+/**
+ * Normalize DB row → StoredUser
+ */
+function mapToStoredUser(row: any): StoredUser {
+  return {
+    id: row.id,
+    email: row.email,
+    role: row.role,
+    silos: Array.isArray(row.silos) ? row.silos : [],
+    createdAt: row.created_at ?? row.createdAt,
+    updatedAt: row.updated_at ?? row.updatedAt,
+    passwordHash: row.password_hash ?? row.passwordHash,
+    name:
+      typeof row.name === "string" && row.name.trim().length > 0
+        ? row.name.trim()
+        : "Unknown User",
   };
-
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
 }
 
-export function verifyJwt(token: string): JwtUserPayload {
-  return jwt.verify(token, JWT_SECRET) as JwtUserPayload;
+/**
+ * LOGIN USER
+ */
+export async function loginUser(
+  email: string,
+  password: string
+): Promise<StoredUser | null> {
+  const row = await registry.users.findByEmail(email);
+  if (!row) return null;
+
+  const match = await bcrypt.compare(
+    password,
+    row.password_hash ?? row.passwordHash
+  );
+  if (!match) return null;
+
+  return mapToStoredUser(row);
 }
 
-export async function findUserByEmail(email: string) {
-  const prisma = await requirePrismaClient();
-  const user = await prisma.user.findUnique({ where: { email } });
-  return user ? (user as StoredUser) : null;
+/**
+ * GET USER BY ID
+ */
+export async function getUserById(id: string): Promise<StoredUser | null> {
+  const row = await registry.users.findById(id);
+  if (!row) return null;
+
+  return mapToStoredUser(row);
 }
 
-export async function findUserById(id: string) {
-  const prisma = await requirePrismaClient();
-  const user = await prisma.user.findUnique({ where: { id } });
-  return user ? (user as StoredUser) : null;
-}
-
-export async function createUser(data: {
+interface CreateUserInput {
   email: string;
   password: string;
   role: string;
   silos: Silo[];
-}) {
-  const passwordHash = await hashPassword(data.password);
-
-  const prisma = await requirePrismaClient();
-  const user = (await prisma.user.create({
-    data: {
-      email: data.email,
-      passwordHash,
-      role: data.role,
-      silos: data.silos,
-    },
-  })) as StoredUser;
-
-  return toPublicUser(user);
+  name?: string | null;
 }
 
-export function sanitizeUser(user: StoredUser | PublicUser) {
-  return toPublicUser(user as StoredUser);
+/**
+ * REGISTER USER
+ */
+export async function createUser(input: CreateUserInput): Promise<StoredUser> {
+  const passwordHash = await bcrypt.hash(input.password, 10);
+
+  const safeName =
+    typeof input.name === "string" && input.name.trim().length > 0
+      ? input.name.trim()
+      : "Unknown User";
+
+  const row = await registry.users.create({
+    email: input.email,
+    password_hash: passwordHash,
+    role: input.role,
+    silos: input.silos,
+    name: safeName,
+  });
+
+  return mapToStoredUser(row);
 }
+
+export default {
+  loginUser,
+  getUserById,
+  createUser,
+};

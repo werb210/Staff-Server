@@ -1,42 +1,22 @@
-import { db } from "../db.js";
-import { uuid } from "../utils/uuid.js";
-import type { PipelineRecord, Stage, Silo } from "../types/index.js";
+// server/src/services/pipelineService.ts
 
-export const pipelineService = {
-  list(silo: Silo): PipelineRecord[] {
-    return db.pipeline[silo]?.data ?? [];
-  },
+export interface PipelineStatus {
+  status: string;
+  timestamp: string;
+}
 
-  get(silo: Silo, id: string): PipelineRecord | null {
-    return db.pipeline[silo]?.data.find(c => c.id === id) ?? null;
-  },
+function nowIso(): string {
+  return new Date().toISOString();
+}
 
-  create(silo: Silo, appId: string, stage: Stage): PipelineRecord {
-    const record: PipelineRecord = {
-      id: uuid(),
-      appId,
-      stage,
-      silo,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
-    db.pipeline[silo].data.push(record);
-    return record;
-  },
-
-  updateStage(silo: Silo, id: string, stage: Stage): PipelineRecord | null {
-    const table = db.pipeline[silo];
-    const card = table.data.find(c => c.id === id);
-    if (!card) return null;
-    card.stage = stage;
-    card.updatedAt = new Date();
-    return card;
-  },
-
-  delete(silo: Silo, id: string): boolean {
-    const table = db.pipeline[silo];
-    const before = table.data.length;
-    table.data = table.data.filter(c => c.id !== id);
-    return table.data.length < before;
-  }
-};
+/**
+ * ----------------------------------------------------
+ * GET PIPELINE STATUS
+ * ----------------------------------------------------
+ */
+export async function getPipelineStatusService(): Promise<PipelineStatus> {
+  return {
+    status: "ok",
+    timestamp: nowIso(),
+  };
+}

@@ -1,62 +1,116 @@
-import { db } from "../db.js";
-import { uuid } from "../utils/uuid.js";
-import type { DocumentRecord, Silo } from "../types/index.js";
+// server/src/services/documentService.ts
 
-type DocumentCreateInput = {
+import { registry } from "../db/registry.js";
+import {
+  uploadBuffer,
+  getPresignedUrl,
+  getBuffer,
+  getStream,
+} from "../services/azureBlob.js";
+
+export interface CreateDocumentInput {
+  applicationId: string;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  buffer: Buffer;
+}
+
+export interface DocumentRecord {
+  id: string;
   applicationId: string;
   name: string;
   mimeType: string;
   sizeBytes: number;
-} & Partial<
-  Omit<
-    DocumentRecord,
-    | "id"
-    | "createdAt"
-    | "updatedAt"
-    | "silo"
-    | "applicationId"
-    | "name"
-    | "mimeType"
-    | "sizeBytes"
-  >
->;
+  blobKey: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
-export const documentService = {
-  list(appId: string, silo: Silo): DocumentRecord[] {
-    return db.documents[silo]?.data.filter(d => d.applicationId === appId) ?? [];
-  },
+/**
+ * Create a document record + upload buffer to Azure
+ */
+export async function createDocument(
+  input: CreateDocumentInput
+): Promise<DocumentRecord> {
+  const blobKey = `apps/${input.applicationId}/${Date.now()}-${input.originalName}`;
 
-  get(id: string, silo: Silo): DocumentRecord | null {
-    return db.documents[silo]?.data.find(d => d.id === id) ?? null;
-  },
+  // Upload to Azure Blob
+  await uploadBuffer(blobKey, input.buffer, input.mimeType);
 
-  create(silo: Silo, data: DocumentCreateInput): DocumentRecord {
-    const { applicationId, name, mimeType, sizeBytes, ...rest } = data;
+  // Insert DB row
+  const doc = await registry.documents.insert({
+    applicationId: input.applicationId,
+    name: input.originalName,
+    mimeType: input.mimeType,
+    sizeBytes: input.sizeBytes,
+    blobKey,
+  });
 
-    const record: DocumentRecord = {
-      id: uuid(),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      applicationId,
-      name,
-      mimeType,
-      sizeBytes,
-      silo,
-      ...rest,
-    };
-    db.documents[silo].data.push(record);
-    return record;
-  },
+  return doc;
+}
 
-  update(silo: Silo, id: string, patch: Partial<DocumentRecord>): DocumentRecord | null {
-    const table = db.documents[silo];
-    const index = table.data.findIndex(d => d.id === id);
-    if (index === -1) return null;
-    table.data[index] = {
-      ...table.data[index],
-      ...patch,
-      updatedAt: new Date()
-    };
-    return table.data[index];
-  }
+/**
+ * List all documents for an application
+ */
+export async function listDocuments(
+  applicationId: string
+): Promise<DocumentRecord[]> {
+  return registry.documents.findMany({
+    where: { applicationId },
+    orderBy: { createdAt: "asc" },
+  });
+}
+
+/**
+ * Generate a temporary download URL
+ */
+export async function getDocumentDownloadUrl(
+  documentId: string
+): Promise<string | null> {
+  const doc = await registry.documents.findUnique({
+    where: { id: documentId },
+  });
+  if (!doc) return null;
+
+  return getPresignedUrl(doc.blobKey);
+}
+
+/**
+ * Retrieve raw bytes (used for ZIP bundles)
+ */
+export async function getDocumentBuffer(
+  documentId: string
+): Promise<Buffer | null> {
+  const doc = await registry.documents.findUnique({
+    where: { id: documentId },
+  });
+  if (!doc) return null;
+
+  return getBuffer(doc.blobKey);
+}
+
+/**
+ * Delete document (DB only — blob stays until we confirm safe delete policy)
+ */
+export async function deleteDocument(documentId: string): Promise<boolean> {
+  const doc = await registry.documents.findUnique({
+    where: { id: documentId },
+  });
+
+  if (!doc) return false;
+
+  // Delete DB record
+  await registry.documents.delete({ where: { id: documentId } });
+
+  // Azure Blob deletion intentionally disabled per your global policy
+  return true;
+}
+
+export default {
+  createDocument,
+  listDocuments,
+  getDocumentDownloadUrl,
+  getDocumentBuffer,
+  deleteDocument,
 };

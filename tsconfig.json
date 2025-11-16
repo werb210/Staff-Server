@@ -10,8 +10,12 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
+
+    // Root TS build output (NOT used by server, but required)
     "outDir": "dist"
   },
-  "include": ["server/src/**/*"],
-  "exclude": ["node_modules"]
+
+  // DO NOT include server/src here, that is handled in server/tsconfig.json
+  "include": ["server/**/*"],
+  "exclude": ["node_modules", "**/*.test.ts", "**/*.spec.ts"]
 }
