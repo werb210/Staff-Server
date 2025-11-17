@@ -1,13 +1,7 @@
 // server/src/db/registry.ts
+import pg from "pg";
 
-import pkg from "pg";
-const { Pool } = pkg;
-
-import { env } from "../utils/env.js";
-
-export const pool = new Pool({
-  connectionString: env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false,
-  },
+export const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
 });
