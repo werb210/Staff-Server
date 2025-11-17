@@ -1,30 +1,15 @@
 // server/src/db/schema/users.ts
+import { pgTable, uuid, varchar, timestamp, boolean } from "drizzle-orm/pg-core";
 
-export type UserRole =
-  | "admin"
-  | "staff"
-  | "lender"
-  | "referrer"
-  | "marketing"
-  | "superadmin";
+export const users = pgTable("users", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  email: varchar("email", { length: 255 }).notNull().unique(),
+  passwordHash: varchar("password_hash", { length: 255 }).notNull(),
 
-export interface User {
-  id: string;
+  role: varchar("role", { length: 50 })
+    .$type<"admin" | "staff" | "lender" | "referrer">()
+    .default("staff"),
 
-  email: string;
-  passwordHash: string;
-
-  firstName: string;
-  lastName: string;
-
-  role: UserRole;
-
-  // Lender portal link
-  lenderId: string | null;
-
-  // Referrer tracking
-  referrerCode: string | null;
-
-  createdAt: Date;
-  updatedAt: Date;
-}
+  active: boolean("active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
