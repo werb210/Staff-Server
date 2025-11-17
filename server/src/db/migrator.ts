@@ -1,18 +1,17 @@
+// server/src/db/migrator.ts
 import { migrate } from "drizzle-orm/node-postgres/migrator";
-import { db, pool } from "./registry.js";
+import { db } from "./index.js";
 
-async function main() {
-  console.log("Running migrations…");
-
-  await migrate(db, {
-    migrationsFolder: "migrations",
-  });
-
-  console.log("Migrations complete.");
-  await pool.end();
+async function run() {
+  try {
+    console.log("Running migrations…");
+    await migrate(db, { migrationsFolder: "./server/drizzle" });
+    console.log("Migrations complete.");
+    process.exit(0);
+  } catch (err) {
+    console.error("Migration failed:", err);
+    process.exit(1);
+  }
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+run();
