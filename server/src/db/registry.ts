@@ -1,20 +1,10 @@
-// server/src/db/registry.ts
-import { drizzle } from "drizzle-orm/node-postgres";
-import pkg from "pg";
+// exports all tables centrally so routes/services can import cleanly
 
-import * as schema from "./schema.js";
-
-const { Pool } = pkg;
-
-if (!process.env.DATABASE_URL) {
-  console.error("❌ DATABASE_URL missing");
-  process.exit(1);
-}
-
-export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false } // required for Azure
-});
-
-export const db = drizzle(pool, { schema });
-export { schema };
+export * from "./schema/applications.js";
+export * from "./schema/documents.js";
+export * from "./schema/lenders.js";
+export * from "./schema/products.js";
+export * from "./schema/companies.js";
+export * from "./schema/contacts.js";
+export * from "./schema/users.js";
+export * from "./schema/pipeline.js";
