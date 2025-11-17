@@ -1,63 +1,31 @@
 // server/src/db/schema.ts
-import {
-  pgTable,
-  text,
-  uuid,
-  boolean,
-  timestamp,
-  integer
-} from "drizzle-orm/pg-core";
+import { pgTable, varchar, text, numeric, timestamp } from "drizzle-orm/pg-core";
 
-//
-// APPLICATIONS
-//
 export const applications = pgTable("applications", {
-  id: uuid("id").primaryKey().defaultRandom(),
+  id: varchar("id", { length: 50 }).primaryKey(),
+
   firstName: text("first_name"),
   lastName: text("last_name"),
   email: text("email"),
+  phone: text("phone"),
+
   businessName: text("business_name"),
-  status: text("status").default("new"),
-  amountRequested: integer("amount_requested"),
-  country: text("country"),
+  businessLegalName: text("business_legal_name"),
   industry: text("industry"),
-  purpose: text("purpose"),
-  createdAt: timestamp("created_at").defaultNow()
-});
+  businessLocation: text("business_location"),
+  yearsInBusiness: numeric("years_in_business"),
 
-//
-// LENDERS
-//
-export const lenders = pgTable("lenders", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  name: text("name"),
-  country: text("country"),
-  active: boolean("active").default(true)
-});
+  amountRequested: numeric("amount_requested"),
+  avgMonthlyRevenue: numeric("avg_monthly_revenue"),
+  revenueLast12m: numeric("revenue_last_12m"),
+  arBalance: numeric("ar_balance"),
+  apBalance: numeric("ap_balance"),
+  collateralValue: numeric("collateral_value"),
 
-//
-// DEALS — tied to APPLICATIONS
-//
-export const deals = pgTable("deals", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  applicationId: uuid("application_id"),
-  lenderId: uuid("lender_id"),
-  status: text("status").default("in_review"),
-  createdAt: timestamp("created_at").defaultNow()
-});
+  fundsPurpose: text("funds_purpose"),
 
-//
-// COMPANIES — tied to APPLICATIONS
-//
-export const companies = pgTable("companies", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  applicationId: uuid("application_id"),
-  legalName: text("legal_name"),
-  operatingName: text("operating_name"),
-  address: text("address"),
-  city: text("city"),
-  province: text("province"),
-  postalCode: text("postal_code"),
-  country: text("country"),
-  createdAt: timestamp("created_at").defaultNow()
+  status: text("status"),
+
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
 });
