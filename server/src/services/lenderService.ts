@@ -3,10 +3,10 @@ import { registry } from "../db/registry.js";
 
 export const lenderService = {
   async all() {
-    return []; // placeholder
+    return []; // placeholder until real queries exist
   },
 
   async get(id: string) {
-    return null; // placeholder
+    return null; // placeholder until real queries exist
   },
 };
