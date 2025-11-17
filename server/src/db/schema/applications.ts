@@ -1,36 +1,46 @@
 // server/src/db/schema/applications.ts
+import { pgTable, text, varchar, timestamp, numeric, uuid } from "drizzle-orm/pg-core";
 
-export interface Application {
-  id: string;
+export const applications = pgTable("applications", {
+  id: uuid("id").primaryKey().defaultRandom(),
 
   // Applicant info
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
+  firstName: varchar("first_name", { length: 255 }),
+  lastName: varchar("last_name", { length: 255 }),
+  email: varchar("email", { length: 255 }),
+  phone: varchar("phone", { length: 50 }),
 
   // Business info
-  businessName: string;
-  businessLegalName: string;
-  industry: string;
-  businessLocation: string;
-  yearsInBusiness: number;
+  businessName: varchar("business_name", { length: 255 }),
+  businessLegalName: varchar("business_legal_name", { length: 255 }),
+  industry: varchar("industry", { length: 255 }),
+  businessLocation: varchar("business_location", { length: 255 }),
+  yearsInBusiness: numeric("years_in_business"),
 
   // Financial profile
-  amountRequested: number;
-  avgMonthlyRevenue: number;
-  revenueLast12m: number;
-  arBalance: number;
-  apBalance: number;
-  collateralValue: number;
+  amountRequested: numeric("amount_requested"),
+  avgMonthlyRevenue: numeric("avg_monthly_revenue"),
+  revenueLast12m: numeric("revenue_last_12m"),
+  arBalance: numeric("ar_balance"),
+  apBalance: numeric("ap_balance"),
+  collateralValue: numeric("collateral_value"),
 
   // Purpose
-  fundsPurpose: string;
+  fundsPurpose: text("funds_purpose"),
 
-  // App status
-  status: "submitted" | "in_review" | "requires_docs" | "docs_received" | "lender_review" | "approved" | "declined";
+  // Status
+  status: varchar("status", { length: 50 })
+    .$type<
+      | "submitted"
+      | "in_review"
+      | "requires_docs"
+      | "docs_received"
+      | "lender_review"
+      | "approved"
+      | "declined"
+    >(),
 
-  // Metadata
-  createdAt: Date;
-  updatedAt: Date;
-}
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
