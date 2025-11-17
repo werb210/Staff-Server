@@ -1,43 +1,31 @@
 // server/src/services/companiesService.ts
-import { registry } from "../db/registry.js";
+import { db } from "../db/registry.js";
+import { companies } from "../db/schema/companies.js";
+import { eq } from "drizzle-orm";
+import { v4 as uuid } from "uuid";
 
 export const companiesService = {
-  async all() {
-    const { rows } = await registry.pool.query(
-      `SELECT * FROM companies ORDER BY created_at DESC`
-    );
-    return rows;
+  async list() {
+    return db.select().from(companies);
   },
 
   async get(id: string) {
-    const { rows } = await registry.pool.query(
-      `SELECT * FROM companies WHERE id = $1 LIMIT 1`,
-      [id]
-    );
-    return rows[0] || null;
+    const rows = await db.select().from(companies).where(eq(companies.id, id));
+    return rows[0] ?? null;
   },
 
   async create(data: any) {
-    const { rows } = await registry.pool.query(
-      `INSERT INTO companies (name, address, phone)
-       VALUES ($1, $2, $3)
-       RETURNING *`,
-      [data.name, data.address, data.phone]
-    );
-    return rows[0];
+    const id = uuid();
+    await db.insert(companies).values({ id, ...data });
+    return this.get(id);
   },
 
   async update(id: string, data: any) {
-    const { rows } = await registry.pool.query(
-      `UPDATE companies
-       SET name = $1,
-           address = $2,
-           phone = $3,
-           updated_at = NOW()
-       WHERE id = $4
-       RETURNING *`,
-      [data.name, data.address, data.phone, id]
-    );
-    return rows[0] || null;
+    await db.update(companies).set(data).where(eq(companies.id, id));
+    return this.get(id);
+  },
+
+  async remove(id: string) {
+    await db.delete(companies).where(eq(companies.id, id));
   },
 };
