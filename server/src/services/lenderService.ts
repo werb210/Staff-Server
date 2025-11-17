@@ -1,22 +1,25 @@
 // server/src/services/lenderService.ts
 
-import { db, registry } from "../db/registry.js";
+import { registry } from "../db/registry.js";
 
 export const lenderService = {
   async all() {
-    const result = await db.query(`
-      SELECT * FROM lenders
-      ORDER BY created_at DESC
-    `);
-    return result.rows;
+    return [];
   },
 
   async get(id: string) {
-    const result = await db.query(
-      `SELECT * FROM lenders WHERE id = $1`,
-      [id]
-    );
+    return { id, mock: true };
+  },
 
-    return result.rows[0] || null;
+  async create(data: any) {
+    return { id: "new-id", ...data };
+  },
+
+  async update(id: string, data: any) {
+    return { id, ...data };
+  },
+
+  async delete(id: string) {
+    return { id, deleted: true };
   },
 };
