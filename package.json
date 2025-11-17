@@ -3,17 +3,13 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-
   "scripts": {
     "dev": "tsx --watch server/src/index.ts",
-
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/server/src/index.js",
-
-    "typecheck": "tsc -p tsconfig.build.json --noEmit",
+    "typecheck": "tsc -p server/tsconfig.json --noEmit",
     "test": "echo \"no tests yet\""
   },
-
   "dependencies": {
     "@azure/storage-blob": "12.29.1",
     "@prisma/client": "5.22.0",
@@ -29,17 +25,19 @@
     "jszip": "3.10.1",
     "morgan": "1.10.0",
     "multer": "2.0.0",
+    "pg": "8.13.1",
     "twilio": "5.10.5",
     "zod": "3.23.8"
   },
-
   "devDependencies": {
     "@types/body-parser": "1.19.5",
+    "@types/cors": "2.8.17",
     "@types/express": "4.17.21",
     "@types/jsonwebtoken": "9.0.6",
     "@types/jszip": "3.4.1",
     "@types/multer": "2.0.0",
     "@types/node": "20.11.30",
+    "@types/pg": "8.11.6",
     "tsx": "4.19.1",
     "typescript": "5.4.5"
   }
