@@ -1,4 +1,5 @@
 -- 0001_init.sql
+
 CREATE TABLE IF NOT EXISTS applications (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     first_name text,
