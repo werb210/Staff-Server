@@ -1,29 +1,30 @@
-import { pgTable, uuid, varchar, integer, timestamp } from "drizzle-orm/pg-core";
+// server/src/db/schema/applications.ts
+import { pgTable, varchar, text, numeric, timestamp } from "drizzle-orm/pg-core";
 
 export const applications = pgTable("applications", {
-  id: uuid("id").primaryKey().defaultRandom(),
+  id: varchar("id").primaryKey(),
 
-  firstName: varchar("first_name", { length: 100 }).notNull(),
-  lastName: varchar("last_name", { length: 100 }).notNull(),
-  email: varchar("email", { length: 200 }).notNull(),
-  phone: varchar("phone", { length: 50 }).notNull(),
+  firstName: varchar("first_name").notNull(),
+  lastName: varchar("last_name").notNull(),
+  email: varchar("email").notNull(),
+  phone: varchar("phone").notNull(),
 
-  businessName: varchar("business_name", { length: 200 }).notNull(),
-  businessLegalName: varchar("business_legal_name", { length: 200 }).notNull(),
-  industry: varchar("industry", { length: 200 }).notNull(),
-  businessLocation: varchar("business_location", { length: 200 }).notNull(),
-  yearsInBusiness: integer("years_in_business").notNull(),
+  businessName: varchar("business_name").notNull(),
+  businessLegalName: varchar("business_legal_name").notNull(),
+  industry: varchar("industry").notNull(),
+  businessLocation: varchar("business_location").notNull(),
+  yearsInBusiness: numeric("years_in_business").notNull(),
 
-  amountRequested: integer("amount_requested").notNull(),
-  avgMonthlyRevenue: integer("avg_monthly_revenue").notNull(),
-  revenueLast12m: integer("revenue_last12m").notNull(),
-  arBalance: integer("ar_balance").notNull(),
-  apBalance: integer("ap_balance").notNull(),
-  collateralValue: integer("collateral_value").notNull(),
+  amountRequested: numeric("amount_requested").notNull(),
+  avgMonthlyRevenue: numeric("avg_monthly_revenue").notNull(),
+  revenueLast12m: numeric("revenue_last_12m").notNull(),
+  arBalance: numeric("ar_balance").notNull(),
+  apBalance: numeric("ap_balance").notNull(),
+  collateralValue: numeric("collateral_value").notNull(),
 
-  fundsPurpose: varchar("funds_purpose", { length: 500 }),
+  fundsPurpose: text("funds_purpose").notNull(),
 
-  status: varchar("status", { length: 50 }).notNull(),
+  status: varchar("status").notNull(),
 
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
