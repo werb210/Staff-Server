@@ -1,22 +1,13 @@
-// server/src/middlewares/siloGuard.ts
-import type { Request, Response, NextFunction } from "express";
+// server/src/db/registry.ts
 
-const ALLOWED_SILOS = ["bf", "slf"];
+import pkg from "pg";
+const { Pool } = pkg;
 
-export default function siloGuard(
-  req: Request,
-  res: Response,
-  next: NextFunction
-) {
-  const silo = req.params.silo?.toLowerCase();
+import { env } from "../utils/env.js";
 
-  if (!silo || ALLOWED_SILOS.indexOf(silo) === -1) {
-    return res
-      .status(400)
-      .json({ ok: false, error: `Invalid silo '${silo}'. Allowed: bf, slf.` });
-  }
-
-  (req as any).silo = silo;
-
-  return next();
-}
+export const pool = new Pool({
+  connectionString: env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false,
+  },
+});
