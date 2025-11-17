@@ -1,21 +1,38 @@
 // server/src/db/migrator.ts
-import "dotenv/config";
+
 import { migrate } from "drizzle-orm/node-postgres/migrator";
-import { db, pool } from "./registry.js";
+import { drizzle } from "drizzle-orm/node-postgres";
+import pg from "pg";
+import * as path from "path";
+import { fileURLToPath } from "url";
+import dotenv from "dotenv";
 
-async function run() {
-  console.log("🚀 Running Drizzle migrations...");
+dotenv.config();
 
-  try {
-    await migrate(db, { migrationsFolder: "server/src/db/migrations" });
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-    console.log("✅ Migrations complete");
-    await pool.end();
-  } catch (err) {
-    console.error("❌ Migration failed:", err);
-    await pool.end();
-    process.exit(1);
-  }
+const { Pool } = pg;
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
+
+const db = drizzle(pool);
+
+async function main() {
+  console.log("⏳ Running migrations...");
+
+  await migrate(db, {
+    migrationsFolder: path.resolve(__dirname, "./migrations")
+  });
+
+  console.log("✅ Migrations complete");
+  process.exit(0);
 }
 
-run();
+main().catch((err) => {
+  console.error("❌ Migration failed:", err);
+  process.exit(1);
+});
