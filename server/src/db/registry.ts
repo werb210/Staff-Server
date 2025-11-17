@@ -1,11 +1,13 @@
 // server/src/db/registry.ts
-import pg from "pg";
 
-const { Pool } = pg;
+import pkg from "pg";
+const { Pool } = pkg;
 
-export const registry = {
-  system: new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
-  }),
-};
+import { env } from "../utils/env.js";
+
+export const pool = new Pool({
+  connectionString: env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false,
+  },
+});
