@@ -1,10 +1,8 @@
 // server/src/services/lenderService.ts
-import db, { registry } from "../db/registry.js";
+import { registry } from "../db/registry.js";
 
 export const lenderService = {
   async all() {
-    return db.select().from(registry.lenders);
+    return [];
   },
 };
-
-export default lenderService;
