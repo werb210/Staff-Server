@@ -1,46 +1,30 @@
-// server/src/db/schema/applications.ts
-import { pgTable, text, varchar, timestamp, numeric, uuid } from "drizzle-orm/pg-core";
+import { pgTable, uuid, varchar, integer, timestamp } from "drizzle-orm/pg-core";
 
 export const applications = pgTable("applications", {
   id: uuid("id").primaryKey().defaultRandom(),
 
-  // Applicant info
-  firstName: varchar("first_name", { length: 255 }),
-  lastName: varchar("last_name", { length: 255 }),
-  email: varchar("email", { length: 255 }),
-  phone: varchar("phone", { length: 50 }),
+  firstName: varchar("first_name", { length: 100 }).notNull(),
+  lastName: varchar("last_name", { length: 100 }).notNull(),
+  email: varchar("email", { length: 200 }).notNull(),
+  phone: varchar("phone", { length: 50 }).notNull(),
 
-  // Business info
-  businessName: varchar("business_name", { length: 255 }),
-  businessLegalName: varchar("business_legal_name", { length: 255 }),
-  industry: varchar("industry", { length: 255 }),
-  businessLocation: varchar("business_location", { length: 255 }),
-  yearsInBusiness: numeric("years_in_business"),
+  businessName: varchar("business_name", { length: 200 }).notNull(),
+  businessLegalName: varchar("business_legal_name", { length: 200 }).notNull(),
+  industry: varchar("industry", { length: 200 }).notNull(),
+  businessLocation: varchar("business_location", { length: 200 }).notNull(),
+  yearsInBusiness: integer("years_in_business").notNull(),
 
-  // Financial profile
-  amountRequested: numeric("amount_requested"),
-  avgMonthlyRevenue: numeric("avg_monthly_revenue"),
-  revenueLast12m: numeric("revenue_last_12m"),
-  arBalance: numeric("ar_balance"),
-  apBalance: numeric("ap_balance"),
-  collateralValue: numeric("collateral_value"),
+  amountRequested: integer("amount_requested").notNull(),
+  avgMonthlyRevenue: integer("avg_monthly_revenue").notNull(),
+  revenueLast12m: integer("revenue_last12m").notNull(),
+  arBalance: integer("ar_balance").notNull(),
+  apBalance: integer("ap_balance").notNull(),
+  collateralValue: integer("collateral_value").notNull(),
 
-  // Purpose
-  fundsPurpose: text("funds_purpose"),
+  fundsPurpose: varchar("funds_purpose", { length: 500 }),
 
-  // Status
-  status: varchar("status", { length: 50 })
-    .$type<
-      | "submitted"
-      | "in_review"
-      | "requires_docs"
-      | "docs_received"
-      | "lender_review"
-      | "approved"
-      | "declined"
-    >(),
+  status: varchar("status", { length: 50 }).notNull(),
 
-  // Timestamps
   createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
 });
