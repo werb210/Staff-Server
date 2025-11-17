@@ -3,9 +3,17 @@ import express from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
 
-const app = express();
+import applicationsRoutes from "./routes/applications.routes.js";
+
+export const app = express();
 
 app.use(cors());
 app.use(bodyParser.json());
 
-export default app;
+// ROUTES
+app.use("/api/applications", applicationsRoutes);
+
+// ROOT HEALTH CHECK
+app.get("/", (_req, res) => {
+  res.json({ ok: true, service: "staff-server" });
+});
