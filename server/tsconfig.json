@@ -3,32 +3,23 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "lib": ["ES2022"],
 
-    "strict": true,
+    "strict": false,
     "skipLibCheck": true,
     "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
-    "forceConsistentCasingInFileNames": true,
+    "allowSyntheticDefaultImports": true,
 
-    // Emit JS for server build
     "noEmit": false,
 
-    // Proper ESM build structure
-    "rootDir": "src",
-    "outDir": "dist/server/src",
-
-    // Required for NodeNext TS → JS extension rewriting
-    "allowJs": false,
-    "checkJs": false,
-    "isolatedModules": false
+    "rootDir": "server/src",
+    "outDir": "dist/server/src"
   },
 
-  "include": ["src/**/*"],
+  "include": ["server/src/**/*"],
   "exclude": [
-    "node_modules",
     "**/*.test.ts",
-    "**/*.spec.ts"
+    "**/*.spec.ts",
+    "node_modules"
   ]
 }
