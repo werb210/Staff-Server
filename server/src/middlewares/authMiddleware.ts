@@ -2,18 +2,26 @@
 
 import type { Request, Response, NextFunction } from "express";
 
-// Simple placeholder auth handler.
-// We only check the header exists. Real auth logic comes later.
 export default function authMiddleware(
   req: Request,
   res: Response,
   next: NextFunction
 ) {
-  const auth = req.headers.authorization;
+  const header = req.headers.authorization;
 
-  if (!auth) {
+  if (!header) {
     return res.status(401).json({ ok: false, error: "Unauthorized" });
   }
 
-  next();
+  // Expect: Authorization: Bearer <token>
+  const [scheme, token] = header.split(" ");
+
+  if (scheme !== "Bearer" || !token) {
+    return res.status(401).json({ ok: false, error: "Invalid token format" });
+  }
+
+  // TODO: validate token — optional for now, pass through
+  req.user = { token };
+
+  return next();
 }
