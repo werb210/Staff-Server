@@ -1,4 +1,3 @@
-// server/src/middlewares/siloGuard.ts
 import type { Request, Response, NextFunction } from "express";
 
 declare module "express-serve-static-core" {
@@ -9,9 +8,7 @@ declare module "express-serve-static-core" {
 
 export const siloGuard = (req: Request, _res: Response, next: NextFunction) => {
   const header = req.headers["x-silo"];
-
   const silo = typeof header === "string" ? header : undefined;
   req.silo = silo;
-
   next();
 };
