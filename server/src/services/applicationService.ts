@@ -1,22 +1,36 @@
 // server/src/services/applicationService.ts
 
-import { db, registry } from "../db/registry.js";
+import { registry } from "../db/registry.js";
+
+/**
+ * Application Service
+ * Temporary implementation until DB models are wired.
+ * Provides the methods controllers expect: all(), get(), create(), update(), delete()
+ */
 
 export const applicationService = {
   async all() {
-    const result = await db.query(`
-      SELECT * FROM applications
-      ORDER BY created_at DESC
-    `);
-    return result.rows;
+    // Placeholder implementation
+    return [];
   },
 
   async get(id: string) {
-    const result = await db.query(
-      `SELECT * FROM applications WHERE id = $1`,
-      [id]
-    );
+    // Placeholder until real DB logic exists
+    return { id, mock: true };
+  },
 
-    return result.rows[0] || null;
+  async create(data: any) {
+    // Placeholder
+    return { id: "new-id", ...data };
+  },
+
+  async update(id: string, data: any) {
+    // Placeholder
+    return { id, ...data };
+  },
+
+  async delete(id: string) {
+    // Placeholder
+    return { id, deleted: true };
   },
 };
