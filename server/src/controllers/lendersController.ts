@@ -5,7 +5,6 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 
 export const lendersController = {
   list: asyncHandler(async (_req: Request, res: Response) => {
-    // Temporary placeholder response
     res.json({
       ok: true,
       data: [
