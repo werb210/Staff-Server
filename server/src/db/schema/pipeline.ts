@@ -1,17 +1,9 @@
-import { pgTable, uuid, varchar, timestamp } from "drizzle-orm/pg-core";
-import { applications } from "./applications.js";
-import { users } from "./users.js";
+// server/src/db/schema/pipeline.ts
+import { pgTable, varchar, timestamp } from "drizzle-orm/pg-core";
 
 export const pipeline = pgTable("pipeline", {
-  id: uuid("id").primaryKey().defaultRandom(),
-
-  applicationId: uuid("application_id")
-    .references(() => applications.id)
-    .notNull(),
-
-  stage: varchar("stage", { length: 100 }).notNull(),
-
-  assignedTo: uuid("assigned_to").references(() => users.id),
-
+  id: varchar("id").primaryKey(),
+  applicationId: varchar("application_id").notNull(),
+  stage: varchar("stage").notNull(),
   updatedAt: timestamp("updated_at").defaultNow()
 });
