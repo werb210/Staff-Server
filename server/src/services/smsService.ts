@@ -1,4 +1,5 @@
 // server/src/services/smsService.ts
+import crypto from "crypto";
 
 export const smsService = {
   async list() {
@@ -8,7 +9,6 @@ export const smsService = {
   },
 
   async send(to: string, msg: string) {
-    // TODO: integrate Twilio later
     return {
       ok: true,
       id: crypto.randomUUID(),
