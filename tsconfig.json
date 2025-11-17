@@ -4,18 +4,23 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "lib": ["ES2022"],
-    "strict": false,
+    "strict": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "allowSyntheticDefaultImports": true,
 
-    // Root TS build output (NOT used by server, but required)
-    "outDir": "dist"
+    // Root config does NOT emit JS — server build handles that
+    "noEmit": true,
+    "isolatedModules": true,
+
+    // Needed so TS knows where source files conceptually live
+    "rootDir": "."
   },
 
-  // DO NOT include server/src here, that is handled in server/tsconfig.json
-  "include": ["server/**/*"],
-  "exclude": ["node_modules", "**/*.test.ts", "**/*.spec.ts"]
+  // Root config should *only* provide IDE support
+  // Server build occurs via tsconfig.build.json
+  "include": ["server/src", "server/types", "server/**/*.d.ts"],
+  "exclude": ["dist", "node_modules", "**/*.test.ts", "**/*.spec.ts"]
 }
