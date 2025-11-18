@@ -9,9 +9,12 @@ export const smsService = {
   },
 
   async send(to: string, msg: string) {
+    const sid = crypto.randomUUID();
+
     return {
       ok: true,
-      id: crypto.randomUUID(),
+      sid,
+      id: sid,
       to,
       msg,
       ts: Date.now(),
