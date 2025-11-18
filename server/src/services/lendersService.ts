@@ -1,31 +1,27 @@
 // server/src/services/lendersService.ts
-import { db } from "../db/registry.js";
-import { lenders } from "../db/schema/lenders.js";
-import { eq } from "drizzle-orm";
-import { v4 as uuid } from "uuid";
+import { prisma } from "../db/index.js";
 
 export const lendersService = {
-  async list() {
-    return db.select().from(lenders);
+  list() {
+    return prisma.lender.findMany({ include: { products: true } });
   },
 
-  async get(id: string) {
-    const rows = await db.select().from(lenders).where(eq(lenders.id, id));
-    return rows[0] ?? null;
+  get(id) {
+    return prisma.lender.findUnique({
+      where: { id },
+      include: { products: true },
+    });
   },
 
-  async create(data: any) {
-    const id = uuid();
-    await db.insert(lenders).values({ id, ...data });
-    return this.get(id);
+  create(data) {
+    return prisma.lender.create({ data });
   },
 
-  async update(id: string, data: any) {
-    await db.update(lenders).set(data).where(eq(lenders.id, id));
-    return this.get(id);
+  update(id, data) {
+    return prisma.lender.update({ where: { id }, data });
   },
 
-  async remove(id: string) {
-    await db.delete(lenders).where(eq(lenders.id, id));
+  delete(id) {
+    return prisma.lender.delete({ where: { id } });
   },
 };
