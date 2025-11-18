@@ -1,31 +1,34 @@
-// server/src/services/contactsService.ts
-import { db } from "../db/registry.js";
-import { contacts } from "../db/schema/contacts.js";
-import { eq } from "drizzle-orm";
+import { prisma } from "../db/prisma.js";
 import { v4 as uuid } from "uuid";
 
 export const contactsService = {
-  async list() {
-    return db.select().from(contacts);
+  list() {
+    return prisma.contact.findMany();
   },
 
-  async get(id: string) {
-    const rows = await db.select().from(contacts).where(eq(contacts.id, id));
-    return rows[0] ?? null;
+  get(id: string) {
+    return prisma.contact.findUnique({ where: { id } });
   },
 
-  async create(data: any) {
-    const id = uuid();
-    await db.insert(contacts).values({ id, ...data });
-    return this.get(id);
+  create(data: any) {
+    return prisma.contact.create({
+      data: {
+        id: uuid(),
+        companyId: data.companyId,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        phone: data.phone,
+        role: data.role,
+      },
+    });
   },
 
-  async update(id: string, data: any) {
-    await db.update(contacts).set(data).where(eq(contacts.id, id));
-    return this.get(id);
+  update(id: string, data: any) {
+    return prisma.contact.update({ where: { id }, data });
   },
 
-  async remove(id: string) {
-    await db.delete(contacts).where(eq(contacts.id, id));
+  remove(id: string) {
+    return prisma.contact.delete({ where: { id } });
   },
 };
