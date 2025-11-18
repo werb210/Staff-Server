@@ -34,22 +34,23 @@ model Contact {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user     User?    @relation(fields: [userId], references: [id])
-  company  Company? @relation(fields: [companyId], references: [id])
+  user      User?      @relation(fields: [userId], references: [id])
+  company   Company?   @relation(fields: [companyId], references: [id])
+  smsQueues SmsQueue[]
 }
 
 model Company {
-  id          String       @id @default(uuid())
-  name        String
-  website     String?
-  phone       String?
-  address     String?
-  userId      String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(uuid())
+  name      String
+  website   String?
+  phone     String?
+  address   String?
+  userId    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  user        User?       @relation(fields: [userId], references: [id])
-  contacts    Contact[]
+  user         User?         @relation(fields: [userId], references: [id])
+  contacts     Contact[]
   applications Application[]
 }
 
@@ -63,10 +64,11 @@ model Application {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  company     Company      @relation(fields: [companyId], references: [id])
-  user        User?        @relation(fields: [userId], references: [id])
+  company     Company          @relation(fields: [companyId], references: [id])
+  user        User?            @relation(fields: [userId], references: [id])
   ocrExtracts OcrExtract[]
   tags        ApplicationTag[]
+  smsQueues   SmsQueue[]
 }
 
 model OcrExtract {
@@ -82,7 +84,7 @@ model OcrExtract {
 }
 
 model Product {
-  id          String   @id @default(uuid())
+  id          String  @id @default(uuid())
   name        String
   category    String
   country     String
@@ -126,4 +128,22 @@ model ApplicationTag {
   tag         Tag         @relation(fields: [tagId], references: [id])
 
   @@id([applicationId, tagId])
+}
+
+model SmsQueue {
+  id                String    @id @default(uuid())
+  to                String
+  body              String
+  status            String
+  providerMessageId String?
+  error             String?
+  attempts          Int       @default(0)
+  applicationId     String?
+  contactId         String?
+  sentAt            DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  application Application? @relation(fields: [applicationId], references: [id])
+  contact     Contact?     @relation(fields: [contactId], references: [id])
 }
