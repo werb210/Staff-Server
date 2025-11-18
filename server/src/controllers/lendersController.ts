@@ -1,38 +1,24 @@
-// server/src/controllers/lenderController.ts
-import { db } from "../db/registry.js";
-import { lenders } from "../db/schema/lenders.js";
-import { eq } from "drizzle-orm";
+// server/src/controllers/lendersController.ts
+import { lendersService } from "../services/lendersService.js";
 
-export const lenderController = {
-  async list(_req, res) {
-    const rows = await db.select().from(lenders);
-    res.json({ ok: true, data: rows });
+export const lendersController = {
+  async list(req, res) {
+    res.json(await lendersService.list());
   },
 
   async get(req, res) {
-    const row = await db.query.lenders.findFirst({
-      where: eq(lenders.id, req.params.id),
-    });
-    if (!row) return res.status(404).json({ ok: false });
-    res.json({ ok: true, data: row });
+    res.json(await lendersService.get(req.params.id));
   },
 
   async create(req, res) {
-    const inserted = await db.insert(lenders).values(req.body).returning();
-    res.json({ ok: true, data: inserted[0] });
+    res.json(await lendersService.create(req.body));
   },
 
   async update(req, res) {
-    const updated = await db
-      .update(lenders)
-      .set(req.body)
-      .where(eq(lenders.id, req.params.id))
-      .returning();
-    res.json({ ok: true, data: updated[0] });
+    res.json(await lendersService.update(req.params.id, req.body));
   },
 
   async remove(req, res) {
-    await db.delete(lenders).where(eq(lenders.id, req.params.id));
-    res.json({ ok: true });
+    res.json(await lendersService.delete(req.params.id));
   },
 };
