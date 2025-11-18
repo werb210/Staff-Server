@@ -1,23 +1,23 @@
-import { documentService } from "../services/documentService.js";
+import { documentsService } from "../services/documentsService.js";
 
 export const documentsController = {
   list: async (_req, res) => {
-    res.json(await documentService.list());
+    res.json(await documentsService.list());
   },
 
   get: async (req, res) => {
-    res.json(await documentService.get(req.params.id));
+    res.json(await documentsService.get(req.params.id));
   },
 
   create: async (req, res) => {
-    res.json(await documentService.create(req.body));
+    res.json(await documentsService.create(req.body));
   },
 
   update: async (req, res) => {
-    res.json(await documentService.update(req.params.id, req.body));
+    res.json(await documentsService.update(req.params.id, req.body));
   },
 
   remove: async (req, res) => {
-    res.json(await documentService.remove(req.params.id));
+    res.json(await documentsService.delete(req.params.id));
   },
 };
