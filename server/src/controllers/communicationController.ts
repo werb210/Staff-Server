@@ -1,16 +1,15 @@
+// FILE: server/src/controllers/communicationController.ts
 import { Request, Response } from "express";
-import { prisma } from "../db/prisma.js";
+import communicationService from "../services/communicationService.js";
 
-export const communicationController = {
-  async list(req: Request, res: Response) {
-    const records = await prisma.communicationLog.findMany();
-    res.json(records);
-  },
-
-  async create(req: Request, res: Response) {
-    const record = await prisma.communicationLog.create({
-      data: req.body,
-    });
-    res.json(record);
-  },
+export const sendSMS = async (req: Request, res: Response) => {
+  const r = await communicationService.sendSMS(req.body);
+  res.json(r);
 };
+
+export const sendEmail = async (req: Request, res: Response) => {
+  const r = await communicationService.sendEmail(req.body);
+  res.json(r);
+};
+
+export default { sendSMS, sendEmail };
