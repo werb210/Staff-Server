@@ -1,23 +1,13 @@
-import { dealsService } from "../services/dealsService.js";
+// FILE: server/src/controllers/dealsController.ts
+import { Request, Response } from "express";
+import dealsService from "../services/dealsService.js";
 
-export const dealsController = {
-  list: async (_req, res) => {
-    res.json(await dealsService.list());
-  },
-
-  get: async (req, res) => {
-    res.json(await dealsService.get(req.params.id));
-  },
-
-  create: async (req, res) => {
-    res.json(await dealsService.create(req.body));
-  },
-
-  update: async (req, res) => {
-    res.json(await dealsService.update(req.params.id, req.body));
-  },
-
-  remove: async (req, res) => {
-    res.json(await dealsService.remove(req.params.id));
-  },
+export const getDeals = async (_req: Request, res: Response) => {
+  res.json(await dealsService.getDeals());
 };
+
+export const createDeal = async (req: Request, res: Response) => {
+  res.status(201).json(await dealsService.createDeal(req.body));
+};
+
+export default { getDeals, createDeal };
