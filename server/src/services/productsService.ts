@@ -1,31 +1,24 @@
 // server/src/services/productsService.ts
-import { db } from "../db/registry.js";
-import { products } from "../db/schema/products.js";
-import { eq } from "drizzle-orm";
-import { v4 as uuid } from "uuid";
+import { prisma } from "../db/index.js";
 
 export const productsService = {
-  async list() {
-    return db.select().from(products);
+  list() {
+    return prisma.product.findMany();
   },
 
-  async get(id: string) {
-    const rows = await db.select().from(products).where(eq(products.id, id));
-    return rows[0] ?? null;
+  get(id) {
+    return prisma.product.findUnique({ where: { id } });
   },
 
-  async create(data: any) {
-    const id = uuid();
-    await db.insert(products).values({ id, ...data });
-    return this.get(id);
+  create(data) {
+    return prisma.product.create({ data });
   },
 
-  async update(id: string, data: any) {
-    await db.update(products).set(data).where(eq(products.id, id));
-    return this.get(id);
+  update(id, data) {
+    return prisma.product.update({ where: { id }, data });
   },
 
-  async remove(id: string) {
-    await db.delete(products).where(eq(products.id, id));
+  delete(id) {
+    return prisma.product.delete({ where: { id } });
   },
 };
