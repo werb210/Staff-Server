@@ -66,6 +66,7 @@ model Application {
   company     Company      @relation(fields: [companyId], references: [id])
   user        User?        @relation(fields: [userId], references: [id])
   ocrExtracts OcrExtract[]
+  tags        ApplicationTag[]
 }
 
 model OcrExtract {
@@ -109,6 +110,20 @@ model Lender {
 model Tag {
   id        String   @id @default(uuid())
   name      String   @unique
+  color     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  applications ApplicationTag[]
+}
+
+model ApplicationTag {
+  applicationId String
+  tagId         String
+  createdAt     DateTime @default(now())
+
+  application Application @relation(fields: [applicationId], references: [id])
+  tag         Tag         @relation(fields: [tagId], references: [id])
+
+  @@id([applicationId, tagId])
 }

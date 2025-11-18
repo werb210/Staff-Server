@@ -18,10 +18,10 @@ const tagController = {
 
   /**
    * POST /tags
-   * Body: { name: string }
+   * Body: { name: string, color?: string | null }
    */
   create: asyncHandler(async (req, res) => {
-    const { name } = req.body;
+    const { name, color = null } = req.body;
 
     if (!name || typeof name !== "string") {
       return res.status(400).json({
@@ -30,20 +30,20 @@ const tagController = {
       });
     }
 
-    const data = await tagService.create({ name });
+    const data = await tagService.create(name, color);
 
     res.status(201).json({ success: true, data });
   }),
 
   /**
    * PUT /tags/:id
-   * Body: { name?: string }
+   * Body: { name?: string; color?: string | null }
    */
   update: asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { name } = req.body;
+    const { name, color } = req.body;
 
-    const data = await tagService.update(id, { name });
+    const data = await tagService.update(id, { name, color });
 
     res.status(200).json({ success: true, data });
   }),

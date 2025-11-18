@@ -1,6 +1,6 @@
 // ============================================================================
 // server/src/services/tagService.ts
-// Unified service rewrite (BLOCK 16)
+// BLOCK 23 — Complete Prisma rewrite
 // ============================================================================
 
 import db from "../db/index.js";
@@ -12,45 +12,112 @@ const tagService = {
   async list() {
     return db.tag.findMany({
       orderBy: { name: "asc" },
+      select: {
+        id: true,
+        name: true,
+        color: true,
+        createdAt: true,
+        updatedAt: true,
+      },
     });
   },
 
   /**
-   * Create a new tag
-   * @param {{ name: string }} params
+   * Get a single tag
    */
-  async create({ name }) {
+  async get(tagId: string) {
+    return db.tag.findUnique({
+      where: { id: tagId },
+      select: {
+        id: true,
+        name: true,
+        color: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+  },
+
+  /**
+   * Create tag
+   */
+  async create(name: string, color: string | null = null) {
     return db.tag.create({
-      data: { name },
+      data: { name, color },
+      select: {
+        id: true,
+        name: true,
+        color: true,
+        createdAt: true,
+      },
     });
   },
 
   /**
-   * Update an existing tag
-   * @param {string} id
-   * @param {{ name?: string }} params
+   * Update tag
    */
-  async update(id, params) {
-    const existing = await db.tag.findUnique({ where: { id } });
-    if (!existing) throw new Error("Tag not found");
-
+  async update(tagId: string, data: { name?: string; color?: string | null }) {
     return db.tag.update({
-      where: { id },
-      data: { ...params },
+      where: { id: tagId },
+      data,
+      select: {
+        id: true,
+        name: true,
+        color: true,
+        updatedAt: true,
+      },
     });
   },
 
   /**
    * Delete a tag
-   * @param {string} id
    */
-  async remove(id) {
-    const existing = await db.tag.findUnique({ where: { id } });
-    if (!existing) throw new Error("Tag not found");
+  async remove(tagId: string) {
+    return db.tag.delete({
+      where: { id: tagId },
+    });
+  },
 
-    await db.tag.delete({ where: { id } });
+  /**
+   * Attach a tag to an application
+   */
+  async attachToApplication(appId: string, tagId: string) {
+    return db.applicationTag.create({
+      data: {
+        applicationId: appId,
+        tagId,
+      },
+    });
+  },
 
-    return { id, deleted: true };
+  /**
+   * Remove a tag from an application
+   */
+  async detachFromApplication(appId: string, tagId: string) {
+    return db.applicationTag.deleteMany({
+      where: {
+        applicationId: appId,
+        tagId,
+      },
+    });
+  },
+
+  /**
+   * Get tags for an application
+   */
+  async listForApplication(appId: string) {
+    return db.applicationTag.findMany({
+      where: { applicationId: appId },
+      include: {
+        tag: {
+          select: {
+            id: true,
+            name: true,
+            color: true,
+          },
+        },
+      },
+    });
   },
 };
 
