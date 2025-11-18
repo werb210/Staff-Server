@@ -1,36 +1,23 @@
+// FILE: server/src/controllers/companiesController.ts
 import { Request, Response } from "express";
-import { prisma } from "../db/prisma.js";
+import companiesService from "../services/companiesService.js";
 
-export const companiesController = {
-  async list(req: Request, res: Response) {
-    const items = await prisma.company.findMany();
-    res.json(items);
-  },
+export const getAllCompanies = async (_req: Request, res: Response) => {
+  res.json(await companiesService.getAllCompanies());
+};
 
-  async get(req: Request, res: Response) {
-    const { id } = req.params;
-    const item = await prisma.company.findUnique({ where: { id } });
-    if (!item) return res.status(404).json({ error: "Not found" });
-    res.json(item);
-  },
+export const getCompanyById = async (req: Request, res: Response) => {
+  const company = await companiesService.getCompanyById(req.params.id);
+  if (!company) return res.status(404).json({ error: "Not found" });
+  res.json(company);
+};
 
-  async create(req: Request, res: Response) {
-    const created = await prisma.company.create({ data: req.body });
-    res.json(created);
-  },
+export const createCompany = async (req: Request, res: Response) => {
+  res.status(201).json(await companiesService.createCompany(req.body));
+};
 
-  async update(req: Request, res: Response) {
-    const { id } = req.params;
-    const updated = await prisma.company.update({
-      where: { id },
-      data: req.body,
-    });
-    res.json(updated);
-  },
-
-  async remove(req: Request, res: Response) {
-    const { id } = req.params;
-    await prisma.company.delete({ where: { id } });
-    res.json({ success: true });
-  },
+export default {
+  getAllCompanies,
+  getCompanyById,
+  createCompany,
 };
