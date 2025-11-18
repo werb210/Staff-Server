@@ -1,38 +1,22 @@
-// server/src/controllers/pipelineController.ts
-import { db } from "../db/registry.js";
-import { pipeline } from "../db/schema/pipeline.js";
-import { eq } from "drizzle-orm";
+import { Request, Response } from "express";
+import { prisma } from "../db/prisma.js";
 
 export const pipelineController = {
-  async list(_req, res) {
-    const rows = await db.select().from(pipeline);
-    res.json({ ok: true, data: rows });
-  },
-
-  async get(req, res) {
-    const row = await db.query.pipeline.findFirst({
-      where: eq(pipeline.id, req.params.id),
+  async listStages(req: Request, res: Response) {
+    const stages = await prisma.pipelineStage.findMany({
+      include: { cards: true },
     });
-    if (!row) return res.status(404).json({ ok: false });
-    res.json({ ok: true, data: row });
+    res.json(stages);
   },
 
-  async create(req, res) {
-    const inserted = await db.insert(pipeline).values(req.body).returning();
-    res.json({ ok: true, data: inserted[0] });
-  },
+  async move(req: Request, res: Response) {
+    const { cardId, toStageId } = req.body;
 
-  async update(req, res) {
-    const updated = await db
-      .update(pipeline)
-      .set(req.body)
-      .where(eq(pipeline.id, req.params.id))
-      .returning();
-    res.json({ ok: true, data: updated[0] });
-  },
+    const updated = await prisma.pipelineCard.update({
+      where: { id: cardId },
+      data: { stageId: toStageId },
+    });
 
-  async remove(req, res) {
-    await db.delete(pipeline).where(eq(pipeline.id, req.params.id));
-    res.json({ ok: true });
+    res.json(updated);
   },
 };
