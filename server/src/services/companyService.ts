@@ -2,11 +2,14 @@ import { prisma } from "../db/prisma.js";
 
 export const companyService = {
   list() {
-    return prisma.company.findMany();
+    return prisma.company.findMany({ include: { contacts: true } });
   },
 
   get(id: string) {
-    return prisma.company.findUnique({ where: { id } });
+    return prisma.company.findUnique({
+      where: { id },
+      include: { contacts: true },
+    });
   },
 
   create(data: any) {
