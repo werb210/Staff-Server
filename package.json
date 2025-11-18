@@ -20,6 +20,7 @@
     "drizzle-orm": "0.32.0",
     "express": "4.21.2",
     "pg": "8.13.1",
+    "twilio": "^5.10.5",
     "uuid": "9.0.1"
   },
   "devDependencies": {
