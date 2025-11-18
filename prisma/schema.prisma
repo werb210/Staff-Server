@@ -88,3 +88,10 @@ model Lender {
 
   products Product[]
 }
+
+model Tag {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
