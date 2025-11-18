@@ -1,16 +1,23 @@
 // ============================================================================
 // server/src/services/tagService.ts
-// BLOCK 23 — Complete Prisma rewrite
+// BLOCK 28 — Tag management service
 // ============================================================================
 
-import db from "../db/index.js";
+import { prisma } from "../db/index.js";
 
 const tagService = {
+  /**
+   * Get all tags in the system (alias for list)
+   */
+  async getAll() {
+    return this.list();
+  },
+
   /**
    * List all tags
    */
   async list() {
-    return db.tag.findMany({
+    return prisma.tag.findMany({
       orderBy: { name: "asc" },
       select: {
         id: true,
@@ -26,7 +33,7 @@ const tagService = {
    * Get a single tag
    */
   async get(tagId: string) {
-    return db.tag.findUnique({
+    return prisma.tag.findUnique({
       where: { id: tagId },
       select: {
         id: true,
@@ -42,8 +49,10 @@ const tagService = {
    * Create tag
    */
   async create(name: string, color: string | null = null) {
-    return db.tag.create({
-      data: { name, color },
+    if (!name) throw new Error("Tag name is required");
+
+    return prisma.tag.create({
+      data: { name, color: color || "#6B7280" },
       select: {
         id: true,
         name: true,
@@ -57,9 +66,14 @@ const tagService = {
    * Update tag
    */
   async update(tagId: string, data: { name?: string; color?: string | null }) {
-    return db.tag.update({
+    const updateData = {
+      ...data,
+      color: data.color ?? undefined,
+    };
+
+    return prisma.tag.update({
       where: { id: tagId },
-      data,
+      data: updateData,
       select: {
         id: true,
         name: true,
@@ -73,7 +87,7 @@ const tagService = {
    * Delete a tag
    */
   async remove(tagId: string) {
-    return db.tag.delete({
+    return prisma.tag.delete({
       where: { id: tagId },
     });
   },
@@ -81,11 +95,11 @@ const tagService = {
   /**
    * Attach a tag to an application
    */
-  async attachToApplication(appId: string, tagId: string) {
-    return db.applicationTag.create({
+  async attachToApplication(tagId: string, applicationId: string) {
+    return prisma.applicationTag.create({
       data: {
-        applicationId: appId,
         tagId,
+        applicationId,
       },
     });
   },
@@ -93,11 +107,11 @@ const tagService = {
   /**
    * Remove a tag from an application
    */
-  async detachFromApplication(appId: string, tagId: string) {
-    return db.applicationTag.deleteMany({
+  async detachFromApplication(tagId: string, applicationId: string) {
+    return prisma.applicationTag.deleteMany({
       where: {
-        applicationId: appId,
         tagId,
+        applicationId,
       },
     });
   },
@@ -106,7 +120,7 @@ const tagService = {
    * Get tags for an application
    */
   async listForApplication(appId: string) {
-    return db.applicationTag.findMany({
+    return prisma.applicationTag.findMany({
       where: { applicationId: appId },
       include: {
         tag: {
