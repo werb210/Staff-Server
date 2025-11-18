@@ -1,23 +1,14 @@
-import { documentService } from "../services/documentService.js";
+// FILE: server/src/controllers/documentsController.ts
+import { Request, Response } from "express";
+import documentsService from "../services/documentsService.js";
 
-export const documentsController = {
-  list: async (_req, res) => {
-    res.json(await documentService.list());
-  },
-
-  get: async (req, res) => {
-    res.json(await documentService.get(req.params.id));
-  },
-
-  create: async (req, res) => {
-    res.json(await documentService.create(req.body));
-  },
-
-  update: async (req, res) => {
-    res.json(await documentService.update(req.params.id, req.body));
-  },
-
-  remove: async (req, res) => {
-    res.json(await documentService.remove(req.params.id));
-  },
+export const uploadDocument = async (req: Request, res: Response) => {
+  const doc = await documentsService.uploadDocument(req);
+  res.status(201).json(doc);
 };
+
+export const getDocumentsByApplication = async (req: Request, res: Response) => {
+  res.json(await documentsService.getDocumentsByApplication(req.params.applicationId));
+};
+
+export default { uploadDocument, getDocumentsByApplication };
