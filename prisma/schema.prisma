@@ -30,11 +30,12 @@ model Contact {
   email     String?
   phone     String?
   userId    String?
+  companyId String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   user     User?    @relation(fields: [userId], references: [id])
-  company  Company?
+  company  Company? @relation(fields: [companyId], references: [id])
 }
 
 model Company {
@@ -62,8 +63,21 @@ model Application {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  company Company @relation(fields: [companyId], references: [id])
-  user    User?   @relation(fields: [userId], references: [id])
+  company     Company      @relation(fields: [companyId], references: [id])
+  user        User?        @relation(fields: [userId], references: [id])
+  ocrExtracts OcrExtract[]
+}
+
+model OcrExtract {
+  id            String   @id @default(uuid())
+  applicationId String
+  documentId    String
+  payload       Json
+  summary       String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  application Application @relation(fields: [applicationId], references: [id])
 }
 
 model Product {
@@ -74,6 +88,9 @@ model Product {
   minAmount   Int
   maxAmount   Int
   description String?
+
+  lenderId String?
+  lender   Lender? @relation(fields: [lenderId], references: [id])
 }
 
 model Lender {
