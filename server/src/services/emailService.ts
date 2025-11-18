@@ -1,21 +1,20 @@
-// server/src/services/emailService.ts
-import crypto from "crypto";
+import prisma from "../db/prisma.js";
 
 export const emailService = {
-  async list() {
-    return [
-      { id: 1, subject: "Welcome!", ts: Date.now(), to: "test@example.com" },
-    ];
+  async queueEmail(data: any) {
+    return prisma.emailQueue.create({ data });
   },
 
-  async send(to: string, subject: string, body: string) {
-    return {
-      ok: true,
-      id: crypto.randomUUID(),
-      to,
-      subject,
-      body,
-      ts: Date.now(),
-    };
+  async listQueued() {
+    return prisma.emailQueue.findMany();
   },
+
+  async markSent(id: string) {
+    return prisma.emailQueue.update({
+      where: { id },
+      data: { sent: true }
+    });
+  }
 };
+
+export default emailService;

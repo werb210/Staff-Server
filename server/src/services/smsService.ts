@@ -1,20 +1,20 @@
-// server/src/services/smsService.ts
-import crypto from "crypto";
+import prisma from "../db/prisma.js";
 
 export const smsService = {
-  async list() {
-    return [
-      { id: 1, msg: "Test SMS", to: "+15555555555", ts: Date.now() },
-    ];
+  async queueSMS(data: any) {
+    return prisma.smsQueue.create({ data });
   },
 
-  async send(to: string, msg: string) {
-    return {
-      ok: true,
-      id: crypto.randomUUID(),
-      to,
-      msg,
-      ts: Date.now(),
-    };
+  async listQueued() {
+    return prisma.smsQueue.findMany();
   },
+
+  async markSent(id: string) {
+    return prisma.smsQueue.update({
+      where: { id },
+      data: { sent: true }
+    });
+  }
 };
+
+export default smsService;

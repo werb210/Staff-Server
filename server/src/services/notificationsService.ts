@@ -1,31 +1,28 @@
-// server/src/services/notificationsService.ts
-import { db } from "../db/registry.js";
-import { notifications } from "../db/schema/notifications.js";
-import { eq } from "drizzle-orm";
-import { v4 as uuid } from "uuid";
+import prisma from "../db/prisma.js";
 
 export const notificationsService = {
   async list() {
-    return db.select().from(notifications);
+    return prisma.notification.findMany();
   },
 
   async get(id: string) {
-    const rows = await db.select().from(notifications).where(eq(notifications.id, id));
-    return rows[0] ?? null;
+    return prisma.notification.findUnique({ where: { id } });
   },
 
   async create(data: any) {
-    const id = uuid();
-    await db.insert(notifications).values({ id, ...data });
-    return this.get(id);
+    return prisma.notification.create({ data });
   },
 
   async update(id: string, data: any) {
-    await db.update(notifications).set(data).where(eq(notifications.id, id));
-    return this.get(id);
+    return prisma.notification.update({
+      where: { id },
+      data
+    });
   },
 
   async remove(id: string) {
-    await db.delete(notifications).where(eq(notifications.id, id));
-  },
+    return prisma.notification.delete({ where: { id } });
+  }
 };
+
+export default notificationsService;

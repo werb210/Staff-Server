@@ -1,23 +1,25 @@
-// server/src/services/communicationService.ts
-type SMSPayload = { to: string; message: string };
-type EmailPayload = { to: string; subject: string; body: string };
+import prisma from "../db/prisma.js";
 
 export const communicationService = {
-  async listSMS() {
-    return [{ id: 1, msg: "Hello world", ts: Date.now() }];
+  async list() {
+    return prisma.communication.findMany();
   },
 
-  async listEmails() {
-    return [{ id: 1, subject: "Test Email", ts: Date.now() }];
+  async get(id: string) {
+    return prisma.communication.findUnique({ where: { id } });
   },
 
-  async sendSMS(payload: SMSPayload) {
-    return { status: "sent", ...payload, ts: Date.now() };
+  async create(data: any) {
+    return prisma.communication.create({ data });
   },
 
-  async sendEmail(payload: EmailPayload) {
-    return { status: "sent", ...payload, ts: Date.now() };
+  async update(id: string, data: any) {
+    return prisma.communication.update({ where: { id }, data });
   },
+
+  async remove(id: string) {
+    return prisma.communication.delete({ where: { id } });
+  }
 };
 
 export default communicationService;

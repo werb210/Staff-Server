@@ -1,36 +1,22 @@
-import { prisma } from "../db/prisma.js";
-import { v4 as uuid } from "uuid";
+import prisma from "../db/prisma.js";
 
 export const pipelineService = {
-  list() {
-    return prisma.pipelineItem.findMany({
-      include: { application: true },
+  async list() {
+    return prisma.pipelineStage.findMany({
+      orderBy: { order: "asc" }
     });
   },
 
-  get(id: string) {
-    return prisma.pipelineItem.findUnique({
-      where: { id },
-      include: { application: true },
+  async get(id: string) {
+    return prisma.pipelineStage.findUnique({ where: { id } });
+  },
+
+  async moveApplication(appId: string, stageId: string) {
+    return prisma.application.update({
+      where: { id: appId },
+      data: { stageId }
     });
-  },
-
-  create(data: any) {
-    return prisma.pipelineItem.create({
-      data: {
-        id: uuid(),
-        applicationId: data.applicationId,
-        stage: data.stage,
-        position: data.position ?? 0,
-      },
-    });
-  },
-
-  update(id: string, data: any) {
-    return prisma.pipelineItem.update({ where: { id }, data });
-  },
-
-  remove(id: string) {
-    return prisma.pipelineItem.delete({ where: { id } });
-  },
+  }
 };
+
+export default pipelineService;
