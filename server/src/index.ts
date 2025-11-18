@@ -1,14 +1,14 @@
 // server/src/index.ts
 import "dotenv/config";
 import { app } from "./app.js";
-import { pool } from "./db/index.js";
+import { db } from "./db/index.js";
 
 const PORT = process.env.PORT || 5000;
 
 async function start() {
   try {
     console.log("Connecting to database…");
-    await pool.connect();
+    await db.$connect();
     console.log("Connected.");
 
     app.listen(PORT, () => {
