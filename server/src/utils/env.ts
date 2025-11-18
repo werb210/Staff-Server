@@ -1,16 +1,8 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-const required = ["DATABASE_URL", "JWT_SECRET"];
-
-for (const key of required) {
-  if (!process.env[key]) {
-    console.error(`❌ Missing env variable: ${key}`);
-    process.exit(1);
-  }
-}
-
 export const env = {
+  port: process.env.PORT || "5000",
   databaseUrl: process.env.DATABASE_URL!,
-  jwtSecret: process.env.JWT_SECRET!,
+  jwtSecret: process.env.JWT_SECRET || "default_secret",
 };
