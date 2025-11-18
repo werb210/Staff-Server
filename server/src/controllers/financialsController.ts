@@ -1,90 +1,34 @@
-import {
-  getAllFinancials,
-  getFinancialsById,
-  createFinancials,
-  updateFinancials,
-  deleteFinancials
-} from "../services/financialsService.js";
+import asyncHandler from "../utils/asyncHandler.js";
+import financialsService from "../services/financialsService.js";
 
-async function list(_req, res) {
-  try {
-    const data = await getAllFinancials();
-    return res.json({ data });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-}
+const financialsController = {
+  list: asyncHandler(async (_req, res) => {
+    const data = await financialsService.list();
+    res.json({ success: true, data });
+  }),
 
-async function get(req, res) {
-  try {
+  get: asyncHandler(async (req, res) => {
     const { id } = req.params;
+    const data = await financialsService.get(id);
+    res.json({ success: true, data });
+  }),
 
-    if (!id) {
-      return res.status(400).json({ error: "Missing id parameter" });
-    }
+  create: asyncHandler(async (req, res) => {
+    const data = await financialsService.create(req.body);
+    res.status(201).json({ success: true, data });
+  }),
 
-    const data = await getFinancialsById(id);
-
-    if (!data) {
-      return res.status(404).json({ error: "Financials not found" });
-    }
-
-    return res.json({ data });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-}
-
-async function create(req, res) {
-  try {
-    const data = await createFinancials(req.body);
-    return res.status(201).json({ data });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-}
-
-async function update(req, res) {
-  try {
+  update: asyncHandler(async (req, res) => {
     const { id } = req.params;
+    const data = await financialsService.update(id, req.body);
+    res.json({ success: true, data });
+  }),
 
-    if (!id) {
-      return res.status(400).json({ error: "Missing id parameter" });
-    }
-
-    const data = await updateFinancials(id, req.body);
-
-    if (!data) {
-      return res.status(404).json({ error: "Financials not found" });
-    }
-
-    return res.json({ data });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-}
-
-async function remove(req, res) {
-  try {
+  remove: asyncHandler(async (req, res) => {
     const { id } = req.params;
-
-    if (!id) {
-      return res.status(400).json({ error: "Missing id parameter" });
-    }
-
-    await deleteFinancials(id);
-    return res.json({ success: true });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-}
-
-export const financialsController = {
-  list,
-  get,
-  create,
-  update,
-  remove
+    const data = await financialsService.remove(id);
+    res.json({ success: true, data });
+  }),
 };
 
 export default financialsController;
