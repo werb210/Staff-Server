@@ -1,6 +1,21 @@
 // server/src/utils/logger.ts
 
-export const logger = {
-  info: (...args: any[]) => console.log("[INFO]", ...args),
-  error: (...args: any[]) => console.error("[ERROR]", ...args),
+type LogMethod = (...args: unknown[]) => void;
+
+type Logger = {
+  info: LogMethod;
+  warn: LogMethod;
+  error: LogMethod;
 };
+
+function timestamp(): string {
+  return new Date().toISOString();
+}
+
+export const logger: Logger = {
+  info: (...args) => console.log("[INFO]", timestamp(), ...args),
+  warn: (...args) => console.warn("[WARN]", timestamp(), ...args),
+  error: (...args) => console.error("[ERROR]", timestamp(), ...args),
+};
+
+export default logger;
