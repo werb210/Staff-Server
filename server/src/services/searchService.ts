@@ -1,201 +1,185 @@
-import { prisma } from "../db/prisma.js";
+// ============================================================================
+// server/src/services/searchService.ts
+// BLOCK 25 — Full Prisma rewrite (Contacts, Companies, Applications)
+// ============================================================================
 
-export type SearchType =
-  | "contacts"
-  | "companies"
-  | "deals"
-  | "applications"
-  | "documents";
-
-type GlobalSearchParams = {
-  q: string;
-  type: SearchType | string | null;
-  limit: number;
-};
-
-type SuggestParams = {
-  q: string;
-};
-
-type SearchResult = {
-  type: SearchType;
-  id: string;
-  title: string;
-  subtitle?: string;
-  record: unknown;
-};
-
-const allowedTypes: SearchType[] = [
-  "contacts",
-  "companies",
-  "deals",
-  "applications",
-  "documents",
-];
-
-async function safeQuery<T>(fn: () => Promise<T[]>): Promise<T[]> {
-  try {
-    return await fn();
-  } catch (error) {
-    console.warn("[searchService] query skipped", error);
-    return [];
-  }
-}
-
-function normalizeQuery(q: string) {
-  return q.trim();
-}
-
-function mapResults(
-  type: SearchType,
-  rows: Record<string, any>[]
-): SearchResult[] {
-  return rows.map((row) => ({
-    type,
-    id: String(row.id ?? ""),
-    title:
-      row.name ??
-      row.title ??
-      [row.firstName, row.lastName].filter(Boolean).join(" ") ??
-      row.id ??
-      "",
-    subtitle:
-      row.email ??
-      row.status ??
-      row.productType ??
-      row.phone ??
-      row.website ??
-      undefined,
-    record: row,
-  }));
-}
+import db from "../db/index.js";
 
 const searchService = {
-  async globalSearch({ q, type, limit }: GlobalSearchParams) {
-    const query = normalizeQuery(q);
-    if (!query) return [] as SearchResult[];
-
-    const typesToSearch = type && allowedTypes.includes(type as SearchType)
-      ? [type as SearchType]
-      : allowedTypes;
-
-    const results: SearchResult[] = [];
-
-    for (const searchType of typesToSearch) {
-      const rows = await this.searchByType(searchType, query, limit);
-      results.push(...mapResults(searchType, rows));
+  /**
+   * Global unified search across:
+   *  - contacts
+   *  - companies
+   *  - applications
+   *
+   * Returns up to 25 results per category.
+   */
+  async globalSearch(query: string) {
+    if (!query || query.trim().length === 0) {
+      return { contacts: [], companies: [], applications: [] };
     }
 
-    return results.slice(0, limit);
+    const q = query.trim();
+
+    // --------------------------------------------
+    // CONTACTS
+    // --------------------------------------------
+    const contacts = await db.contact.findMany({
+      where: {
+        OR: [
+          { firstName: { contains: q, mode: "insensitive" } },
+          { lastName: { contains: q, mode: "insensitive" } },
+          { email: { contains: q, mode: "insensitive" } },
+          { phone: { contains: q, mode: "insensitive" } },
+        ],
+      },
+      take: 25,
+      orderBy: { updatedAt: "desc" },
+    });
+
+    // --------------------------------------------
+    // COMPANIES
+    // --------------------------------------------
+    const companies = await db.company.findMany({
+      where: {
+        OR: [
+          { name: { contains: q, mode: "insensitive" } },
+          { website: { contains: q, mode: "insensitive" } },
+          { phone: { contains: q, mode: "insensitive" } },
+          { address: { contains: q, mode: "insensitive" } },
+        ],
+      },
+      take: 25,
+      orderBy: { updatedAt: "desc" },
+    });
+
+    // --------------------------------------------
+    // APPLICATIONS
+    // --------------------------------------------
+    const applications = await db.application.findMany({
+      where: {
+        OR: [
+          { id: { contains: q, mode: "insensitive" } },
+          { status: { contains: q, mode: "insensitive" } },
+          { productType: { contains: q, mode: "insensitive" } },
+          {
+            company: {
+              name: { contains: q, mode: "insensitive" },
+            },
+          },
+          {
+            user: {
+              OR: [
+                { firstName: { contains: q, mode: "insensitive" } },
+                { lastName: { contains: q, mode: "insensitive" } },
+                { email: { contains: q, mode: "insensitive" } },
+              ],
+            },
+          },
+        ],
+      },
+      include: {
+        company: {
+          select: { id: true, name: true },
+        },
+        user: {
+          select: { id: true, firstName: true, lastName: true, email: true },
+        },
+      },
+      take: 25,
+      orderBy: { updatedAt: "desc" },
+    });
+
+    return {
+      contacts,
+      companies,
+      applications,
+    };
   },
 
-  async recent() {
-    const results: SearchResult[] = [];
+  /**
+   * Search only contacts
+   */
+  async searchContacts(query: string) {
+    if (!query) return [];
+    const q = query.trim();
 
-    const recentQueries: [SearchType, () => Promise<Record<string, any>[]>][] = [
-      ["contacts", () => safeQuery(() => prisma.contact.findMany({ orderBy: { updatedAt: "desc" }, take: 5 }))],
-      ["companies", () => safeQuery(() => prisma.company.findMany({ orderBy: { updatedAt: "desc" }, take: 5 }))],
-      ["deals", () => safeQuery(() => (prisma as any).deal?.findMany({ orderBy: { updatedAt: "desc" }, take: 5 }) ?? Promise.resolve([]))],
-      ["applications", () => safeQuery(() => prisma.application.findMany({ orderBy: { updatedAt: "desc" }, take: 5 }))],
-      ["documents", () => safeQuery(() => (prisma as any).document?.findMany({ orderBy: { updatedAt: "desc" }, take: 5 }) ?? Promise.resolve([]))],
-    ];
-
-    for (const [type, query] of recentQueries) {
-      const rows = await query();
-      results.push(...mapResults(type, rows));
-    }
-
-    return results;
+    return db.contact.findMany({
+      where: {
+        OR: [
+          { firstName: { contains: q, mode: "insensitive" } },
+          { lastName: { contains: q, mode: "insensitive" } },
+          { email: { contains: q, mode: "insensitive" } },
+          { phone: { contains: q, mode: "insensitive" } },
+        ],
+      },
+      take: 50,
+      orderBy: { updatedAt: "desc" },
+    });
   },
 
-  async suggest({ q }: SuggestParams) {
-    const suggestions = await this.globalSearch({ q, type: null, limit: 10 });
-    return suggestions;
+  /**
+   * Search only companies
+   */
+  async searchCompanies(query: string) {
+    if (!query) return [];
+    const q = query.trim();
+
+    return db.company.findMany({
+      where: {
+        OR: [
+          { name: { contains: q, mode: "insensitive" } },
+          { website: { contains: q, mode: "insensitive" } },
+          { phone: { contains: q, mode: "insensitive" } },
+          { address: { contains: q, mode: "insensitive" } },
+        ],
+      },
+      take: 50,
+      orderBy: { updatedAt: "desc" },
+    });
   },
 
-  async searchByType(type: SearchType, q: string, limit: number) {
-    const query = normalizeQuery(q);
+  /**
+   * Search only applications
+   */
+  async searchApplications(query: string) {
+    if (!query) return [];
+    const q = query.trim();
 
-    const containsFilter = (field: string) => ({ contains: query, mode: "insensitive" as const });
-
-    switch (type) {
-      case "contacts":
-        return safeQuery(() =>
-          prisma.contact.findMany({
-            where: {
+    return db.application.findMany({
+      where: {
+        OR: [
+          { id: { contains: q, mode: "insensitive" } },
+          { status: { contains: q, mode: "insensitive" } },
+          { productType: { contains: q, mode: "insensitive" } },
+          {
+            company: {
+              name: { contains: q, mode: "insensitive" },
+            },
+          },
+          {
+            user: {
               OR: [
-                { firstName: containsFilter("firstName") },
-                { lastName: containsFilter("lastName") },
-                { email: containsFilter("email") },
-                { phone: containsFilter("phone") },
+                { firstName: { contains: q, mode: "insensitive" } },
+                { lastName: { contains: q, mode: "insensitive" } },
+                { email: { contains: q, mode: "insensitive" } },
               ],
             },
-            take: limit,
-          })
-        );
-      case "companies":
-        return safeQuery(() =>
-          prisma.company.findMany({
-            where: {
-              OR: [
-                { name: containsFilter("name") },
-                { website: containsFilter("website") },
-                { phone: containsFilter("phone") },
-                { address: containsFilter("address") },
-              ],
-            },
-            take: limit,
-          })
-        );
-      case "deals": {
-        const dealModel = (prisma as any).deal;
-        if (!dealModel) return [];
-        return safeQuery(() =>
-          dealModel.findMany({
-            where: {
-              OR: [
-                { status: containsFilter("status") },
-                { terms: containsFilter("terms") },
-              ],
-            },
-            take: limit,
-          })
-        );
-      }
-      case "applications":
-        return safeQuery(() =>
-          prisma.application.findMany({
-            where: {
-              OR: [
-                { productType: containsFilter("productType") },
-                { status: containsFilter("status") },
-                { companyId: containsFilter("companyId") },
-                { userId: containsFilter("userId") },
-              ],
-            },
-            take: limit,
-          })
-        );
-      case "documents": {
-        const documentModel = (prisma as any).document;
-        if (!documentModel) return [];
-        return safeQuery(() =>
-          documentModel.findMany({
-            where: {
-              OR: [
-                { name: containsFilter("name") },
-                { title: containsFilter("title") },
-                { id: containsFilter("id") },
-              ],
-            },
-            take: limit,
-          })
-        );
-      }
-      default:
-        return [];
-    }
+          },
+        ],
+      },
+      include: {
+        company: true,
+        user: true,
+      },
+      take: 50,
+      orderBy: { updatedAt: "desc" },
+    });
   },
 };
 
 export default searchService;
+
+// ============================================================================
+// END OF FILE
+// ============================================================================
