@@ -1,0 +1,137 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  role      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  companies Company[]
+  contacts  Contact[]
+}
+
+model Company {
+  id             String   @id @default(uuid())
+  name           String
+  legalName      String?
+  industry       String?
+  phone          String?
+  address        String?
+  city           String?
+  province       String?
+  postalCode     String?
+  country        String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  contacts       Contact[]
+  applications   Application[]
+}
+
+model Contact {
+  id          String   @id @default(uuid())
+  firstName   String
+  lastName    String
+  email       String
+  phone       String?
+  companyId   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  company     Company? @relation(fields: [companyId], references: [id])
+  applications Application[]
+}
+
+model Application {
+  id                 String   @id @default(uuid())
+  firstName          String
+  lastName           String
+  email              String
+  phone              String?
+  businessName       String
+  businessLegalName  String?
+  industry           String?
+  businessLocation   String?
+  yearsInBusiness    Int?
+  amountRequested    Int?
+  avgMonthlyRevenue  Int?
+  revenueLast12m     Int?
+  arBalance          Int?
+  apBalance          Int?
+  collateralValue    Int?
+  fundsPurpose       String?
+  status             String   @default("submitted")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  companyId          String?
+  contactId          String?
+
+  contact Contact? @relation(fields: [contactId], references: [id])
+  company Company? @relation(fields: [companyId], references: [id])
+
+  documents Document[]
+}
+
+model Document {
+  id           String   @id @default(uuid())
+  applicationId String
+  name         String
+  category     String?
+  mimeType     String?
+  size         Int?
+  checksum     String?
+  blobPath     String
+  createdAt    DateTime @default(now())
+
+  application  Application @relation(fields: [applicationId], references: [id])
+}
+
+model Lender {
+  id        String   @id @default(uuid())
+  name      String
+  country   String
+  active    Boolean  @default(true)
+  products  Product[]
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  lenderId    String
+  name        String
+  minAmount   Int?
+  maxAmount   Int?
+  rate        Float?
+  termMonths  Int?
+  country     String?
+  type        String?
+
+  lender Lender @relation(fields: [lenderId], references: [id])
+}
+
+model PipelineStage {
+  id          String   @id @default(uuid())
+  name        String
+  order       Int
+  createdAt   DateTime @default(now())
+}
+
+model Notification {
+  id          String   @id @default(uuid())
+  userId      String?
+  type        String
+  message     String
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+}
