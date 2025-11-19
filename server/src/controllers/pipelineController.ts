@@ -1,6 +1,6 @@
 // server/src/controllers/pipelineController.ts
 import type { Request, Response } from "express";
-import prisma from "../db/prisma";
+import prisma from "../db/prisma"; // Prisma client
 
 export const pipelineController = {
   async list(_req: Request, res: Response) {
@@ -12,17 +12,15 @@ export const pipelineController = {
     const row = await prisma.pipeline.findUnique({
       where: { id: req.params.id },
     });
-
     if (!row) return res.status(404).json({ ok: false });
     res.json({ ok: true, data: row });
   },
 
   async create(req: Request, res: Response) {
-    const inserted = await prisma.pipeline.create({
+    const created = await prisma.pipeline.create({
       data: req.body,
     });
-
-    res.json({ ok: true, data: inserted });
+    res.json({ ok: true, data: created });
   },
 
   async update(req: Request, res: Response) {
@@ -30,7 +28,6 @@ export const pipelineController = {
       where: { id: req.params.id },
       data: req.body,
     });
-
     res.json({ ok: true, data: updated });
   },
 
@@ -38,7 +35,6 @@ export const pipelineController = {
     await prisma.pipeline.delete({
       where: { id: req.params.id },
     });
-
     res.json({ ok: true });
   },
 };
