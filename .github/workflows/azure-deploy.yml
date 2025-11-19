@@ -16,26 +16,24 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          check-latest: true
 
-      - name: Install dependencies
+      - name: Install deps
         run: npm ci
 
       - name: Build server
         run: npm run build
 
-      - name: Create deployment ZIP
+      # ---------------------------
+      # Create lean ZIP (NO node_modules)
+      # ---------------------------
+      - name: Create deploy ZIP
         run: |
           rm -f release.zip
           zip -r release.zip \
-            server/dist \
+            dist \
             package.json \
             package-lock.json \
-            node_modules \
-            -x "*.git*" \
-            -x ".github/*" \
-            -x "tests/*" \
-            -x "test/*"
+            -x "*.git*" ".github/*" "server/src/*"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -52,9 +50,8 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: release
-          path: .
 
-      - name: Extract artifact
+      - name: Extract
         run: unzip -o release.zip
 
       - name: Deploy to Azure Web App
