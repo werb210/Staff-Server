@@ -1,4 +1,3 @@
-// server/src/controllers/pipelineController.ts
 import type { Request, Response } from "express";
 
 export const pipelineController = {
