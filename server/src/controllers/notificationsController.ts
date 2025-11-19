@@ -4,7 +4,7 @@
 // ============================================================================
 
 import type { Request, Response } from "express";
-import notificationsService from "../services/notificationsService.js";
+import { notificationsService } from "../services/notificationsService.js";
 
 export const notificationsController = {
   async list(req: Request, res: Response) {
