@@ -1,10 +1,8 @@
-truncate -s 0 server/src/controllers/pipelineController.ts
-
-cat > server/src/controllers/pipelineController.ts << 'EOF'
+cat << 'EOF' > server/src/controllers/pipelineController.ts
 // server/src/controllers/pipelineController.ts
 import type { Request, Response } from "express";
 
-// After removing Drizzle, this controller is temporarily disabled.
+// Temporarily disabled after Drizzle removal
 export const pipelineController = {
   async list(_req: Request, res: Response) {
     res.status(501).json({ ok: false, error: "Pipeline not implemented." });
