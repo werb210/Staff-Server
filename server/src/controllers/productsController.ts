@@ -1,10 +1,8 @@
-truncate -s 0 server/src/controllers/productsController.ts
-
-cat > server/src/controllers/productsController.ts << 'EOF'
+cat << 'EOF' > server/src/controllers/productsController.ts
 // server/src/controllers/productsController.ts
 import type { Request, Response } from "express";
 
-// After removing Drizzle, this controller is temporarily disabled.
+// Temporarily disabled after Drizzle removal
 export const productController = {
   async list(_req: Request, res: Response) {
     res.status(501).json({ ok: false, error: "Products not implemented." });
