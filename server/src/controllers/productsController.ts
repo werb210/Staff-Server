@@ -1,9 +1,7 @@
-cat << 'EOF' > server/src/controllers/productsController.ts
 // server/src/controllers/productsController.ts
 import type { Request, Response } from "express";
 
-// Temporarily disabled after Drizzle removal
-export const productController = {
+export const productsController = {
   async list(_req: Request, res: Response) {
     res.status(501).json({ ok: false, error: "Products not implemented." });
   },
@@ -24,4 +22,3 @@ export const productController = {
     res.status(501).json({ ok: false, error: "Products not implemented." });
   },
 };
-EOF
