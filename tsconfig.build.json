@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "outDir": "./dist/server",
+    "outDir": "./dist",
     "rootDir": "./server/src",
     "module": "commonjs",
     "target": "ES2020",
@@ -8,7 +8,6 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
-    "strict": false,
     "allowJs": true
   },
   "include": ["server/src/**/*"],
