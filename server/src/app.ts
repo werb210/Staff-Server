@@ -21,5 +21,5 @@ app.use("/api/tags", tagsRoutes);
 
 // ROOT HEALTH CHECK
 app.get("/", (_req, res) => {
-  res.json({ ok: true, service: "staff-server" });
+  res.json({ ok: true, service: "staff-server", dbReady: Boolean(app.locals.dbReady) });
 });

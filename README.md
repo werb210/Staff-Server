@@ -55,6 +55,11 @@ server/
 
 Create a `.env` file at the project root to override defaults. The server listens on `PORT` if specified (defaults to `5000`).
 
+Additional development toggles:
+
+- `REQUIRE_DATABASE=true` – force the process to exit if the database connection fails.
+- `SKIP_DATABASE=true` – skip the initial connection attempt entirely (useful when iterating on HTTP-only endpoints).
+
 ## Development Notes
 
 - Utility helpers can be added to `server/src/utils`.
