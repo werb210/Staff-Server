@@ -1,8 +1,8 @@
 // server/src/controllers/productsController.ts
 import type { Request, Response } from "express";
-import prisma from "../db/prisma";
+import prisma from "../db/prisma"; // Prisma client
 
-export const productController = {
+export const productsController = {
   async list(_req: Request, res: Response) {
     const rows = await prisma.products.findMany();
     res.json({ ok: true, data: rows });
@@ -12,17 +12,15 @@ export const productController = {
     const row = await prisma.products.findUnique({
       where: { id: req.params.id },
     });
-
     if (!row) return res.status(404).json({ ok: false });
     res.json({ ok: true, data: row });
   },
 
   async create(req: Request, res: Response) {
-    const inserted = await prisma.products.create({
+    const created = await prisma.products.create({
       data: req.body,
     });
-
-    res.json({ ok: true, data: inserted });
+    res.json({ ok: true, data: created });
   },
 
   async update(req: Request, res: Response) {
@@ -30,7 +28,6 @@ export const productController = {
       where: { id: req.params.id },
       data: req.body,
     });
-
     res.json({ ok: true, data: updated });
   },
 
@@ -38,7 +35,6 @@ export const productController = {
     await prisma.products.delete({
       where: { id: req.params.id },
     });
-
     res.json({ ok: true });
   },
 };
