@@ -23,9 +23,6 @@ jobs:
       - name: Build server
         run: npm run build
 
-      # ---------------------------
-      # Create lean ZIP (NO node_modules)
-      # ---------------------------
       - name: Create deploy ZIP
         run: |
           rm -f release.zip
@@ -33,7 +30,9 @@ jobs:
             dist \
             package.json \
             package-lock.json \
-            -x "*.git*" ".github/*" "server/src/*"
+            node_modules \
+            -x "*.git*" \
+            -x ".github/*"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
