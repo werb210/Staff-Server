@@ -4,7 +4,7 @@ import { companiesController } from "../controllers/companiesController.js";
 
 const router = Router();
 
-router.get("/", companiesController.all);
+router.get("/", companiesController.list);
 router.get("/:id", companiesController.get);
 
 export default router;

@@ -1,5 +1,4 @@
-import prisma from "../../db/prisma.js";
-import { Prisma } from "@prisma/client";
+import prisma from "../db/prisma.js";
 
 export async function getAllFinancials() {
   try {
@@ -29,7 +28,7 @@ export async function getFinancialsById(id: string) {
   }
 }
 
-export async function createFinancials(data: Prisma.FinancialsCreateInput) {
+export async function createFinancials(data: any) {
   try {
     return await prisma.financials.create({ data });
   } catch (error) {
@@ -39,7 +38,7 @@ export async function createFinancials(data: Prisma.FinancialsCreateInput) {
 
 export async function updateFinancials(
   id: string,
-  data: Prisma.FinancialsUpdateInput,
+  data: any,
 ) {
   if (!id) {
     throw new Error("Financials id is required");
@@ -54,6 +53,18 @@ export async function updateFinancials(
     throw error;
   }
 }
+
+const financialsService = {
+  list: getAllFinancials,
+  get: getFinancialsById,
+  create: createFinancials,
+  update: updateFinancials,
+  remove: deleteFinancials,
+  getByApplication: getFinancialsById,
+  processDocument: createFinancials,
+};
+
+export default financialsService;
 
 export async function deleteFinancials(id: string) {
   if (!id) {

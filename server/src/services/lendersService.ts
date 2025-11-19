@@ -13,7 +13,7 @@ export const lendersService = {
     try {
       return await prisma.lender.findMany({ include: { products: true } });
     } catch (error) {
-      handleError(error, "Failed to list lenders");
+      return handleError(error, "Failed to list lenders");
     }
   },
 
@@ -24,7 +24,7 @@ export const lendersService = {
         include: { products: true },
       });
     } catch (error) {
-      handleError(error, `Failed to fetch lender ${id}`);
+      return handleError(error, `Failed to fetch lender ${id}`);
     }
   },
 
@@ -32,7 +32,7 @@ export const lendersService = {
     try {
       return await prisma.lender.create({ data });
     } catch (error) {
-      handleError(error, "Failed to create lender");
+      return handleError(error, "Failed to create lender");
     }
   },
 
@@ -40,7 +40,7 @@ export const lendersService = {
     try {
       return await prisma.lender.update({ where: { id }, data });
     } catch (error) {
-      handleError(error, `Failed to update lender ${id}`);
+      return handleError(error, `Failed to update lender ${id}`);
     }
   },
 
@@ -48,7 +48,7 @@ export const lendersService = {
     try {
       return await prisma.lender.delete({ where: { id } });
     } catch (error) {
-      handleError(error, `Failed to delete lender ${id}`);
+      return handleError(error, `Failed to delete lender ${id}`);
     }
   },
 };

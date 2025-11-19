@@ -13,7 +13,9 @@
     "resolveJsonModule": true,
 
     "isolatedModules": true,
-    "noEmit": true
+    "noEmit": true,
+
+    "noImplicitAny": false
   },
 
   "include": ["server/src/**/*", "server/types/**/*", "server/**/*.d.ts"],

@@ -43,23 +43,23 @@ const handleError = (error: unknown, action: string): never => {
 export const documentsService = {
   async list(): Promise<DocumentRecord[]> {
     try {
-      const rows = await prisma.$queryRaw<DocumentRecord[]>(
+      const rows = (await prisma.$queryRaw(
         Prisma.sql`SELECT ${selectColumns} FROM ${tableName} ORDER BY created_at DESC`,
-      );
+      )) as DocumentRecord[];
       return rows.map(mapDocument);
     } catch (error) {
-      handleError(error, "Failed to list documents");
+      return handleError(error, "Failed to list documents");
     }
   },
 
   async get(id: string): Promise<DocumentRecord | null> {
     try {
-      const rows = await prisma.$queryRaw<DocumentRecord[]>(
+      const rows = (await prisma.$queryRaw(
         Prisma.sql`SELECT ${selectColumns} FROM ${tableName} WHERE id = ${id} LIMIT 1`,
-      );
+      )) as DocumentRecord[];
       return rows[0] ? mapDocument(rows[0]) : null;
     } catch (error) {
-      handleError(error, `Failed to fetch document ${id}`);
+      return handleError(error, `Failed to fetch document ${id}`);
     }
   },
 
@@ -68,16 +68,16 @@ export const documentsService = {
     const { applicationId = null, name, url, mimeType = null } = data;
 
     try {
-      const rows = await prisma.$queryRaw<DocumentRecord[]>(
+      const rows = (await prisma.$queryRaw(
         Prisma.sql`
           INSERT INTO ${tableName} (id, application_id, name, url, mime_type)
           VALUES (${documentId}, ${applicationId}, ${name}, ${url}, ${mimeType})
           RETURNING ${selectColumns}
         `,
-      );
+      )) as DocumentRecord[];
       return mapDocument(rows[0]);
     } catch (error) {
-      handleError(error, "Failed to create document");
+      return handleError(error, "Failed to create document");
     }
   },
 
@@ -94,32 +94,34 @@ export const documentsService = {
       throw new Error("No update fields provided");
     }
 
+    const joinedUpdates = Prisma.join(updates, ", ");
+
     try {
-      const rows = await prisma.$queryRaw<DocumentRecord[]>(
+      const rows = (await prisma.$queryRaw(
         Prisma.sql`
           UPDATE ${tableName}
-          SET ${Prisma.join(updates, Prisma.sql`, `)}, updated_at = NOW()
+          SET ${joinedUpdates}, updated_at = NOW()
           WHERE id = ${id}
           RETURNING ${selectColumns}
         `,
-      );
+      )) as DocumentRecord[];
       if (!rows[0]) {
         throw new Error("Document not found");
       }
       return mapDocument(rows[0]);
     } catch (error) {
-      handleError(error, `Failed to update document ${id}`);
+      return handleError(error, `Failed to update document ${id}`);
     }
   },
 
   async delete(id: string): Promise<{ deleted: boolean }> {
     try {
-      const result = await prisma.$executeRaw<number>(
+      const result = (await prisma.$executeRaw(
         Prisma.sql`DELETE FROM ${tableName} WHERE id = ${id}`,
-      );
+      )) as number;
       return { deleted: result > 0 };
     } catch (error) {
-      handleError(error, `Failed to delete document ${id}`);
+      return handleError(error, `Failed to delete document ${id}`);
     }
   },
 };

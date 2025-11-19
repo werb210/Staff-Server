@@ -2,7 +2,7 @@
 // Core SMS sending layer (Twilio)
 
 import twilio from "twilio";
-import { env } from "../utils/env.js";
+import { ENV } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
 
 type TwilioClient = ReturnType<typeof twilio>;
@@ -12,11 +12,11 @@ let client: TwilioClient | null = null;
 const getClient = () => {
   if (client) return client;
 
-  if (!env.twilioAccountSid || !env.twilioAuthToken) {
+  if (!ENV.TWILIO_ACCOUNT_SID || !ENV.TWILIO_AUTH_TOKEN) {
     throw new Error("Twilio credentials missing");
   }
 
-  client = twilio(env.twilioAccountSid, env.twilioAuthToken);
+  client = twilio(ENV.TWILIO_ACCOUNT_SID, ENV.TWILIO_AUTH_TOKEN);
   return client;
 };
 
@@ -25,14 +25,14 @@ export const smsService = {
    * Send an SMS through Twilio
    */
   async send(to: string, body: string) {
-    if (!env.twilioPhoneNumber) {
+    if (!ENV.TWILIO_PHONE_NUMBER) {
       throw new Error("TWILIO_PHONE_NUMBER missing");
     }
 
     try {
       const twilioClient = getClient();
       const message = await twilioClient.messages.create({
-        from: env.twilioPhoneNumber,
+        from: ENV.TWILIO_PHONE_NUMBER,
         to,
         body,
       });

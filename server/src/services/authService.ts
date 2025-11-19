@@ -1,7 +1,9 @@
 // server/src/services/authService.ts
 import { prisma } from "../db/index.js";
-import bcrypt from "bcryptjs";
+import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+
+const JWT_SECRET = process.env.JWT_SECRET ?? "insecure-default";
 
 export const authService = {
   async register(data) {
@@ -28,11 +30,9 @@ export const authService = {
     const match = await bcrypt.compare(password, user.password);
     if (!match) throw new Error("Invalid credentials");
 
-    const token = jwt.sign(
-      { id: user.id, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" }
-    );
+    const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, {
+      expiresIn: "7d",
+    });
 
     return { user, token };
   },

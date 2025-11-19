@@ -18,7 +18,7 @@ export const applicationsService = {
         },
       });
     } catch (error) {
-      handleError(error, "Failed to list applications");
+      return handleError(error, "Failed to list applications");
     }
   },
 
@@ -32,7 +32,7 @@ export const applicationsService = {
         },
       });
     } catch (error) {
-      handleError(error, `Failed to fetch application ${id}`);
+      return handleError(error, `Failed to fetch application ${id}`);
     }
   },
 
@@ -40,7 +40,7 @@ export const applicationsService = {
     try {
       return await prisma.application.create({ data });
     } catch (error) {
-      handleError(error, "Failed to create application");
+      return handleError(error, "Failed to create application");
     }
   },
 
@@ -51,7 +51,7 @@ export const applicationsService = {
     try {
       return await prisma.application.update({ where: { id }, data });
     } catch (error) {
-      handleError(error, `Failed to update application ${id}`);
+      return handleError(error, `Failed to update application ${id}`);
     }
   },
 
@@ -59,7 +59,7 @@ export const applicationsService = {
     try {
       return await prisma.application.delete({ where: { id } });
     } catch (error) {
-      handleError(error, `Failed to delete application ${id}`);
+      return handleError(error, `Failed to delete application ${id}`);
     }
   },
 };

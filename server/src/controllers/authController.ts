@@ -7,7 +7,8 @@ export const authController = {
       const user = await authService.register(req.body);
       res.json(user);
     } catch (err) {
-      res.status(400).json({ error: err.message });
+      const message = err instanceof Error ? err.message : String(err);
+      res.status(400).json({ error: message });
     }
   },
 
@@ -19,7 +20,8 @@ export const authController = {
       );
       res.json({ user, token });
     } catch (err) {
-      res.status(400).json({ error: err.message });
+      const message = err instanceof Error ? err.message : String(err);
+      res.status(400).json({ error: message });
     }
   },
 };
