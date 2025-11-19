@@ -13,6 +13,12 @@
     "skipLibCheck": true
   },
 
-  "include": ["server/src/**/*"],
-  "exclude": ["server/src/__tests__"]
+  "include": [
+    "server/src/**/*"
+  ],
+
+  "exclude": [
+    "server/src/__tests__",
+    "dist"
+  ]
 }
