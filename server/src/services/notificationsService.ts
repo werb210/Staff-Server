@@ -30,7 +30,7 @@ type NotificationCreateData = Partial<
   Pick<NotificationRecord, "title" | "message" | "type">
 >;
 
-const notificationsService = {
+export const notificationsService = {
   /**
    * Fetch all notifications for a user
    * @param {string} userId
