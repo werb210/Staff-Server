@@ -1,8 +1,9 @@
 // server/src/controllers/authController.ts
+import type { Request, Response } from "express";
 import { authService } from "../services/authService.js";
 
 export const authController = {
-  async register(req, res) {
+  async register(req: Request, res: Response) {
     try {
       const user = await authService.register(req.body);
       res.json(user);
@@ -12,7 +13,7 @@ export const authController = {
     }
   },
 
-  async login(req, res) {
+  async login(req: Request, res: Response) {
     try {
       const { user, token } = await authService.login(
         req.body.email,

@@ -5,11 +5,57 @@
 
 import db from "../db/index.js";
 
+type ApplicationSummary = {
+  id: string;
+  businessName: string;
+  email: string;
+  phone: string;
+  amountRequested: number;
+  status: string;
+  stageId: string;
+  updatedAt: Date;
+  createdAt: Date;
+};
+
+type PipelineStageSummary = {
+  id: string;
+  name: string;
+  order: number;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type PipelineStageWithApplications = {
+  id: string;
+  name: string;
+  order: number;
+  applications: ApplicationSummary[];
+};
+
+type PipelineStageUpdateResult = {
+  id: string;
+  name: string;
+  order: number;
+  updatedAt: Date;
+};
+
+type PipelineStageCreateResult = {
+  id: string;
+  name: string;
+  order: number;
+  createdAt: Date;
+};
+
+type PipelineStageUpdateInput = {
+  name?: string;
+  order?: number;
+};
+
 const pipelineService = {
   /**
    * List all pipeline stages in correct order
    */
-  async listStages() {
+  async listStages(): Promise<PipelineStageSummary[]> {
     return db.pipelineStage.findMany({
       orderBy: { order: "asc" },
       select: {
@@ -19,14 +65,14 @@ const pipelineService = {
         createdAt: true,
         updatedAt: true,
       },
-    });
+    }) as Promise<PipelineStageSummary[]>;
   },
 
   /**
    * Get applications for a specific stage
    * @param {string} stageId
    */
-  async listApplications(stageId) {
+  async listApplications(stageId: string): Promise<ApplicationSummary[]> {
     return db.application.findMany({
       where: { stageId },
       orderBy: { updatedAt: "desc" },
@@ -41,13 +87,13 @@ const pipelineService = {
         updatedAt: true,
         createdAt: true,
       },
-    });
+    }) as Promise<ApplicationSummary[]>;
   },
 
   /**
    * Get entire pipeline board (all stages + applications)
    */
-  async fullBoard() {
+  async fullBoard(): Promise<PipelineStageWithApplications[]> {
     const stages = await db.pipelineStage.findMany({
       orderBy: { order: "asc" },
       select: {
@@ -71,7 +117,7 @@ const pipelineService = {
       },
     });
 
-    return stages;
+    return stages as PipelineStageWithApplications[];
   },
 
   /**
@@ -79,7 +125,10 @@ const pipelineService = {
    * @param {string} stageId
    * @param {{ name?:string, order?:number }} data
    */
-  async updateStage(stageId, data) {
+  async updateStage(
+    stageId: string,
+    data: PipelineStageUpdateInput,
+  ): Promise<PipelineStageUpdateResult> {
     return db.pipelineStage.update({
       where: { id: stageId },
       data,
@@ -89,13 +138,13 @@ const pipelineService = {
         order: true,
         updatedAt: true,
       },
-    });
+    }) as Promise<PipelineStageUpdateResult>;
   },
 
   /**
    * Create a pipeline stage
    */
-  async createStage(name, order) {
+  async createStage(name: string, order: number): Promise<PipelineStageCreateResult> {
     return db.pipelineStage.create({
       data: { name, order },
       select: {
@@ -104,14 +153,14 @@ const pipelineService = {
         order: true,
         createdAt: true,
       },
-    });
+    }) as Promise<PipelineStageCreateResult>;
   },
 
   /**
    * Delete a stage
    * (Only safe if no apps attached)
    */
-  async deleteStage(stageId) {
+  async deleteStage(stageId: string): Promise<PipelineStageSummary> {
     const apps = await db.application.count({ where: { stageId } });
     if (apps > 0) {
       throw new Error("Cannot delete stage with applications in it.");
@@ -119,7 +168,7 @@ const pipelineService = {
 
     return db.pipelineStage.delete({
       where: { id: stageId },
-    });
+    }) as Promise<PipelineStageSummary>;
   },
 };
 

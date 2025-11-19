@@ -1,15 +1,16 @@
 // server/src/controllers/notificationController.ts
+import type { Request, Response } from "express";
 import { db } from "../db/registry.js";
 import { notifications } from "../db/schema/notifications.js";
 import { eq } from "drizzle-orm";
 
 export const notificationsController = {
-  async list(_req, res) {
+  async list(_req: Request, res: Response) {
     const rows = await db.select().from(notifications);
     res.json({ ok: true, data: rows });
   },
 
-  async get(req, res) {
+  async get(req: Request, res: Response) {
     const row = await db.query.notifications.findFirst({
       where: eq(notifications.id, req.params.id),
     });
@@ -17,7 +18,7 @@ export const notificationsController = {
     res.json({ ok: true, data: row });
   },
 
-  async create(req, res) {
+  async create(req: Request, res: Response) {
     const inserted = await db
       .insert(notifications)
       .values(req.body)
@@ -25,7 +26,7 @@ export const notificationsController = {
     res.json({ ok: true, data: inserted[0] });
   },
 
-  async update(req, res) {
+  async update(req: Request, res: Response) {
     const updated = await db
       .update(notifications)
       .set(req.body)
@@ -34,7 +35,7 @@ export const notificationsController = {
     res.json({ ok: true, data: updated[0] });
   },
 
-  async remove(req, res) {
+  async remove(req: Request, res: Response) {
     await db.delete(notifications).where(eq(notifications.id, req.params.id));
     res.json({ ok: true });
   },

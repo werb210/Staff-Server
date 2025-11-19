@@ -5,12 +5,37 @@
 
 import db from "../db/index.js";
 
+export interface NotificationRecord {
+  id: string;
+  userId: string;
+  title: string;
+  message: string;
+  type: string;
+  read: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+type NotificationListItem = Pick<
+  NotificationRecord,
+  "id" | "userId" | "title" | "message" | "type" | "read" | "createdAt"
+>;
+
+type NotificationSummary = Pick<
+  NotificationRecord,
+  "id" | "title" | "read" | "updatedAt"
+>;
+
+type NotificationCreateData = Partial<
+  Pick<NotificationRecord, "title" | "message" | "type">
+>;
+
 const notificationsService = {
   /**
    * Fetch all notifications for a user
    * @param {string} userId
    */
-  async list(userId) {
+  async list(userId: string): Promise<NotificationListItem[]> {
     return db.notification.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
@@ -23,7 +48,7 @@ const notificationsService = {
         read: true,
         createdAt: true,
       },
-    });
+    }) as Promise<NotificationListItem[]>;
   },
 
   /**
@@ -31,7 +56,10 @@ const notificationsService = {
    * @param {string} userId
    * @param {object} data
    */
-  async create(userId, data) {
+  async create(
+    userId: string,
+    data: NotificationCreateData,
+  ): Promise<NotificationListItem> {
     return db.notification.create({
       data: {
         userId,
@@ -48,14 +76,14 @@ const notificationsService = {
         read: true,
         createdAt: true,
       },
-    });
+    }) as Promise<NotificationListItem>;
   },
 
   /**
    * Mark a notification as read
    * @param {string} id
    */
-  async markRead(id) {
+  async markRead(id: string): Promise<NotificationSummary> {
     return db.notification.update({
       where: { id },
       data: { read: true },
@@ -65,14 +93,14 @@ const notificationsService = {
         read: true,
         updatedAt: true,
       },
-    });
+    }) as Promise<NotificationSummary>;
   },
 
   /**
    * Mark ALL notifications for a user as read
    * @param {string} userId
    */
-  async markAllRead(userId) {
+  async markAllRead(userId: string): Promise<{ updated: number; status: string }> {
     const result = await db.notification.updateMany({
       where: { userId, read: false },
       data: { read: true },
@@ -87,7 +115,7 @@ const notificationsService = {
   /**
    * Delete one notification
    */
-  async delete(id) {
+  async delete(id: string): Promise<{ deleted: true }> {
     await db.notification.delete({ where: { id } });
     return { deleted: true };
   },
@@ -95,7 +123,7 @@ const notificationsService = {
   /**
    * Delete all notifications for a user
    */
-  async deleteAll(userId) {
+  async deleteAll(userId: string): Promise<{ deleted: number }> {
     const result = await db.notification.deleteMany({
       where: { userId },
     });

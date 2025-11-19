@@ -1,19 +1,36 @@
 import { prisma } from "../db/prisma.js";
 import { v4 as uuid } from "uuid";
 
+export interface DealRecord {
+  id: string;
+  applicationId: string;
+  lenderId: string;
+  status: string;
+  offerAmount: number;
+  terms: string | null;
+}
+
+export type DealWithApplication = DealRecord & {
+  application?: Record<string, unknown> | null;
+};
+
+export type DealCreateInput = Omit<DealRecord, "id">;
+
+export type DealUpdateInput = Partial<DealCreateInput>;
+
 export const dealsService = {
-  list() {
+  list(): Promise<DealWithApplication[]> {
     return prisma.deal.findMany({ include: { application: true } });
   },
 
-  get(id: string) {
+  get(id: string): Promise<DealWithApplication | null> {
     return prisma.deal.findUnique({
       where: { id },
       include: { application: true },
     });
   },
 
-  create(data: any) {
+  create(data: DealCreateInput): Promise<DealRecord> {
     return prisma.deal.create({
       data: {
         id: uuid(),
@@ -26,11 +43,11 @@ export const dealsService = {
     });
   },
 
-  update(id: string, data: any) {
+  update(id: string, data: DealUpdateInput): Promise<DealRecord> {
     return prisma.deal.update({ where: { id }, data });
   },
 
-  remove(id: string) {
+  remove(id: string): Promise<DealRecord> {
     return prisma.deal.delete({ where: { id } });
   },
 };

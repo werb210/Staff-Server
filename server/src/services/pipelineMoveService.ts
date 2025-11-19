@@ -5,13 +5,33 @@
 
 import db from "../db/index.js";
 
+type ApplicationStageSnapshot = {
+  id: string;
+  stageId: string;
+  updatedAt: Date;
+};
+
+type PipelineMoveLogWithStage = {
+  id: string;
+  stageId: string;
+  createdAt: Date;
+  applicationId: string;
+  stage: {
+    name: string;
+    order: number;
+  };
+};
+
 const pipelineMoveService = {
   /**
    * Move an application from one pipeline stage to another
    * @param {string} applicationId
    * @param {string} newStageId
    */
-  async moveToStage(applicationId, newStageId) {
+  async moveToStage(
+    applicationId: string,
+    newStageId: string,
+  ): Promise<ApplicationStageSnapshot> {
     // Ensure target stage exists
     const stage = await db.pipelineStage.findUnique({
       where: { id: newStageId },
@@ -41,14 +61,16 @@ const pipelineMoveService = {
       },
     });
 
-    return updated;
+    return updated as ApplicationStageSnapshot;
   },
 
   /**
    * Get move history for an application
    * @param {string} applicationId
    */
-  async listMoves(applicationId) {
+  async listMoves(
+    applicationId: string,
+  ): Promise<PipelineMoveLogWithStage[]> {
     return db.pipelineMoveLog.findMany({
       where: { applicationId },
       orderBy: { createdAt: "desc" },
@@ -61,7 +83,7 @@ const pipelineMoveService = {
           select: { name: true, order: true },
         },
       },
-    });
+    }) as Promise<PipelineMoveLogWithStage[]>;
   },
 };
 
