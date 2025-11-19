@@ -1,40 +1,41 @@
 // server/src/controllers/productsController.ts
 import type { Request, Response } from "express";
-import prisma from "../db/prisma"; // Prisma client
 
-export const productsController = {
+// Temporary stub controller now that Drizzle has been removed.
+// These endpoints just return 501 until Prisma-based versions are wired up.
+export const productController = {
   async list(_req: Request, res: Response) {
-    const rows = await prisma.products.findMany();
-    res.json({ ok: true, data: rows });
+    res.status(501).json({
+      ok: false,
+      error: "Products list endpoint not implemented. Drizzle has been removed.",
+    });
   },
 
-  async get(req: Request, res: Response) {
-    const row = await prisma.products.findUnique({
-      where: { id: req.params.id },
+  async get(_req: Request, res: Response) {
+    res.status(501).json({
+      ok: false,
+      error: "Products get endpoint not implemented. Drizzle has been removed.",
     });
-    if (!row) return res.status(404).json({ ok: false });
-    res.json({ ok: true, data: row });
   },
 
-  async create(req: Request, res: Response) {
-    const created = await prisma.products.create({
-      data: req.body,
+  async create(_req: Request, res: Response) {
+    res.status(501).json({
+      ok: false,
+      error: "Products create endpoint not implemented. Drizzle has been removed.",
     });
-    res.json({ ok: true, data: created });
   },
 
-  async update(req: Request, res: Response) {
-    const updated = await prisma.products.update({
-      where: { id: req.params.id },
-      data: req.body,
+  async update(_req: Request, res: Response) {
+    res.status(501).json({
+      ok: false,
+      error: "Products update endpoint not implemented. Drizzle has been removed.",
     });
-    res.json({ ok: true, data: updated });
   },
 
-  async remove(req: Request, res: Response) {
-    await prisma.products.delete({
-      where: { id: req.params.id },
+  async remove(_req: Request, res: Response) {
+    res.status(501).json({
+      ok: false,
+      error: "Products remove endpoint not implemented. Drizzle has been removed.",
     });
-    res.json({ ok: true });
   },
 };
