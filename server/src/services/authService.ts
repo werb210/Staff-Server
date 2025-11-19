@@ -3,6 +3,7 @@ import type { User } from "@prisma/client";
 import { prisma } from "../db/index.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import { sanitizeUser } from "../utils/sanitizeUser.js";
 
 const JWT_SECRET = process.env.JWT_SECRET ?? "insecure-default";
 
@@ -15,8 +16,10 @@ export interface RegisterInput {
   phone?: string | null;
 }
 
+export type SafeUser = Omit<User, "password">;
+
 export const authService = {
-  async register(data: RegisterInput): Promise<User> {
+  async register(data: RegisterInput): Promise<SafeUser> {
     const hashed = await bcrypt.hash(data.password, 10);
 
     const user = await prisma.user.create({
@@ -30,13 +33,15 @@ export const authService = {
       },
     });
 
-    return user as User;
+    const safeUser = sanitizeUser(user);
+    if (!safeUser) throw new Error("Failed to create user");
+    return safeUser;
   },
 
   async login(
     email: string,
     password: string,
-  ): Promise<{ user: User; token: string }> {
+  ): Promise<{ user: SafeUser; token: string }> {
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) throw new Error("Invalid credentials");
 
@@ -47,6 +52,8 @@ export const authService = {
       expiresIn: "7d",
     });
 
-    return { user: user as User, token };
+    const safeUser = sanitizeUser(user);
+    if (!safeUser) throw new Error("Invalid credentials");
+    return { user: safeUser, token };
   },
 };
