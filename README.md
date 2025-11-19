@@ -45,6 +45,13 @@ server/
    ```bash
    npm start
    ```
+5. Run the server type-check (no emit) to ensure the source compiles cleanly:
+   ```bash
+   npm run typecheck
+   ```
+
+> The `typecheck` script runs `tsc` against `server/tsconfig.json` with `--noEmit`, so it is safe to run frequently during
+> development and CI pipelines without modifying build artifacts.
 
 ## API Endpoints
 
