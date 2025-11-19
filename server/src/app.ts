@@ -3,7 +3,7 @@ import express from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
 
-// ROUTES (must use .js for CJS output)
+// Route imports – must use .js so the CJS build works in dist/
 import applicationsRoutes from "./routes/applications.routes.js";
 import ocrRoutes from "./routes/ocr.routes.js";
 import searchRoutes from "./routes/search.routes.js";
@@ -16,16 +16,17 @@ export const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
-// --- INTERNAL HEALTH CHECK (Azure liveness probes) ---
-app.use("/api/_int/health", healthRoutes);
-
-// --- MAIN API ROUTES ---
+// API ROUTES
 app.use("/api/applications", applicationsRoutes);
 app.use("/api/ocr", ocrRoutes);
 app.use("/api/search", searchRoutes);
 app.use("/api/tags", tagsRoutes);
 
-// --- ROOT ROUTE ---
+// INTERNAL HEALTH CHECK FOR AZURE
+// This is what Azure is calling: /api/_int/health
+app.use("/api/_int/health", healthRoutes);
+
+// ROOT HEALTH CHECK (manual, browser, curl)
 app.get("/", (_req, res) => {
   res.json({
     ok: true,
