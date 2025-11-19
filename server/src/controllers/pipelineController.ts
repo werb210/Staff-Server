@@ -1,40 +1,41 @@
 // server/src/controllers/pipelineController.ts
 import type { Request, Response } from "express";
-import prisma from "../db/prisma"; // Prisma client
 
+// Temporary stub controller now that Drizzle has been removed.
+// These endpoints just return 501 until Prisma-based versions are wired up.
 export const pipelineController = {
   async list(_req: Request, res: Response) {
-    const rows = await prisma.pipeline.findMany();
-    res.json({ ok: true, data: rows });
+    res.status(501).json({
+      ok: false,
+      error: "Pipeline list endpoint not implemented. Drizzle has been removed.",
+    });
   },
 
-  async get(req: Request, res: Response) {
-    const row = await prisma.pipeline.findUnique({
-      where: { id: req.params.id },
+  async get(_req: Request, res: Response) {
+    res.status(501).json({
+      ok: false,
+      error: "Pipeline get endpoint not implemented. Drizzle has been removed.",
     });
-    if (!row) return res.status(404).json({ ok: false });
-    res.json({ ok: true, data: row });
   },
 
-  async create(req: Request, res: Response) {
-    const created = await prisma.pipeline.create({
-      data: req.body,
+  async create(_req: Request, res: Response) {
+    res.status(501).json({
+      ok: false,
+      error: "Pipeline create endpoint not implemented. Drizzle has been removed.",
     });
-    res.json({ ok: true, data: created });
   },
 
-  async update(req: Request, res: Response) {
-    const updated = await prisma.pipeline.update({
-      where: { id: req.params.id },
-      data: req.body,
+  async update(_req: Request, res: Response) {
+    res.status(501).json({
+      ok: false,
+      error: "Pipeline update endpoint not implemented. Drizzle has been removed.",
     });
-    res.json({ ok: true, data: updated });
   },
 
-  async remove(req: Request, res: Response) {
-    await prisma.pipeline.delete({
-      where: { id: req.params.id },
+  async remove(_req: Request, res: Response) {
+    res.status(501).json({
+      ok: false,
+      error: "Pipeline remove endpoint not implemented. Drizzle has been removed.",
     });
-    res.json({ ok: true });
   },
 };
