@@ -23,17 +23,16 @@ jobs:
       - name: Build server
         run: npm run build
 
-      - name: Create deploy folder
+      - name: Prepare deployment folder
         run: |
           rm -rf deploy
           mkdir deploy
-          
           cp -R dist deploy/dist
           cp -R node_modules deploy/node_modules
           cp package.json deploy/
           cp package-lock.json deploy/
 
-      - name: Zip deploy
+      - name: Zip app
         run: |
           cd deploy
           zip -r ../release.zip .
@@ -54,12 +53,9 @@ jobs:
         with:
           name: release
 
-      - name: Unzip artifact for Azure
-        run: unzip release.zip -d app
-
-      - name: Deploy to Azure Web App
+      - name: Deploy to Azure
         uses: azure/webapps-deploy@v3
         with:
           app-name: boreal-staff-server
           publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE }}
-          package: app
+          package: release.zip
