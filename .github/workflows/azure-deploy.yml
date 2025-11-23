@@ -9,33 +9,37 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Setup Node 20
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Install
+      - name: Install deps
         run: npm ci
 
-      - name: Build
+      - name: Build server
         run: npm run build
 
-      - name: Prepare deploy directory
+      - name: Prepare deploy folder
         run: |
-          mkdir deploy
+          rm -rf deploy
+          mkdir -p deploy
           cp -R dist deploy/dist
           cp -R node_modules deploy/node_modules
           cp package.json deploy/
           cp package-lock.json deploy/
+          echo "node dist/index.js" > deploy/startup.sh
 
-      - name: Zip artifact
+      - name: Zip deploy
         run: |
           cd deploy
           zip -r ../release.zip .
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
         with:
           name: release
           path: release.zip
@@ -45,7 +49,8 @@ jobs:
     needs: build
 
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Download artifact
+        uses: actions/download-artifact@v4
         with:
           name: release
 
