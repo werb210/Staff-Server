@@ -17,7 +17,7 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install dependencies
+      - name: Install deps
         run: npm ci
 
       - name: Build server
@@ -31,8 +31,8 @@ jobs:
           cp -R node_modules deploy/node_modules
           cp package.json deploy/
           cp package-lock.json deploy/
-          # FIXED: startup.sh is in the root, not server/
-          cp startup.sh deploy/startup.sh
+          # FIX: copy the real startup.sh from server/
+          cp server/startup.sh deploy/startup.sh
 
       - name: Zip deploy
         run: |
