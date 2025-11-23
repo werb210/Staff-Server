@@ -23,44 +23,33 @@ jobs:
       - name: Build server
         run: npm run build
 
-      - name: Prepare deploy folder
+      - name: Prepare Azure wwwroot folder
         run: |
           set -euo pipefail
-          rm -rf deploy release.zip
-          mkdir -p deploy
+          rm -rf wwwroot
+          mkdir -p wwwroot
 
-          # Copy compiled server output
-          cp -R dist deploy/dist
+          cp -R dist wwwroot/dist
+          cp -R node_modules wwwroot/node_modules
+          cp package.json wwwroot/
+          cp package-lock.json wwwroot/
+          cp startup.sh wwwroot/startup.sh
+          chmod +x wwwroot/startup.sh
 
-          # Copy root node_modules (Azure needs these)
-          cp -R node_modules deploy/node_modules
-
-          # Copy package config
-          cp package.json deploy/
-          cp package-lock.json deploy/
-
-          # Copy startup script (ROOT)
-          cp startup.sh deploy/startup.sh
-          chmod +x deploy/startup.sh
-
-          # Optional IIS config for Windows plans
           if [ -f web.config ]; then
-            cp web.config deploy/web.config
+            cp web.config wwwroot/web.config
           fi
 
-      - name: Zip deploy
+      - name: Zip for Azure
         run: |
-          set -euo pipefail
-          cd deploy
-          zip -r ../release.zip .
-          cd ..
-          unzip -l release.zip | grep startup.sh
+          cd wwwroot
+          zip -r ../app.zip .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: release
-          path: release.zip
+          name: app
+          path: app.zip
 
   deploy:
     runs-on: ubuntu-latest
@@ -70,11 +59,11 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: release
+          name: app
 
       - name: Deploy to Azure
         uses: azure/webapps-deploy@v3
         with:
           app-name: boreal-staff-server
           publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE }}
-          package: release.zip
+          package: app.zip
