@@ -17,35 +17,25 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install deps
-        run: npm ci
+      - name: Install deps (no dev)
+        run: npm ci --omit=dev
 
       - name: Build server
         run: npm run build
 
       - name: Prepare deploy folder
         run: |
-          set -euo pipefail
           rm -rf deploy
           mkdir -p deploy
-
-          # Copy compiled output
           cp -R dist deploy/dist
-
-          # Runtime deps for Azure ZIP Deploy (no build on server)
           cp -R node_modules deploy/node_modules
-
-          # App metadata
           cp package.json deploy/
           cp package-lock.json deploy/
-
-          # Always generate startup.sh here so we never depend on repo paths
-          echo "node dist/index.js" > deploy/startup.sh
+          cp server/startup.sh deploy/startup.sh
           chmod +x deploy/startup.sh
 
       - name: Zip deploy
         run: |
-          set -euo pipefail
           cd deploy
           zip -r ../release.zip .
 
