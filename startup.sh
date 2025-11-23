@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Azure strips executable perms — restore them
+# Azure strips executable permissions — restore them
 chmod +x /home/site/wwwroot/startup.sh || true
 
 echo "== STARTING STAFF SERVER =="
 
-# Print working directory for debugging
+# Helpful diagnostics
 echo "PWD: $(pwd)"
 echo "Node version: $(node -v)"
+ls -al /home/site/wwwroot || true
 
-# Force absolute path because Azure’s startup dir changes
+# Launch the server using absolute path (Azure changes working dir)
 node /home/site/wwwroot/dist/index.js
