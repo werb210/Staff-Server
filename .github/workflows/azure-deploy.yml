@@ -17,29 +17,22 @@ jobs:
         with:
           node-version: 20
 
-      # Install dependencies INSIDE server/
       - name: Install deps
-        run: |
-          cd server
-          npm ci
+        run: npm ci
 
-      # Build inside server/
       - name: Build server
-        run: |
-          cd server
-          npm run build
+        run: npm run build
 
-      # Prepare deploy folder
       - name: Prepare deploy folder
         run: |
           rm -rf deploy
           mkdir -p deploy
-          cp -R server/dist deploy/dist
-          cp -R server/node_modules deploy/node_modules
-          cp server/package.json deploy/
-          echo "#!/usr/bin/env bash" > deploy/startup.sh
-          echo "node dist/index.js" >> deploy/startup.sh
-          chmod +x deploy/startup.sh
+          # copy ONLY what Azure actually needs
+          cp -R dist/ deploy/dist
+          cp -R node_modules/ deploy/node_modules
+          cp package.json deploy/
+          cp package-lock.json deploy/
+          cp server/startup.sh deploy/startup.sh
 
       - name: Zip deploy
         run: |
