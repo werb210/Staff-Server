@@ -27,11 +27,20 @@ jobs:
         run: |
           rm -rf deploy
           mkdir -p deploy
+
+          # Copy compiled server output
           cp -R server/dist deploy/dist
+
+          # Copy root node_modules (Azure needs these)
           cp -R node_modules deploy/node_modules
+
+          # Copy package config
           cp package.json deploy/
           cp package-lock.json deploy/
+
+          # Copy startup script (NOW IN ROOT)
           cp startup.sh deploy/startup.sh
+          chmod +x deploy/startup.sh
 
       - name: Zip deploy
         run: |
