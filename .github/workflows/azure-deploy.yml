@@ -15,25 +15,24 @@ jobs:
       - name: Setup Node 20
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: "20"
+          cache: "npm"
 
-      - name: Install deps
-        run: npm ci
+      - name: Install production dependencies
+        run: npm ci --omit=dev
 
       - name: Build server
         run: npm run build
 
-      - name: Create deploy folder
+      - name: Prepare deployment package
         run: |
           rm -rf deploy
           mkdir deploy
-
           cp -R dist deploy/dist
-          cp -R node_modules deploy/node_modules
           cp package.json deploy/
           cp package-lock.json deploy/
 
-      - name: Zip deploy
+      - name: Zip package
         run: |
           cd deploy
           zip -r ../release.zip .
@@ -54,9 +53,9 @@ jobs:
         with:
           name: release
 
-      - name: Deploy to Azure
+      - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
-          app-name: boreal-staff-server
+          app-name: "boreal-staff-server"
+          package: "release.zip"
           publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE }}
-          package: release.zip
