@@ -17,8 +17,8 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install deps
-        run: npm ci --omit=dev
+      - name: Install dependencies
+        run: npm ci
 
       - name: Build server
         run: npm run build
@@ -27,19 +27,12 @@ jobs:
         run: |
           rm -rf deploy
           mkdir -p deploy
-
-          # Copy build output
           cp -R dist deploy/dist
           cp -R node_modules deploy/node_modules
           cp package.json deploy/
           cp package-lock.json deploy/
-
-          # Copy required startup + web.config
-          cp server/web.config deploy/web.config
-          cp server/startup.sh deploy/startup.sh
-
-          # Ensure startup.sh is executable
-          chmod +x deploy/startup.sh
+          # FIXED: startup.sh is in the root, not server/
+          cp startup.sh deploy/startup.sh
 
       - name: Zip deploy
         run: |
