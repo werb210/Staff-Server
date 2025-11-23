@@ -54,7 +54,7 @@ jobs:
           cd deploy
           zip -r ../release.zip .
           cd ..
-          unzip -l release.zip | grep " startup.sh$"
+          unzip -l release.zip | grep startup.sh
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

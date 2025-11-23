@@ -1,4 +1,4 @@
-import { prisma } from "./prisma.js";
+import { prisma, prismaInitError, prismaIsAvailable } from "./prisma.js";
 
-export { prisma };
+export { prisma, prismaInitError, prismaIsAvailable };
 export default prisma;

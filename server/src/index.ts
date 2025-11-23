@@ -3,7 +3,7 @@
 import "dotenv/config";
 import express from "express";
 import { app } from "./app.js";
-import prisma from "./db/index.js";
+import prisma, { prismaInitError, prismaIsAvailable } from "./db/index.js";
 
 // Azure gives PORT automatically → always respect it
 const PORT = process.env.PORT ? Number(process.env.PORT) : 8080;
@@ -14,13 +14,12 @@ const REQUIRE_DB = process.env.REQUIRE_DATABASE === "true";
 async function start() {
   app.locals.dbReady = false;
 
-  try {
-    console.log("Connecting to database...");
-    await prisma.$connect();
-    console.log("Database connected.");
-    app.locals.dbReady = true;
-  } catch (err: any) {
-    console.error("Database connection failed:", err?.message || err);
+  if (!prismaIsAvailable) {
+    if (prismaInitError) {
+      console.error("Prisma initialization failed:", prismaInitError.message);
+    } else {
+      console.warn("Prisma client unavailable; skipping DB connection.");
+    }
 
     if (REQUIRE_DB) {
       console.error("REQUIRE_DATABASE=true — exiting.");
@@ -29,7 +28,24 @@ async function start() {
     }
 
     console.warn("Starting server WITHOUT database.");
-    app.locals.dbReady = false;
+  } else {
+    try {
+      console.log("Connecting to database...");
+      await prisma.$connect();
+      console.log("Database connected.");
+      app.locals.dbReady = true;
+    } catch (err: any) {
+      console.error("Database connection failed:", err?.message || err);
+
+      if (REQUIRE_DB) {
+        console.error("REQUIRE_DATABASE=true — exiting.");
+        process.exit(1);
+        return;
+      }
+
+      console.warn("Starting server WITHOUT database.");
+      app.locals.dbReady = false;
+    }
   }
 
   app.listen(PORT, () => {

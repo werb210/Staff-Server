@@ -1,15 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Azure strips executable permissions — restore them
-chmod +x /home/site/wwwroot/startup.sh || true
-
 echo "== STARTING STAFF SERVER =="
 
-# Helpful diagnostics
-echo "PWD: $(pwd)"
-echo "Node version: $(node -v)"
-ls -al /home/site/wwwroot || true
-
-# Launch the server using absolute path (Azure changes working dir)
-node /home/site/wwwroot/dist/index.js
+# Absolute path launch (Azure safe)
+if [ -f "/home/site/wwwroot/dist/index.js" ]; then
+  node /home/site/wwwroot/dist/index.js
+else
+  echo "FATAL: dist/index.js not found."
+  ls -lah /home/site/wwwroot
+  ls -lah /home/site/wwwroot/dist || true
+  exit 1
+fi
