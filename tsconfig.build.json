@@ -1,7 +1,7 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "outDir": "./dist/server",
+    "outDir": "./dist",
     "rootDir": "./server/src",
     "module": "NodeNext",
     "moduleResolution": "nodenext",
@@ -10,9 +10,11 @@
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "isolatedModules": false,
-    "strict": false,
-    "skipLibCheck": true
+    "noEmit": false,
+    "strict": true,
+    "skipLibCheck": true,
+    "sourceMap": false
   },
   "include": ["server/src/**/*"],
-  "exclude": ["__tests__", "tests", "e2e", "node_modules"]
+  "exclude": ["dist", "node_modules", "**/*.test.ts", "**/*.spec.ts"]
 }

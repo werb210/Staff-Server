@@ -1,75 +1,48 @@
-name: Deploy Staff Server to Azure
+name: Deploy Staff Server to Azure App Service
 
 on:
   push:
     branches: ["main"]
+  workflow_dispatch:
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
-
+    env:
+      NODE_VERSION: 20
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node 20
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
 
-      - name: Install deps
+      - name: Install dependencies
         run: npm ci
 
       - name: Build server
         run: npm run build
 
-      - name: Prepare deploy package (ZIP ROOT MUST MATCH /home/site/wwwroot)
+      - name: Prune dev dependencies for deployment
+        run: npm prune --production
+
+      - name: Create deployment package
         run: |
-          set -euo pipefail
           rm -rf deploy release.zip
           mkdir -p deploy
-
-          rsync -a ./ deploy/ \
-            --exclude '.git' \
-            --exclude '.github' \
-            --exclude '*.env' \
-            --exclude '*.env.*' \
-            --exclude '*/.env' \
-            --exclude '*/.env.*' \
-            --exclude 'tests'
-
-          chmod 755 deploy/startup.sh
-
-      - name: Zip deploy
-        run: |
+          cp -R dist deploy/dist
+          cp -R node_modules deploy/node_modules
+          cp package.json deploy/package.json
           cd deploy
-          zip -r ../release.zip . \
-            -x ".git/*" \
-            -x ".github/*" \
-            -x "*.env" \
-            -x "*.env.*" \
-            -x "*/.env" \
-            -x "*/.env.*"
+          zip -r ../release.zip .
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: release
-          path: release.zip
-
-  deploy:
-    runs-on: ubuntu-latest
-    needs: build
-
-    steps:
-      - name: Download artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: release
-
-      - name: Deploy to Azure
+      - name: Deploy to Azure App Service
         uses: azure/webapps-deploy@v3
         with:
-          app-name: boreal-staff-server
+          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
           publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE }}
           package: release.zip
+          startup-command: "node dist/index.js"

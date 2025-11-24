@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-exec node ./dist/server/index.js
+exec node ./dist/index.js

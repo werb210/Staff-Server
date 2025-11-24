@@ -3,20 +3,18 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "main": "dist/index.js",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "tsx watch server/src/index.ts",
-
-    "prebuild": "node scripts/prisma-generate.mjs",
     "clean": "node scripts/clean.mjs",
-
+    "prebuild": "npm run clean && node scripts/prisma-generate.mjs",
     "postinstall": "node scripts/prisma-generate.mjs",
-    "migrate": "tsx server/src/db/migrator.ts",
-    "generate:migration": "drizzle-kit generate",
-    "push:migration": "drizzle-kit push",
-    "typecheck": "tsc -p server/tsconfig.json --noEmit",
-
-    "build": "tsc -p server/tsconfig.json",
-    "start": "node dist/server/index.js"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/index.js"
   },
   "dependencies": {
     "@azure/storage-blob": "12.29.1",
