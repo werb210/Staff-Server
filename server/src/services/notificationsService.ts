@@ -81,6 +81,7 @@ export const notificationsService = {
       },
       select: {
         id: true,
+        userId: true,
         title: true,
         message: true,
         type: true,

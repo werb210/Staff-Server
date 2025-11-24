@@ -21,6 +21,8 @@ model User {
   contacts     Contact[]
   companies    Company[]
   applications Application[]
+  notifications Notification[]
+  tokens         UserToken[]
 }
 
 model Contact {
@@ -61,14 +63,91 @@ model Application {
   amountRequested Int
   productType     String
   status          String   @default("new")
+  businessName    String   @default("")
+  email           String   @default("")
+  phone           String   @default("")
+  stageId         String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   company     Company          @relation(fields: [companyId], references: [id])
   user        User?            @relation(fields: [userId], references: [id])
+  stage       PipelineStage?   @relation(fields: [stageId], references: [id])
+  deals       Deal[]
+  financials  Financials[]
+  moveLogs    PipelineMoveLog[]
   ocrExtracts OcrExtract[]
   tags        ApplicationTag[]
   smsQueues   SmsQueue[]
+}
+
+model PipelineStage {
+  id           String        @id @default(uuid())
+  name         String
+  order        Int
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  applications Application[]
+  moveLogs     PipelineMoveLog[]
+}
+
+model Deal {
+  id             String   @id @default(uuid())
+  applicationId  String
+  lenderId       String
+  status         String
+  offerAmount    Int
+  terms          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  application Application @relation(fields: [applicationId], references: [id])
+  lender      Lender      @relation(fields: [lenderId], references: [id])
+}
+
+model Financials {
+  id            String    @id @default(uuid())
+  applicationId String?
+  data          Json?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  application Application? @relation(fields: [applicationId], references: [id])
+}
+
+model PipelineMoveLog {
+  id            String   @id @default(uuid())
+  applicationId String
+  stageId       String
+  createdAt     DateTime @default(now())
+
+  application Application @relation(fields: [applicationId], references: [id])
+  stage       PipelineStage @relation(fields: [stageId], references: [id])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  message   String
+  type      String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model UserToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  type      String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
 }
 
 model OcrExtract {
@@ -107,6 +186,7 @@ model Lender {
   updatedAt DateTime @updatedAt
 
   products Product[]
+  deals    Deal[]
 }
 
 model Tag {
