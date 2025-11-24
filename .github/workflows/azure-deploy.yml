@@ -29,28 +29,27 @@ jobs:
           rm -rf deploy release.zip
           mkdir -p deploy
 
-          # --- PLACE EVERYTHING IN ZIP ROOT ---
-          cp -R dist deploy/dist
-          cp package.json deploy/
-          cp package-lock.json deploy/
-          cp startup.sh deploy/startup.sh
-          chmod 755 deploy/startup.sh
+          rsync -a ./ deploy/ \
+            --exclude '.git' \
+            --exclude '.github' \
+            --exclude '*.env' \
+            --exclude '*.env.*' \
+            --exclude '*/.env' \
+            --exclude '*/.env.*' \
+            --exclude 'tests'
 
-          # --- INCLUDE SOURCE REFERENCES ---
-          cp -R server deploy/server
-          cp -R src deploy/src
+          chmod 755 deploy/startup.sh
 
       - name: Zip deploy
         run: |
           cd deploy
           zip -r ../release.zip . \
-            -x "*.git*" \
-            -x "*.env*" \
-            -x "**/.env" \
-            -x "**/.env.*" \
-            -x "*.gz" \
-            -x "node_modules.tar.gz" \
-            -x "_del_node_modules/**"
+            -x ".git/*" \
+            -x ".github/*" \
+            -x "*.env" \
+            -x "*.env.*" \
+            -x "*/.env" \
+            -x "*/.env.*"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
