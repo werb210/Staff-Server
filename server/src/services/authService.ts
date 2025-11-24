@@ -4,8 +4,14 @@ import { prisma } from "../db/index.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { sanitizeUser } from "../utils/sanitizeUser.js";
+import { ENV } from "../utils/env.js";
 
-const JWT_SECRET = process.env.JWT_SECRET ?? "insecure-default";
+const getJwtSecret = (): string => {
+  if (!ENV.JWT_SECRET) {
+    throw new Error("JWT_SECRET is not configured");
+  }
+  return ENV.JWT_SECRET;
+};
 
 export interface RegisterInput {
   email: string;
@@ -48,7 +54,7 @@ export const authService = {
     const match = await bcrypt.compare(password, user.password);
     if (!match) throw new Error("Invalid credentials");
 
-    const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, {
+    const token = jwt.sign({ id: user.id, role: user.role }, getJwtSecret(), {
       expiresIn: "7d",
     });
 

@@ -18,14 +18,6 @@ function optionalEnv(name: string, defaultValue = ""): string {
   return getEnv(name) ?? defaultValue;
 }
 
-const REQUIRED_KEYS = ["DATABASE_URL", "JWT_SECRET"];
-const missing = REQUIRED_KEYS.filter((key) => !getEnv(key));
-if (missing.length > 0) {
-  console.warn(
-    `⚠️  Missing required environment variables: ${missing.join(", ")} — features depending on them will be disabled.`,
-  );
-}
-
 export const ENV = {
   NODE_ENV: optionalEnv("NODE_ENV", "development"),
   PORT: optionalEnv("PORT", "8080"),
@@ -59,6 +51,23 @@ export const ENV = {
   SKIP_DATABASE: optionalEnv("SKIP_DATABASE") === "true",
   REQUIRE_DATABASE: optionalEnv("REQUIRE_DATABASE") === "true",
 };
+
+const missing = [] as string[];
+
+if (!ENV.JWT_SECRET) {
+  missing.push("JWT_SECRET");
+}
+
+const requiresDatabase = ENV.REQUIRE_DATABASE || !ENV.SKIP_DATABASE;
+if (requiresDatabase && !ENV.DATABASE_URL) {
+  missing.push("DATABASE_URL");
+}
+
+if (missing.length > 0) {
+  const message = `Missing required environment variables: ${missing.join(", ")}`;
+  console.error(`🚨 ${message}`);
+  throw new Error(message);
+}
 
 // ============================================================================
 // END OF FILE
