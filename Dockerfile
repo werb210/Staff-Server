@@ -1,26 +1,49 @@
-# ------------ BASE IMAGE ------------
-FROM node:20-alpine AS base
+# syntax=docker/dockerfile:1.4
 
-# Set working directory to the server folder (where the actual backend lives)
+# ----------------------
+# Base builder image
+# ----------------------
+FROM node:20-alpine AS builder
+
 WORKDIR /app
 
-# Copy only package manifests first for proper layer caching
+# Provide a safe placeholder so prisma generate succeeds during image builds.
+ENV DATABASE_URL="postgresql://placeholder:password@localhost:5432/placeholder"
+
+# Copy dependency manifests first to leverage Docker layer caching
 COPY package*.json ./
-COPY server/package*.json ./server/
+COPY prisma ./prisma
+COPY tsconfig*.json ./
+COPY server ./server
+COPY startup.sh ./startup.sh
 
-# Install root deps and server deps
-RUN npm install
-RUN cd server && npm install
+# Install all dependencies (including dev deps for TypeScript build)
+RUN npm ci
 
-# Copy full project
-COPY . .
+# Ensure the Prisma client is generated before compilation
+RUN npm run postinstall
 
-# Build the TypeScript backend
-RUN cd server && npm run build
+# Build the TypeScript backend to ./dist
+RUN npm run build
 
-# Azure injects PORT; respect it.
+# ----------------------
+# Runtime image
+# ----------------------
+FROM node:20-alpine AS runner
+ENV NODE_ENV=production
 ENV PORT=8080
+WORKDIR /app
+
+# Install only production dependencies
+COPY package*.json ./
+COPY prisma ./prisma
+RUN npm ci --omit=dev
+
+# Copy the compiled app and supporting files
+COPY --from=builder /app/dist ./dist
+COPY startup.sh ./startup.sh
+
 EXPOSE 8080
 
 # Start the compiled server directly
-CMD ["node", "server/dist/index.js"]
+CMD ["node", "dist/index.js"]

@@ -25,6 +25,10 @@ export const smsService = {
    * Send an SMS through Twilio
    */
   async send(to: string, body: string) {
+    if (!ENV.TWILIO_ACCOUNT_SID || !ENV.TWILIO_AUTH_TOKEN) {
+      throw new Error("Twilio credentials missing");
+    }
+
     if (!ENV.TWILIO_PHONE_NUMBER) {
       throw new Error("TWILIO_PHONE_NUMBER missing");
     }

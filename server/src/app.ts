@@ -3,10 +3,24 @@ import cors from "cors";
 import bodyParser from "body-parser";
 
 import applicationsRoutes from "./routes/applications.routes.js";
-import ocrRoutes from "./routes/ocr.routes.js";
+import authRoutes from "./routes/auth.routes.js";
+import companiesRoutes from "./routes/companies.routes.js";
+import contactsRoutes from "./routes/contacts.routes.js";
+import dealsRoutes from "./routes/deals.routes.js";
+import documentsRoutes from "./routes/documents.routes.js";
+import financialsRoutes from "./routes/financialsRoutes.js";
+import healthRoutes from "./routes/health.routes.js";
+import lendersRoutes from "./routes/lenders.routes.js";
+import notificationsRoutes from "./routes/notifications.routes.js";
+import communicationsRoutes from "./routes/communications.routes.js";
+import pipelineRoutes from "./routes/pipeline.routes.js";
 import searchRoutes from "./routes/search.routes.js";
 import tagsRoutes from "./routes/tags.routes.js";
-import healthRoutes from "./routes/health.routes.js";
+import ocrRoutes from "./routes/ocr.routes.js";
+import usersRoutes from "./routes/users.routes.js";
+import aiRoutes from "./routes/ai.routes.js";
+
+import { errorHandler } from "./middlewares/errorHandler.js";
 
 export const app = express();
 
@@ -14,22 +28,35 @@ app.use(cors());
 app.use(bodyParser.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
-app.use("/api/applications", applicationsRoutes);
-app.use("/api/ocr", ocrRoutes);
-app.use("/api/search", searchRoutes);
-app.use("/api/tags", tagsRoutes);
 app.use("/api/_int", healthRoutes);
-
 app.get("/api/_int/live", (_req, res) => {
   res.json({
     ok: true,
     service: "staff-server",
     dbReady: Boolean(app.locals.dbReady),
-    uptime: process.uptime()
+    uptime: process.uptime(),
   });
 });
 
-app.use((err, _req, res, _next) => {
-  const msg = err?.message || "Internal server error";
-  res.status(500).json({ ok: false, error: msg });
+app.use("/api/auth", authRoutes);
+app.use("/api/users", usersRoutes);
+app.use("/api/companies", companiesRoutes);
+app.use("/api/contacts", contactsRoutes);
+app.use("/api/deals", dealsRoutes);
+app.use("/api/documents", documentsRoutes);
+app.use("/api/financials", financialsRoutes);
+app.use("/api/lenders", lendersRoutes);
+app.use("/api/pipeline", pipelineRoutes);
+app.use("/api/notifications", notificationsRoutes);
+app.use("/api/communications", communicationsRoutes);
+app.use("/api/applications", applicationsRoutes);
+app.use("/api/ocr", ocrRoutes);
+app.use("/api/search", searchRoutes);
+app.use("/api/tags", tagsRoutes);
+app.use("/api/ai", aiRoutes);
+
+app.use((req, res) => {
+  res.status(404).json({ ok: false, error: "Not found" });
 });
+
+app.use(errorHandler);

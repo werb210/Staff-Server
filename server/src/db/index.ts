@@ -1,4 +1,4 @@
-import { prisma } from "./prisma.js";
+import { prisma, hasDatabaseUrl } from "./prisma.js";
 
-export { prisma };
+export { prisma, hasDatabaseUrl };
 export default prisma;

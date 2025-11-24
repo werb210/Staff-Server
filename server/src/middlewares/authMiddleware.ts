@@ -21,6 +21,10 @@ export function authMiddleware(
   if (!token) return res.status(401).json({ error: "Missing token" });
 
   try {
+    if (!ENV.JWT_SECRET) {
+      throw new Error("JWT_SECRET is not configured");
+    }
+
     const payload = jwt.verify(token, ENV.JWT_SECRET) as DecodedToken;
     req.user = payload;
     next();
