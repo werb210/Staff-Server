@@ -8,11 +8,6 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev": "tsx watch server/src/index.ts",
-    "clean": "node scripts/clean.mjs",
-    "prebuild": "npm run clean && node scripts/prisma-generate.mjs",
-    "postinstall": "node scripts/prisma-generate.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/index.js"
   },
