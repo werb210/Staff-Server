@@ -36,8 +36,14 @@ jobs:
       - name: Create deployment package
         run: |
           mkdir -p build/server
-          cp -R server/dist build/server/dist
+          
+          # COPY THE CORRECT BUILD FOLDER (server/build, NOT server/dist)
+          cp -R server/build build/server/build
+
+          # COPY NODE MODULES FOR PRODUCTION
           cp -R server/node_modules build/server/node_modules
+
+          # COPY MANIFEST FILES
           cp server/package.json build/server/package.json
           cp server/package-lock.json build/server/package-lock.json
 
