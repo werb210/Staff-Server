@@ -5,9 +5,10 @@
   "type": "commonjs",
   "scripts": {
     "dev": "tsx watch server/src/index.ts",
+    "prebuild": "node scripts/prisma-generate.js",
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/index.js",
-    "postinstall": "prisma generate",
+    "postinstall": "node scripts/prisma-generate.js",
     "migrate": "tsx server/src/db/migrator.ts",
     "generate:migration": "drizzle-kit generate",
     "push:migration": "drizzle-kit push",
