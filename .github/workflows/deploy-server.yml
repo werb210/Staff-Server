@@ -36,14 +36,11 @@ jobs:
       - name: Create deployment package
         run: |
           mkdir -p build/server
-          
-          # COPY THE CORRECT BUILD FOLDER (server/build, NOT server/dist)
-          cp -R server/build build/server/build
-
-          # COPY NODE MODULES FOR PRODUCTION
+          # Copy compiled JS (folder "dist/server")
+          cp -R server/dist/server build/server/dist
+          # Copy production node_modules
           cp -R server/node_modules build/server/node_modules
-
-          # COPY MANIFEST FILES
+          # Copy package files
           cp server/package.json build/server/package.json
           cp server/package-lock.json build/server/package-lock.json
 
@@ -51,7 +48,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: server
-          path: build/
+          path: build/server
 
       ###############################################
       # DEPLOY TO AZURE APP SERVICE
