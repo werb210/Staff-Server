@@ -42,7 +42,7 @@ jobs:
       - name: Zip deploy
         run: |
           cd deploy
-          zip -r ../release.zip .
+          zip -r ../release.zip . -x "*.git*" -x "*.env*" -x "**/.env" -x "**/.env.*" -x "node_modules/*"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
