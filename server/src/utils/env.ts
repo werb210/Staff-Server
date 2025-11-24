@@ -14,16 +14,16 @@ function getEnv(name: string): string | undefined {
   return trimmed === "" ? undefined : trimmed;
 }
 
-function requireEnv(name: string): string {
-  const value = getEnv(name);
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${name}`);
-  }
-  return value;
-}
-
 function optionalEnv(name: string, defaultValue = ""): string {
   return getEnv(name) ?? defaultValue;
+}
+
+const REQUIRED_KEYS = ["DATABASE_URL", "JWT_SECRET"];
+const missing = REQUIRED_KEYS.filter((key) => !getEnv(key));
+if (missing.length > 0) {
+  console.warn(
+    `⚠️  Missing required environment variables: ${missing.join(", ")} — features depending on them will be disabled.`,
+  );
 }
 
 export const ENV = {
@@ -31,10 +31,10 @@ export const ENV = {
   PORT: optionalEnv("PORT", "5000"),
 
   // Database
-  DATABASE_URL: requireEnv("DATABASE_URL"),
+  DATABASE_URL: getEnv("DATABASE_URL"),
 
   // JWT
-  JWT_SECRET: requireEnv("JWT_SECRET"),
+  JWT_SECRET: getEnv("JWT_SECRET"),
 
   // Email
   SENDGRID_API_KEY: optionalEnv("SENDGRID_API_KEY"),
@@ -56,6 +56,8 @@ export const ENV = {
 
   // Flags
   DEBUG: optionalEnv("DEBUG") === "true",
+  SKIP_DATABASE: optionalEnv("SKIP_DATABASE") === "true",
+  REQUIRE_DATABASE: optionalEnv("REQUIRE_DATABASE") === "true",
 };
 
 // ============================================================================
