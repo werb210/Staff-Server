@@ -1,23 +1,26 @@
-name: Deploy Staff Server to Azure App Service
+name: Deploy Staff Server to Azure
 
 on:
   push:
-    branches: ["main"]
-  workflow_dispatch:
+    branches:
+      - main
+
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    env:
-      NODE_VERSION: 20
+
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: 20
           cache: npm
 
       - name: Install dependencies
@@ -26,23 +29,19 @@ jobs:
       - name: Build server
         run: npm run build
 
-      - name: Prune dev dependencies for deployment
+      - name: Prune dev dependencies
         run: npm prune --production
 
       - name: Create deployment package
         run: |
-          rm -rf deploy release.zip
-          mkdir -p deploy
+          mkdir deploy
           cp -R dist deploy/dist
-          cp -R node_modules deploy/node_modules
-          cp package.json deploy/package.json
-          cd deploy
-          zip -r ../release.zip .
+          cp package.json deploy/
+          cp package-lock.json deploy/
 
-      - name: Deploy to Azure App Service
-        uses: azure/webapps-deploy@v3
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v2
         with:
-          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
-          publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE }}
-          package: release.zip
-          startup-command: "node dist/index.js"
+          app-name: Staff-Server
+          slot-name: production
+          package: deploy
