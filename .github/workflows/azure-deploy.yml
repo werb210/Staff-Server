@@ -1,4 +1,4 @@
-name: Deploy Staff Server to Azure
+name: Deploy Staff Server
 
 on:
   push:
@@ -17,6 +17,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
@@ -24,19 +25,13 @@ jobs:
       - name: Build project
         run: npm run build
 
-      - name: Prepare artifact
+      - name: Create deploy package
         run: |
           rm -rf package
           mkdir -p package
-          cp -r dist/* package/
+          cp -r dist package/dist
           cp package.json package/
           cp package-lock.json package/
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: node-app
-          path: package/
 
       - name: Azure Login
         uses: azure/login@v1
@@ -46,6 +41,6 @@ jobs:
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v2
         with:
-          app-name: Staff-Server
+          app-name: boreal-staff-server
+          slot-name: production
           package: package
-        
