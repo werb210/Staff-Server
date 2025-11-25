@@ -1,20 +1,16 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "outDir": "./dist",
-    "rootDir": "./server/src",
-    "module": "NodeNext",
-    "moduleResolution": "nodenext",
-    "target": "ES2022",
-    "resolveJsonModule": true,
+    "outDir": "dist",
+    "module": "CommonJS",
+    "target": "ES2020",
+    "moduleResolution": "Node",
     "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "isolatedModules": false,
-    "noEmit": false,
-    "strict": true,
-    "skipLibCheck": true,
-    "sourceMap": false
+    "resolveJsonModule": true,
+    "sourceMap": false,
+    "declaration": false,
+    "removeComments": true
   },
   "include": ["server/src/**/*"],
-  "exclude": ["dist", "node_modules", "**/*.test.ts", "**/*.spec.ts"]
+  "exclude": ["server/src/__tests__", "node_modules"]
 }
