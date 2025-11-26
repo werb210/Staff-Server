@@ -10,10 +10,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -21,26 +21,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build
+      - name: Build TypeScript
         run: npm run build
 
-      - name: Zip artifact
-        run: |
-          rm -rf package
-          mkdir -p package
-          cp -r dist/* package/
-          cp package.json package/
-          cp package-lock.json package/
-          cd package
-          zip -r ../package.zip .
-
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
+          environment: 'AzureCloud'
 
-      - name: Deploy to Azure Web App
-        uses: azure/webapps-deploy@v2
+      - name: Deploy Web App
+        uses: azure/webapps-deploy@v3
         with:
-          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
-          package: package.zip
+          app-name: 'boreal-staff-server'
+          package: '.'
