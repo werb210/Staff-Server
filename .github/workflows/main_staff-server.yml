@@ -10,28 +10,31 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v3
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v3
         with:
-          node-version: 20
+          node-version: "20"
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          npm ci
 
       - name: Build TypeScript
-        run: npm run build
+        run: |
+          npm run build
 
       - name: Azure Login
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
-          environment: 'AzureCloud'
+          environment: AzureCloud
+          loginAudience: https://management.core.windows.net/
 
-      - name: Deploy Web App
-        uses: azure/webapps-deploy@v3
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v2
         with:
-          app-name: 'boreal-staff-server'
-          package: '.'
+          app-name: boreal-staff-server
+          package: ./dist
