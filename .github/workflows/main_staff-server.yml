@@ -2,39 +2,37 @@ name: Deploy Staff Server to Azure
 
 on:
   push:
-    branches:
-      - main
+    branches: [ "main" ]
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
       - name: Setup Node
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: 20
 
       - name: Install dependencies
-        run: |
-          npm ci
+        run: npm ci
 
-      - name: Build TypeScript
-        run: |
-          npm run build
+      - name: Build project
+        run: npm run build
 
       - name: Azure Login
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
-          environment: AzureCloud
-          loginAudience: https://management.core.windows.net/
+          tenant-id: canadianbusinessfinancing.com
+          subscription-id: 6d1b4a9a-ba50-4c4d-ae34-f6b45ec44612
+          client-id: 923aa72e-38af-42ea-b8b1-b727e7af1647
 
-      - name: Deploy to Azure Web App
+      - name: Deploy to Azure WebApp
         uses: azure/webapps-deploy@v2
         with:
           app-name: boreal-staff-server
-          package: ./dist
+          package: .
