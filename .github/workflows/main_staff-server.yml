@@ -10,10 +10,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Use Node 20
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -24,16 +24,15 @@ jobs:
       - name: Build project
         run: npm run build
 
-      - name: Prepare dist + modules for deploy
+      - name: Prepare deployment package
         run: |
-          rm -rf deploy
           mkdir deploy
           cp -R dist deploy/dist
           cp -R node_modules deploy/node_modules
           cp package.json deploy/
           cp package-lock.json deploy/ || true
 
-      - name: Azure WebApp Deploy
+      - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v2
         with:
           app-name: boreal-staff-server
