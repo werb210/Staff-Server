@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import jwt, { type JwtPayload } from "jsonwebtoken";
-import { ENV } from "../utils/env";
+import { ENV } from "../utils/env.js";
 
 type DecodedToken = JwtPayload & {
   id: string;

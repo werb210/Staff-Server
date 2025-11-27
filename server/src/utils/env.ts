@@ -1,48 +1,74 @@
-import { config } from 'dotenv';
+// ============================================================================
+// server/src/utils/env.ts
+// BLOCK 31 — Environment Loader + Validation
+// ============================================================================
 
-config();
+import dotenv from "dotenv";
+dotenv.config();
 
-type RequiredStringKey =
-  | 'DATABASE_URL'
-  | 'JWT_SECRET'
-  | 'AZURE_STORAGE_CONNECTION_STRING'
-  | 'AZURE_BLOB_CONTAINER'
-  | 'OPENAI_API_KEY'
-  | 'TWILIO_ACCOUNT_SID'
-  | 'TWILIO_AUTH_TOKEN'
-  | 'TWILIO_FROM_NUMBER';
+function getEnv(name: string): string | undefined {
+  const value = process.env[name];
+  if (value === undefined) return undefined;
 
-type OptionalKey = 'JWT_ISSUER' | 'REFRESH_TOKEN_TTL_DAYS' | 'ACCESS_TOKEN_TTL_MINUTES' | 'DATABASE_POOL_MAX';
-
-type EnvConfig = Record<RequiredStringKey, string> & Partial<Record<OptionalKey, string>> & { PORT: number };
-
-function readEnv(key: RequiredStringKey | OptionalKey, fallback?: string): string {
-  const value = process.env[key] ?? fallback;
-  if (value === undefined) {
-    throw new Error(`Missing required environment variable ${key}`);
-  }
-  return value;
+  const trimmed = value.trim();
+  return trimmed === "" ? undefined : trimmed;
 }
 
-const PORT = Number.parseInt(process.env.PORT || '3000', 10);
+function optionalEnv(name: string, defaultValue = ""): string {
+  return getEnv(name) ?? defaultValue;
+}
 
-export const env: EnvConfig = {
-  PORT,
-  DATABASE_URL: readEnv('DATABASE_URL'),
-  JWT_SECRET: readEnv('JWT_SECRET'),
-  AZURE_STORAGE_CONNECTION_STRING: readEnv('AZURE_STORAGE_CONNECTION_STRING'),
-  AZURE_BLOB_CONTAINER: readEnv('AZURE_BLOB_CONTAINER'),
-  OPENAI_API_KEY: readEnv('OPENAI_API_KEY'),
-  TWILIO_ACCOUNT_SID: readEnv('TWILIO_ACCOUNT_SID'),
-  TWILIO_AUTH_TOKEN: readEnv('TWILIO_AUTH_TOKEN'),
-  TWILIO_FROM_NUMBER: readEnv('TWILIO_FROM_NUMBER'),
-  JWT_ISSUER: process.env.JWT_ISSUER,
-  REFRESH_TOKEN_TTL_DAYS: process.env.REFRESH_TOKEN_TTL_DAYS,
-  ACCESS_TOKEN_TTL_MINUTES: process.env.ACCESS_TOKEN_TTL_MINUTES,
-  DATABASE_POOL_MAX: process.env.DATABASE_POOL_MAX,
+export const ENV = {
+  NODE_ENV: optionalEnv("NODE_ENV", "development"),
+  PORT: optionalEnv("PORT", "8080"),
+
+  // Database
+  DATABASE_URL: getEnv("DATABASE_URL"),
+
+  // JWT
+  JWT_SECRET: getEnv("JWT_SECRET"),
+
+  // Email
+  SENDGRID_API_KEY: optionalEnv("SENDGRID_API_KEY"),
+  EMAIL_FROM: optionalEnv("EMAIL_FROM", "no-reply@boreal.financial"),
+
+  // Twilio
+  TWILIO_ACCOUNT_SID: optionalEnv("TWILIO_ACCOUNT_SID"),
+  TWILIO_AUTH_TOKEN: optionalEnv("TWILIO_AUTH_TOKEN"),
+  TWILIO_PHONE_NUMBER: optionalEnv("TWILIO_PHONE_NUMBER"),
+
+  // Azure Blob Storage
+  AZURE_STORAGE_CONNECTION_STRING: optionalEnv(
+    "AZURE_STORAGE_CONNECTION_STRING",
+  ),
+  AZURE_BLOB_CONTAINER: optionalEnv("AZURE_BLOB_CONTAINER", "documents"),
+
+  // AI
+  OPENAI_API_KEY: optionalEnv("OPENAI_API_KEY"),
+
+  // Flags
+  DEBUG: optionalEnv("DEBUG") === "true",
+  SKIP_DATABASE: optionalEnv("SKIP_DATABASE") === "true",
+  REQUIRE_DATABASE: optionalEnv("REQUIRE_DATABASE") === "true",
 };
 
-export function optionalNumber(value: string | undefined, fallback: number): number {
-  const parsed = value ? Number.parseInt(value, 10) : NaN;
-  return Number.isFinite(parsed) ? parsed : fallback;
+const missing = [] as string[];
+
+if (!ENV.JWT_SECRET) {
+  missing.push("JWT_SECRET");
 }
+
+const requiresDatabase = ENV.REQUIRE_DATABASE || !ENV.SKIP_DATABASE;
+if (requiresDatabase && !ENV.DATABASE_URL) {
+  missing.push("DATABASE_URL");
+}
+
+if (missing.length > 0) {
+  const message = `Missing required environment variables: ${missing.join(", ")}`;
+  console.error(`🚨 ${message}`);
+  throw new Error(message);
+}
+
+// ============================================================================
+// END OF FILE
+// ============================================================================

@@ -1,29 +1,54 @@
-// server/src/services/lendersService.ts
-import { prisma } from "../db/prisma";
+import { Lender, Prisma } from "@prisma/client";
+import { prisma } from "../db/prisma.js";
 
-const lendersService = {
-  list() {
-    return prisma.lender.findMany({
-      orderBy: { createdAt: "desc" },
-    });
-  },
-
-  get(id: string) {
-    return prisma.lender.findUnique({ where: { id } });
-  },
-
-  create(data: any) {
-    return prisma.lender.create({ data });
-  },
-
-  update(id: string, data: any) {
-    return prisma.lender.update({ where: { id }, data });
-  },
-
-  remove(id: string) {
-    return prisma.lender.delete({ where: { id } });
-  },
+const handleError = (error: unknown, action: string): never => {
+  if (error instanceof Error) {
+    throw new Error(`${action}: ${error.message}`);
+  }
+  throw new Error(action);
 };
 
-export { lendersService };
-export default lendersService;
+export const lendersService = {
+  async list(): Promise<Lender[]> {
+    try {
+      return await prisma.lender.findMany({ include: { products: true } });
+    } catch (error) {
+      return handleError(error, "Failed to list lenders");
+    }
+  },
+
+  async get(id: string): Promise<Lender | null> {
+    try {
+      return await prisma.lender.findUnique({
+        where: { id },
+        include: { products: true },
+      });
+    } catch (error) {
+      return handleError(error, `Failed to fetch lender ${id}`);
+    }
+  },
+
+  async create(data: Prisma.LenderUncheckedCreateInput): Promise<Lender> {
+    try {
+      return await prisma.lender.create({ data });
+    } catch (error) {
+      return handleError(error, "Failed to create lender");
+    }
+  },
+
+  async update(id: string, data: Prisma.LenderUncheckedUpdateInput): Promise<Lender> {
+    try {
+      return await prisma.lender.update({ where: { id }, data });
+    } catch (error) {
+      return handleError(error, `Failed to update lender ${id}`);
+    }
+  },
+
+  async delete(id: string): Promise<Lender> {
+    try {
+      return await prisma.lender.delete({ where: { id } });
+    } catch (error) {
+      return handleError(error, `Failed to delete lender ${id}`);
+    }
+  },
+};

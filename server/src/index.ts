@@ -1,52 +1,31 @@
-import dotenv from 'dotenv';
+import "dotenv/config";
+import { app } from "./app.js";
+import prisma, { hasDatabaseUrl } from "./db/index.js";
+import { ENV } from "./utils/env.js";
 
-dotenv.config();
+const PORT = Number(process.env.WEBSITES_PORT ?? process.env.PORT ?? ENV.PORT ?? 8080);
 
-import express = require('express');
-import path = require('path');
-import cookieParser = require('cookie-parser');
-import cors = require('cors');
-import rateLimit = require('express-rate-limit');
+async function start() {
+  app.locals.dbReady = false;
 
-import { Router } from 'express';
-import authRouter = require('./routes/auth');
-import userRouter = require('./routes/users');
-import smsRouter = require('./routes/sms');
-import documentsRouter = require('./routes/documents');
-const internalRouter: Router = require('./routes/_int');
-import { env } from './utils/env';
-import { createLogger } from './utils/logger';
+  const shouldSkipDb = ENV.SKIP_DATABASE || !hasDatabaseUrl;
+  if (!shouldSkipDb) {
+    try {
+      await prisma.$connect();
+      app.locals.dbReady = true;
+    } catch (err) {
+      console.error("⚠️  Failed to connect to database", err);
 
-const app = express();
-const logger = createLogger('server');
+      if (ENV.REQUIRE_DATABASE) {
+        console.error("Exiting because REQUIRE_DATABASE=true");
+        process.exit(1);
+      }
+    }
+  }
 
-app.use(cors());
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser());
-const limiter = rateLimit.default({
-  windowMs: 15 * 60 * 1000,
-  max: 200,
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+  app.listen(PORT, () => {
+    console.log("🚀 Server ready on port", PORT);
+  });
+}
 
-app.use(limiter);
-
-app.use('/_int', internalRouter);
-app.use('/auth', authRouter);
-app.use('/users', userRouter);
-app.use('/sms', smsRouter);
-app.use('/documents', documentsRouter);
-app.use('/public', express.static(path.join(__dirname, 'public')));
-
-app.use((err: Error & { status?: number }, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  logger.error(err.message);
-  const statusCode = err.status || 500;
-  res.status(statusCode).json({ error: err.message || 'Internal server error' });
-});
-
-const PORT = env.PORT;
-app.listen(PORT, () => {
-  logger.info(`Server listening on port ${PORT}`);
-});
+start();

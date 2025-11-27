@@ -1,5 +1,10 @@
 {
   "extends": "./tsconfig.json",
-  "compilerOptions": {},
-  "exclude": ["server/src/__tests__"]
+  "compilerOptions": {
+    "noEmit": false
+  },
+  "exclude": [
+    "server/src/__tests__/**",
+    "**/*.test.ts"
+  ]
 }

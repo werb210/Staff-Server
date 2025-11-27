@@ -1,61 +1,62 @@
-import bcrypt from 'bcrypt';
-import { randomInt } from 'crypto';
-import { Twilio } from 'twilio';
-import { prisma } from '../db/prisma';
-import { env } from '../utils/env';
-import { createLogger } from '../utils/logger';
+// server/src/services/smsService.ts
+// Core SMS sending layer (Twilio)
 
-const logger = createLogger('sms-service');
-const client = new Twilio(env.TWILIO_ACCOUNT_SID, env.TWILIO_AUTH_TOKEN);
+import twilio from "twilio";
+import { ENV } from "../utils/env.js";
+import { logger } from "../utils/logger.js";
 
-export interface OtpResult {
-  to: string;
-  expiresAt: Date;
-}
+type TwilioClient = ReturnType<typeof twilio>;
 
-export async function sendOtp(userId: string, phoneNumber: string): Promise<OtpResult> {
-  const code = randomInt(100000, 999999).toString();
-  const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
-  const codeHash = await bcrypt.hash(code, 10);
+let client: TwilioClient | null = null;
 
-  await prisma.otpCode.create({
-    data: {
-      userId,
-      codeHash,
-      expiresAt,
-    },
-  });
+const getClient = () => {
+  if (client) return client;
 
-  try {
-    await client.messages.create({
-      to: phoneNumber,
-      from: env.TWILIO_FROM_NUMBER,
-      body: `Your verification code is ${code}`,
-    });
-  } catch (error) {
-    logger.error('Failed to send OTP', normalizeTwilioError(error));
-    throw error;
+  if (!ENV.TWILIO_ACCOUNT_SID || !ENV.TWILIO_AUTH_TOKEN) {
+    throw new Error("Twilio credentials missing");
   }
 
-  return { to: phoneNumber, expiresAt };
-}
+  client = twilio(ENV.TWILIO_ACCOUNT_SID, ENV.TWILIO_AUTH_TOKEN);
+  return client;
+};
 
-export async function verifyOtp(userId: string, code: string): Promise<boolean> {
-  const record = await prisma.otpCode.findFirst({ where: { userId }, orderBy: { createdAt: 'desc' } });
-  if (!record || record.expiresAt < new Date()) {
-    return false;
-  }
-  const valid = await bcrypt.compare(code, record.codeHash);
-  if (valid) {
-    await prisma.otpCode.deleteMany({ where: { userId } });
-  }
-  return valid;
-}
+export const smsService = {
+  /**
+   * Send an SMS through Twilio
+   */
+  async send(to: string, body: string) {
+    if (!ENV.TWILIO_ACCOUNT_SID || !ENV.TWILIO_AUTH_TOKEN) {
+      throw new Error("Twilio credentials missing");
+    }
 
-function normalizeTwilioError(error: unknown): Record<string, unknown> {
-  if (typeof error === 'object' && error !== null && 'code' in error) {
-    const typed = error as { code?: unknown; message?: unknown };
-    return { code: typed.code, message: typed.message };
-  }
-  return { message: String(error) };
-}
+    if (!ENV.TWILIO_PHONE_NUMBER) {
+      throw new Error("TWILIO_PHONE_NUMBER missing");
+    }
+
+    try {
+      const twilioClient = getClient();
+      const message = await twilioClient.messages.create({
+        from: ENV.TWILIO_PHONE_NUMBER,
+        to,
+        body,
+      });
+
+      logger.info(`SMS sent → ${to} (sid: ${message.sid})`);
+      return message;
+    } catch (err: any) {
+      logger.error("SMS send failed:", err?.message || err);
+      throw new Error(err?.message || "Unknown SMS sending error");
+    }
+  },
+
+  /**
+   * Validate phone numbers before queueing
+   */
+  validatePhone(phone: string) {
+    if (!phone) return false;
+    const cleaned = phone.replace(/[^0-9+]/g, "");
+    return cleaned.length >= 10;
+  },
+};
+
+export default smsService;

@@ -1,6 +1,7 @@
+// server/src/controllers/dealsController.ts
 import type { Request, Response } from "express";
-import { dealsService } from "../services/dealsService";
-import asyncHandler from "../utils/asyncHandler";
+import { dealsService } from "../services/dealsService.js";
+import asyncHandler from "../utils/asyncHandler.js";
 
 export const dealsController = {
   list: asyncHandler(async (_req: Request, res: Response) => {
