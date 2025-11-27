@@ -22,7 +22,7 @@ jobs:
         run: npm ci
 
       - name: Build TypeScript
-        run: npx tsc --build server/tsconfig.build.json
+        run: npx tsc --build tsconfig.build.json
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -30,7 +30,6 @@ jobs:
           name: server-dist
           path: dist/
 
-      # 🔥 REQUIRED — THIS WAS MISSING
       - name: Azure Login
         uses: azure/login@v2
         with:
