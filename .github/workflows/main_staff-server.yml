@@ -15,6 +15,7 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: '20'
+          cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
@@ -24,8 +25,6 @@ jobs:
 
       - name: Prepare deployment package
         run: |
-          npm ci
-          npm run build
           zip -r release.zip dist node_modules package.json package-lock.json
 
       - name: Deploy to Azure Web App
