@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repo
         uses: actions/checkout@v4
 
       - name: Setup Node
@@ -22,17 +22,18 @@ jobs:
         run: npm ci
 
       - name: Build project
-        run: npm run build --if-present
+        run: npm run build
 
-      # Package ONLY the dist folder (required for Azure Linux)
-      - name: Prepare package
+      # IMPORTANT:
+      # We must include BOTH dist AND node_modules so Azure can run the server.
+      - name: Prepare artifact
         run: |
           mkdir package
-          cp -r dist package/dist
-          cp package.json package/
-          cp package-lock.json package/
+          cp -R dist package/dist
+          cp -R node_modules package/node_modules
+          cp package.json package/package.json
 
-      - name: Deploy to Azure Web App (Publish Profile)
+      - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v2
         with:
           app-name: boreal-staff-server
