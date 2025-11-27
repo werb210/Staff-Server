@@ -33,6 +33,18 @@ const ocrExtractController = {
     res.status(200).json({ success: true, data });
   }),
 
+  classifyDocumentType: asyncHandler(async (_req: Request, res: Response) => {
+    res.status(200).json({ ok: true });
+  }),
+
+  extractStructuredFields: asyncHandler(async (_req: Request, res: Response) => {
+    res.status(200).json({ ok: true });
+  }),
+
+  getTablesFromDocument: asyncHandler(async (_req: Request, res: Response) => {
+    res.status(200).json({ ok: true });
+  }),
+
   /**
    * Get OCR extracts for a document
    */
