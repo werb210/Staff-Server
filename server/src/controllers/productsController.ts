@@ -1,7 +1,6 @@
-// server/src/controllers/productsController.ts
 import type { Request, Response } from "express";
-import { productsService } from "../services/productsService.js";
-import asyncHandler from "../utils/asyncHandler.js";
+import { productsService } from "../services/productsService";
+import asyncHandler from "../utils/asyncHandler";
 
 export const productsController = {
   list: asyncHandler(async (_req: Request, res: Response) => {
@@ -20,7 +19,7 @@ export const productsController = {
     res.json(await productsService.update(req.params.id, req.body));
   }),
 
-  remove: asyncHandler(async (req: Request, res: Response) => {
+  delete: asyncHandler(async (req: Request, res: Response) => {
     res.json(await productsService.delete(req.params.id));
   }),
 };

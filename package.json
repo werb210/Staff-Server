@@ -3,12 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "tsx watch server/src/index.ts",
+    "build": "tsc --project tsconfig.build.json",
     "start": "node dist/index.js",
-    "build": "tsc -p server/tsconfig.json",
-    "test": "npm run test:unit && npm run test:e2e",
-    "test:unit": "vitest",
-    "test:e2e": "playwright test"
+    "dev": "nodemon server/src/index.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.637.0",

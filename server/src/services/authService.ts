@@ -1,10 +1,10 @@
 // server/src/services/authService.ts
 import type { User } from "@prisma/client";
-import { prisma } from "../db/index.js";
+import { prisma } from "../db/index";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import { sanitizeUser } from "../utils/sanitizeUser.js";
-import { ENV } from "../utils/env.js";
+import { sanitizeUser } from "../utils/sanitizeUser";
+import { ENV } from "../utils/env";
 
 const getJwtSecret = (): string => {
   if (!ENV.JWT_SECRET) {

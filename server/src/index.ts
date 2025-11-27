@@ -1,31 +1,27 @@
-import "dotenv/config";
-import { app } from "./app.js";
-import prisma, { hasDatabaseUrl } from "./db/index.js";
-import { ENV } from "./utils/env.js";
+import dotenv from "dotenv";
+dotenv.config();
 
-const PORT = Number(process.env.WEBSITES_PORT ?? process.env.PORT ?? ENV.PORT ?? 8080);
+import express from "express";
+import cors from "cors";
+import bodyParser from "body-parser";
 
-async function start() {
-  app.locals.dbReady = false;
+import contactsRouter from "./routes/contacts";
+import pipelineRouter from "./routes/pipeline";
+import healthRouter from "./routes/_int";
 
-  const shouldSkipDb = ENV.SKIP_DATABASE || !hasDatabaseUrl;
-  if (!shouldSkipDb) {
-    try {
-      await prisma.$connect();
-      app.locals.dbReady = true;
-    } catch (err) {
-      console.error("⚠️  Failed to connect to database", err);
+const app = express();
+const PORT = process.env.PORT || 8080;
 
-      if (ENV.REQUIRE_DATABASE) {
-        console.error("Exiting because REQUIRE_DATABASE=true");
-        process.exit(1);
-      }
-    }
-  }
+app.use(cors());
+app.use(bodyParser.json());
 
-  app.listen(PORT, () => {
-    console.log("🚀 Server ready on port", PORT);
-  });
-}
+app.use("/api/contacts", contactsRouter);
+app.use("/api/pipeline", pipelineRouter);
+app.use("/api/_int", healthRouter);
 
-start();
+// root
+app.get("/", (_, res) => res.send("OK"));
+
+app.listen(PORT, () => {
+  console.log(`🚀 Staff API running on port ${PORT}`);
+});

@@ -1,4 +1,4 @@
-import prisma from "../db/prisma.js";
+import prisma from "../db/prisma";
 
 export async function getAllFinancials() {
   try {

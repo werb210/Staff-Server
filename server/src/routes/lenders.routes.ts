@@ -1,6 +1,5 @@
-// server/src/routes/lenders.routes.ts
 import { Router } from "express";
-import { lendersController } from "../controllers/lendersController.js";
+import { lendersController } from "../controllers/lendersController";
 
 const router = Router();
 

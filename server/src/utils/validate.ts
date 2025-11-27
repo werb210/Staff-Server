@@ -1,7 +1,7 @@
 // server/src/utils/validate.ts
-import { ZodSchema } from "zod";
+import { z } from "zod";
 
-export function validate(schema: ZodSchema) {
+export function validate(schema: z.ZodSchema) {
   return (req: any, res: any, next: any) => {
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {

@@ -1,6 +1,6 @@
 // server/src/services/companiesService.ts
 import type { Company, Prisma } from "@prisma/client";
-import { prisma } from "../db/index.js";
+import { prisma } from "../db/index";
 
 type CompanyWithRelations = Prisma.CompanyGetPayload<{
   include: { contacts: true; applications: true };

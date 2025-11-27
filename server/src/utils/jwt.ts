@@ -1,6 +1,6 @@
 // server/src/utils/jwt.ts
 import jwt from "jsonwebtoken";
-import { ENV } from "./env.js";
+import { ENV } from "./env";
 
 const getSecret = (): string => {
   if (!ENV.JWT_SECRET) {

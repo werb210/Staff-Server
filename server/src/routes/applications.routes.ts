@@ -1,6 +1,5 @@
-// server/src/routes/applications.routes.ts
 import { Router } from "express";
-import { applicationsController } from "../controllers/applicationsController.js";
+import { applicationsController } from "../controllers/applicationsController";
 
 const router = Router();
 
@@ -8,6 +7,6 @@ router.get("/", applicationsController.list);
 router.get("/:id", applicationsController.get);
 router.post("/", applicationsController.create);
 router.put("/:id", applicationsController.update);
-router.delete("/:id", applicationsController.remove);
+router.delete("/:id", applicationsController.delete);
 
 export default router;

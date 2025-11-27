@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import asyncHandler from "../utils/asyncHandler.js";
+import asyncHandler from "../utils/asyncHandler";
 
 export const pipelineController = {
   list: asyncHandler(async (_req: Request, res: Response) => {

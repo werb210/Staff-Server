@@ -1,9 +1,9 @@
 import { Router } from "express";
-import { communicationController } from "../controllers/communicationController.js";
+import { communicationController } from "../controllers/communicationController";
 
 const router = Router();
 
-router.get("/sms", communicationController.sms);
-router.get("/email", communicationController.email);
+router.get("/sms", communicationController.listSMS);
+router.get("/emails", communicationController.listEmails);
 
 export default router;

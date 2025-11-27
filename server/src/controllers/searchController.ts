@@ -1,28 +1,18 @@
-// ============================================================================
 // server/src/controllers/searchController.ts
-// Unified controller rewrite (BLOCK 14)
-// ============================================================================
+import type { Request, Response } from "express";
+import asyncHandler from "../utils/asyncHandler";
+import searchService from "../services/searchService";
 
-import asyncHandler from "../utils/asyncHandler.js";
-import searchService from "../services/searchService.js";
-
-const searchController = {
+export const searchController = {
   /**
-   * GET /search
-   * Query params:
-   *  - q: string (required)
+   * Global search across companies, contacts, and applications
    */
-  globalSearch: asyncHandler(async (req, res) => {
-    const { q } = req.query;
-
-    const data = await searchService.globalSearch(String(q ?? ""));
+  search: asyncHandler(async (req: Request, res: Response) => {
+    const query = (req.query.q as string) || (req.query.query as string) || "";
+    const data = await searchService.globalSearch(query);
 
     res.status(200).json({ success: true, data });
   }),
 };
 
 export default searchController;
-
-// ============================================================================
-// END OF FILE
-// ============================================================================

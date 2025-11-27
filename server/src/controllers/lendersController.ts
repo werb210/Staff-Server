@@ -1,7 +1,6 @@
-// server/src/controllers/lendersController.ts
 import type { Request, Response } from "express";
-import { lendersService } from "../services/lendersService.js";
-import asyncHandler from "../utils/asyncHandler.js";
+import { lendersService } from "../services/lendersService";
+import asyncHandler from "../utils/asyncHandler";
 
 export const lendersController = {
   list: asyncHandler(async (_req: Request, res: Response) => {
@@ -21,6 +20,6 @@ export const lendersController = {
   }),
 
   remove: asyncHandler(async (req: Request, res: Response) => {
-    res.json(await lendersService.delete(req.params.id));
+    res.json(await lendersService.remove(req.params.id));
   }),
 };

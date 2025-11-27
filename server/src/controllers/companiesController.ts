@@ -1,7 +1,7 @@
 // server/src/controllers/companiesController.ts
 import type { Request, Response } from "express";
-import { companiesService } from "../services/companiesService.js";
-import asyncHandler from "../utils/asyncHandler.js";
+import { companiesService } from "../services/companiesService";
+import asyncHandler from "../utils/asyncHandler";
 
 export const companiesController = {
   list: asyncHandler(async (_req: Request, res: Response) => {

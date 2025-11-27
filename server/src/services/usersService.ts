@@ -1,6 +1,6 @@
 // server/src/services/usersService.ts
 import bcrypt from "bcrypt";
-import { prisma } from "../db/index.js";
+import { prisma } from "../db/index";
 
 const userSelect = {
   id: true,
@@ -71,7 +71,7 @@ const usersService = {
       lastName: string;
       role: string;
       phone: string;
-    }>
+    }>,
   ) {
     const dataToUpdate: Record<string, unknown> = {
       email: updates.email,

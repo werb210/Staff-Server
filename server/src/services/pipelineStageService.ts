@@ -1,9 +1,9 @@
-// ============================================================================
+// =============================================================================
 // server/src/services/pipelineStageService.ts
 // BLOCK 22 — Complete Prisma rewrite
-// ============================================================================
+// =============================================================================
 
-import db from "../db/index.js";
+import db from "../db/index";
 
 const pipelineStageService = {
   /**
@@ -78,7 +78,7 @@ const pipelineStageService = {
 
     if (apps > 0) {
       throw new Error(
-        `Cannot delete pipeline stage ${stageId} — ${apps} applications still assigned.`
+        `Cannot delete pipeline stage ${stageId} — ${apps} applications still assigned.`,
       );
     }
 
@@ -95,7 +95,7 @@ const pipelineStageService = {
       db.pipelineStage.update({
         where: { id: stage.id },
         data: { order: stage.order },
-      })
+      }),
     );
 
     return db.$transaction(transactions);
@@ -104,6 +104,6 @@ const pipelineStageService = {
 
 export default pipelineStageService;
 
-// ============================================================================
+// =============================================================================
 // END OF FILE
-// ============================================================================
+// =============================================================================

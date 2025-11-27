@@ -2,25 +2,25 @@ import express from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
 
-import applicationsRoutes from "./routes/applications.routes.js";
-import authRoutes from "./routes/auth.routes.js";
-import companiesRoutes from "./routes/companies.routes.js";
-import contactsRoutes from "./routes/contacts.routes.js";
-import dealsRoutes from "./routes/deals.routes.js";
-import documentsRoutes from "./routes/documents.routes.js";
-import financialsRoutes from "./routes/financialsRoutes.js";
-import healthRoutes from "./routes/health.routes.js";
-import lendersRoutes from "./routes/lenders.routes.js";
-import notificationsRoutes from "./routes/notifications.routes.js";
-import communicationsRoutes from "./routes/communications.routes.js";
-import pipelineRoutes from "./routes/pipeline.routes.js";
-import searchRoutes from "./routes/search.routes.js";
-import tagsRoutes from "./routes/tags.routes.js";
-import ocrRoutes from "./routes/ocr.routes.js";
-import usersRoutes from "./routes/users.routes.js";
-import aiRoutes from "./routes/ai.routes.js";
+import applicationsRoutes from "./routes/applications.routes";
+import authRoutes from "./routes/auth.routes";
+import companiesRoutes from "./routes/companies.routes";
+import contactsRoutes from "./routes/contacts.routes";
+import dealsRoutes from "./routes/deals.routes";
+import documentsRoutes from "./routes/documents.routes";
+import financialsRoutes from "./routes/financialsRoutes";
+import healthRoutes from "./routes/health.routes";
+import lendersRoutes from "./routes/lenders.routes";
+import notificationsRoutes from "./routes/notifications.routes";
+import communicationsRoutes from "./routes/communications.routes";
+import pipelineRoutes from "./routes/pipeline.routes";
+import searchRoutes from "./routes/search.routes";
+import tagsRoutes from "./routes/tags.routes";
+import ocrRoutes from "./routes/ocr.routes";
+import usersRoutes from "./routes/users.routes";
+import aiRoutes from "./routes/ai.routes";
 
-import { errorHandler } from "./middlewares/errorHandler.js";
+import { errorHandler } from "./middlewares/errorHandler";
 
 export const app = express();
 
