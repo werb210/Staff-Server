@@ -1,14 +1,23 @@
+// server/src/controllers/notificationsController.ts
 import type { Request, Response } from "express";
-import { notificationsService } from "../services/notificationsService";
-import asyncHandler from "../utils/asyncHandler";
+import { notificationsService } from "../services/notificationsService.js";
+import asyncHandler from "../utils/asyncHandler.js";
+
+function resolveUserId(req: Request, res: Response): string | null {
+  const userId = (req.query.userId as string) ?? req.body?.userId;
+
+  if (!userId) {
+    res.status(400).json({ ok: false, error: "userId is required" });
+    return null;
+  }
+
+  return String(userId);
+}
 
 export const notificationsController = {
   list: asyncHandler(async (req: Request, res: Response) => {
-    const { userId } = req.query;
-    if (!userId || typeof userId !== "string") {
-      res.status(400).json({ ok: false, error: "userId is required" });
-      return;
-    }
+    const userId = resolveUserId(req, res);
+    if (!userId) return;
 
     res.json(await notificationsService.list(userId));
   }),
@@ -18,8 +27,10 @@ export const notificationsController = {
   }),
 
   create: asyncHandler(async (req: Request, res: Response) => {
-    const { userId, ...data } = req.body;
-    res.json(await notificationsService.create(userId, data));
+    const userId = resolveUserId(req, res);
+    if (!userId) return;
+
+    res.json(await notificationsService.create(userId, req.body));
   }),
 
   update: asyncHandler(async (req: Request, res: Response) => {

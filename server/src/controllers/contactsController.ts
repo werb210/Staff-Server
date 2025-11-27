@@ -1,7 +1,7 @@
 // server/src/controllers/contactsController.ts
 import type { Request, Response } from "express";
-import { contactsService } from "../services/contactsService";
-import asyncHandler from "../utils/asyncHandler";
+import { contactsService } from "../services/contactsService.js";
+import asyncHandler from "../utils/asyncHandler.js";
 
 export const contactsController = {
   list: asyncHandler(async (_req: Request, res: Response) => {

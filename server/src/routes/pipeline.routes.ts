@@ -1,6 +1,6 @@
 // server/src/routes/pipeline.routes.ts
 import { Router } from "express";
-import { pipelineController } from "../controllers/pipelineController";
+import { pipelineController } from "../controllers/pipelineController.js";
 
 const router = Router();
 

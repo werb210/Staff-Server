@@ -1,5 +1,5 @@
 import { Application, Prisma } from "@prisma/client";
-import { prisma } from "../db/prisma";
+import { prisma } from "../db/prisma.js";
 
 const handleError = (error: unknown, action: string): never => {
   if (error instanceof Error) {

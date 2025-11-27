@@ -1,13 +1,14 @@
+// server/src/controllers/communicationController.ts
 import type { Request, Response } from "express";
-import { communicationService } from "../services/communicationService";
-import { asyncHandler } from "../utils/asyncHandler";
+import { communicationService } from "../services/communicationService.js";
+import { asyncHandler } from "../utils/asyncHandler.js";
 
 export const communicationController = {
-  listSMS: asyncHandler(async (_req: Request, res: Response) => {
+  sms: asyncHandler(async (_req: Request, res: Response) => {
     res.json({ ok: true, data: await communicationService.listSMS() });
   }),
 
-  listEmails: asyncHandler(async (_req: Request, res: Response) => {
+  email: asyncHandler(async (_req: Request, res: Response) => {
     res.json({ ok: true, data: await communicationService.listEmails() });
   }),
 };
