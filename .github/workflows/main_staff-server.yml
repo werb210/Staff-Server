@@ -2,38 +2,32 @@ name: Deploy Staff Server to Azure
 
 on:
   push:
-    branches:
-      - main
+    branches: [ "main" ]
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v3
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v3
         with:
-          node-version: 20
+          node-version: '20'
 
       - name: Install dependencies
         run: npm ci
 
       - name: Build project
-        run: npm run build --if-present
+        run: npm run build
 
       - name: Prepare deployment package
-        run: |
-          mkdir server-dist
-          cp -r dist package.json package-lock.json node_modules server-dist/
-          cd server-dist
-          zip -r ../server-dist.zip .
+        run: zip -r release.zip dist package.json package-lock.json
 
-      - name: Deploy to Azure Web App (Publish Profile)
+      - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v2
         with:
           app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: server-dist.zip
+          package: release.zip
