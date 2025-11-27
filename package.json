@@ -2,17 +2,16 @@
   "name": "staff-server",
   "version": "1.0.0",
   "private": true,
+  "main": "dist/index.js",
   "scripts": {
-    "build": "tsc --project tsconfig.build.json",
-    "start": "node dist/index.js",
-    "dev": "nodemon server/src/index.ts"
+    "build": "tsc -b",
+    "start": "node dist/index.js"
   },
   "dependencies": {
+    "@azure/storage-blob": "^12.17.0",
     "@aws-sdk/client-s3": "^3.637.0",
     "@aws-sdk/s3-request-presigner": "^3.637.0",
     "@prisma/client": "^5.11.0",
-    "@types/bcrypt": "^6.0.0",
-    "@types/cookie-parser": "^1.4.3",
     "axios": "^1.6.8",
     "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.6",
@@ -31,6 +30,7 @@
     "node-cron": "^3.0.3",
     "nodemailer": "^6.9.12",
     "openid-client": "^6.1.4",
+    "openai": "^4.53.0",
     "pg": "^8.11.3",
     "sharp": "^0.33.3",
     "stripe": "^14.24.0",
@@ -40,6 +40,8 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.45.1",
+    "@types/bcrypt": "^6.0.0",
+    "@types/cookie-parser": "^1.4.3",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.5",

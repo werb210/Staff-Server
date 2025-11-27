@@ -1,19 +1,25 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from '@prisma/client';
+import { env, optionalNumber } from '../utils/env';
+import { createLogger } from '../utils/logger';
 
-export const hasDatabaseUrl = Boolean(process.env.DATABASE_URL);
+const logger = createLogger('prisma');
 
-const prisma: PrismaClient = hasDatabaseUrl
-  ? new PrismaClient()
-  : (new Proxy(
-      {},
-      {
-        get() {
-          throw new Error(
-            "DATABASE_URL is not set. Database-backed features are disabled.",
-          );
-        },
-      },
-    ) as PrismaClient);
+function withConnectionLimit(url: string, connectionLimit: number): string {
+  const delimiter = url.includes('?') ? '&' : '?';
+  const param = `connection_limit=${connectionLimit}`;
+  return url.includes('connection_limit') ? url : `${url}${delimiter}${param}`;
+}
 
-export default prisma;
-export { prisma };
+const poolSize = optionalNumber(env.DATABASE_POOL_MAX, 10);
+const connectionString = withConnectionLimit(env.DATABASE_URL, poolSize);
+
+const client = new PrismaClient({
+  datasources: { db: { url: connectionString } },
+  log: ['warn', 'error'],
+});
+
+export const prisma: any = client;
+
+prisma.$on?.('beforeExit', async () => {
+  logger.info('Prisma client is disconnecting');
+});

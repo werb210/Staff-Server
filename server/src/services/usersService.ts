@@ -1,106 +1,58 @@
-// server/src/services/usersService.ts
-import bcrypt from "bcrypt";
-import { prisma } from "../db/index";
+import bcrypt from 'bcrypt';
+import { prisma } from '../db/prisma';
+import { createLogger } from '../utils/logger';
 
-const userSelect = {
-  id: true,
-  email: true,
-  firstName: true,
-  lastName: true,
-  role: true,
-  phone: true,
-  createdAt: true,
-};
+const logger = createLogger('users-service');
 
-const usersService = {
-  /**
-   * Get all users ordered by creation date (newest first)
-   */
-  async list() {
-    return prisma.user.findMany({
-      orderBy: { createdAt: "desc" },
-      select: userSelect,
-    });
-  },
+type Role = 'ADMIN' | 'STAFF' | 'APPLICANT';
 
-  /**
-   * Get a single user by ID
-   */
-  async get(id: string) {
-    return prisma.user.findUnique({
-      where: { id },
-      select: userSelect,
-    });
-  },
+export async function createUser(email: string, password: string, role: Role = 'APPLICANT', name?: string): Promise<{ id: string; email: string; role: Role; name: string | null }> {
+  const passwordHash = await bcrypt.hash(password, 10);
+  const user = await prisma.user.create({
+    data: {
+      email,
+      passwordHash,
+      role,
+      name: name || null,
+    },
+  });
+  logger.info('User created', { userId: user.id, role });
+  return { id: user.id, email: user.email, role: user.role as Role, name: user.name };
+}
 
-  /**
-   * Create a new user (hashing password before persisting)
-   */
-  async create(data: {
-    email: string;
-    password: string;
-    firstName: string;
-    lastName: string;
-    role: string;
-    phone?: string;
-  }) {
-    const hashed = await bcrypt.hash(data.password, 10);
+export async function getProfile(userId: string): Promise<{ id: string; email: string; role: Role; name: string | null; phone: string | null; timezone: string | null }> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, email: true, role: true, name: true, phone: true, timezone: true },
+  });
+  if (!user) {
+    const err = new Error('User not found');
+    (err as Error & { status?: number }).status = 404;
+    throw err;
+  }
+  return user as { id: string; email: string; role: Role; name: string | null; phone: string | null; timezone: string | null };
+}
 
-    return prisma.user.create({
-      data: {
-        email: data.email,
-        password: hashed,
-        firstName: data.firstName,
-        lastName: data.lastName,
-        role: data.role,
-        phone: data.phone ?? null,
-      },
-      select: userSelect,
-    });
-  },
+export async function updateProfile(userId: string, data: Partial<{ name: string; phone: string; timezone: string }>): Promise<void> {
+  await prisma.user.update({ where: { id: userId }, data });
+  logger.info('Profile updated', { userId });
+}
 
-  /**
-   * Update an existing user; hashes password only when provided
-   */
-  async update(
-    id: string,
-    updates: Partial<{
-      email: string;
-      password: string;
-      firstName: string;
-      lastName: string;
-      role: string;
-      phone: string;
-    }>,
-  ) {
-    const dataToUpdate: Record<string, unknown> = {
-      email: updates.email,
-      firstName: updates.firstName,
-      lastName: updates.lastName,
-      role: updates.role,
-      phone: updates.phone,
-    };
+function assertAdmin(userRole: Role): void {
+  if (userRole !== 'ADMIN') {
+    const err = new Error('Admin access required');
+    (err as Error & { status?: number }).status = 403;
+    throw err;
+  }
+}
 
-    if (updates.password) {
-      dataToUpdate.password = await bcrypt.hash(updates.password, 10);
-    }
-
-    return prisma.user.update({
-      where: { id },
-      data: dataToUpdate,
-      select: { ...userSelect, updatedAt: true },
-    });
-  },
-
-  /**
-   * Delete a user by ID
-   */
-  delete(id: string) {
-    return prisma.user.delete({
-      where: { id },
-    });
-  },
-};
-
-export { usersService };
-export default usersService;
+export async function listUsers(requesterRole: Role, skip = 0, take = 20): Promise<Array<{ id: string; email: string; role: Role; name: string | null }>> {
+  assertAdmin(requesterRole);
+  const users = await prisma.user.findMany({
+    skip,
+    take,
+    orderBy: { createdAt: 'desc' },
+    select: { id: true, email: true, role: true, name: true },
+  });
+  return users as Array<{ id: string; email: string; role: Role; name: string | null }>;
+}

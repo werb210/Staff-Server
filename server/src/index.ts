@@ -1,27 +1,50 @@
-import dotenv from "dotenv";
-dotenv.config();
+require('dotenv').config();
 
-import express from "express";
-import cors from "cors";
-import bodyParser from "body-parser";
+import express = require('express');
+import path = require('path');
+import cookieParser = require('cookie-parser');
+import cors = require('cors');
+import rateLimit = require('express-rate-limit');
 
-import contactsRouter from "./routes/contacts";
-import pipelineRouter from "./routes/pipeline";
-import healthRouter from "./routes/_int";
+import { Router } from 'express';
+import authRouter = require('./routes/auth');
+import userRouter = require('./routes/users');
+import smsRouter = require('./routes/sms');
+import documentsRouter = require('./routes/documents');
+const internalRouter: Router = require('./routes/_int');
+import { env } from './utils/env';
+import { createLogger } from './utils/logger';
 
 const app = express();
-const PORT = process.env.PORT || 8080;
+const logger = createLogger('server');
 
 app.use(cors());
-app.use(bodyParser.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
+const limiter = rateLimit.default({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
-app.use("/api/contacts", contactsRouter);
-app.use("/api/pipeline", pipelineRouter);
-app.use("/api/_int", healthRouter);
+app.use(limiter);
 
-// root
-app.get("/", (_, res) => res.send("OK"));
+app.use('/_int', internalRouter);
+app.use('/auth', authRouter);
+app.use('/users', userRouter);
+app.use('/sms', smsRouter);
+app.use('/documents', documentsRouter);
+app.use('/public', express.static(path.join(__dirname, 'public')));
 
+app.use((err: Error & { status?: number }, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  logger.error(err.message);
+  const statusCode = err.status || 500;
+  res.status(statusCode).json({ error: err.message || 'Internal server error' });
+});
+
+const PORT = env.PORT;
 app.listen(PORT, () => {
-  console.log(`🚀 Staff API running on port ${PORT}`);
+  logger.info(`Server listening on port ${PORT}`);
 });

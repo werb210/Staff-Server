@@ -1,15 +1,33 @@
 {
   "compilerOptions": {
-    "module": "CommonJS",
-    "target": "ES2020",
-    "moduleResolution": "Node",
-    "outDir": "./dist",
-    "rootDir": "./server/src",
+    "module": "commonjs",
+    "target": "es2020",
+    "moduleResolution": "node",
+    "rootDir": "server/src",
+    "outDir": "dist",
+    "strict": true,
     "resolveJsonModule": true,
     "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
-    "strict": false,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
   },
-  "include": ["server/src"]
+  "include": [
+    "server/src/index.ts",
+    "server/src/routes/_int/**/*.ts",
+    "server/src/routes/auth.ts",
+    "server/src/routes/users.ts",
+    "server/src/routes/sms.ts",
+    "server/src/routes/documents.ts",
+    "server/src/services/authService.ts",
+    "server/src/services/usersService.ts",
+    "server/src/services/smsService.ts",
+    "server/src/services/documentService.ts",
+    "server/src/services/ocrService.ts",
+    "server/src/utils/env.ts",
+    "server/src/utils/validate.ts",
+    "server/src/utils/documentIntegrity.ts",
+    "server/src/utils/logger.ts",
+    "server/src/db/prisma.ts"
+  ],
+  "exclude": ["node_modules", "dist", "server/src/__tests__", "server/src/controllers", "server/src/middlewares"]
 }
