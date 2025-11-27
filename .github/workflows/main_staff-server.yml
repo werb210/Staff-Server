@@ -5,15 +5,6 @@ on:
     branches:
       - main
 
-permissions:
-  id-token: write
-  contents: read
-
-env:
-  AZURE_WEBAPP_NAME: boreal-staff-server
-  AZURE_WEBAPP_PACKAGE_PATH: "."
-  NODE_VERSION: "20"
-
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -25,7 +16,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: 20
 
       - name: Install dependencies
         run: npm ci
@@ -33,12 +24,9 @@ jobs:
       - name: Build project
         run: npm run build --if-present
 
-      # *** DO NOT ADD azure/login HERE ***
-      # Publish profile handles authentication completely.
-
-      - name: Deploy to Azure Web App (ZipDeploy)
+      - name: Deploy to Azure Web App (Publish Profile)
         uses: azure/webapps-deploy@v2
         with:
-          app-name: ${{ env.AZURE_WEBAPP_NAME }}
-          package: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+          app-name: boreal-staff-server
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: .
