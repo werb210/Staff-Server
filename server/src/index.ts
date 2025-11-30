@@ -13,6 +13,7 @@ import applicationRoutes from './routes/application.js';
 import documentRoutes from './routes/documents.js';
 import bankingRoutes from './routes/banking.js';
 import chatRoutes from './routes/chat.js';
+import signingRoutes from './routes/signing.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -82,9 +83,7 @@ app.use('/api/pipeline', (req, res) => {
   res.status(501).json({ error: 'Pipeline routes not implemented yet (Codex Block 10)' });
 });
 
-app.use('/api/signing', (req, res) => {
-  res.status(501).json({ error: 'Signing routes not implemented yet (Codex Block 11)' });
-});
+app.use('/api/signing', signingRoutes);
 
 //
 // =======================================================
