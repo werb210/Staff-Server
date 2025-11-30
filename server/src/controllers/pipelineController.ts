@@ -1,24 +1,42 @@
+// server/src/controllers/pipelineController.ts
 import type { Request, Response } from "express";
-import asyncHandler from "../utils/asyncHandler.js";
+import * as pipelineService from "../services/pipelineService.js";
 
-export const pipelineController = {
-  list: asyncHandler(async (_req: Request, res: Response) => {
-    res.status(501).json({ ok: false, error: "Pipeline not implemented." });
-  }),
+//
+// ======================================================
+//  Get Pipeline History
+// ======================================================
+//
+export async function getPipeline(req: Request, res: Response) {
+  try {
+    const { applicationId } = req.params;
 
-  get: asyncHandler(async (_req: Request, res: Response) => {
-    res.status(501).json({ ok: false, error: "Pipeline not implemented." });
-  }),
+    const events = await pipelineService.getPipeline(applicationId);
 
-  create: asyncHandler(async (_req: Request, res: Response) => {
-    res.status(501).json({ ok: false, error: "Pipeline not implemented." });
-  }),
+    return res.status(200).json(events);
+  } catch (err: any) {
+    console.error("getPipeline error →", err);
+    return res.status(500).json({ error: err.message });
+  }
+}
 
-  update: asyncHandler(async (_req: Request, res: Response) => {
-    res.status(501).json({ ok: false, error: "Pipeline not implemented." });
-  }),
+//
+// ======================================================
+//  Update/Override Pipeline Stage (staff action)
+// ======================================================
+//
+export async function updateStage(req: Request, res: Response) {
+  try {
+    const { applicationId } = req.params;
+    const { stage, reason } = req.body;
 
-  remove: asyncHandler(async (_req: Request, res: Response) => {
-    res.status(501).json({ ok: false, error: "Pipeline not implemented." });
-  }),
-};
+    if (!stage) return res.status(400).json({ error: "New stage required." });
+
+    const updated = await pipelineService.updateStage(applicationId, stage, reason);
+
+    return res.status(200).json(updated);
+  } catch (err: any) {
+    console.error("updateStage error →", err);
+    return res.status(500).json({ error: err.message });
+  }
+}
