@@ -12,6 +12,7 @@ import { loadEnv } from './config/env.js';
 import applicationRoutes from './routes/application.js';
 import documentRoutes from './routes/documents.js';
 import bankingRoutes from './routes/banking.js';
+import chatRoutes from './routes/chat.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -75,9 +76,7 @@ app.use('/api/documents', documentRoutes);
 
 app.use('/api/banking', bankingRoutes);
 
-app.use('/api/chat', (req, res) => {
-  res.status(501).json({ error: 'Chat routes not implemented yet (Codex Block 9)' });
-});
+app.use('/api/chat', chatRoutes);
 
 app.use('/api/pipeline', (req, res) => {
   res.status(501).json({ error: 'Pipeline routes not implemented yet (Codex Block 10)' });
