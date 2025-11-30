@@ -23,6 +23,7 @@
     "crypto": "^1.0.1",
     "csv-writer": "^1.6.0",
     "dotenv": "^16.6.1",
+    "drizzle-orm": "^0.44.7",
     "express": "^4.19.2",
     "express-rate-limit": "^7.0.1",
     "fast-xml-parser": "^4.3.5",

@@ -9,6 +9,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { initAzureBlob } from './services/blobService.js';
 import { loadEnv } from './config/env.js';
+import applicationRoutes from './routes/application.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -63,13 +64,10 @@ app.get('/api/_int/ping', (req: Request, res: Response) => {
 
 //
 // =======================================================
-//  5. Placeholder Routes (The Next Blocks Will Populate These)
+//  5. Core Routes
 // =======================================================
-//  DO NOT REMOVE — They will be replaced by Codex Blocks 4–12
 //
-app.use('/api/application', (req, res) => {
-  res.status(501).json({ error: 'Application routes not implemented yet (Codex Block 4)' });
-});
+app.use('/api/application', applicationRoutes);
 
 app.use('/api/documents', (req, res) => {
   res.status(501).json({ error: 'Document routes not implemented yet (Codex Block 5)' });
