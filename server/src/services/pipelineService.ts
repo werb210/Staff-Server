@@ -1,179 +1,95 @@
-// ============================================================================
 // server/src/services/pipelineService.ts
-// BLOCK 21 — Complete Prisma rewrite
-// ============================================================================
+import { db } from "../db/db.js";
+import { applications } from "../db/schema/applications.js";
+import { pipelineEvents } from "../db/schema/pipeline.js";
+import { eq } from "drizzle-orm";
 
-import db from "../db/index.js";
+declare const broadcast: (payload: any) => void;
 
-type ApplicationSummary = {
-  id: string;
-  businessName: string;
-  email: string;
-  phone: string;
-  amountRequested: number;
-  status: string;
-  stageId: string;
-  updatedAt: Date;
-  createdAt: Date;
-};
+//
+// Valid pipeline stages for V1
+//
+export const VALID_STAGES = [
+  "Not Submitted",
+  "Received",
+  "In Review",
+  "Documents Required",
+  "Ready for Signing",
+  "Off to Lender",
+  "Offer",
+];
 
-type PipelineStageSummary = {
-  id: string;
-  name: string;
-  order: number;
-  createdAt: Date;
-  updatedAt: Date;
-};
+//
+// ======================================================
+//  Get Pipeline History
+// ======================================================
+//
+export async function getPipeline(applicationId: string) {
+  const list = await db
+    .select()
+    .from(pipelineEvents)
+    .where(eq(pipelineEvents.applicationId, applicationId))
+    .orderBy(pipelineEvents.createdAt);
 
-type PipelineStageWithApplications = {
-  id: string;
-  name: string;
-  order: number;
-  applications: ApplicationSummary[];
-};
+  return list;
+}
 
-type PipelineStageUpdateResult = {
-  id: string;
-  name: string;
-  order: number;
-  updatedAt: Date;
-};
+//
+// ======================================================
+//  Manually Override Pipeline Stage
+// ======================================================
+//
+export async function updateStage(
+  applicationId: string,
+  newStage: string,
+  reason: string = "Manual update"
+) {
+  if (!VALID_STAGES.includes(newStage)) {
+    throw new Error(`Invalid pipeline stage: ${newStage}`);
+  }
 
-type PipelineStageCreateResult = {
-  id: string;
-  name: string;
-  order: number;
-  createdAt: Date;
-};
+  // Fetch current application
+  const [app] = await db
+    .select()
+    .from(applications)
+    .where(eq(applications.id, applicationId));
 
-type PipelineStageUpdateInput = {
-  name?: string;
-  order?: number;
-};
+  if (!app) throw new Error("Application not found.");
 
-const pipelineService = {
-  /**
-   * List all pipeline stages in correct order
-   */
-  async listStages(): Promise<PipelineStageSummary[]> {
-    return db.pipelineStage.findMany({
-      orderBy: { order: "asc" },
-      select: {
-        id: true,
-        name: true,
-        order: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    }) as Promise<PipelineStageSummary[]>;
-  },
+  // Insert pipeline event
+  await db.insert(pipelineEvents).values({
+    applicationId,
+    stage: newStage,
+    reason,
+  });
 
-  /**
-   * Get applications for a specific stage
-   * @param {string} stageId
-   */
-  async listApplications(stageId: string): Promise<ApplicationSummary[]> {
-    return db.application.findMany({
-      where: { stageId },
-      orderBy: { updatedAt: "desc" },
-      select: {
-        id: true,
-        businessName: true,
-        email: true,
-        phone: true,
-        amountRequested: true,
-        status: true,
-        stageId: true,
-        updatedAt: true,
-        createdAt: true,
-      },
-    }) as Promise<ApplicationSummary[]>;
-  },
+  // Update application record
+  const [updated] = await db
+    .update(applications)
+    .set({
+      pipelineStage: newStage,
+      updatedAt: new Date(),
+    })
+    .where(eq(applications.id, applicationId))
+    .returning();
 
-  /**
-   * Get entire pipeline board (all stages + applications)
-   */
-  async fullBoard(): Promise<PipelineStageWithApplications[]> {
-    const stages = await db.pipelineStage.findMany({
-      orderBy: { order: "asc" },
-      select: {
-        id: true,
-        name: true,
-        order: true,
-        applications: {
-          orderBy: { updatedAt: "desc" },
-          select: {
-            id: true,
-            businessName: true,
-            email: true,
-            phone: true,
-            amountRequested: true,
-            status: true,
-            stageId: true,
-            updatedAt: true,
-            createdAt: true,
-          },
-        },
-      },
-    });
+  // Broadcast to all connected clients
+  broadcast({
+    type: "pipeline-update",
+    applicationId,
+    stage: newStage,
+    reason,
+  });
 
-    return stages as PipelineStageWithApplications[];
-  },
+  return updated;
+}
 
-  /**
-   * Update a pipeline stage
-   * @param {string} stageId
-   * @param {{ name?:string, order?:number }} data
-   */
-  async updateStage(
-    stageId: string,
-    data: PipelineStageUpdateInput,
-  ): Promise<PipelineStageUpdateResult> {
-    return db.pipelineStage.update({
-      where: { id: stageId },
-      data,
-      select: {
-        id: true,
-        name: true,
-        order: true,
-        updatedAt: true,
-      },
-    }) as Promise<PipelineStageUpdateResult>;
-  },
-
-  /**
-   * Create a pipeline stage
-   */
-  async createStage(name: string, order: number): Promise<PipelineStageCreateResult> {
-    return db.pipelineStage.create({
-      data: { name, order },
-      select: {
-        id: true,
-        name: true,
-        order: true,
-        createdAt: true,
-      },
-    }) as Promise<PipelineStageCreateResult>;
-  },
-
-  /**
-   * Delete a stage
-   * (Only safe if no apps attached)
-   */
-  async deleteStage(stageId: string): Promise<PipelineStageSummary> {
-    const apps = await db.application.count({ where: { stageId } });
-    if (apps > 0) {
-      throw new Error("Cannot delete stage with applications in it.");
-    }
-
-    return db.pipelineStage.delete({
-      where: { id: stageId },
-    }) as Promise<PipelineStageSummary>;
-  },
-};
-
-export default pipelineService;
-
-// ============================================================================
-// END OF FILE
-// ============================================================================
+//
+// ======================================================
+//  Helper: Auto-move pipeline due to signing
+//  (Used in Block 11 when signing completes)
+// ======================================================
+//
+export async function markSigned(applicationId: string) {
+  return updateStage(applicationId, "Off to Lender", "Client signed application");
+}
