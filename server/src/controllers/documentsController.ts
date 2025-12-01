@@ -1,55 +1,67 @@
 // server/src/controllers/documentsController.ts
-import type { Request, Response } from "express";
-import { documentsService } from "../services/documentsService.js";
-import { getDocumentUrl } from "../services/documentService.js";
-import asyncHandler from "../utils/asyncHandler.js";
 
-export const documentsController = {
-  list: asyncHandler(async (_req: Request, res: Response) => {
-    const docs = await documentsService.list();
-    const withUrls = await Promise.all(
-      docs.map(async (doc) => ({ ...doc, url: await getDocumentUrl(doc.id) }))
-    );
-    res.json(withUrls);
-  }),
+import { Request, Response } from "express";
+import * as documentsRepo from "../db/repositories/documents.repo";
+import { uploadToAzureBlob } from "../utils/blob";
+import { asyncHandler } from "../utils/asyncHandler";
+import { z } from "zod";
 
-  get: asyncHandler(async (req: Request, res: Response) => {
-    const doc = await documentsService.get(req.params.id);
-    if (!doc) return res.status(404).json({ error: "Not found" });
-    res.json({ ...doc, url: await getDocumentUrl(doc.id) });
-  }),
+const uploadSchema = z.object({
+  applicationId: z.string(),
+  category: z.string(),
+  documentType: z.string().optional(),
+});
 
-  create: asyncHandler(async (req: Request, res: Response) => {
-    const payload = {
-      ...req.body,
-      azureBlobKey: req.body.azureBlobKey,
-    };
+export const listDocuments = asyncHandler(async (req: Request, res: Response) => {
+  const appId = req.params.applicationId;
+  const docs = await documentsRepo.getDocumentsForApplication(appId);
+  res.json({ success: true, data: docs });
+});
 
-    if (!payload.applicationId) {
-      return res.status(400).json({ error: "applicationId is required" });
-    }
+export const getDocument = asyncHandler(async (req: Request, res: Response) => {
+  const id = req.params.id;
+  const doc = await documentsRepo.getDocumentById(id);
+  if (!doc) return res.status(404).json({ success: false, message: "Document not found" });
+  res.json({ success: true, data: doc });
+});
 
-    if (!payload.originalName && !payload.name) {
-      return res.status(400).json({ error: "originalName is required" });
-    }
+export const uploadDocument = asyncHandler(async (req: Request, res: Response) => {
+  const parsed = uploadSchema.parse(req.body);
 
-    if (!payload.azureBlobKey) {
-      return res.status(400).json({ error: "azureBlobKey is required" });
-    }
+  if (!req.file) {
+    return res.status(400).json({ success: false, message: "Missing file" });
+  }
 
-    res.json(await documentsService.create(payload));
-  }),
+  const blob = await uploadToAzureBlob(req.file);
 
-  update: asyncHandler(async (req: Request, res: Response) => {
-    const payload = {
-      ...req.body,
-      azureBlobKey: req.body.azureBlobKey,
-    };
+  const created = await documentsRepo.createDocument({
+    applicationId: parsed.applicationId,
+    category: parsed.category,
+    documentType: parsed.documentType ?? null,
+    fileName: req.file.originalname,
+    mimeType: req.file.mimetype,
+    sizeBytes: req.file.size,
+    storageKey: blob.blobName,
+    url: blob.url,
+  });
 
-    res.json(await documentsService.update(req.params.id, payload));
-  }),
+  res.status(201).json({ success: true, data: created });
+});
 
-  remove: asyncHandler(async (req: Request, res: Response) => {
-    res.json(await documentsService.delete(req.params.id));
-  }),
-};
+export const updateDocument = asyncHandler(async (req: Request, res: Response) => {
+  const id = req.params.id;
+
+  const updated = await documentsRepo.updateDocument(id, req.body);
+  if (!updated) return res.status(404).json({ success: false, message: "Document not found" });
+
+  res.json({ success: true, data: updated });
+});
+
+export const deleteDocument = asyncHandler(async (req: Request, res: Response) => {
+  const id = req.params.id;
+
+  const deleted = await documentsRepo.deleteDocument(id);
+  if (!deleted) return res.status(404).json({ success: false, message: "Document not found" });
+
+  res.json({ success: true, data: true });
+});
