@@ -1,24 +1,19 @@
-// server/src/services/contactsService.ts
-import contactsRepo from "../db/repositories/contacts.repo.js";
+import { contactsRepo } from "../db/repositories/contacts.repo";
 
 export const contactsService = {
-  list() {
-    return contactsRepo.findMany();
+  async list(companyId: string) {
+    return contactsRepo.listByCompany(companyId);
   },
 
-  get(id: string) {
+  async get(id: string) {
     return contactsRepo.findById(id);
   },
 
-  create(data: Record<string, unknown>) {
+  async create(data: any) {
     return contactsRepo.create(data);
   },
 
-  update(id: string, data: Record<string, unknown>) {
+  async update(id: string, data: any) {
     return contactsRepo.update(id, data);
-  },
-
-  delete(id: string) {
-    return contactsRepo.delete(id);
-  },
+  }
 };

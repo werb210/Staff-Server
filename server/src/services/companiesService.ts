@@ -1,24 +1,19 @@
-// server/src/services/companiesService.ts
-import companiesRepo from "../db/repositories/companies.repo.js";
+import { companiesRepo } from "../db/repositories/companies.repo";
 
 export const companiesService = {
-  list() {
-    return companiesRepo.findMany();
+  async list() {
+    return companiesRepo.listAll();
   },
 
-  get(id: string) {
+  async get(id: string) {
     return companiesRepo.findById(id);
   },
 
-  create(data: Record<string, unknown>) {
+  async create(data: any) {
     return companiesRepo.create(data);
   },
 
-  update(id: string, data: Record<string, unknown>) {
+  async update(id: string, data: any) {
     return companiesRepo.update(id, data);
-  },
-
-  delete(id: string) {
-    return companiesRepo.delete(id);
-  },
+  }
 };

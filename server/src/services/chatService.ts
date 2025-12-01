@@ -1,24 +1,16 @@
-import { db } from "../db/db.js";
-import { messages } from "../db/schema/messages.js";
-import { eq } from "drizzle-orm";
-import { communicationService } from "./communicationService.js";
+import { messagesRepo } from "../db/repositories/messages.repo";
 
-export async function saveChatMessage({ senderId, applicationId, body, attachments }: any) {
-  const created = await db
-    .insert(messages)
-    .values({
-      senderId,
-      applicationId,
-      body,
-      attachments,
-    })
-    .returning();
+export const chatService = {
+  async send(fromId: string, toId: string, text: string) {
+    return messagesRepo.insert({
+      fromId,
+      toId,
+      text,
+      createdAt: new Date()
+    });
+  },
 
-  await communicationService.logChatActivity({ applicationId, body, senderId });
-
-  return created[0];
-}
-
-export async function getChatThread(applicationId: string) {
-  return await db.select().from(messages).where(eq(messages.applicationId, applicationId));
-}
+  async thread(userA: string, userB: string) {
+    return messagesRepo.thread(userA, userB);
+  }
+};
