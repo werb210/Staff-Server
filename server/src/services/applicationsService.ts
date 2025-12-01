@@ -1,25 +1,29 @@
-const prismaRemoved = () => {
-  throw new Error("Prisma has been removed — pending Drizzle migration in Block 14");
-};
+import applicationsRepo from "../db/repositories/applications.repo.js";
 
 export const applicationsService = {
   async list() {
-    prismaRemoved();
+    return applicationsRepo.findMany();
   },
 
   async get(id: string) {
-    prismaRemoved();
+    return applicationsRepo.findById(id);
   },
 
-  async create(data: unknown) {
-    prismaRemoved();
+  async create(data: Partial<typeof import("../db/schema/applications.js").applications.$inferInsert>) {
+    return applicationsRepo.create({
+      status: 'in-progress',
+      pipelineStage: 'Not Submitted',
+      currentStep: 'step1',
+      formData: {},
+      ...data,
+    });
   },
 
-  async update(id: string, data: unknown) {
-    prismaRemoved();
+  async update(id: string, data: Partial<typeof import("../db/schema/applications.js").applications.$inferInsert>) {
+    return applicationsRepo.update(id, { ...data, updatedAt: new Date() });
   },
 
   async delete(id: string) {
-    prismaRemoved();
+    return applicationsRepo.delete(id);
   },
 };

@@ -1,9 +1,19 @@
-// ============================================================================
+// =============================================================================
 // server/src/services/searchService.ts
-// BLOCK 25 — Full Prisma rewrite (Contacts, Companies, Applications)
-// ============================================================================
+// =============================================================================
 
-import db from "../db/index.js";
+import applicationsRepo from "../db/repositories/applications.repo.js";
+import companiesRepo from "../db/repositories/companies.repo.js";
+import contactsRepo from "../db/repositories/contacts.repo.js";
+import usersRepo from "../db/repositories/users.repo.js";
+
+const contains = (value: unknown, query: string) => {
+  if (!value) return false;
+  return String(value).toLowerCase().includes(query.toLowerCase());
+};
+
+const filterList = (list: any[], query: string, keys: string[]) =>
+  list.filter((item) => keys.some((key) => contains(item?.[key], query)));
 
 const searchService = {
   /**
@@ -21,79 +31,27 @@ const searchService = {
 
     const q = query.trim();
 
-    // --------------------------------------------
-    // CONTACTS
-    // --------------------------------------------
-    const contacts = await db.contact.findMany({
-      where: {
-        OR: [
-          { firstName: { contains: q, mode: "insensitive" } },
-          { lastName: { contains: q, mode: "insensitive" } },
-          { email: { contains: q, mode: "insensitive" } },
-          { phone: { contains: q, mode: "insensitive" } },
-        ],
-      },
-      take: 25,
-      orderBy: { updatedAt: "desc" },
-    });
+    const contacts = filterList(await contactsRepo.findMany(), q, ["firstName", "lastName", "email", "phone"]).slice(0, 25);
+    const companies = filterList(await companiesRepo.findMany(), q, ["name", "website", "phone", "address"]).slice(0, 25);
 
-    // --------------------------------------------
-    // COMPANIES
-    // --------------------------------------------
-    const companies = await db.company.findMany({
-      where: {
-        OR: [
-          { name: { contains: q, mode: "insensitive" } },
-          { website: { contains: q, mode: "insensitive" } },
-          { phone: { contains: q, mode: "insensitive" } },
-          { address: { contains: q, mode: "insensitive" } },
-        ],
-      },
-      take: 25,
-      orderBy: { updatedAt: "desc" },
-    });
+    const applications = filterList(
+      await applicationsRepo.findMany(),
+      q,
+      ["id", "status", "pipelineStage", "currentStep"],
+    ).slice(0, 25);
 
-    // --------------------------------------------
-    // APPLICATIONS
-    // --------------------------------------------
-    const applications = await db.application.findMany({
-      where: {
-        OR: [
-          { id: { contains: q, mode: "insensitive" } },
-          { status: { contains: q, mode: "insensitive" } },
-          { productType: { contains: q, mode: "insensitive" } },
-          {
-            company: {
-              name: { contains: q, mode: "insensitive" },
-            },
-          },
-          {
-            user: {
-              OR: [
-                { firstName: { contains: q, mode: "insensitive" } },
-                { lastName: { contains: q, mode: "insensitive" } },
-                { email: { contains: q, mode: "insensitive" } },
-              ],
-            },
-          },
-        ],
-      },
-      include: {
-        company: {
-          select: { id: true, name: true },
-        },
-        user: {
-          select: { id: true, firstName: true, lastName: true, email: true },
-        },
-      },
-      take: 25,
-      orderBy: { updatedAt: "desc" },
-    });
+    // Enrich applications with user/company placeholder data
+    const users = await usersRepo.findMany();
+    const appsWithJoins = (await Promise.all(applications)).map((app: any) => ({
+      ...app,
+      company: companies.find((c: any) => c?.id === app.companyId) ?? null,
+      user: (users as any[]).find((u) => (u as any).id === app.userId) ?? null,
+    }));
 
     return {
       contacts,
       companies,
-      applications,
+      applications: appsWithJoins,
     };
   },
 
@@ -104,18 +62,8 @@ const searchService = {
     if (!query) return [];
     const q = query.trim();
 
-    return db.contact.findMany({
-      where: {
-        OR: [
-          { firstName: { contains: q, mode: "insensitive" } },
-          { lastName: { contains: q, mode: "insensitive" } },
-          { email: { contains: q, mode: "insensitive" } },
-          { phone: { contains: q, mode: "insensitive" } },
-        ],
-      },
-      take: 50,
-      orderBy: { updatedAt: "desc" },
-    });
+    return filterList(await contactsRepo.findMany(), q, ["firstName", "lastName", "email", "phone"])
+      .slice(0, 50);
   },
 
   /**
@@ -125,18 +73,8 @@ const searchService = {
     if (!query) return [];
     const q = query.trim();
 
-    return db.company.findMany({
-      where: {
-        OR: [
-          { name: { contains: q, mode: "insensitive" } },
-          { website: { contains: q, mode: "insensitive" } },
-          { phone: { contains: q, mode: "insensitive" } },
-          { address: { contains: q, mode: "insensitive" } },
-        ],
-      },
-      take: 50,
-      orderBy: { updatedAt: "desc" },
-    });
+    return filterList(await companiesRepo.findMany(), q, ["name", "website", "phone", "address"])
+      .slice(0, 50);
   },
 
   /**
@@ -146,40 +84,20 @@ const searchService = {
     if (!query) return [];
     const q = query.trim();
 
-    return db.application.findMany({
-      where: {
-        OR: [
-          { id: { contains: q, mode: "insensitive" } },
-          { status: { contains: q, mode: "insensitive" } },
-          { productType: { contains: q, mode: "insensitive" } },
-          {
-            company: {
-              name: { contains: q, mode: "insensitive" },
-            },
-          },
-          {
-            user: {
-              OR: [
-                { firstName: { contains: q, mode: "insensitive" } },
-                { lastName: { contains: q, mode: "insensitive" } },
-                { email: { contains: q, mode: "insensitive" } },
-              ],
-            },
-          },
-        ],
-      },
-      include: {
-        company: true,
-        user: true,
-      },
-      take: 50,
-      orderBy: { updatedAt: "desc" },
-    });
+    const users = await usersRepo.findMany();
+
+    return filterList(await applicationsRepo.findMany(), q, ["id", "status", "pipelineStage", "currentStep"])
+      .slice(0, 50)
+      .map((app: any) => ({
+        ...app,
+        company: null,
+        user: (users as any[]).find((u) => (u as any).id === app.userId) ?? null,
+      }));
   },
 };
 
 export default searchService;
 
-// ============================================================================
+// =============================================================================
 // END OF FILE
-// ============================================================================
+// =============================================================================

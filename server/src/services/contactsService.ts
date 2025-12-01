@@ -1,26 +1,24 @@
 // server/src/services/contactsService.ts
-const prismaRemoved = () => {
-  throw new Error("Prisma has been removed — pending Drizzle migration in Block 14");
-};
+import contactsRepo from "../db/repositories/contacts.repo.js";
 
 export const contactsService = {
   list() {
-    prismaRemoved();
+    return contactsRepo.findMany();
   },
 
   get(id: string) {
-    prismaRemoved();
+    return contactsRepo.findById(id);
   },
 
-  create(data: unknown) {
-    prismaRemoved();
+  create(data: Record<string, unknown>) {
+    return contactsRepo.create(data);
   },
 
-  update(id: string, data: unknown) {
-    prismaRemoved();
+  update(id: string, data: Record<string, unknown>) {
+    return contactsRepo.update(id, data);
   },
 
   delete(id: string) {
-    prismaRemoved();
+    return contactsRepo.delete(id);
   },
 };

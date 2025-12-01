@@ -1,8 +1,5 @@
 import { v4 as uuid } from "uuid";
-
-const prismaRemoved = () => {
-  throw new Error("Prisma has been removed — pending Drizzle migration in Block 14");
-};
+import documentsRepo from "../db/repositories/documents.repo.js";
 
 export interface DocumentRecord {
   id: string;
@@ -15,31 +12,63 @@ export interface DocumentRecord {
 }
 
 export interface DocumentCreateInput {
-  applicationId?: string | null;
+  applicationId?: string;
   name: string;
   url: string;
   mimeType?: string | null;
 }
 
+const mapDocument = (doc: any): DocumentRecord | null => {
+  if (!doc) return null;
+  return {
+    id: doc.id,
+    applicationId: doc.applicationId ?? null,
+    name: doc.name,
+    url: doc.azureBlobKey,
+    mimeType: doc.mimeType ?? null,
+    createdAt: doc.createdAt,
+    updatedAt: doc.updatedAt,
+  };
+};
+
 export const documentsService = {
   async list(): Promise<DocumentRecord[]> {
-    return prismaRemoved();
+    const docs = await documentsRepo.findMany();
+    return (docs as any[]).map(mapDocument).filter(Boolean) as DocumentRecord[];
   },
 
   async get(id: string): Promise<DocumentRecord | null> {
-    return prismaRemoved();
+    const doc = await documentsRepo.findById(id);
+    return mapDocument(doc);
   },
 
   async create(data: DocumentCreateInput): Promise<DocumentRecord> {
     const documentId = uuid();
-    return prismaRemoved();
+    const created = await documentsRepo.create({
+      id: documentId,
+      applicationId: data.applicationId ?? "",
+      name: data.name,
+      mimeType: data.mimeType ?? "application/octet-stream",
+      azureBlobKey: data.url,
+      status: 'pending',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    return mapDocument(created)!;
   },
 
   async update(id: string, data: Partial<DocumentCreateInput>): Promise<DocumentRecord> {
-    return prismaRemoved();
+    const updated = await documentsRepo.update(id, {
+      name: data.name,
+      mimeType: data.mimeType ?? undefined,
+      azureBlobKey: data.url,
+      updatedAt: new Date(),
+    });
+    return mapDocument(updated)!;
   },
 
   async delete(id: string): Promise<{ deleted: boolean }> {
-    return prismaRemoved();
+    await documentsRepo.delete(id);
+    return { deleted: true };
   },
 };

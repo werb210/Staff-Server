@@ -1,27 +1,25 @@
 // server/src/services/productsService.ts
-// Placeholder implementation to keep API stable without breaking builds
-
-const notImplemented = { ok: false, error: "Products service not implemented." } as const;
+import productsRepo from "../db/repositories/products.repo.js";
 
 export const productsService = {
   async list() {
-    return notImplemented;
+    return productsRepo.findMany();
   },
 
-  async get(_id: string) {
-    return notImplemented;
+  async get(id: string) {
+    return productsRepo.findById(id);
   },
 
-  async create(_data: unknown) {
-    return notImplemented;
+  async create(data: unknown) {
+    return productsRepo.create(data as Record<string, unknown>);
   },
 
-  async update(_id: string, _data: unknown) {
-    return notImplemented;
+  async update(id: string, data: unknown) {
+    return productsRepo.update(id, data as Record<string, unknown>);
   },
 
-  async delete(_id: string) {
-    return notImplemented;
+  async delete(id: string) {
+    return productsRepo.delete(id);
   },
 };
 
