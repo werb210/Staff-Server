@@ -13,11 +13,29 @@ export const documentsController = {
   }),
 
   create: asyncHandler(async (req: Request, res: Response) => {
-    res.json(await documentsService.create(req.body));
+    const payload = {
+      ...req.body,
+      azureBlobKey: req.body.azureBlobKey || req.body.url,
+    };
+
+    if (!payload.applicationId) {
+      return res.status(400).json({ error: "applicationId is required" });
+    }
+
+    if (!payload.azureBlobKey) {
+      return res.status(400).json({ error: "azureBlobKey is required" });
+    }
+
+    res.json(await documentsService.create(payload));
   }),
 
   update: asyncHandler(async (req: Request, res: Response) => {
-    res.json(await documentsService.update(req.params.id, req.body));
+    const payload = {
+      ...req.body,
+      azureBlobKey: req.body.azureBlobKey || req.body.url,
+    };
+
+    res.json(await documentsService.update(req.params.id, payload));
   }),
 
   remove: asyncHandler(async (req: Request, res: Response) => {

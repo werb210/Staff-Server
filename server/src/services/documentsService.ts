@@ -1,31 +1,46 @@
-import { v4 as uuid } from "uuid";
 import documentsRepo from "../db/repositories/documents.repo.js";
+import documentVersionsRepo from "../db/repositories/documentVersions.repo.js";
 
 export interface DocumentRecord {
   id: string;
-  applicationId: string | null;
+  applicationId: string;
   name: string;
-  url: string;
-  mimeType: string | null;
+  category?: string | null;
+  azureBlobKey: string;
+  mimeType: string;
+  checksum?: string | null;
+  sizeBytes?: number | null;
+  status: string;
+  rejectionReason?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
 
 export interface DocumentCreateInput {
-  applicationId?: string;
+  applicationId: string;
   name: string;
-  url: string;
+  azureBlobKey: string;
   mimeType?: string | null;
+  category?: string | null;
+  checksum?: string | null;
+  sizeBytes?: number | null;
+  status?: string;
+  rejectionReason?: string | null;
 }
 
 const mapDocument = (doc: any): DocumentRecord | null => {
   if (!doc) return null;
   return {
     id: doc.id,
-    applicationId: doc.applicationId ?? null,
+    applicationId: doc.applicationId,
     name: doc.name,
-    url: doc.azureBlobKey,
-    mimeType: doc.mimeType ?? null,
+    category: doc.category ?? null,
+    azureBlobKey: doc.azureBlobKey,
+    mimeType: doc.mimeType,
+    checksum: doc.checksum ?? null,
+    sizeBytes: doc.sizeBytes ?? null,
+    status: doc.status,
+    rejectionReason: doc.rejectionReason ?? null,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
   };
@@ -43,14 +58,16 @@ export const documentsService = {
   },
 
   async create(data: DocumentCreateInput): Promise<DocumentRecord> {
-    const documentId = uuid();
     const created = await documentsRepo.create({
-      id: documentId,
-      applicationId: data.applicationId ?? "",
+      applicationId: data.applicationId,
       name: data.name,
+      category: data.category ?? null,
       mimeType: data.mimeType ?? "application/octet-stream",
-      azureBlobKey: data.url,
-      status: 'pending',
+      azureBlobKey: data.azureBlobKey,
+      checksum: data.checksum ?? null,
+      sizeBytes: data.sizeBytes ?? null,
+      status: data.status ?? "pending",
+      rejectionReason: data.rejectionReason ?? null,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -58,10 +75,29 @@ export const documentsService = {
   },
 
   async update(id: string, data: Partial<DocumentCreateInput>): Promise<DocumentRecord> {
+    const existing = await documentsRepo.findById(id);
+    if (!existing) {
+      throw new Error("Document not found.");
+    }
+
+    const priorVersions = await documentVersionsRepo.findMany({ documentId: id });
+    await documentVersionsRepo.create({
+      documentId: id,
+      versionNumber: priorVersions.length + 1,
+      azureBlobKey: existing.azureBlobKey,
+      checksum: existing.checksum,
+      sizeBytes: existing.sizeBytes,
+    });
+
     const updated = await documentsRepo.update(id, {
-      name: data.name,
+      name: data.name ?? undefined,
+      category: data.category ?? undefined,
       mimeType: data.mimeType ?? undefined,
-      azureBlobKey: data.url,
+      azureBlobKey: data.azureBlobKey ?? undefined,
+      checksum: data.checksum ?? undefined,
+      sizeBytes: data.sizeBytes ?? undefined,
+      status: data.status ?? undefined,
+      rejectionReason: data.rejectionReason ?? undefined,
       updatedAt: new Date(),
     });
     return mapDocument(updated)!;

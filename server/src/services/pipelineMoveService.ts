@@ -17,6 +17,7 @@ interface PipelineMoveLogWithStage {
   stageId: string;
   createdAt: Date;
   applicationId: string;
+  reason?: string | null;
   stage: {
     name: string;
     order: number;
@@ -57,6 +58,7 @@ const pipelineMoveService = {
       stageId: event.stage,
       createdAt: event.createdAt as Date,
       applicationId: event.applicationId,
+      reason: event.reason ?? null,
       stage: {
         name: event.stage,
         order: index + 1,

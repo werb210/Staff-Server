@@ -140,7 +140,7 @@ export async function runOCR(documentId: string) {
   const saved = await ocrResultsRepo.create({
     documentId,
     fields: parsed,
-    docType: (parsed as any).documentType || null,
+    docType: (parsed as any).documentType || (doc as any).category || null,
   });
 
   return saved;
