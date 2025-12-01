@@ -2,8 +2,11 @@
   "compilerOptions": {
     "rootDir": "./src",
     "outDir": "./dist",
-    "module": "NodeNext",
     "moduleResolution": "NodeNext",
+    "module": "NodeNext",
+    "target": "ES2022",
+    "moduleDetection": "force",
+    "types": ["node"],
     "esModuleInterop": true,
     "skipLibCheck": true,
     "strict": true,
