@@ -1,21 +1,14 @@
-// server/src/services/emailService.ts
-import crypto from "crypto";
+import { emailLogsRepo } from "../db/repositories/emailLogs.repo";
 
 export const emailService = {
-  async list() {
-    return [
-      { id: 1, subject: "Welcome!", ts: Date.now(), to: "test@example.com" },
-    ];
-  },
-
   async send(to: string, subject: string, body: string) {
-    return {
-      ok: true,
-      id: crypto.randomUUID(),
+    // The actual email sending happens in the controller or Twilio SendGrid client.
+    // This logs it.
+    return emailLogsRepo.insert({
       to,
       subject,
       body,
-      ts: Date.now(),
-    };
-  },
+      createdAt: new Date()
+    });
+  }
 };

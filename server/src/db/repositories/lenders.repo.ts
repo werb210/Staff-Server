@@ -41,6 +41,10 @@ export const lendersRepo = {
     if (where) query.where(where);
     return query;
   },
+
+  async listAll() {
+    return this.findMany();
+  }
 };
 
 export default lendersRepo;
