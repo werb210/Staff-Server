@@ -1,5 +1,14 @@
 {
-  "extends": "../tsconfig.build.json",
-  "include": ["./src/**/*"],
-  "exclude": ["../node_modules", "../dist", "**/*.test.ts", "**/*.spec.ts"]
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "resolveJsonModule": true
+  },
+  "include": ["./src", "./types"],
+  "exclude": ["../node_modules", "./dist", "**/*.test.ts", "**/*.spec.ts"]
 }

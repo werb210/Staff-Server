@@ -65,8 +65,8 @@ export async function runAnalysis(applicationId: string) {
             {
               type: "input_image",
               image_url: `data:${doc.mimeType};base64,${base64}`,
-            }
-          ]
+            } as any
+          ] as any
         }
       ],
       max_tokens: 8000,

@@ -18,9 +18,9 @@ export async function match(applicationId: string) {
   if (!app) throw new Error("Application not found.");
 
   // Get OCR
-  const ocr = await db.select().from(ocrResults);
+  const ocr = await db.select().from(ocrResults) as any[];
   const ocrFields = ocr
-    .filter(o => o.documentId && o.applicationId === undefined) // legacy safe
+    .filter(o => o.documentId && (o as any).applicationId === undefined) // legacy safe
     .reduce((acc, doc) => Object.assign(acc, doc.fields || {}), {} as Record<string, unknown>);
 
   // Get banking
@@ -136,8 +136,8 @@ export async function sendToLender(applicationId: string, lenderId: string) {
 // Helper: return OCR results per app
 //
 async function getOCRForApplication(applicationId: string) {
-  const allOCR = await db.select().from(ocrResults);
-  const out = allOCR.filter(o => o.documentId && o.applicationId === undefined);
+  const allOCR = await db.select().from(ocrResults) as any[];
+  const out = allOCR.filter(o => o.documentId && (o as any).applicationId === undefined);
   return out;
 }
 

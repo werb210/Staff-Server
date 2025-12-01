@@ -5,8 +5,6 @@ import http from 'http';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import { WebSocketServer } from 'ws';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import { initAzureBlob } from './services/blobService.js';
 import { loadEnv } from './config/env.js';
 import applicationRoutes from './routes/application.js';
@@ -16,9 +14,6 @@ import chatRoutes from './routes/chat.js';
 import signingRoutes from './routes/signing.js';
 import { requestLogger } from './middleware/requestLogger.js';
 import auditRoutes from './routes/audit.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 //
 // =======================================================
