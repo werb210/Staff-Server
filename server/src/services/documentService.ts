@@ -1,8 +1,9 @@
+import crypto from 'crypto';
 import applicationsRepo from '../db/repositories/applications.repo.js';
 import documentVersionsRepo from '../db/repositories/documentVersions.repo.js';
 import documentsRepo from '../db/repositories/documents.repo.js';
 import pipelineEventsRepo from '../db/repositories/pipelineEvents.repo.js';
-import * as blobService from './blobService.js';
+import { uploadBuffer, getBlobUrl } from './azureBlob.js';
 
 declare const broadcast: (payload: any) => void;
 
@@ -24,22 +25,17 @@ export async function uploadDocument({
   mimeType: string;
   buffer: Buffer;
 }) {
-  const uploadInfo = await blobService.uploadFile(
-    applicationId,
-    documentId || 'new',
-    fileName,
-    buffer,
-    mimeType
-  );
+  const uploadInfo = await uploadBuffer(buffer, mimeType);
+  const checksum = crypto.createHash('sha256').update(buffer).digest('hex');
 
   if (!documentId) {
     const created = await documentsRepo.create({
       applicationId,
       name: fileName,
       mimeType,
-      azureBlobKey: uploadInfo.blobKey,
-      checksum: uploadInfo.checksum,
-      sizeBytes: uploadInfo.sizeBytes,
+      azureBlobKey: uploadInfo.key,
+      checksum,
+      sizeBytes: buffer.length,
       status: 'pending',
     });
 
@@ -63,9 +59,9 @@ export async function uploadDocument({
   const updated = await documentsRepo.update(documentId, {
     name: fileName,
     mimeType,
-    azureBlobKey: uploadInfo.blobKey,
-    checksum: uploadInfo.checksum,
-    sizeBytes: uploadInfo.sizeBytes,
+    azureBlobKey: uploadInfo.key,
+    checksum,
+    sizeBytes: buffer.length,
     status: 'pending',
     rejectionReason: null,
     updatedAt: new Date(),
@@ -76,7 +72,7 @@ export async function uploadDocument({
 
 //
 // ======================================================
-//  Get Document + SAS URL
+//  Get Document + Azure URL
 // ======================================================
 //
 export async function getDocument(documentId: string) {
@@ -84,14 +80,9 @@ export async function getDocument(documentId: string) {
 
   if (!doc) throw new Error('Document not found.');
 
-  const exists = await blobService.exists(doc.azureBlobKey);
-  if (!exists) {
-    throw new Error('Missing file in Azure Blob Storage.');
-  }
-
   return {
     ...doc,
-    sasUrl: blobService.getAzureBlobUrl(doc.azureBlobKey),
+    azureUrl: getBlobUrl(doc.azureBlobKey),
   };
 }
 

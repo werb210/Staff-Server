@@ -39,7 +39,7 @@ export async function runAnalysis(applicationId: string) {
   for (const doc of bankDocs) {
     const sas = await documentService.getDocument(doc.id);
 
-    const response = await axios.get(sas.sasUrl, {
+    const response = await axios.get((sas as any).azureUrl, {
       responseType: 'arraybuffer',
     });
 
