@@ -1,27 +1,14 @@
-// server/src/controllers/lenderController.ts
-import { Request, Response } from 'express';
-import * as lenderService from '../services/lenderService.js';
+import { Request, Response } from "express";
+import asyncHandler from "../utils/asyncHandler.js";
+import lendersRepo from "../db/repositories/lenders.repo.js";
 
-export async function matchLenders(req: Request, res: Response) {
-  try {
-    const { applicationId } = req.params;
-    const results = await lenderService.match(applicationId);
-    return res.status(200).json(results);
-  } catch (err: any) {
-    console.error("matchLenders error →", err);
-    return res.status(500).json({ error: err.message });
-  }
-}
+export const lenderController = {
+  getOne: asyncHandler(async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const record = await lendersRepo.findById(id);
+    if (!record) return res.status(404).json({ error: "Not found" });
+    res.json(record);
+  }),
+};
 
-export async function sendToLender(req: Request, res: Response) {
-  try {
-    const { applicationId, lenderId } = req.params;
-
-    const result = await lenderService.sendToLender(applicationId, lenderId);
-
-    return res.status(200).json(result);
-  } catch (err: any) {
-    console.error("sendToLender error →", err);
-    return res.status(500).json({ error: err.message });
-  }
-}
+export default lenderController;
