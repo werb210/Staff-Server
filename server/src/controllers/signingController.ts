@@ -1,38 +1,36 @@
-// server/src/controllers/signingController.ts
-
 import { Request, Response } from "express";
-import { asyncHandler } from "../utils/asyncHandler";
-import * as signingRepo from "../db/repositories/signing.repo";
-import { getBlobUrl } from "../services/blobService";
+import documentsRepo from "../db/repositories/documents.repo.js";
+import signaturesRepo from "../db/repositories/signatures.repo.js";
+import asyncHandler from "../utils/asyncHandler.js";
 
-export const getSigningStatus = asyncHandler(async (req: Request, res: Response) => {
-  const applicationId = req.params.applicationId;
-  const status = await signingRepo.getSigningByApplication(applicationId);
+export const signingController = {
+  requestSignature: asyncHandler(async (req: Request, res: Response) => {
+    const { applicationId } = req.params;
+    const payload = req.body ?? {};
 
-  if (!status) {
-    return res.json({ success: true, status: "not_started" });
-  }
+    const created = await signaturesRepo.create({
+      applicationId,
+      details: payload,
+    });
 
-  res.json({ success: true, status });
-});
+    res.status(201).json(created);
+  }),
 
-// For client: kickoff signing once all docs accepted
-export const startSigning = asyncHandler(async (req: Request, res: Response) => {
-  const applicationId = req.params.applicationId;
+  listForApplication: asyncHandler(async (req: Request, res: Response) => {
+    const { applicationId } = req.params;
+    const signatures = await signaturesRepo.findMany({ applicationId });
+    res.json(signatures);
+  }),
 
-  const created = await signingRepo.createSigningSession(applicationId);
+  getSignedDocuments: asyncHandler(async (req: Request, res: Response) => {
+    const { applicationId } = req.params;
+    const documents = await documentsRepo.findMany({
+      applicationId,
+      category: "signed_application",
+    });
 
-  res.json({ success: true, data: created });
-});
+    res.json(documents);
+  }),
+};
 
-export const getSignedPdf = asyncHandler(async (req: Request, res: Response) => {
-  const applicationId = req.params.applicationId;
-  const signing = await signingRepo.getSigningByApplication(applicationId);
-
-  if (!signing || !signing.signedPdfKey) {
-    return res.status(404).json({ success: false, message: "Signed PDF not found" });
-  }
-
-  const url = await getBlobUrl(signing.signedPdfKey);
-  res.json({ success: true, url });
-});
+export default signingController;
