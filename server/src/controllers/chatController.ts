@@ -1,21 +1,19 @@
-import { saveChatMessage, getChatThread } from "../services/chatService.js";
-import type { Request, Response } from "express";
+import { Request, Response } from "express";
+import messagesRepo from "../db/repositories/messages.repo.js";
+import asyncHandler from "../utils/asyncHandler.js";
 
 export const chatController = {
-  async getThread(req: Request, res: Response) {
-    const messages = await getChatThread(req.params.applicationId);
+  list: asyncHandler(async (req: Request, res: Response) => {
+    const { applicationId } = req.params;
+    const messages = await messagesRepo.findMany({ applicationId });
     res.json(messages);
-  },
+  }),
 
-  async send(req: Request, res: Response) {
-    const { body } = req.body;
-    const saved = await saveChatMessage({
-      senderId: (req as any).user.id,
-      applicationId: req.params.applicationId,
-      body,
-      attachments: req.body.attachments ?? [],
-    });
-
+  send: asyncHandler(async (req: Request, res: Response) => {
+    const payload = req.body;
+    const saved = await messagesRepo.create(payload);
     res.json(saved);
-  },
+  }),
 };
+
+export default chatController;
