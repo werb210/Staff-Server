@@ -1,9 +1,9 @@
 import { Router } from "express";
-import { communicationController } from "../controllers/communicationController.js";
+import communicationController from "../controllers/communicationController.js";
 
 const router = Router();
 
-router.get("/sms", communicationController.sms);
-router.get("/email", communicationController.email);
+// Only sendMessage is real
+router.post("/", communicationController.sendMessage);
 
 export default router;
