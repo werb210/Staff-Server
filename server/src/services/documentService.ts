@@ -1,8 +1,9 @@
-import { uploadBuffer, getBlobUrl } from "./azureBlob.js";
 import { db } from "../db/db.js";
 import { documents } from "../db/schema/documents.js";
 import { eq } from "drizzle-orm";
 import crypto from "crypto";
+import { v4 as uuid } from "uuid";
+import { getBlobUrl, getContainer } from "../utils/blob.js";
 
 export async function saveUploadedDocument({
   applicationId,
@@ -18,8 +19,12 @@ export async function saveUploadedDocument({
   category?: string | null;
 }) {
   const checksum = crypto.createHash("sha256").update(buffer).digest("hex");
+  const container = getContainer();
+  const key = uuid();
 
-  const { key, url } = await uploadBuffer(buffer, mimeType);
+  await container.uploadBlockBlob(key, buffer, buffer.length, {
+    blobHTTPHeaders: { blobContentType: mimeType },
+  });
 
   const inserted = await db.insert(documents).values({
     applicationId,
@@ -33,7 +38,7 @@ export async function saveUploadedDocument({
     rejectionReason: null
   }).returning();
 
-  return { ...inserted[0], url };
+  return { ...inserted[0], url: getBlobUrl(key) };
 }
 
 export async function getDocumentUrl(id: string) {

@@ -3,7 +3,7 @@ import { db } from "../db/db.js";
 import { documents } from "../db/schema/documents.js";
 import { ocrResults } from "../db/schema/ocr.js";
 import { eq, inArray } from "drizzle-orm";
-import { getBlobUrl } from "./azureBlob.js";
+import { getBlobUrl } from "../utils/blob.js";
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,

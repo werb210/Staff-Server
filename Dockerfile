@@ -2,12 +2,12 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+RUN apk add --no-cache bash
+
 COPY package*.json ./
 RUN npm ci --omit=dev
 
 COPY . .
 
-RUN npm run build
-
 EXPOSE 5000
-CMD ["node", "server/dist/index.js"]
+CMD ["bash", "startup.sh"]

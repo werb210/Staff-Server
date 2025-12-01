@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "../db/db.js";
 import { documents } from "../db/schema/documents.js";
-import { getBlobUrl } from "./azureBlob.js";
+import { getBlobUrl } from "../utils/blob.js";
 import { logDocumentEvent } from "./auditService.js";
 
 export async function generateLenderPacket(applicationId: string) {

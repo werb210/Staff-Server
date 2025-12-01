@@ -4,7 +4,7 @@ import signaturesRepo from '../db/repositories/signatures.repo.js';
 
 import * as signNow from './signNowClient.js';
 import * as pipelineService from './pipelineService.js';
-import { getBlobUrl } from './azureBlob.js';
+import { getBlobUrl } from "../utils/blob.js";
 import { saveUploadedDocument } from './documentService.js';
 
 //

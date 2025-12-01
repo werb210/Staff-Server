@@ -1,9 +1,9 @@
 // server/src/db/db.ts
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
-import 'dotenv/config';
+import { ENV } from '../config/env.js';
 
-const databaseUrl = process.env.DATABASE_URL;
+const databaseUrl = ENV.DATABASE_URL;
 
 if (!databaseUrl) {
   throw new Error('DATABASE_URL is not set. Database-backed features are disabled.');

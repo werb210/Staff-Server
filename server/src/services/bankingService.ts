@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../db/db.js";
 import { documents } from "../db/schema/documents.js";
 import { bankingAnalysis } from "../db/schema/banking.js";
-import { getBlobUrl } from "./azureBlob.js";
+import { getBlobUrl } from "../utils/blob.js";
 
 declare const broadcast: (payload: any) => void;
 
