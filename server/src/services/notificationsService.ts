@@ -1,9 +1,11 @@
-// ============================================================================
+// =============================================================================
 // server/src/services/notificationsService.ts
-// BLOCK 18 — Complete rewrite for Prisma
-// ============================================================================
+// Drizzle implementation using audit log repository
+// =============================================================================
 
-import db from "../db/index.js";
+import auditLogsRepo from "../db/repositories/auditLogs.repo.js";
+
+const EVENT_TYPE = "notification";
 
 export interface NotificationRecord {
   id: string;
@@ -34,32 +36,44 @@ type NotificationUpdateData = Partial<
   Pick<NotificationRecord, "title" | "message" | "type" | "read">
 >;
 
+const mapRecord = (record: any): NotificationRecord | null => {
+  if (!record || record.eventType !== EVENT_TYPE) return null;
+  const details = record.details ?? {};
+  return {
+    id: record.id,
+    userId: details.userId,
+    title: details.title,
+    message: details.message,
+    type: details.type,
+    read: Boolean(details.read),
+    createdAt: record.createdAt,
+    updatedAt: details.updatedAt ? new Date(details.updatedAt) : record.createdAt,
+  };
+};
+
+const persistDetails = (data: any) => ({
+  ...data,
+  updatedAt: new Date(),
+});
+
 export const notificationsService = {
   /**
    * Fetch all notifications for a user
    * @param {string} userId
    */
   async list(userId: string): Promise<NotificationListItem[]> {
-    return db.notification.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        userId: true,
-        title: true,
-        message: true,
-        type: true,
-        read: true,
-        createdAt: true,
-      },
-    }) as Promise<NotificationListItem[]>;
+    const records = await auditLogsRepo.findMany({ eventType: EVENT_TYPE, userId } as any);
+    return (await records)
+      .map(mapRecord)
+      .filter(Boolean)
+      .sort((a: any, b: any) => new Date((b as any).createdAt).getTime() - new Date((a as any).createdAt).getTime()) as NotificationListItem[];
   },
 
   /**
    * Fetch a single notification
    */
   async get(id: string): Promise<NotificationRecord | null> {
-    return db.notification.findUnique({ where: { id } });
+    return mapRecord(await auditLogsRepo.findById(id));
   },
 
   /**
@@ -67,55 +81,45 @@ export const notificationsService = {
    * @param {string} userId
    * @param {object} data
    */
-  async create(
-    userId: string,
-    data: NotificationCreateData,
-  ): Promise<NotificationListItem> {
-    return db.notification.create({
-      data: {
+  async create(userId: string, data: NotificationCreateData): Promise<NotificationListItem> {
+    const created = await auditLogsRepo.create({
+      eventType: EVENT_TYPE,
+      userId,
+      details: persistDetails({
         userId,
         title: data.title ?? "Notification",
         message: data.message ?? "",
         type: data.type ?? "info",
         read: false,
-      },
-      select: {
-        id: true,
-        userId: true,
-        title: true,
-        message: true,
-        type: true,
-        read: true,
-        createdAt: true,
-      },
-    }) as Promise<NotificationListItem>;
+      }),
+    });
+
+    return mapRecord(created) as NotificationListItem;
   },
 
   /**
    * Update a notification
    */
-  async update(
-    id: string,
-    data: NotificationUpdateData,
-  ): Promise<NotificationRecord> {
-    return db.notification.update({ where: { id }, data });
+  async update(id: string, data: NotificationUpdateData): Promise<NotificationRecord | null> {
+    const existing = await auditLogsRepo.findById(id);
+    if (!existing) return null;
+    const details = persistDetails({ ...(existing.details ?? {}), ...data });
+    return mapRecord(await auditLogsRepo.update(id, { details }));
   },
 
   /**
    * Mark a notification as read
    * @param {string} id
    */
-  async markRead(id: string): Promise<NotificationSummary> {
-    return db.notification.update({
-      where: { id },
-      data: { read: true },
-      select: {
-        id: true,
-        title: true,
-        read: true,
-        updatedAt: true,
-      },
-    }) as Promise<NotificationSummary>;
+  async markRead(id: string): Promise<NotificationSummary | null> {
+    const updated = await this.update(id, { read: true });
+    if (!updated) return null;
+    return {
+      id: updated.id,
+      title: updated.title,
+      read: updated.read,
+      updatedAt: updated.updatedAt,
+    };
   },
 
   /**
@@ -123,22 +127,16 @@ export const notificationsService = {
    * @param {string} userId
    */
   async markAllRead(userId: string): Promise<{ updated: number; status: string }> {
-    const result = await db.notification.updateMany({
-      where: { userId, read: false },
-      data: { read: true },
-    });
-
-    return {
-      updated: result.count,
-      status: "ok",
-    };
+    const list = await this.list(userId);
+    await Promise.all(list.map((n) => this.update(n.id, { read: true })));
+    return { updated: list.length, status: "ok" };
   },
 
   /**
    * Delete one notification
    */
   async delete(id: string): Promise<{ deleted: true }> {
-    await db.notification.delete({ where: { id } });
+    await auditLogsRepo.delete(id);
     return { deleted: true };
   },
 
@@ -146,13 +144,9 @@ export const notificationsService = {
    * Delete all notifications for a user
    */
   async deleteAll(userId: string): Promise<{ deleted: number }> {
-    const result = await db.notification.deleteMany({
-      where: { userId },
-    });
-
-    return {
-      deleted: result.count,
-    };
+    const list = await this.list(userId);
+    await Promise.all(list.map((n) => auditLogsRepo.delete(n.id)));
+    return { deleted: list.length };
   },
 
   /**
@@ -163,6 +157,6 @@ export const notificationsService = {
   },
 };
 
-// ============================================================================
+// =============================================================================
 // END OF FILE
-// ============================================================================
+// =============================================================================

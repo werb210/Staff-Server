@@ -1,8 +1,6 @@
 // server/src/services/applicationService.ts
-import { db } from '../db/db.js';
-import { applications } from '../db/schema/applications.js';
-import { pipelineEvents } from '../db/schema/pipeline.js';
-import { asc, eq } from 'drizzle-orm';
+import applicationsRepo from '../db/repositories/applications.repo.js';
+import pipelineEventsRepo from '../db/repositories/pipelineEvents.repo.js';
 
 declare const broadcast: (payload: any) => void;
 
@@ -12,14 +10,13 @@ declare const broadcast: (payload: any) => void;
 // ======================================================
 //
 export async function startOrResume(email: string) {
-  const existing = await db
-    .select()
-    .from(applications)
-    .where(eq(applications.applicantEmail, email))
-    .orderBy(asc(applications.createdAt));
+  const existing = await applicationsRepo.findMany({ applicantEmail: email });
+  const ordered = (await existing).sort(
+    (a: any, b: any) => new Date(a.createdAt as any).getTime() - new Date(b.createdAt as any).getTime(),
+  );
 
   // If any application is still in-progress, resume it
-  const inProgress = existing.find((a) => a.status === 'in-progress');
+  const inProgress = ordered.find((a) => a.status === 'in-progress');
 
   if (inProgress) {
     return {
@@ -31,16 +28,13 @@ export async function startOrResume(email: string) {
   }
 
   // Otherwise create a new in-progress application
-  const [created] = await db
-    .insert(applications)
-    .values({
-      applicantEmail: email,
-      status: 'in-progress',
-      pipelineStage: 'Not Submitted',
-      formData: {},
-      currentStep: 'step1',
-    })
-    .returning();
+  const created = await applicationsRepo.create({
+    applicantEmail: email,
+    status: 'in-progress',
+    pipelineStage: 'Not Submitted',
+    formData: {},
+    currentStep: 'step1',
+  });
 
   return {
     applicationId: created.id,
@@ -57,10 +51,7 @@ export async function startOrResume(email: string) {
 //
 export async function updateStep(applicationId: string, stepId: string, data: any) {
   // Fetch application
-  const [app] = await db
-    .select()
-    .from(applications)
-    .where(eq(applications.id, applicationId));
+  const app = await applicationsRepo.findById(applicationId);
 
   if (!app) throw new Error('Application not found.');
 
@@ -72,15 +63,11 @@ export async function updateStep(applicationId: string, stepId: string, data: an
     [stepId]: data,
   };
 
-  const [updated] = await db
-    .update(applications)
-    .set({
-      formData: updatedForm,
-      currentStep: stepId,
-      updatedAt: new Date(),
-    })
-    .where(eq(applications.id, applicationId))
-    .returning();
+  const updated = await applicationsRepo.update(applicationId, {
+    formData: updatedForm,
+    currentStep: stepId,
+    updatedAt: new Date(),
+  });
 
   return {
     applicationId: updated.id,
@@ -95,10 +82,7 @@ export async function updateStep(applicationId: string, stepId: string, data: an
 // ======================================================
 //
 export async function submit(applicationId: string) {
-  const [app] = await db
-    .select()
-    .from(applications)
-    .where(eq(applications.id, applicationId));
+  const app = await applicationsRepo.findById(applicationId);
 
   if (!app) throw new Error('Application not found.');
 
@@ -109,19 +93,15 @@ export async function submit(applicationId: string) {
   const now = new Date();
 
   // Update application
-  const [submitted] = await db
-    .update(applications)
-    .set({
-      status: 'submitted',
-      pipelineStage: 'Received',
-      submittedAt: now,
-      updatedAt: now,
-    })
-    .where(eq(applications.id, applicationId))
-    .returning();
+  const submitted = await applicationsRepo.update(applicationId, {
+    status: 'submitted',
+    pipelineStage: 'Received',
+    submittedAt: now,
+    updatedAt: now,
+  });
 
   // Create pipeline entry
-  await db.insert(pipelineEvents).values({
+  await pipelineEventsRepo.create({
     applicationId,
     stage: 'Received',
     reason: 'Application submitted by client',
@@ -143,10 +123,5 @@ export async function submit(applicationId: string) {
 // ======================================================
 //
 export async function get(applicationId: string) {
-  const [app] = await db
-    .select()
-    .from(applications)
-    .where(eq(applications.id, applicationId));
-
-  return app || null;
+  return applicationsRepo.findById(applicationId);
 }

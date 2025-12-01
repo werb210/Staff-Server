@@ -1,8 +1,6 @@
 // server/src/services/signingService.ts
-import { db } from '../db/db.js';
-import { applications } from '../db/schema/applications.js';
-import { signatures } from '../db/schema/signatures.js';
-import { eq } from 'drizzle-orm';
+import applicationsRepo from '../db/repositories/applications.repo.js';
+import signaturesRepo from '../db/repositories/signatures.repo.js';
 
 import * as blobService from './blobService.js';
 import * as signNow from './signNowClient.js';
@@ -15,7 +13,7 @@ import * as pipelineService from './pipelineService.js';
 //
 export async function initSigning(applicationId: string) {
   // Fetch application
-  const [app] = await db.select().from(applications).where(eq(applications.id, applicationId));
+  const app = await applicationsRepo.findById(applicationId);
   if (!app) throw new Error("Application not found.");
 
   const applicantEmail = app.applicantEmail;
@@ -32,21 +30,15 @@ export async function initSigning(applicationId: string) {
   const invite = await signNow.createEmbeddedInvite(access, documentId, applicantEmail);
 
   // Persist signature session for later retrieval
-  const [existing] = await db
-    .select()
-    .from(signatures)
-    .where(eq(signatures.applicationId, applicationId));
+  const [existing] = await signaturesRepo.findMany({ applicationId });
 
   if (existing) {
-    await db
-      .update(signatures)
-      .set({
-        signNowDocumentId: documentId,
-        signedBlobKey: existing.signedBlobKey || 'PENDING',
-      })
-      .where(eq(signatures.id, existing.id));
+    await signaturesRepo.update(existing.id, {
+      signNowDocumentId: documentId,
+      signedBlobKey: existing.signedBlobKey || 'PENDING',
+    });
   } else {
-    await db.insert(signatures).values({
+    await signaturesRepo.create({
       applicationId,
       signNowDocumentId: documentId,
       signedBlobKey: 'PENDING',
@@ -66,10 +58,7 @@ export async function initSigning(applicationId: string) {
 //
 export async function completeSigning(applicationId: string) {
   // Load signature record (might not exist yet)
-  const [maybeSig] = await db
-    .select()
-    .from(signatures)
-    .where(eq(signatures.applicationId, applicationId));
+  const [maybeSig] = await signaturesRepo.findMany({ applicationId });
 
   if (!maybeSig) {
     throw new Error("No signature session found for this application.");
@@ -89,13 +78,9 @@ export async function completeSigning(applicationId: string) {
   );
 
   // Update signature record
-  const [updated] = await db
-    .update(signatures)
-    .set({
-      signedBlobKey: upload.blobKey,
-    })
-    .where(eq(signatures.id, maybeSig.id))
-    .returning();
+  const updated = await signaturesRepo.update(maybeSig.id, {
+    signedBlobKey: upload.blobKey,
+  });
 
   // Pipeline: mark as signed → moves to "Off to Lender"
   await pipelineService.markSigned(applicationId);
@@ -109,10 +94,7 @@ export async function completeSigning(applicationId: string) {
 // ======================================================
 //
 export async function getStatus(applicationId: string) {
-  const [sig] = await db
-    .select()
-    .from(signatures)
-    .where(eq(signatures.applicationId, applicationId));
+  const [sig] = await signaturesRepo.findMany({ applicationId });
 
   return sig || null;
 }

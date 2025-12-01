@@ -1,8 +1,6 @@
 // server/src/services/ocrService.ts
-import { db } from '../db/db.js';
-import { documents } from '../db/schema/documents.js';
-import { ocrResults } from '../db/schema/ocr.js';
-import { eq, inArray } from 'drizzle-orm';
+import documentsRepo from '../db/repositories/documents.repo.js';
+import ocrResultsRepo from '../db/repositories/ocrResults.repo.js';
 import axios from 'axios';
 import * as documentService from './documentService.js';
 import OpenAI from 'openai';
@@ -139,11 +137,11 @@ export async function runOCR(documentId: string) {
   }
 
   // Store in DB
-  const [saved] = await db.insert(ocrResults).values({
+  const saved = await ocrResultsRepo.create({
     documentId,
     fields: parsed,
     docType: (parsed as any).documentType || null,
-  }).returning();
+  });
 
   return saved;
 }
@@ -154,10 +152,7 @@ export async function runOCR(documentId: string) {
 // ======================================================
 //
 export async function getOCR(documentId: string) {
-  const [result] = await db
-    .select()
-    .from(ocrResults)
-    .where(eq(ocrResults.documentId, documentId));
+  const [result] = await ocrResultsRepo.findMany({ documentId });
 
   return result || {};
 }
@@ -168,10 +163,7 @@ export async function getOCR(documentId: string) {
 // ======================================================
 //
 export async function listOCR(applicationId: string) {
-  const docs = await db
-    .select()
-    .from(documents)
-    .where(eq(documents.applicationId, applicationId));
+  const docs = await documentsRepo.findMany({ applicationId });
 
   const docIds = docs.map((d) => d.id);
 
@@ -179,10 +171,7 @@ export async function listOCR(applicationId: string) {
     return [];
   }
 
-  const list = await db
-    .select()
-    .from(ocrResults)
-    .where(inArray(ocrResults.documentId, docIds));
+  const list = await ocrResultsRepo.findMany();
 
-  return list;
+  return (await list).filter((r) => docIds.includes(r.documentId));
 }

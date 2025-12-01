@@ -1,10 +1,8 @@
 // server/src/services/bankingService.ts
 import axios from 'axios';
 import OpenAI from 'openai';
-import { db } from '../db/db.js';
-import { documents } from '../db/schema/documents.js';
-import { bankingAnalysis } from '../db/schema/banking.js';
-import { eq } from 'drizzle-orm';
+import bankingAnalysisRepo from '../db/repositories/bankingAnalysis.repo.js';
+import documentsRepo from '../db/repositories/documents.repo.js';
 import * as documentService from './documentService.js';
 
 declare const broadcast: (payload: any) => void;
@@ -23,10 +21,7 @@ const client = new OpenAI({
 //
 export async function runAnalysis(applicationId: string) {
   // Get all documents for this application
-  const docs = await db
-    .select()
-    .from(documents)
-    .where(eq(documents.applicationId, applicationId));
+  const docs = await documentsRepo.findMany({ applicationId });
 
   const bankDocs = docs.filter((d) =>
     d.category && d.category.toLowerCase().includes('bank')
@@ -144,13 +139,10 @@ Generate:
   //
   // Step 3 — Save to DB
   //
-  const [saved] = await db
-    .insert(bankingAnalysis)
-    .values({
-      applicationId,
-      data: parsed,
-    })
-    .returning();
+  const saved = await bankingAnalysisRepo.create({
+    applicationId,
+    data: parsed,
+  });
 
   //
   // Step 4 — Broadcast update to Staff Portal + Client Portal
@@ -168,10 +160,7 @@ Generate:
 // Retrieve analysis
 //
 export async function getAnalysis(applicationId: string) {
-  const [result] = await db
-    .select()
-    .from(bankingAnalysis)
-    .where(eq(bankingAnalysis.applicationId, applicationId));
+  const [result] = await bankingAnalysisRepo.findMany({ applicationId });
 
   return result || null;
 }

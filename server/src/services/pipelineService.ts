@@ -1,8 +1,6 @@
 // server/src/services/pipelineService.ts
-import { db } from "../db/db.js";
-import { applications } from "../db/schema/applications.js";
-import { pipelineEvents } from "../db/schema/pipeline.js";
-import { eq } from "drizzle-orm";
+import applicationsRepo from "../db/repositories/applications.repo.js";
+import pipelineEventsRepo from "../db/repositories/pipelineEvents.repo.js";
 
 declare const broadcast: (payload: any) => void;
 
@@ -25,13 +23,12 @@ export const VALID_STAGES = [
 // ======================================================
 //
 export async function getPipeline(applicationId: string) {
-  const list = await db
-    .select()
-    .from(pipelineEvents)
-    .where(eq(pipelineEvents.applicationId, applicationId))
-    .orderBy(pipelineEvents.createdAt);
+  const list = await pipelineEventsRepo.findMany({ applicationId });
 
-  return list;
+  return (await list).sort(
+    (a: any, b: any) =>
+      new Date(a.createdAt as any).getTime() - new Date(b.createdAt as any).getTime(),
+  );
 }
 
 //
@@ -49,29 +46,18 @@ export async function updateStage(
   }
 
   // Fetch current application
-  const [app] = await db
-    .select()
-    .from(applications)
-    .where(eq(applications.id, applicationId));
+  const app = await applicationsRepo.findById(applicationId);
 
   if (!app) throw new Error("Application not found.");
 
   // Insert pipeline event
-  await db.insert(pipelineEvents).values({
-    applicationId,
-    stage: newStage,
-    reason,
-  });
+  await pipelineEventsRepo.create({ applicationId, stage: newStage, reason });
 
   // Update application record
-  const [updated] = await db
-    .update(applications)
-    .set({
-      pipelineStage: newStage,
-      updatedAt: new Date(),
-    })
-    .where(eq(applications.id, applicationId))
-    .returning();
+  const updated = await applicationsRepo.update(applicationId, {
+    pipelineStage: newStage,
+    updatedAt: new Date(),
+  });
 
   // Broadcast to all connected clients
   broadcast({

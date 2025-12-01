@@ -1,10 +1,8 @@
 // server/src/services/lenderService.ts
-import { db } from '../db/db.js';
-import { lenders } from '../db/schema/lenders.js';
-import { applications } from '../db/schema/applications.js';
-import { ocrResults } from '../db/schema/ocr.js';
-import { bankingAnalysis } from '../db/schema/banking.js';
-import { eq } from 'drizzle-orm';
+import applicationsRepo from '../db/repositories/applications.repo.js';
+import bankingAnalysisRepo from '../db/repositories/bankingAnalysis.repo.js';
+import lendersRepo from '../db/repositories/lenders.repo.js';
+import ocrResultsRepo from '../db/repositories/ocrResults.repo.js';
 import * as pipelineService from './pipelineService.js';
 
 declare const broadcast: (payload: any) => void;
@@ -14,22 +12,22 @@ declare const broadcast: (payload: any) => void;
 //  1. MATCH LENDERS TO APPLICATION
 // ======================================================
 export async function match(applicationId: string) {
-  const [app] = await db.select().from(applications).where(eq(applications.id, applicationId));
+  const app = await applicationsRepo.findById(applicationId);
   if (!app) throw new Error("Application not found.");
 
   // Get OCR
-  const ocr = await db.select().from(ocrResults) as any[];
+  const ocr = (await ocrResultsRepo.findMany()) as any[];
   const ocrFields = ocr
     .filter(o => o.documentId && (o as any).applicationId === undefined) // legacy safe
     .reduce((acc, doc) => Object.assign(acc, doc.fields || {}), {} as Record<string, unknown>);
 
   // Get banking
-  const [bank] = await db.select().from(bankingAnalysis).where(eq(bankingAnalysis.applicationId, applicationId));
+  const [bank] = await bankingAnalysisRepo.findMany({ applicationId });
 
   const bankData = bank?.data || {};
 
   // Get all active lenders
-  const lenderList = await db.select().from(lenders).where(eq(lenders.active, true));
+  const lenderList = await lendersRepo.findMany({ active: true });
 
   const matches = lenderList.map(l => {
     let score = 0;
@@ -96,10 +94,10 @@ export async function match(applicationId: string) {
 //  2. SEND TO LENDER (V1 — email-style packet)
 // ======================================================
 export async function sendToLender(applicationId: string, lenderId: string) {
-  const [app] = await db.select().from(applications).where(eq(applications.id, applicationId));
+  const app = await applicationsRepo.findById(applicationId);
   if (!app) throw new Error("Application not found.");
 
-  const [lender] = await db.select().from(lenders).where(eq(lenders.id, lenderId));
+  const lender = await lendersRepo.findById(lenderId);
   if (!lender) throw new Error("Lender not found.");
 
   //
@@ -136,7 +134,7 @@ export async function sendToLender(applicationId: string, lenderId: string) {
 // Helper: return OCR results per app
 //
 async function getOCRForApplication(applicationId: string) {
-  const allOCR = await db.select().from(ocrResults) as any[];
+  const allOCR = (await ocrResultsRepo.findMany()) as any[];
   const out = allOCR.filter(o => o.documentId && (o as any).applicationId === undefined);
   return out;
 }
@@ -145,6 +143,6 @@ async function getOCRForApplication(applicationId: string) {
 // Helper: return banking analysis
 //
 async function getBankingForApplication(applicationId: string) {
-  const [bank] = await db.select().from(bankingAnalysis).where(eq(bankingAnalysis.applicationId, applicationId));
+  const [bank] = await bankingAnalysisRepo.findMany({ applicationId });
   return bank?.data || {};
 }

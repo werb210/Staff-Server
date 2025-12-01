@@ -1,5 +1,6 @@
-import { db } from '../db/db.js';
-import { auditLogs } from '../db/schema/audit.js';
+import auditLogsRepo from '../db/repositories/auditLogs.repo.js';
+
+declare const broadcast: (payload: any) => void;
 
 type AuditPayload = {
   eventType: string;
@@ -15,13 +16,13 @@ type AuditPayload = {
 export async function logEvent(payload: AuditPayload) {
   const { eventType, userId = null, applicationId = null, details = {} } = payload;
 
-  const [saved] = await db.insert(auditLogs).values({
+  const saved = await auditLogsRepo.create({
     eventType,
     userId,
     applicationId,
     details,
     createdAt: new Date(),
-  }).returning();
+  });
 
   // Broadcast critical events only
   if (["error", "document", "pipeline", "security"].includes(eventType)) {

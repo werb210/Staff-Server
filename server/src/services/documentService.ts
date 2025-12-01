@@ -1,9 +1,7 @@
-import { db } from '../db/db.js';
-import { documents } from '../db/schema/documents.js';
-import { documentVersions } from '../db/schema/documentVersions.js';
-import { applications } from '../db/schema/applications.js';
-import { pipelineEvents } from '../db/schema/pipeline.js';
-import { eq } from 'drizzle-orm';
+import applicationsRepo from '../db/repositories/applications.repo.js';
+import documentVersionsRepo from '../db/repositories/documentVersions.repo.js';
+import documentsRepo from '../db/repositories/documents.repo.js';
+import pipelineEventsRepo from '../db/repositories/pipelineEvents.repo.js';
 import * as blobService from './blobService.js';
 
 declare const broadcast: (payload: any) => void;
@@ -35,7 +33,7 @@ export async function uploadDocument({
   );
 
   if (!documentId) {
-    const [created] = await db.insert(documents).values({
+    const created = await documentsRepo.create({
       applicationId,
       name: fileName,
       mimeType,
@@ -43,24 +41,18 @@ export async function uploadDocument({
       checksum: uploadInfo.checksum,
       sizeBytes: uploadInfo.sizeBytes,
       status: 'pending',
-    }).returning();
+    });
 
     return created;
   }
 
-  const [existing] = await db
-    .select()
-    .from(documents)
-    .where(eq(documents.id, documentId));
+  const existing = await documentsRepo.findById(documentId);
 
   if (!existing) throw new Error("Document not found.");
 
-  const versionCount = await db
-    .select()
-    .from(documentVersions)
-    .where(eq(documentVersions.documentId, documentId));
+  const versionCount = await documentVersionsRepo.findMany({ documentId });
 
-  await db.insert(documentVersions).values({
+  await documentVersionsRepo.create({
     documentId,
     versionNumber: versionCount.length + 1,
     azureBlobKey: existing.azureBlobKey,
@@ -68,20 +60,16 @@ export async function uploadDocument({
     sizeBytes: existing.sizeBytes,
   });
 
-  const [updated] = await db
-    .update(documents)
-    .set({
-      name: fileName,
-      mimeType,
-      azureBlobKey: uploadInfo.blobKey,
-      checksum: uploadInfo.checksum,
-      sizeBytes: uploadInfo.sizeBytes,
-      status: 'pending',
-      rejectionReason: null,
-      updatedAt: new Date(),
-    })
-    .where(eq(documents.id, documentId))
-    .returning();
+  const updated = await documentsRepo.update(documentId, {
+    name: fileName,
+    mimeType,
+    azureBlobKey: uploadInfo.blobKey,
+    checksum: uploadInfo.checksum,
+    sizeBytes: uploadInfo.sizeBytes,
+    status: 'pending',
+    rejectionReason: null,
+    updatedAt: new Date(),
+  });
 
   return updated;
 }
@@ -92,10 +80,7 @@ export async function uploadDocument({
 // ======================================================
 //
 export async function getDocument(documentId: string) {
-  const [doc] = await db
-    .select()
-    .from(documents)
-    .where(eq(documents.id, documentId));
+  const doc = await documentsRepo.findById(documentId);
 
   if (!doc) throw new Error('Document not found.');
 
@@ -118,10 +103,7 @@ export async function getDocument(documentId: string) {
 // ======================================================
 //
 export async function listByApplication(applicationId: string) {
-  return await db
-    .select()
-    .from(documents)
-    .where(eq(documents.applicationId, applicationId));
+  return documentsRepo.findMany({ applicationId });
 }
 
 //
@@ -130,15 +112,11 @@ export async function listByApplication(applicationId: string) {
 // ======================================================
 //
 export async function acceptDocument(documentId: string) {
-  const [updated] = await db
-    .update(documents)
-    .set({
-      status: 'accepted',
-      rejectionReason: null,
-      updatedAt: new Date(),
-    })
-    .where(eq(documents.id, documentId))
-    .returning();
+  const updated = await documentsRepo.update(documentId, {
+    status: 'accepted',
+    rejectionReason: null,
+    updatedAt: new Date(),
+  });
 
   if (!updated) throw new Error('Document not found.');
 
@@ -154,32 +132,26 @@ export async function acceptDocument(documentId: string) {
 // ======================================================
 //
 export async function rejectDocument(documentId: string, reason: string) {
-  const [updated] = await db
-    .update(documents)
-    .set({
-      status: 'rejected',
-      rejectionReason: reason,
-      updatedAt: new Date(),
-    })
-    .where(eq(documents.id, documentId))
-    .returning();
+  const updated = await documentsRepo.update(documentId, {
+    status: 'rejected',
+    rejectionReason: reason,
+    updatedAt: new Date(),
+  });
 
   if (!updated) throw new Error('Document not found.');
 
   // Rejected docs always move pipeline to "Documents Required"
-  await db.insert(pipelineEvents).values({
+  await pipelineEventsRepo.create({
     applicationId: updated.applicationId,
     stage: 'Documents Required',
     reason: `Document rejected: ${reason}`,
   });
 
   // Update application stage
-  await db.update(applications)
-    .set({
-      pipelineStage: 'Documents Required',
-      updatedAt: new Date(),
-    })
-    .where(eq(applications.id, updated.applicationId));
+  await applicationsRepo.update(updated.applicationId, {
+    pipelineStage: 'Documents Required',
+    updatedAt: new Date(),
+  });
 
   // Real-time broadcast
   broadcast({
@@ -215,18 +187,16 @@ export async function checkIfAllDocsAccepted(applicationId: string) {
   if (!allAccepted) return false;
 
   // Update pipeline → "Ready for Signing"
-  await db.insert(pipelineEvents).values({
+  await pipelineEventsRepo.create({
     applicationId,
     stage: 'Ready for Signing',
     reason: 'All documents accepted',
   });
 
-  await db.update(applications)
-    .set({
-      pipelineStage: 'Ready for Signing',
-      updatedAt: new Date(),
-    })
-    .where(eq(applications.id, applicationId));
+  await applicationsRepo.update(applicationId, {
+    pipelineStage: 'Ready for Signing',
+    updatedAt: new Date(),
+  });
 
   // Notify client portal
   broadcast({

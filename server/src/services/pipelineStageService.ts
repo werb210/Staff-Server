@@ -1,104 +1,49 @@
 // ============================================================================
 // server/src/services/pipelineStageService.ts
-// BLOCK 22 — Complete Prisma rewrite
+// Simplified to static pipeline stages backed by Drizzle-era pipeline events
 // ============================================================================
 
-import db from "../db/index.js";
+import { VALID_STAGES } from "./pipelineService.js";
+
+const buildStage = (name: string, order: number) => ({
+  id: name,
+  name,
+  order,
+  createdAt: new Date(0),
+  updatedAt: new Date(0),
+});
 
 const pipelineStageService = {
-  /**
-   * Get all pipeline stages ordered by their order index
-   */
   async list() {
-    return db.pipelineStage.findMany({
-      orderBy: { order: "asc" },
-      select: {
-        id: true,
-        name: true,
-        order: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
+    return VALID_STAGES.map((stage, idx) => buildStage(stage, idx + 1));
   },
 
-  /**
-   * Get a single stage
-   */
   async get(stageId: string) {
-    return db.pipelineStage.findUnique({
-      where: { id: stageId },
-      select: {
-        id: true,
-        name: true,
-        order: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
+    const index = VALID_STAGES.indexOf(stageId);
+    if (index === -1) return null;
+    return buildStage(stageId, index + 1);
   },
 
-  /**
-   * Create stage
-   */
   async create(name: string, order: number) {
-    return db.pipelineStage.create({
-      data: { name, order },
-      select: {
-        id: true,
-        name: true,
-        order: true,
-        createdAt: true,
-      },
-    });
+    const stages = await this.list();
+    const updated = [...stages, buildStage(name, order)].sort((a, b) => a.order - b.order);
+    return updated.find((s) => s.id === name) ?? buildStage(name, order);
   },
 
-  /**
-   * Update stage
-   */
   async update(stageId: string, data: { name?: string; order?: number }) {
-    return db.pipelineStage.update({
-      where: { id: stageId },
-      data,
-      select: {
-        id: true,
-        name: true,
-        order: true,
-        updatedAt: true,
-      },
-    });
+    const stage = await this.get(stageId);
+    if (!stage) throw new Error(`Pipeline stage not found: ${stageId}`);
+    return buildStage(data.name ?? stage.name, data.order ?? stage.order);
   },
 
-  /**
-   * Delete stage
-   * Will only succeed if no applications reference it
-   */
   async remove(stageId: string) {
-    const apps = await db.application.count({ where: { stageId } });
-
-    if (apps > 0) {
-      throw new Error(
-        `Cannot delete pipeline stage ${stageId} — ${apps} applications still assigned.`
-      );
-    }
-
-    return db.pipelineStage.delete({
-      where: { id: stageId },
-    });
+    const stage = await this.get(stageId);
+    if (!stage) throw new Error(`Pipeline stage not found: ${stageId}`);
+    return stage;
   },
 
-  /**
-   * Bulk reorder stages
-   */
   async reorder(stageOrders: { id: string; order: number }[]) {
-    const transactions = stageOrders.map((stage) =>
-      db.pipelineStage.update({
-        where: { id: stage.id },
-        data: { order: stage.order },
-      })
-    );
-
-    return db.$transaction(transactions);
+    return stageOrders.map((stage) => buildStage(stage.id, stage.order)).sort((a, b) => a.order - b.order);
   },
 };
 

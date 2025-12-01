@@ -1,7 +1,5 @@
 // server/src/services/chatService.ts
-import { db } from '../db/db.js';
-import { messages } from '../db/schema/messages.js';
-import { eq } from 'drizzle-orm';
+import messagesRepo from '../db/repositories/messages.repo.js';
 
 declare const broadcast: (payload: any) => void;
 
@@ -15,15 +13,12 @@ export async function sendMessage(
   sender: 'client' | 'staff' | 'ai',
   body: string
 ) {
-  const [saved] = await db
-    .insert(messages)
-    .values({
-      applicationId,
-      sender,
-      body,
-      createdAt: new Date(),
-    })
-    .returning();
+  const saved = await messagesRepo.create({
+    applicationId,
+    sender,
+    body,
+    createdAt: new Date(),
+  });
 
   //
   // Real-time broadcast to everyone connected to this silo
@@ -43,11 +38,9 @@ export async function sendMessage(
 // ======================================================
 //
 export async function getMessages(applicationId: string) {
-  const list = await db
-    .select()
-    .from(messages)
-    .where(eq(messages.applicationId, applicationId))
-    .orderBy(messages.createdAt);
+  const list = await messagesRepo.findMany({ applicationId });
 
-  return list;
+  return (await list).sort(
+    (a: any, b: any) => new Date(a.createdAt as any).getTime() - new Date(b.createdAt as any).getTime(),
+  );
 }
