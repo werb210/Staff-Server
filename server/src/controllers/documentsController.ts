@@ -15,7 +15,7 @@ export const documentsController = {
   create: asyncHandler(async (req: Request, res: Response) => {
     const payload = {
       ...req.body,
-      azureBlobKey: req.body.azureBlobKey || req.body.url,
+      azureBlobKey: req.body.azureBlobKey,
     };
 
     if (!payload.applicationId) {
@@ -32,7 +32,7 @@ export const documentsController = {
   update: asyncHandler(async (req: Request, res: Response) => {
     const payload = {
       ...req.body,
-      azureBlobKey: req.body.azureBlobKey || req.body.url,
+      azureBlobKey: req.body.azureBlobKey,
     };
 
     res.json(await documentsService.update(req.params.id, payload));
