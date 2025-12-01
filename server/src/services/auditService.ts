@@ -1,4 +1,4 @@
-import { auditLogsRepo } from "../db/repositories/auditLogs.repo";
+import { auditLogsRepo } from "../db/repositories/auditLogs.repo.js";
 
 export const auditService = {
   async log(event: string, payload: any, userId: string | null = null) {
