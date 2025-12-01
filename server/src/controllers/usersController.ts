@@ -1,51 +1,45 @@
-// server/src/controllers/usersController.ts
-
 import { Request, Response } from "express";
-import * as usersRepo from "../db/repositories/users.repo";
-import { z } from "zod";
-import { asyncHandler } from "../utils/asyncHandler";
+import usersRepo from "../db/repositories/users.repo.js";
+import asyncHandler from "../utils/asyncHandler.js";
+import sanitizeUser from "../utils/sanitizeUser.js";
 
-const createUserSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6),
-  role: z.enum(["admin", "staff", "marketing", "lender", "referrer"]),
-  firstName: z.string().optional(),
-  lastName: z.string().optional(),
-});
+export const usersController = {
+  list: asyncHandler(async (_req: Request, res: Response) => {
+    const users = await usersRepo.findMany({});
+    res.json(users.map((user) => sanitizeUser(user)));
+  }),
 
-export const listUsers = asyncHandler(async (req: Request, res: Response) => {
-  const users = await usersRepo.getAllUsers();
-  res.json({ success: true, data: users });
-});
+  getOne: asyncHandler(async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const user = await usersRepo.findById(id);
+    if (!user) {
+      return res.status(404).json({ error: "Not found" });
+    }
+    res.json(sanitizeUser(user));
+  }),
 
-export const getUser = asyncHandler(async (req: Request, res: Response) => {
-  const id = req.params.id;
-  const user = await usersRepo.getUserById(id);
-  if (!user) return res.status(404).json({ success: false, message: "User not found" });
-  res.json({ success: true, data: user });
-});
+  create: asyncHandler(async (req: Request, res: Response) => {
+    const created = await usersRepo.create(req.body);
+    res.status(201).json(sanitizeUser(created));
+  }),
 
-export const createUser = asyncHandler(async (req: Request, res: Response) => {
-  const parsed = createUserSchema.parse(req.body);
-  const user = await usersRepo.createUser(parsed);
-  res.status(201).json({ success: true, data: user });
-});
+  update: asyncHandler(async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const updated = await usersRepo.update(id, req.body);
+    if (!updated) {
+      return res.status(404).json({ error: "Not found" });
+    }
+    res.json(sanitizeUser(updated));
+  }),
 
-export const updateUser = asyncHandler(async (req: Request, res: Response) => {
-  const id = req.params.id;
-  const parsed = createUserSchema.partial().parse(req.body);
+  remove: asyncHandler(async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const deleted = await usersRepo.delete(id);
+    if (!deleted) {
+      return res.status(404).json({ error: "Not found" });
+    }
+    res.json({ success: true });
+  }),
+};
 
-  const updated = await usersRepo.updateUser(id, parsed);
-  if (!updated) return res.status(404).json({ success: false, message: "User not found" });
-
-  res.json({ success: true, data: updated });
-});
-
-export const deleteUser = asyncHandler(async (req: Request, res: Response) => {
-  const id = req.params.id;
-
-  const deleted = await usersRepo.deleteUser(id);
-  if (!deleted) return res.status(404).json({ success: false, message: "User not found" });
-
-  res.json({ success: true, data: true });
-});
+export default usersController;

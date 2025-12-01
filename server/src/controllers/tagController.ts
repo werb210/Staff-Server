@@ -1,67 +1,65 @@
-// ============================================================================
-// server/src/controllers/tagController.ts
-// Unified controller rewrite (BLOCK 15)
-// ============================================================================
-
+import { Request, Response } from "express";
+import auditLogsRepo from "../db/repositories/auditLogs.repo.js";
 import asyncHandler from "../utils/asyncHandler.js";
-import tagService from "../services/tagService.js";
 
-const tagController = {
-  /**
-   * GET /tags
-   * List all tags
-   */
-  list: asyncHandler(async (_req, res) => {
-    const data = await tagService.list();
+const mapTag = (record: any) => {
+  if (!record || record.eventType !== "tag") return null;
+  const details = (record.details ?? {}) as Record<string, unknown>;
+  return { id: record.id, ...details, createdAt: record.createdAt } as any;
+};
+
+export const tagController = {
+  list: asyncHandler(async (_req: Request, res: Response) => {
+    const records = await auditLogsRepo.findMany({ eventType: "tag" });
+    const data = (records as any[]).map(mapTag).filter(Boolean);
     res.status(200).json({ success: true, data });
   }),
 
-  /**
-   * POST /tags
-   * Body: { name: string, color?: string | null }
-   */
-  create: asyncHandler(async (req, res) => {
-    const { name, color = null } = req.body;
+  create: asyncHandler(async (req: Request, res: Response) => {
+    const { name, color = null } = req.body ?? {};
 
     if (!name || typeof name !== "string") {
-      return res.status(400).json({
-        success: false,
-        error: "Missing or invalid 'name'",
-      });
+      return res.status(400).json({ success: false, error: "Missing or invalid 'name'" });
     }
 
-    const data = await tagService.create(name, color);
+    const created = await auditLogsRepo.create({
+      eventType: "tag",
+      details: { name, color },
+    });
 
-    res.status(201).json({ success: true, data });
+    res.status(201).json({ success: true, data: mapTag(created) });
   }),
 
-  /**
-   * PUT /tags/:id
-   * Body: { name?: string; color?: string | null }
-   */
-  update: asyncHandler(async (req, res) => {
+  update: asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
-    const { name, color } = req.body;
+    const { name, color } = req.body ?? {};
 
-    const data = await tagService.update(id, { name, color });
+    const existing = await auditLogsRepo.findById(id);
+    if (!existing || existing.eventType !== "tag") {
+      return res.status(404).json({ success: false, error: "Tag not found" });
+    }
 
-    res.status(200).json({ success: true, data });
+    const mergedDetails = {
+      ...(existing.details ?? {}),
+      ...(name !== undefined ? { name } : {}),
+      ...(color !== undefined ? { color } : {}),
+    } as Record<string, unknown>;
+
+    const updated = await auditLogsRepo.update(id, { details: mergedDetails } as any);
+
+    res.status(200).json({ success: true, data: mapTag(updated) });
   }),
 
-  /**
-   * DELETE /tags/:id
-   */
-  remove: asyncHandler(async (req, res) => {
+  remove: asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
+    const deleted = await auditLogsRepo.delete(id);
 
-    const data = await tagService.remove(id);
+    if (!deleted || deleted.eventType !== "tag") {
+      return res.status(404).json({ success: false, error: "Tag not found" });
+    }
 
-    res.status(200).json({ success: true, data });
+    res.status(200).json({ success: true, data: mapTag(deleted) });
   }),
 };
 
 export default tagController;
-
-// ============================================================================
-// END OF FILE
-// ============================================================================
