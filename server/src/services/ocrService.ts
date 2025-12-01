@@ -78,7 +78,7 @@ export async function runOCR(documentId: string) {
   const doc = await documentService.getDocument(documentId);
 
   // Download the file using SAS URL
-  const response = await axios.get(doc.sasUrl, {
+  const response = await axios.get((doc as any).azureUrl, {
     responseType: 'arraybuffer',
   });
 

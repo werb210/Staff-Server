@@ -5,7 +5,6 @@ import http from 'http';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import { WebSocketServer } from 'ws';
-import { initAzureBlob } from './services/blobService.js';
 import { loadEnv } from './config/env.js';
 import applicationRoutes from './routes/application.js';
 import documentRoutes from './routes/documents.js';
@@ -39,16 +38,6 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(cookieParser());
 app.use(requestLogger);
-
-//
-// =======================================================
-//  3. Azure Blob Storage Initialization
-// =======================================================
-//
-initAzureBlob({
-  connectionString: env.AZURE_STORAGE_CONNECTION_STRING,
-  containerName: env.AZURE_STORAGE_CONTAINER,
-});
 
 //
 // =======================================================

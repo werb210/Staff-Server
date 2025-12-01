@@ -2,9 +2,9 @@
 import applicationsRepo from '../db/repositories/applications.repo.js';
 import signaturesRepo from '../db/repositories/signatures.repo.js';
 
-import * as blobService from './blobService.js';
 import * as signNow from './signNowClient.js';
 import * as pipelineService from './pipelineService.js';
+import { uploadBuffer } from './azureBlob.js';
 
 //
 // ======================================================
@@ -69,17 +69,11 @@ export async function completeSigning(applicationId: string) {
   // Download signed PDF
   const pdfBuffer = await signNow.downloadSignedDocument(access, maybeSig.signNowDocumentId);
 
-  const upload = await blobService.uploadFile(
-    applicationId,
-    maybeSig.id, // reuse the signature record id
-    "signed_application.pdf",
-    pdfBuffer,
-    "application/pdf"
-  );
+  const upload = await uploadBuffer(pdfBuffer, "application/pdf");
 
   // Update signature record
   const updated = await signaturesRepo.update(maybeSig.id, {
-    signedBlobKey: upload.blobKey,
+    signedBlobKey: upload.key,
   });
 
   // Pipeline: mark as signed → moves to "Off to Lender"
