@@ -1,6 +1,2 @@
 // server/src/types/index.ts
-export interface User {
-  id: string;
-  email: string;
-  role: string;
-}
+export type { AuthUser, Role, SiloAccess } from "./user.js";

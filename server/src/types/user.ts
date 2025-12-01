@@ -1,8 +1,16 @@
 // server/src/types/user.ts
 
-export interface User {
+export type Role = "ADMIN" | "STAFF" | "LENDER" | "REFERRER";
+
+export const ROLE_VALUES: Role[] = ["ADMIN", "STAFF", "LENDER", "REFERRER"];
+
+export type SiloAccess = Record<string, { role: Role } | null>;
+
+export interface AuthUser {
   id: string;
   email: string;
-  role: "admin" | "staff" | "lender" | "referrer";
-  createdAt: string;
+  siloAccess: SiloAccess;
+  roles: Role[];
+  createdAt: string | Date;
+  updatedAt: string | Date;
 }

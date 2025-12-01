@@ -1,15 +1,17 @@
 import { Request, Response, NextFunction } from "express";
+import type { Role } from "../types/user.js";
 
-export function siloGuard(allowedRoles: string[]) {
+export function siloGuard(allowedRoles: Role[]) {
   return (req: Request, res: Response, next: NextFunction) => {
     try {
       const user = (req as any).user;
 
-      if (!user || !user.role) {
+      if (!user || !user.roles) {
         return res.status(401).json({ error: "Unauthorized" });
       }
 
-      if (!allowedRoles.includes(user.role)) {
+      const hasRole = (user.roles as Role[]).some((role) => allowedRoles.includes(role));
+      if (!hasRole) {
         return res.status(403).json({ error: "Forbidden" });
       }
 

@@ -22,7 +22,7 @@ export const authController = {
       res.json({ user, token });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      res.status(400).json({ error: message });
+      res.status(401).json({ error: message });
     }
   },
 };

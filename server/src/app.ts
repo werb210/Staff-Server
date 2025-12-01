@@ -23,6 +23,12 @@ import usersRoutes from "./routes/users.routes.js";
 import aiRoutes from "./routes/ai.routes.js";
 
 import { errorHandler } from "./middlewares/errorHandler.js";
+import { authGuard, roleGuard } from "./middlewares/index.js";
+
+const staffRoles = ["ADMIN", "STAFF"] as const;
+const adminRoles = ["ADMIN"] as const;
+const lenderRoles = ["LENDER"] as const;
+const referrerRoles = ["REFERRER"] as const;
 
 export const app = express();
 
@@ -41,23 +47,23 @@ app.get("/api/_int/live", (_req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
-app.use("/api/users", usersRoutes);
-app.use("/api/companies", companiesRoutes);
-app.use("/api/contacts", contactsRoutes);
-app.use("/api/deals", dealsRoutes);
-app.use("/api/documents", documentsRoutes);
-app.use("/api/financials", financialsRoutes);
-app.use("/api/banking", bankingRoutes);
-app.use("/api/lenders", lenderMatchRoutes);
-app.use("/api/lenders", lendersRoutes);
-app.use("/api/pipeline", pipelineRoutes);
-app.use("/api/notifications", notificationsRoutes);
-app.use("/api/communications", communicationsRoutes);
-app.use("/api/applications", applicationsRoutes);
-app.use("/api/ocr", ocrRoutes);
-app.use("/api/search", searchRoutes);
-app.use("/api/tags", tagsRoutes);
-app.use("/api/ai", aiRoutes);
+app.use("/api/users", authGuard, roleGuard([...adminRoles]), usersRoutes);
+app.use("/api/companies", authGuard, roleGuard([...staffRoles]), companiesRoutes);
+app.use("/api/contacts", authGuard, roleGuard([...staffRoles]), contactsRoutes);
+app.use("/api/deals", authGuard, roleGuard([...staffRoles]), dealsRoutes);
+app.use("/api/documents", authGuard, roleGuard([...staffRoles]), documentsRoutes);
+app.use("/api/financials", authGuard, roleGuard([...staffRoles]), financialsRoutes);
+app.use("/api/banking", authGuard, roleGuard([...staffRoles]), bankingRoutes);
+app.use("/api/lenders", authGuard, roleGuard([...staffRoles, ...lenderRoles]), lenderMatchRoutes);
+app.use("/api/lenders", authGuard, roleGuard([...staffRoles, ...lenderRoles]), lendersRoutes);
+app.use("/api/pipeline", authGuard, roleGuard([...staffRoles]), pipelineRoutes);
+app.use("/api/notifications", authGuard, roleGuard([...staffRoles]), notificationsRoutes);
+app.use("/api/communications", authGuard, roleGuard([...staffRoles]), communicationsRoutes);
+app.use("/api/applications", authGuard, roleGuard([...staffRoles, ...referrerRoles]), applicationsRoutes);
+app.use("/api/ocr", authGuard, roleGuard([...staffRoles]), ocrRoutes);
+app.use("/api/search", authGuard, roleGuard([...staffRoles]), searchRoutes);
+app.use("/api/tags", authGuard, roleGuard([...staffRoles]), tagsRoutes);
+app.use("/api/ai", authGuard, roleGuard([...staffRoles]), aiRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ ok: false, error: "Not found" });

@@ -1,61 +1,47 @@
 // server/src/services/authService.ts
 import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken";
 import usersRepo from "../db/repositories/users.repo.js";
-import { sanitizeUser } from "../utils/sanitizeUser.js";
-import { ENV } from "../utils/env.js";
-
-const getJwtSecret = (): string => {
-  if (!ENV.JWT_SECRET) {
-    throw new Error("JWT_SECRET is not configured");
-  }
-  return ENV.JWT_SECRET;
-};
+import { extractRoles, normalizeRole, normalizeSiloAccess, toAuthUser } from "../utils/userUtils.js";
+import tokenService from "./tokenService.js";
+import type { AuthUser, Role, SiloAccess } from "../types/user.js";
 
 export interface RegisterInput {
   email: string;
   password: string;
-  firstName: string;
-  lastName: string;
-  role?: string;
-  phone?: string | null;
+  role?: Role | string;
+  siloAccess?: SiloAccess;
 }
 
-export type SafeUser = NonNullable<ReturnType<typeof sanitizeUser>>;
+export type SafeUser = AuthUser;
 
-const toSafeUser = (user: any): SafeUser | null => {
-  if (!user) return null;
-  const profile = (user.siloAccess as any)?.profile ?? {};
-  return sanitizeUser({
-    id: user.id,
-    email: user.email,
-    firstName: profile.firstName ?? null,
-    lastName: profile.lastName ?? null,
-    role: profile.role ?? null,
-    phone: profile.phone ?? null,
-    createdAt: user.createdAt,
-    updatedAt: user.updatedAt,
-    password: undefined,
-  }) as SafeUser;
+const buildUserPayload = (user: AuthUser) => ({
+  userId: user.id,
+  email: user.email,
+  roles: user.roles,
+  siloAccess: user.siloAccess,
+});
+
+const getSiloAccessFromInput = (input: RegisterInput, fallback?: SiloAccess) => {
+  const fallbackRole = normalizeRole(input.role ?? null) ?? null;
+  return normalizeSiloAccess(input.siloAccess ?? fallback ?? {}, fallbackRole ?? undefined);
 };
 
 export const authService = {
   async register(data: RegisterInput): Promise<SafeUser> {
+    const siloAccess = getSiloAccessFromInput(data);
+    const roles = extractRoles(siloAccess);
+    if (roles.length === 0) {
+      throw new Error("At least one valid role is required");
+    }
+
     const passwordHash = await bcrypt.hash(data.password, 10);
     const created = await usersRepo.create({
       email: data.email,
       passwordHash,
-      siloAccess: {
-        profile: {
-          firstName: data.firstName,
-          lastName: data.lastName,
-          role: data.role ?? null,
-          phone: data.phone ?? null,
-        },
-      },
+      siloAccess,
     });
 
-    const user = toSafeUser(created);
+    const user = toAuthUser(created);
     if (!user) throw new Error("Failed to create user");
     return user;
   },
@@ -74,14 +60,12 @@ export const authService = {
       throw new Error("Invalid credentials");
     }
 
-    const safeUser = toSafeUser(user);
+    const safeUser = toAuthUser(user);
     if (!safeUser) {
       throw new Error("Unable to sanitize user");
     }
 
-    const token = jwt.sign({ userId: user.id }, getJwtSecret(), {
-      expiresIn: "7d",
-    });
+    const token = tokenService.issue(buildUserPayload(safeUser));
 
     return { user: safeUser, token };
   },

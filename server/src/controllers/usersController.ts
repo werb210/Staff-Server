@@ -5,22 +5,22 @@ import asyncHandler from "../utils/asyncHandler.js";
 
 export const usersController = {
   list: asyncHandler(async (_req: Request, res: Response) => {
-    res.json(await usersService.list());
+    res.json(await usersService.listUsers());
   }),
 
   get: asyncHandler(async (req: Request, res: Response) => {
-    res.json(await usersService.get(req.params.id));
+    res.json(await usersService.getUser(req.params.id));
   }),
 
   create: asyncHandler(async (req: Request, res: Response) => {
-    res.json(await usersService.create(req.body));
+    res.json(await usersService.createUser(req.body));
   }),
 
   update: asyncHandler(async (req: Request, res: Response) => {
-    res.json(await usersService.update(req.params.id, req.body));
+    res.json(await usersService.updateUser(req.params.id, req.body));
   }),
 
   remove: asyncHandler(async (req: Request, res: Response) => {
-    res.json(await usersService.delete(req.params.id));
+    res.json(await usersService.deleteUser(req.params.id));
   }),
 };
