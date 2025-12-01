@@ -11,7 +11,7 @@ const buildWhere = (filter: Partial<typeof documents.$inferSelect> = {}) => {
 };
 
 export const documentsRepo = {
-  async create(data: Partial<typeof documents.$inferInsert>) {
+  async create(data: Partial<typeof documents.$inferInsert> & Record<string, any>) {
     const [created] = await db.insert(documents).values(data as any).returning();
     return created;
   },
@@ -30,6 +30,10 @@ export const documentsRepo = {
     return deleted ?? null;
   },
 
+  async remove(id: string) {
+    return this.delete(id);
+  },
+
   async findById(id: string) {
     const [record] = await db.select().from(documents).where(eq(documents.id, id));
     return record ?? null;
@@ -41,6 +45,10 @@ export const documentsRepo = {
     if (where) query.where(where);
     return query;
   },
+
+  async listByApplication(applicationId: string) {
+    return this.findMany({ applicationId });
+  }
 };
 
 export default documentsRepo;

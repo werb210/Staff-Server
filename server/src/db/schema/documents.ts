@@ -15,6 +15,8 @@ export const documents = pgTable('documents', {
   checksum: text('checksum'),
   sizeBytes: integer('size_bytes'),
 
+  uploadedAt: timestamp('uploaded_at').defaultNow(),
+
   // "pending" | "accepted" | "rejected"
   status: text('status').notNull().default('pending'),
 

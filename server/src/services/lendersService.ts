@@ -1,23 +1,19 @@
-import lendersRepo from "../db/repositories/lenders.repo.js";
+import { lendersRepo } from "../db/repositories/lenders.repo";
 
 export const lendersService = {
   async list() {
-    return lendersRepo.findMany();
+    return lendersRepo.listAll();
   },
 
   async get(id: string) {
     return lendersRepo.findById(id);
   },
 
-  async create(data: Partial<typeof import("../db/schema/lenders.js").lenders.$inferInsert>) {
+  async create(data: any) {
     return lendersRepo.create(data);
   },
 
-  async update(id: string, data: Partial<typeof import("../db/schema/lenders.js").lenders.$inferInsert>) {
+  async update(id: string, data: any) {
     return lendersRepo.update(id, data);
-  },
-
-  async delete(id: string) {
-    return lendersRepo.delete(id);
-  },
+  }
 };

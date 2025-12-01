@@ -16,6 +16,16 @@ export const documentVersionsRepo = {
     return created;
   },
 
+  async createVersion(documentId: string, data: Partial<typeof documentVersions.$inferInsert>) {
+    const existing = await this.findMany({ documentId });
+    const versionNumber = existing.length + 1;
+    return this.create({
+      ...data,
+      documentId,
+      versionNumber
+    });
+  },
+
   async update(id: string, data: Partial<typeof documentVersions.$inferInsert>) {
     const [updated] = await db
       .update(documentVersions)
@@ -41,6 +51,10 @@ export const documentVersionsRepo = {
     if (where) query.where(where);
     return query;
   },
+
+  async listVersions(documentId: string) {
+    return this.findMany({ documentId });
+  }
 };
 
 export default documentVersionsRepo;
