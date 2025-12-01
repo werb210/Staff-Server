@@ -1,9 +1,7 @@
-const prismaRemoved = () => {
-  throw new Error("Prisma has been removed — pending Drizzle migration in Block 14");
-};
+import bankingAnalysisRepo from "../db/repositories/bankingAnalysis.repo.js";
 
 export async function getAllFinancials() {
-  prismaRemoved();
+  return bankingAnalysisRepo.findMany();
 }
 
 export async function getFinancialsById(id: string) {
@@ -11,11 +9,14 @@ export async function getFinancialsById(id: string) {
     throw new Error("Financials id is required");
   }
 
-  prismaRemoved();
+  return bankingAnalysisRepo.findById(id);
 }
 
 export async function createFinancials(data: any) {
-  prismaRemoved();
+  return bankingAnalysisRepo.create({
+    applicationId: data?.applicationId,
+    data: data?.data ?? data ?? {},
+  });
 }
 
 export async function updateFinancials(
@@ -26,7 +27,15 @@ export async function updateFinancials(
     throw new Error("Financials id is required");
   }
 
-  prismaRemoved();
+  return bankingAnalysisRepo.update(id, { data: data?.data ?? data });
+}
+
+export async function deleteFinancials(id: string) {
+  if (!id) {
+    throw new Error("Financials id is required");
+  }
+
+  return bankingAnalysisRepo.delete(id);
 }
 
 const financialsService = {
@@ -40,11 +49,3 @@ const financialsService = {
 };
 
 export default financialsService;
-
-export async function deleteFinancials(id: string) {
-  if (!id) {
-    throw new Error("Financials id is required");
-  }
-
-  prismaRemoved();
-}

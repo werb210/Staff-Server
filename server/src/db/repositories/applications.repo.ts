@@ -1,0 +1,47 @@
+import { and, eq } from 'drizzle-orm';
+import { db } from '../db.js';
+import { applications } from '../schema/applications.js';
+
+const buildWhere = (filter: Partial<typeof applications.$inferSelect> = {}) => {
+  const conditions = Object.entries(filter)
+    .filter(([, value]) => value !== undefined)
+    .map(([key, value]) => eq((applications as any)[key], value as any));
+
+  if (conditions.length === 0) return undefined;
+  return conditions.length === 1 ? conditions[0] : and(...conditions);
+};
+
+export const applicationsRepo = {
+  async create(data: Partial<typeof applications.$inferInsert>) {
+    const [created] = await db.insert(applications).values(data as any).returning();
+    return created;
+  },
+
+  async update(id: string, data: Partial<typeof applications.$inferInsert>) {
+    const [updated] = await db
+      .update(applications)
+      .set(data)
+      .where(eq(applications.id, id))
+      .returning();
+    return updated ?? null;
+  },
+
+  async delete(id: string) {
+    const [deleted] = await db.delete(applications).where(eq(applications.id, id)).returning();
+    return deleted ?? null;
+  },
+
+  async findById(id: string) {
+    const [record] = await db.select().from(applications).where(eq(applications.id, id));
+    return record ?? null;
+  },
+
+  async findMany(filter: Partial<typeof applications.$inferSelect> = {}) {
+    const where = buildWhere(filter);
+    const query = db.select().from(applications);
+    if (where) query.where(where);
+    return query;
+  },
+};
+
+export default applicationsRepo;

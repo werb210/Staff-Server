@@ -1,26 +1,24 @@
 // server/src/services/companiesService.ts
-const prismaRemoved = () => {
-  throw new Error("Prisma has been removed — pending Drizzle migration in Block 14");
-};
+import companiesRepo from "../db/repositories/companies.repo.js";
 
 export const companiesService = {
   list() {
-    prismaRemoved();
+    return companiesRepo.findMany();
   },
 
   get(id: string) {
-    prismaRemoved();
+    return companiesRepo.findById(id);
   },
 
-  create(data: unknown) {
-    prismaRemoved();
+  create(data: Record<string, unknown>) {
+    return companiesRepo.create(data);
   },
 
-  update(id: string, data: unknown) {
-    prismaRemoved();
+  update(id: string, data: Record<string, unknown>) {
+    return companiesRepo.update(id, data);
   },
 
   delete(id: string) {
-    prismaRemoved();
+    return companiesRepo.delete(id);
   },
 };
