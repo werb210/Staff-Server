@@ -1,57 +1,38 @@
 // server/src/controllers/signingController.ts
-import { Request, Response } from 'express';
-import * as signingService from '../services/signingService.js';
 
-//
-// ======================================================
-//  CLIENT STARTS SIGNING SESSION
-// ======================================================
-//
-export async function startSigning(req: Request, res: Response) {
-  try {
-    const { applicationId } = req.params;
+import { Request, Response } from "express";
+import { asyncHandler } from "../utils/asyncHandler";
+import * as signingRepo from "../db/repositories/signing.repo";
+import { getBlobUrl } from "../services/blobService";
 
-    const session = await signingService.initSigning(applicationId);
+export const getSigningStatus = asyncHandler(async (req: Request, res: Response) => {
+  const applicationId = req.params.applicationId;
+  const status = await signingRepo.getSigningByApplication(applicationId);
 
-    return res.status(200).json(session);
-  } catch (err: any) {
-    console.error('startSigning error →', err);
-    return res.status(500).json({ error: err.message });
+  if (!status) {
+    return res.json({ success: true, status: "not_started" });
   }
-}
 
-//
-// ======================================================
-//  SERVER RETRIEVES SIGNED PDF (webhook or polling)
-// ======================================================
-//
-export async function completeSigning(req: Request, res: Response) {
-  try {
-    const { applicationId } = req.params;
+  res.json({ success: true, status });
+});
 
-    const result = await signingService.completeSigning(applicationId);
+// For client: kickoff signing once all docs accepted
+export const startSigning = asyncHandler(async (req: Request, res: Response) => {
+  const applicationId = req.params.applicationId;
 
-    return res.status(200).json(result);
-  } catch (err: any) {
-    console.error('completeSigning error →', err);
-    return res.status(500).json({ error: err.message });
+  const created = await signingRepo.createSigningSession(applicationId);
+
+  res.json({ success: true, data: created });
+});
+
+export const getSignedPdf = asyncHandler(async (req: Request, res: Response) => {
+  const applicationId = req.params.applicationId;
+  const signing = await signingRepo.getSigningByApplication(applicationId);
+
+  if (!signing || !signing.signedPdfKey) {
+    return res.status(404).json({ success: false, message: "Signed PDF not found" });
   }
-}
 
-//
-// ======================================================
-//  GET SIGNATURE STATUS
-// ======================================================
-//
-export async function getStatus(req: Request, res: Response) {
-  try {
-    const { applicationId } = req.params;
-
-    const result = await signingService.getStatus(applicationId);
-
-    return res.status(200).json(result || {});
-  } catch (err: any) {
-    console.error('getStatus error →', err);
-    return res.status(500).json({ error: err.message });
-  }
-}
+  const url = await getBlobUrl(signing.signedPdfKey);
+  res.json({ success: true, url });
+});
