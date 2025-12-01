@@ -1,28 +1,36 @@
 // server/src/controllers/documentsController.ts
 
 import { Request, Response } from "express";
-import * as documentsRepo from "../db/repositories/documents.repo";
-import { uploadToAzureBlob } from "../utils/blob";
 import { asyncHandler } from "../utils/asyncHandler";
+import * as docsRepo from "../db/repositories/documents.repo";
+import * as versionsRepo from "../db/repositories/documentVersions.repo";
+import { uploadToBlob, getBlobUrl } from "../services/blobService";
 import { z } from "zod";
 
+// Validation
 const uploadSchema = z.object({
   applicationId: z.string(),
   category: z.string(),
-  documentType: z.string().optional(),
+  documentType: z.string(),
 });
 
 export const listDocuments = asyncHandler(async (req: Request, res: Response) => {
-  const appId = req.params.applicationId;
-  const docs = await documentsRepo.getDocumentsForApplication(appId);
+  const applicationId = req.params.applicationId;
+  const docs = await docsRepo.getDocumentsByApplication(applicationId);
+
   res.json({ success: true, data: docs });
 });
 
 export const getDocument = asyncHandler(async (req: Request, res: Response) => {
   const id = req.params.id;
-  const doc = await documentsRepo.getDocumentById(id);
-  if (!doc) return res.status(404).json({ success: false, message: "Document not found" });
-  res.json({ success: true, data: doc });
+  const doc = await docsRepo.getDocumentById(id);
+
+  if (!doc) {
+    return res.status(404).json({ success: false, message: "Document not found" });
+  }
+
+  const url = await getBlobUrl(doc.s3Key); // renamed but still stores Azure key
+  res.json({ success: true, url });
 });
 
 export const uploadDocument = asyncHandler(async (req: Request, res: Response) => {
@@ -32,36 +40,83 @@ export const uploadDocument = asyncHandler(async (req: Request, res: Response) =
     return res.status(400).json({ success: false, message: "Missing file" });
   }
 
-  const blob = await uploadToAzureBlob(req.file);
+  // Upload to Azure Blob
+  const buffer = req.file.buffer;
+  const extension = req.file.originalname.split(".").pop();
+  const key = `applications/${parsed.applicationId}/${Date.now()}.${extension}`;
 
-  const created = await documentsRepo.createDocument({
+  await uploadToBlob(buffer, key);
+
+  // Create new DB record
+  const created = await docsRepo.createDocument({
     applicationId: parsed.applicationId,
     category: parsed.category,
-    documentType: parsed.documentType ?? null,
-    fileName: req.file.originalname,
-    mimeType: req.file.mimetype,
-    sizeBytes: req.file.size,
-    storageKey: blob.blobName,
-    url: blob.url,
+    documentType: parsed.documentType,
+    s3Key: key,
+    name: req.file.originalname,
+    sizeBytes: buffer.length,
+  });
+
+  // Save version entry
+  await versionsRepo.createVersion({
+    documentId: created.id,
+    version: 1,
+    s3Key: key,
   });
 
   res.status(201).json({ success: true, data: created });
 });
 
-export const updateDocument = asyncHandler(async (req: Request, res: Response) => {
+export const acceptDocument = asyncHandler(async (req: Request, res: Response) => {
   const id = req.params.id;
 
-  const updated = await documentsRepo.updateDocument(id, req.body);
-  if (!updated) return res.status(404).json({ success: false, message: "Document not found" });
+  const updated = await docsRepo.updateDocument(id, { status: "accepted" });
+  if (!updated) {
+    return res.status(404).json({ success: false, message: "Document not found" });
+  }
 
   res.json({ success: true, data: updated });
 });
 
-export const deleteDocument = asyncHandler(async (req: Request, res: Response) => {
+export const rejectDocument = asyncHandler(async (req: Request, res: Response) => {
   const id = req.params.id;
 
-  const deleted = await documentsRepo.deleteDocument(id);
-  if (!deleted) return res.status(404).json({ success: false, message: "Document not found" });
+  const updated = await docsRepo.updateDocument(id, { status: "rejected" });
+  if (!updated) {
+    return res.status(404).json({ success: false, message: "Document not found" });
+  }
 
-  res.json({ success: true, data: true });
+  res.json({ success: true, data: updated });
+});
+
+export const replaceDocument = asyncHandler(async (req: Request, res: Response) => {
+  const id = req.params.id;
+  if (!req.file) {
+    return res.status(400).json({ success: false, message: "Missing file" });
+  }
+
+  const old = await docsRepo.getDocumentById(id);
+  if (!old) {
+    return res.status(404).json({ success: false, message: "Document not found" });
+  }
+
+  const extension = req.file.originalname.split(".").pop();
+  const key = `applications/${old.applicationId}/${Date.now()}.${extension}`;
+
+  await uploadToBlob(req.file.buffer, key);
+
+  const updated = await docsRepo.updateDocument(id, {
+    s3Key: key,
+    name: req.file.originalname,
+    sizeBytes: req.file.buffer.length,
+    status: "pending",
+  });
+
+  await versionsRepo.createVersion({
+    documentId: id,
+    version: old.version + 1,
+    s3Key: key,
+  });
+
+  res.json({ success: true, data: updated });
 });
