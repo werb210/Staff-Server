@@ -1,5 +1,8 @@
-import { prisma } from "../db/prisma.js";
 import { v4 as uuid } from "uuid";
+
+const prismaRemoved = () => {
+  throw new Error("Prisma has been removed — pending Drizzle migration in Block 14");
+};
 
 export interface DealRecord {
   id: string;
@@ -20,34 +23,22 @@ export type DealUpdateInput = Partial<DealCreateInput>;
 
 export const dealsService = {
   list(): Promise<DealWithApplication[]> {
-    return prisma.deal.findMany({ include: { application: true } });
+    return prismaRemoved();
   },
 
   get(id: string): Promise<DealWithApplication | null> {
-    return prisma.deal.findUnique({
-      where: { id },
-      include: { application: true },
-    });
+    return prismaRemoved();
   },
 
   create(data: DealCreateInput): Promise<DealRecord> {
-    return prisma.deal.create({
-      data: {
-        id: uuid(),
-        applicationId: data.applicationId,
-        lenderId: data.lenderId,
-        status: data.status,
-        offerAmount: data.offerAmount,
-        terms: data.terms,
-      },
-    });
+    return prismaRemoved();
   },
 
   update(id: string, data: DealUpdateInput): Promise<DealRecord> {
-    return prisma.deal.update({ where: { id }, data });
+    return prismaRemoved();
   },
 
   remove(id: string): Promise<DealRecord> {
-    return prisma.deal.delete({ where: { id } });
+    return prismaRemoved();
   },
 };

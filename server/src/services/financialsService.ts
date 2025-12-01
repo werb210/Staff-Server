@@ -1,13 +1,9 @@
-import prisma from "../db/prisma.js";
+const prismaRemoved = () => {
+  throw new Error("Prisma has been removed — pending Drizzle migration in Block 14");
+};
 
 export async function getAllFinancials() {
-  try {
-    return await prisma.financials.findMany({
-      orderBy: { createdAt: "desc" },
-    });
-  } catch (error) {
-    throw error;
-  }
+  prismaRemoved();
 }
 
 export async function getFinancialsById(id: string) {
@@ -15,25 +11,11 @@ export async function getFinancialsById(id: string) {
     throw new Error("Financials id is required");
   }
 
-  try {
-    const rec = await prisma.financials.findUnique({ where: { id } });
-
-    if (!rec) {
-      throw new Error("Financials record not found");
-    }
-
-    return rec;
-  } catch (error) {
-    throw error;
-  }
+  prismaRemoved();
 }
 
 export async function createFinancials(data: any) {
-  try {
-    return await prisma.financials.create({ data });
-  } catch (error) {
-    throw error;
-  }
+  prismaRemoved();
 }
 
 export async function updateFinancials(
@@ -44,14 +26,7 @@ export async function updateFinancials(
     throw new Error("Financials id is required");
   }
 
-  try {
-    return await prisma.financials.update({
-      where: { id },
-      data,
-    });
-  } catch (error) {
-    throw error;
-  }
+  prismaRemoved();
 }
 
 const financialsService = {
@@ -71,9 +46,5 @@ export async function deleteFinancials(id: string) {
     throw new Error("Financials id is required");
   }
 
-  try {
-    return await prisma.financials.delete({ where: { id } });
-  } catch (error) {
-    throw error;
-  }
+  prismaRemoved();
 }

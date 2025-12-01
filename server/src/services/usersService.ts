@@ -1,6 +1,9 @@
 // server/src/services/usersService.ts
 import bcrypt from "bcrypt";
-import { prisma } from "../db/index.js";
+
+const prismaRemoved = () => {
+  throw new Error("Prisma has been removed — pending Drizzle migration in Block 14");
+};
 
 const userSelect = {
   id: true,
@@ -17,20 +20,14 @@ const usersService = {
    * Get all users ordered by creation date (newest first)
    */
   async list() {
-    return prisma.user.findMany({
-      orderBy: { createdAt: "desc" },
-      select: userSelect,
-    });
+    prismaRemoved();
   },
 
   /**
    * Get a single user by ID
    */
   async get(id: string) {
-    return prisma.user.findUnique({
-      where: { id },
-      select: userSelect,
-    });
+    prismaRemoved();
   },
 
   /**
@@ -46,17 +43,7 @@ const usersService = {
   }) {
     const hashed = await bcrypt.hash(data.password, 10);
 
-    return prisma.user.create({
-      data: {
-        email: data.email,
-        password: hashed,
-        firstName: data.firstName,
-        lastName: data.lastName,
-        role: data.role,
-        phone: data.phone ?? null,
-      },
-      select: userSelect,
-    });
+    prismaRemoved();
   },
 
   /**
@@ -85,20 +72,14 @@ const usersService = {
       dataToUpdate.password = await bcrypt.hash(updates.password, 10);
     }
 
-    return prisma.user.update({
-      where: { id },
-      data: dataToUpdate,
-      select: { ...userSelect, updatedAt: true },
-    });
+    prismaRemoved();
   },
 
   /**
    * Delete a user by ID
    */
   delete(id: string) {
-    return prisma.user.delete({
-      where: { id },
-    });
+    prismaRemoved();
   },
 };
 
