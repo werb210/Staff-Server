@@ -1,11 +1,17 @@
-import { bankingAnalysisRepo } from "../db/repositories/bankingAnalysis.repo";
+import bankingAnalysisRepo from "../db/repositories/bankingAnalysis.repo.js";
 
 export const bankingService = {
-  async saveAnalysis(applicationId: string, data: any) {
-    return bankingAnalysisRepo.save(applicationId, data);
+  async save(applicationId: string, data: any) {
+    return bankingAnalysisRepo.create({
+      applicationId,
+      data,
+      createdAt: new Date(),
+    });
   },
 
-  async getAnalysis(applicationId: string) {
-    return bankingAnalysisRepo.findByApplication(applicationId);
-  }
+  async get(applicationId: string) {
+    return bankingAnalysisRepo.findOne({ applicationId });
+  },
 };
+
+export default bankingService;
