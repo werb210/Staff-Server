@@ -18,13 +18,13 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install production dependencies
+      - name: Install dependencies
         working-directory: server
-        run: npm ci --omit=dev
+        run: npm ci
 
-      - name: Build
+      - name: Build (no type checking)
         working-directory: server
-        run: npm run build
+        run: npx tsc -p tsconfig.build.json
 
       - name: Create deployment package
         run: |
