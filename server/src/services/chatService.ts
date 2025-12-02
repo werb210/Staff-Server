@@ -1,16 +1,18 @@
-import { messagesRepo } from "../db/repositories/messages.repo";
+import messagesRepo from "../db/repositories/messages.repo.js";
 
 export const chatService = {
-  async send(fromId: string, toId: string, text: string) {
-    return messagesRepo.insert({
-      fromId,
-      toId,
-      text,
-      createdAt: new Date()
+  async send(applicationId: string, senderId: string, body: string) {
+    return messagesRepo.create({
+      applicationId,
+      senderId,
+      body,
+      createdAt: new Date(),
     });
   },
 
-  async thread(userA: string, userB: string) {
-    return messagesRepo.thread(userA, userB);
-  }
+  async thread(applicationId: string) {
+    return messagesRepo.findMany({ applicationId });
+  },
 };
+
+export default chatService;
