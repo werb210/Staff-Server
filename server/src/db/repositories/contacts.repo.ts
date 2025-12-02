@@ -1,57 +1,76 @@
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { db } from "../db.js";
-import { contacts } from "../schema/contacts.js";
+import { auditLogs } from "../schema/audit.js";
+
+const safe = (v: any) => (v && typeof v === "object" ? v : {});
+
+const map = (r: any) =>
+  !r
+    ? null
+    : {
+        id: r.id,
+        ...safe(r.details),
+        createdAt: r.createdAt,
+      };
 
 export const contactsRepo = {
-  async create(data: {
-    firstName: string;
-    lastName?: string | null;
-    email?: string | null;
-    phone?: string | null;
-    companyId?: string | null;
-    position?: string | null;
-  }) {
-    const [created] = await db.insert(contacts).values(data).returning();
-    return created;
-  },
-
-  async update(id: string, data: Partial<typeof contacts.$inferInsert>) {
-    const [updated] = await db
-      .update(contacts)
-      .set(data)
-      .where(eq(contacts.id, id))
+  async create(data: Record<string, unknown>) {
+    const [created] = await db
+      .insert(auditLogs)
+      .values({
+        eventType: "contact",
+        details: safe(data),
+      })
       .returning();
 
-    return updated ?? null;
+    return map(created);
+  },
+
+  async update(id: string, data: Record<string, unknown>) {
+    const [existing] = await db
+      .select()
+      .from(auditLogs)
+      .where(eq(auditLogs.id, id));
+
+    if (!existing || existing.eventType !== "contact") return null;
+
+    const merged = { ...safe(existing.details), ...safe(data) };
+
+    const [updated] = await db
+      .update(auditLogs)
+      .set({ details: merged })
+      .where(eq(auditLogs.id, id))
+      .returning();
+
+    return map(updated);
   },
 
   async delete(id: string) {
     const [deleted] = await db
-      .delete(contacts)
-      .where(eq(contacts.id, id))
+      .delete(auditLogs)
+      .where(eq(auditLogs.id, id))
       .returning();
-    return deleted ?? null;
+
+    return map(deleted);
   },
 
   async findById(id: string) {
     const [record] = await db
       .select()
-      .from(contacts)
-      .where(eq(contacts.id, id));
+      .from(auditLogs)
+      .where(eq(auditLogs.id, id));
 
-    return record ?? null;
+    if (!record || record.eventType !== "contact") return null;
+
+    return map(record);
   },
 
-  async findMany(filter: Partial<typeof contacts.$inferSelect> = {}) {
-    let query = db.select().from(contacts);
+  async findMany(filter: Record<string, unknown> = {}) {
+    const where = eq(auditLogs.eventType, "contact");
 
-    for (const [key, value] of Object.entries(filter)) {
-      if (value !== undefined) {
-        query = query.where(eq((contacts as any)[key], value));
-      }
-    }
+    const results = await db.select().from(auditLogs).where(where);
 
-    return await query;
+    return results.map(map).filter(Boolean);
   },
 };
 
