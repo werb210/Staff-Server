@@ -1,11 +1,17 @@
-import { applicationsRepo } from "../db/repositories/applications.repo";
+import applicationsRepo from "../db/repositories/applications.repo.js";
 
 export const applicationsService = {
-  async list() {
-    return applicationsRepo.listAll();
+  list() {
+    return applicationsRepo.findMany({});
   },
 
-  async search(term: string) {
-    return applicationsRepo.search(term);
-  }
+  create(data: any) {
+    return applicationsRepo.create(data);
+  },
+
+  update(id: string, data: any) {
+    return applicationsRepo.update(id, data);
+  },
 };
+
+export default applicationsService;
