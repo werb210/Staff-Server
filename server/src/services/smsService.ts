@@ -1,12 +1,12 @@
-import { smsLogsRepo } from "../db/repositories/smsLogs.repo";
+import smsLogsRepo from "../db/repositories/smsLogs.repo.js";
 
 export const smsService = {
-  async send(to: string, text: string) {
-    // actual sending is controller responsibility
-    return smsLogsRepo.insert({
-      to,
-      text,
-      createdAt: new Date()
+  async log(payload: any) {
+    return smsLogsRepo.create({
+      ...payload,
+      createdAt: new Date(),
     });
-  }
+  },
 };
+
+export default smsService;
