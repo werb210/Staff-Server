@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import asyncHandler from "../utils/asyncHandler.js";
-import auditLogsRepo from "../db/repositories/auditLogs.repo.js";
+import auditLogsRepo from "../db/repositories/audit.repo.js";
 
 export const auditController = {
   getApplicationAudit: asyncHandler(async (req: Request, res: Response) => {
