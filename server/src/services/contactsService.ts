@@ -1,19 +1,21 @@
-import { contactsRepo } from "../db/repositories/contacts.repo";
+import contactsRepo from "../db/repositories/contacts.repo.js";
 
 export const contactsService = {
-  async list(companyId: string) {
-    return contactsRepo.listByCompany(companyId);
-  },
-
-  async get(id: string) {
-    return contactsRepo.findById(id);
-  },
-
-  async create(data: any) {
+  create(data: any) {
     return contactsRepo.create(data);
   },
 
-  async update(id: string, data: any) {
+  update(id: string, data: any) {
     return contactsRepo.update(id, data);
-  }
+  },
+
+  get(id: string) {
+    return contactsRepo.findById(id);
+  },
+
+  list() {
+    return contactsRepo.findMany({});
+  },
 };
+
+export default contactsService;
