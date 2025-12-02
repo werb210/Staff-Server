@@ -1,19 +1,12 @@
-import { dealsRepo } from "../db/repositories/deals.repo";
+import lendersRepo from "../db/repositories/lenders.repo.js";
+import applicationsRepo from "../db/repositories/applications.repo.js";
 
 export const dealsService = {
-  async list() {
-    return dealsRepo.listAll();
+  async match(applicationId: string) {
+    const application = await applicationsRepo.findById(applicationId);
+    const lenders = await lendersRepo.findMany({});
+    return { application, lenders };
   },
-
-  async get(id: string) {
-    return dealsRepo.findById(id);
-  },
-
-  async create(data: any) {
-    return dealsRepo.create(data);
-  },
-
-  async update(id: string, data: any) {
-    return dealsRepo.update(id, data);
-  }
 };
+
+export default dealsService;
