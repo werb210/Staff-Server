@@ -1,14 +1,14 @@
 import applicationsRepo from "../db/repositories/applications.repo.js";
-import contactsRepo from "../db/repositories/contacts.repo.js";
 import companiesRepo from "../db/repositories/companies.repo.js";
+import contactsRepo from "../db/repositories/contacts.repo.js";
 
 export const searchService = {
-  async global(term: string) {
-    const apps = await applicationsRepo.search(term);
-    const contacts = await contactsRepo.search(term);
-    const companies = await companiesRepo.search(term);
+  global: async (term: string) => {
+    const apps = await applicationsRepo.search(term).catch(() => []);
+    const companies = await companiesRepo.findMany({ name: term }).catch(() => []);
+    const contacts = await contactsRepo.findMany({ name: term }).catch(() => []);
 
-    return { apps, contacts, companies };
+    return { applications: apps, companies, contacts };
   },
 };
 
