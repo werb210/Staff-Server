@@ -5,20 +5,18 @@ import bankingAnalysisRepo from "../db/repositories/bankingAnalysis.repo.js";
 export const bankingController = {
   runAnalysis: asyncHandler(async (req: Request, res: Response) => {
     const { applicationId } = req.params;
-
-    const created = await bankingAnalysisRepo.create({
+    const result = await bankingAnalysisRepo.create({
       applicationId,
       data: req.body ?? {},
     });
-
-    res.json(created);
+    res.json(result);
   }),
 
   getAnalysis: asyncHandler(async (req: Request, res: Response) => {
     const { applicationId } = req.params;
-
-    const rows = await bankingAnalysisRepo.findMany({ applicationId });
-    res.json(rows);
+    const row = await bankingAnalysisRepo.findByApplication(applicationId);
+    if (!row) return res.status(404).json({ error: "Not found" });
+    res.json(row);
   }),
 };
 
