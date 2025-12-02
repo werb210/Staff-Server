@@ -1,30 +1,23 @@
 import { Request, Response } from "express";
 import asyncHandler from "../utils/asyncHandler.js";
-import pipelineEventsRepo from "../db/repositories/pipelineEvents.repo.js";
-import applicationsRepo from "../db/repositories/applications.repo.js";
+import pipelineRepo from "../db/repositories/pipeline.repo.js";
 
 export const pipelineController = {
-  getHistory: asyncHandler(async (req: Request, res: Response) => {
+  getPipeline: asyncHandler(async (req: Request, res: Response) => {
     const { applicationId } = req.params;
-    const events = await pipelineEventsRepo.findMany({ applicationId });
-    res.json(events);
+    const row = await pipelineRepo.findByApplication(applicationId);
+    if (!row) return res.status(404).json({ error: "Not found" });
+    res.json(row);
   }),
 
-  moveStage: asyncHandler(async (req: Request, res: Response) => {
+  updateStage: asyncHandler(async (req: Request, res: Response) => {
     const { applicationId } = req.params;
-    const { stage, reason } = req.body;
+    const { stage } = req.body;
 
-    const updated = await applicationsRepo.update(applicationId, {
-      pipelineStage: stage,
-    });
+    const updated = await pipelineRepo.updateStage(applicationId, stage);
+    if (!updated) return res.status(404).json({ error: "Not found" });
 
-    const event = await pipelineEventsRepo.create({
-      applicationId,
-      stage,
-      reason,
-    });
-
-    res.json({ updated, event });
+    res.json(updated);
   }),
 };
 
