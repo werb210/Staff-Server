@@ -31,7 +31,7 @@ export const companiesRepo = {
   async create(data: Record<string, unknown>) {
     const [created] = await db
       .insert(auditLogs)
-      .values({ eventType: "company", details: data })
+      .values({ eventType: "company", details: safeDetails(data) })
       .returning();
 
     return mapRecord(created);
@@ -45,10 +45,8 @@ export const companiesRepo = {
 
     if (!existing || existing.eventType !== "company") return null;
 
-    const base = safeDetails(existing.details);
-
-    const merged: Record<string, unknown> = {
-      ...base,
+    const merged = {
+      ...safeDetails(existing.details),
       ...safeDetails(data),
     };
 
