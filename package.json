@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "build": "cd server && npm run build",
-    "start": "node server/dist/index.js",
+    "start": "cd server && npm start",
     "dev": "cd server && npm run dev"
   }
 }
