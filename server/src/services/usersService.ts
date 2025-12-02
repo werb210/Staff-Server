@@ -1,19 +1,25 @@
-import { usersRepo } from "../db/repositories/users.repo";
+import usersRepo from "../db/repositories/users.repo.js";
 
 export const usersService = {
-  async list() {
-    return usersRepo.listAll();
+  list() {
+    return usersRepo.findMany({});
   },
 
-  async get(id: string) {
+  get(id: string) {
     return usersRepo.findById(id);
   },
 
-  async create(data: any) {
+  create(data: any) {
     return usersRepo.create(data);
   },
 
-  async update(id: string, data: any) {
+  update(id: string, data: any) {
     return usersRepo.update(id, data);
-  }
+  },
+
+  remove(id: string) {
+    return usersRepo.delete(id);
+  },
 };
+
+export default usersService;
