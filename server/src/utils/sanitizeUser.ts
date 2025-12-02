@@ -1,12 +1,9 @@
-/**
- * Remove password, tokens, and other sensitive fields from user records.
- */
-
-export function sanitizeUser<
-  T extends { password?: unknown; passwordHash?: unknown }
->(user: T | null): Omit<T, "password" | "passwordHash"> | null {
+// server/src/utils/sanitizeUser.ts
+export function sanitizeUser<T extends { password?: any; passwordHash?: any }>(
+  user: T | null
+) {
   if (!user) return null;
 
-  const { password, passwordHash, ...safeUser } = user;
-  return safeUser;
+  const { password, passwordHash, ...safe } = user as any;
+  return safe;
 }
