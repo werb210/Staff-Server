@@ -3,10 +3,7 @@ import financialsController from "../controllers/financialsController.js";
 
 const router = Router();
 
-router.get("/", financialsController.list);
-router.get("/:id", financialsController.get);
-router.post("/", financialsController.create);
-router.put("/:id", financialsController.update);
-router.delete("/:id", financialsController.remove);
+// Only ocrForDocument exists
+router.get("/document/:documentId", financialsController.ocrForDocument);
 
 export default router;
