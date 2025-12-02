@@ -1,16 +1,16 @@
-import { timelineRepo } from "../db/repositories/timeline.repo";
+import timelineRepo from "../db/repositories/timeline.repo.js";
 
 export const timelineService = {
-  async add(applicationId: string, event: string, meta: any = {}) {
-    return timelineRepo.insert({
-      applicationId,
-      event,
-      meta,
-      createdAt: new Date()
-    });
+  listByApplication(applicationId: string) {
+    return timelineRepo.findMany({ applicationId });
   },
 
-  async list(applicationId: string) {
-    return timelineRepo.list(applicationId);
-  }
+  addEvent(data: any) {
+    return timelineRepo.create({
+      ...data,
+      createdAt: new Date(),
+    });
+  },
 };
+
+export default timelineService;
