@@ -26,14 +26,14 @@ jobs:
         working-directory: server
         run: npm run build
 
-      # --- FIXED: Package EVERYTHING required for runtime ---
       - name: Prepare Azure ZIP
         run: |
           mkdir output
-          cp -r server/dist output/dist
+          cp -r server/* output/
+          rm -rf output/src
+          rm -rf output/node_modules
+          npm --prefix server install --omit=dev --production
           cp -r server/node_modules output/node_modules
-          cp server/package.json output/package.json
-          cp server/package-lock.json output/package-lock.json
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v2
