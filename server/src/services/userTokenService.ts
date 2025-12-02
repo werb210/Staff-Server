@@ -1,16 +1,21 @@
-import { userTokensRepo } from "../db/repositories/userTokens.repo";
+import userTokensRepo from "../db/repositories/userTokens.repo.js";
 
 export const userTokenService = {
-  async save(userId: string, token: string, type: string) {
-    return userTokensRepo.insert({
+  create(userId: string, token: string) {
+    return userTokensRepo.create({
       userId,
       token,
-      type,
-      createdAt: new Date()
+      createdAt: new Date(),
     });
   },
 
-  async list(userId: string) {
-    return userTokensRepo.listByUser(userId);
-  }
+  findByToken(token: string) {
+    return userTokensRepo.findOne({ token });
+  },
+
+  remove(id: string) {
+    return userTokensRepo.delete(id);
+  },
 };
+
+export default userTokenService;
