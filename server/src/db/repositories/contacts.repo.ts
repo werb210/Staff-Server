@@ -1,4 +1,4 @@
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "../db.js";
 import { auditLogs } from "../schema/audit.js";
 
@@ -65,10 +65,11 @@ export const contactsRepo = {
     return map(record);
   },
 
-  async findMany(filter: Record<string, unknown> = {}) {
-    const where = eq(auditLogs.eventType, "contact");
-
-    const results = await db.select().from(auditLogs).where(where);
+  async findMany() {
+    const results = await db
+      .select()
+      .from(auditLogs)
+      .where(eq(auditLogs.eventType, "contact"));
 
     return results.map(map).filter(Boolean);
   },
