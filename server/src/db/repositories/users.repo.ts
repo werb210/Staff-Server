@@ -1,54 +1,65 @@
-import { and, eq } from 'drizzle-orm';
-import { db } from '../db.js';
-import { users } from '../schema/users.js';
+import { randomUUID } from "crypto";
 
-const buildWhere = (filter: Partial<typeof users.$inferSelect> = {}) => {
-  const conditions = Object.entries(filter)
-    .filter(([, value]) => value !== undefined)
-    .map(([key, value]) => eq((users as any)[key], value as any));
+export interface User {
+  id: string;
+  email: string;
+  password: string;
+  role: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
-  if (conditions.length === 0) return undefined;
-  return conditions.length === 1 ? conditions[0] : and(...conditions);
-};
+const users: User[] = [];
 
-export const usersRepo = {
-  async findOne(filter: Partial<typeof users.$inferSelect> = {}) {
-    const results = await usersRepo.findMany(filter);
-    return results[0] ?? null;
-  },
-
-  async create(data: Partial<typeof users.$inferInsert>) {
-    const [created] = await db.insert(users).values(data as any).returning();
-    return created;
-  },
-
-  async update(id: string, data: Partial<typeof users.$inferInsert>) {
-    const [updated] = await db
-      .update(users)
-      .set(data)
-      .where(eq(users.id, id))
-      .returning();
-    return updated ?? null;
-  },
-
-  async delete(id: string) {
-    const [deleted] = await db.delete(users).where(eq(users.id, id)).returning();
-    return deleted ?? null;
-  },
-
-  async findById(id: string) {
-    const [record] = await db.select().from(users).where(eq(users.id, id));
-    return record ?? null;
-  },
-
-  async findMany(filter: Partial<typeof users.$inferSelect> = {}) {
-    const where = buildWhere(filter);
-    const query = db.select().from(users);
-    if (where) {
-      query.where(where);
+function matchesFilter(row: User, filter?: any) {
+  if (!filter) return true;
+  return Object.entries(filter).every(([k, v]) => {
+    if (typeof v === "string") {
+      return row[k]?.toString().toLowerCase().includes(v.toLowerCase());
     }
-    return query;
-  },
-};
+    return row[k] === v;
+  });
+}
 
-export default usersRepo;
+export default {
+  async findMany(filter?: any): Promise<User[]> {
+    return users.filter(u => matchesFilter(u, filter));
+  },
+
+  async findById(id: string): Promise<User | null> {
+    return users.find(u => u.id === id) || null;
+  },
+
+  async findByEmail(email: string): Promise<User | null> {
+    return users.find(u => u.email === email) || null;
+  },
+
+  async create(data: any): Promise<User> {
+    const row: User = {
+      id: randomUUID(),
+      email: data.email,
+      password: data.password,
+      role: data.role || "staff",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    users.push(row);
+    return row;
+  },
+
+  async update(id: string, data: any): Promise<User | null> {
+    const row = users.find(u => u.id === id);
+    if (!row) return null;
+
+    Object.assign(row, data, { updatedAt: new Date() });
+    return row;
+  },
+
+  async delete(id: string): Promise<{ id: string } | null> {
+    const idx = users.findIndex(u => u.id === id);
+    if (idx === -1) return null;
+
+    users.splice(idx, 1);
+    return { id };
+  }
+};
