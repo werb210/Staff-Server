@@ -6,11 +6,13 @@ export interface Product {
 
 const products: Product[] = [
   { id: "loan", name: "Business Loan", category: "term-loan" },
-  { id: "loc", name: "Line of Credit", category: "loc" }
+  { id: "loc", name: "Line of Credit", category: "loc" },
 ];
 
-export default {
-  findMany: async (_filter?: any): Promise<Product[]> => {
+const productsRepo = {
+  async findMany(_filter?: any): Promise<Product[]> {
     return products;
-  }
+  },
 };
+
+export default productsRepo;
