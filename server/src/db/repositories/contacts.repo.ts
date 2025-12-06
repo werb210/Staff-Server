@@ -1,45 +1,48 @@
-// server/src/db/repositories/contacts.repo.ts
+import { db } from "../db";
+import { contacts } from "../schema/contacts";
+import { eq } from "drizzle-orm";
+import { Contact } from "../types";
 
-type ContactRecord = {
-  id: string;
-  firstName?: string;
-  lastName?: string;
-  email?: string;
-  companyId?: string;
-  [key: string]: any;
-};
+class ContactsRepo {
+  async findMany(filter?: any): Promise<Contact[]> {
+    if (filter?.name) {
+      return db
+        .select()
+        .from(contacts)
+        .where(eq(contacts.name, filter.name));
+    }
 
-let _contacts: ContactRecord[] = [];
-
-const makeId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-
-export default {
-  async findMany(_filter?: any): Promise<ContactRecord[]> {
-    // ignoring filter for now – returns all
-    return _contacts;
-  },
-
-  async findById(id: string): Promise<ContactRecord | null> {
-    return _contacts.find((c) => c.id === id) || null;
-  },
-
-  async create(data: any): Promise<ContactRecord> {
-    const record: ContactRecord = { id: makeId(), ...data };
-    _contacts.push(record);
-    return record;
-  },
-
-  async update(id: string, data: any): Promise<ContactRecord | null> {
-    const idx = _contacts.findIndex((c) => c.id === id);
-    if (idx === -1) return null;
-    _contacts[idx] = { ..._contacts[idx], ...data };
-    return _contacts[idx];
-  },
-
-  async delete(id: string): Promise<ContactRecord | null> {
-    const idx = _contacts.findIndex((c) => c.id === id);
-    if (idx === -1) return null;
-    const [removed] = _contacts.splice(idx, 1);
-    return removed;
+    return db.select().from(contacts);
   }
-};
+
+  async findById(id: string): Promise<Contact | null> {
+    const result = await db
+      .select()
+      .from(contacts)
+      .where(eq(contacts.id, id));
+
+    return result[0] ?? null;
+  }
+
+  async create(data: Partial<Contact>): Promise<Contact> {
+    const result = await db.insert(contacts).values(data).returning();
+    return result[0];
+  }
+
+  async update(id: string, data: Partial<Contact>): Promise<Contact | null> {
+    const result = await db
+      .update(contacts)
+      .set(data)
+      .where(eq(contacts.id, id))
+      .returning();
+
+    return result[0] ?? null;
+  }
+
+  async delete(id: string): Promise<boolean> {
+    await db.delete(contacts).where(eq(contacts.id, id));
+    return true;
+  }
+}
+
+export default new ContactsRepo();
