@@ -1,15 +1,21 @@
-import { tagsRepo } from "../db/repositories/tags.repo";
+import tagsRepo, { Tag } from "../db/repositories/tags.repo";
 
-export const tagService = {
-  async list() {
-    return tagsRepo.listAll();
+const tagService = {
+  async list(): Promise<Tag[]> {
+    return tagsRepo.findMany();
   },
 
-  async create(name: string) {
-    return tagsRepo.create(name);
+  async create(data: { name: string; color?: string }): Promise<Tag> {
+    return tagsRepo.create(data);
   },
 
-  async remove(id: string) {
-    return tagsRepo.remove(id);
-  }
+  async update(id: string, data: { name?: string; color?: string }): Promise<Tag | null> {
+    return tagsRepo.update(id, data);
+  },
+
+  async remove(id: string): Promise<{ id: string } | null> {
+    return tagsRepo.delete(id);
+  },
 };
+
+export default tagService;
