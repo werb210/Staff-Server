@@ -1,23 +1,41 @@
-// server/src/controllers/authController.ts
-import bcrypt from "bcryptjs";
-import { Request, Response } from "express";
-import usersRepo from "../db/repositories/users.repo.js";
-import asyncHandler from "../utils/asyncHandler.js";
-import { sanitizeUser } from "../utils/sanitizeUser.js";
-import { signToken } from "../utils/jwt.js";
+import { Request, Response, NextFunction } from "express";
+import authService from "../services/authService";
 
-export const authController = {
-  login: asyncHandler(async (req: Request, res: Response) => {
-    const { email, password } = req.body;
-    const user = await usersRepo.findMany({ email }).then((r) => r[0]);
-    if (!user) return res.status(401).json({ error: "Invalid credentials" });
+export async function register(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { email, password, role } = req.body ?? {};
+    const result = await authService.register(email, password, role);
+    res.status(201).json({ ok: true, user: result.user });
+  } catch (err: any) {
+    if (err instanceof Error && err.message === "Email already registered") {
+      res.status(400).json({ ok: false, error: err.message });
+      return;
+    }
+    next(err);
+  }
+}
 
-    const ok = await bcrypt.compare(password, user.passwordHash);
-    if (!ok) return res.status(401).json({ error: "Invalid credentials" });
+export async function login(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { email, password } = req.body ?? {};
+    const result = await authService.login(email, password);
+    res.json({ ok: true, user: result.user });
+  } catch (err: any) {
+    if (err instanceof Error && err.message === "Invalid credentials") {
+      res.status(401).json({ ok: false, error: err.message });
+      return;
+    }
+    next(err);
+  }
+}
 
-    const token = signToken({ id: user.id, role: user.role });
-    res.json({ token, user: sanitizeUser(user) });
-  }),
+export async function me(req: Request, res: Response) {
+  // Placeholder – you can wire this to actual auth middleware later
+  res.status(501).json({ ok: false, error: "Not implemented" });
+}
+
+export default {
+  register,
+  login,
+  me,
 };
-
-export default authController;
