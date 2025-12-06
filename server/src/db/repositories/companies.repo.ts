@@ -1,43 +1,48 @@
-// server/src/db/repositories/companies.repo.ts
+import { db } from "../db";
+import { companies } from "../schema/companies";
+import { eq } from "drizzle-orm";
+import { Company } from "../types";
 
-type CompanyRecord = {
-  id: string;
-  name?: string;
-  [key: string]: any;
-};
+class CompaniesRepo {
+  async findMany(filter?: any): Promise<Company[]> {
+    if (filter?.name) {
+      return db
+        .select()
+        .from(companies)
+        .where(eq(companies.name, filter.name));
+    }
 
-let _companies: CompanyRecord[] = [];
-
-// simple ID generator to avoid crypto import issues
-const makeId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-
-export default {
-  async findMany(_filter?: any): Promise<CompanyRecord[]> {
-    // ignoring filter for now – returns all
-    return _companies;
-  },
-
-  async findById(id: string): Promise<CompanyRecord | null> {
-    return _companies.find((c) => c.id === id) || null;
-  },
-
-  async create(data: any): Promise<CompanyRecord> {
-    const record: CompanyRecord = { id: makeId(), ...data };
-    _companies.push(record);
-    return record;
-  },
-
-  async update(id: string, data: any): Promise<CompanyRecord | null> {
-    const idx = _companies.findIndex((c) => c.id === id);
-    if (idx === -1) return null;
-    _companies[idx] = { ..._companies[idx], ...data };
-    return _companies[idx];
-  },
-
-  async delete(id: string): Promise<CompanyRecord | null> {
-    const idx = _companies.findIndex((c) => c.id === id);
-    if (idx === -1) return null;
-    const [removed] = _companies.splice(idx, 1);
-    return removed;
+    return db.select().from(companies);
   }
-};
+
+  async findById(id: string): Promise<Company | null> {
+    const result = await db
+      .select()
+      .from(companies)
+      .where(eq(companies.id, id));
+
+    return result[0] ?? null;
+  }
+
+  async create(data: Partial<Company>): Promise<Company> {
+    const result = await db.insert(companies).values(data).returning();
+    return result[0];
+  }
+
+  async update(id: string, data: Partial<Company>): Promise<Company | null> {
+    const result = await db
+      .update(companies)
+      .set(data)
+      .where(eq(companies.id, id))
+      .returning();
+
+    return result[0] ?? null;
+  }
+
+  async delete(id: string): Promise<boolean> {
+    await db.delete(companies).where(eq(companies.id, id));
+    return true;
+  }
+}
+
+export default new CompaniesRepo();
