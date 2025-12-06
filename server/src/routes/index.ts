@@ -1,17 +1,20 @@
 import { Router } from "express";
-import companies from "../controllers/companiesController";
-import contacts from "../controllers/contactsController";
-import products from "../controllers/productsController";
+import authController from "../controllers/authController";
 
-const r = Router();
+const router = Router();
 
-r.get("/companies", companies.list);
-r.post("/companies", companies.create);
+// Simple root + health for smoke tests
+router.get("/", (_req, res) => {
+  res.json({ ok: true, message: "Staff Server API root" });
+});
 
-r.get("/contacts", contacts.list);
-r.post("/contacts", contacts.create);
+router.get("/health", (_req, res) => {
+  res.json({ ok: true });
+});
 
-r.get("/products", products.list);
-r.post("/products", products.create);
+// Auth endpoints
+router.post("/auth/register", authController.register);
+router.post("/auth/login", authController.login);
 
-export default r;
+// Extend later with real CRM routes (contacts, companies, etc.)
+export default router;
