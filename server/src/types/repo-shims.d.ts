@@ -1,63 +1,63 @@
-// server/src/types/repo-shims.d.ts
-// Type-only shims so controllers/services stop complaining about missing methods
-// on the in-memory repositories. Runtime implementations already exist.
-
-// Companies repo
-declare module "../db/repositories/companies.repo" {
-  type CompanyRecord = {
+declare module "../src/db/repositories/companies.repo" {
+  export interface Company {
     id: string;
-    name?: string;
-    [key: string]: any;
-  };
-
-  const _default: {
-    findMany(filter?: any): Promise<CompanyRecord[]>;
-    findById(id: string): Promise<CompanyRecord | null>;
-    create(data: any): Promise<CompanyRecord>;
-    update(id: string, data: any): Promise<CompanyRecord | null>;
-    delete(id: string): Promise<CompanyRecord | null>;
-  };
-
-  export default _default;
-}
-
-// Contacts repo
-declare module "../db/repositories/contacts.repo" {
-  type ContactRecord = {
-    id: string;
-    firstName?: string;
-    lastName?: string;
+    name: string;
     email?: string;
-    companyId?: string;
-    [key: string]: any;
+    phone?: string;
+    createdAt?: string;
+    updatedAt?: string;
+  }
+
+  const companiesRepo: {
+    findMany(filter?: any): Promise<Company[]>;
+    findById(id: string): Promise<Company | null>;
+    create(data: any): Promise<Company>;
+    update(id: string, data: any): Promise<Company>;
+    delete(id: string): Promise<void>;
   };
 
-  const _default: {
-    findMany(filter?: any): Promise<ContactRecord[]>;
-    findById(id: string): Promise<ContactRecord | null>;
-    create(data: any): Promise<ContactRecord>;
-    update(id: string, data: any): Promise<ContactRecord | null>;
-    delete(id: string): Promise<ContactRecord | null>;
-  };
-
-  export default _default;
+  export default companiesRepo;
 }
 
-// Products repo
-declare module "../db/repositories/products.repo" {
-  type ProductRecord = {
+declare module "../src/db/repositories/contacts.repo" {
+  export interface Contact {
     id: string;
-    name?: string;
-    [key: string]: any;
+    firstName: string;
+    lastName: string;
+    email?: string;
+    phone?: string;
+    companyId?: string;
+    createdAt?: string;
+    updatedAt?: string;
+  }
+
+  const contactsRepo: {
+    findMany(filter?: any): Promise<Contact[]>;
+    findById(id: string): Promise<Contact | null>;
+    create(data: any): Promise<Contact>;
+    update(id: string, data: any): Promise<Contact>;
+    delete(id: string): Promise<void>;
   };
 
-  const _default: {
-    findMany(filter?: any): Promise(ProductRecord[]>;
-    findById(id: string): Promise(ProductRecord | null>;
-    create(data: any): Promise<ProductRecord>;
-    update(id: string, data: any): Promise<ProductRecord | null>;
-    delete(id: string): Promise<ProductRecord | null>;
+  export default contactsRepo;
+}
+
+declare module "../src/db/repositories/products.repo" {
+  export interface Product {
+    id: string;
+    name: string;
+    description?: string;
+    createdAt?: string;
+    updatedAt?: string;
+  }
+
+  const productsRepo: {
+    findMany(filter?: any): Promise<Product[]>;
+    findById(id: string): Promise<Product | null>;
+    create(data: any): Promise<Product>;
+    update(id: string, data: any): Promise<Product>;
+    delete(id: string): Promise<void>;
   };
 
-  export default _default;
+  export default productsRepo;
 }
