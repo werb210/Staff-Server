@@ -1,23 +1,37 @@
-import bcrypt from "bcryptjs";
-import usersRepo from "../db/repositories/users.repo.js";
-import { tokenService } from "./tokenService.js";
+import usersRepo, { User } from "../db/repositories/users.repo";
 
-export const authService = {
-  async login(email: string, password: string) {
-    const user = await usersRepo.findOne({ email });
-    if (!user) return null;
+export interface AuthResult {
+  user: User;
+}
 
-    const ok = await bcrypt.compare(password, user.passwordHash);
-    if (!ok) return null;
+const authService = {
+  async register(email: string, password: string, role: string = "staff"): Promise<AuthResult> {
+    const existing = await usersRepo.findByEmail(email);
+    if (existing) {
+      throw new Error("Email already registered");
+    }
 
-    return {
-      user,
-      token: tokenService.issue(user),
-    };
+    const user = await usersRepo.create({ email, password, role });
+    return { user };
   },
 
-  async getByEmail(email: string) {
-    return usersRepo.findOne({ email });
+  async login(email: string, password: string): Promise<AuthResult> {
+    // Find by email
+    const user = await usersRepo.findByEmail(email);
+    if (!user) {
+      throw new Error("Invalid credentials");
+    }
+
+    // NOTE: plain-text for now; replace with proper hashing later
+    if (user.password !== password) {
+      throw new Error("Invalid credentials");
+    }
+
+    return { user };
+  },
+
+  async getUserById(id: string): Promise<User | null> {
+    return usersRepo.findById(id);
   },
 };
 
