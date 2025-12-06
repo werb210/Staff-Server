@@ -1,42 +1,48 @@
-// server/src/db/repositories/products.repo.ts
+import { db } from "../db";
+import { products } from "../schema/products";
+import { eq } from "drizzle-orm";
+import { Product } from "../types";
 
-type ProductRecord = {
-  id: string;
-  name?: string;
-  [key: string]: any;
-};
+class ProductsRepo {
+  async findMany(filter?: any): Promise<Product[]> {
+    if (filter?.name) {
+      return db
+        .select()
+        .from(products)
+        .where(eq(products.name, filter.name));
+    }
 
-let _products: ProductRecord[] = [];
-
-const makeId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-
-export default {
-  async findMany(_filter?: any): Promise<ProductRecord[]> {
-    // ignoring filter for now – returns all
-    return _products;
-  },
-
-  async findById(id: string): Promise<ProductRecord | null> {
-    return _products.find((p) => p.id === id) || null;
-  },
-
-  async create(data: any): Promise<ProductRecord> {
-    const record: ProductRecord = { id: makeId(), ...data };
-    _products.push(record);
-    return record;
-  },
-
-  async update(id: string, data: any): Promise<ProductRecord | null> {
-    const idx = _products.findIndex((p) => p.id === id);
-    if (idx === -1) return null;
-    _products[idx] = { ..._products[idx], ...data };
-    return _products[idx];
-  },
-
-  async delete(id: string): Promise<ProductRecord | null> {
-    const idx = _products.findIndex((p) => p.id === id);
-    if (idx === -1) return null;
-    const [removed] = _products.splice(idx, 1);
-    return removed;
+    return db.select().from(products);
   }
-};
+
+  async findById(id: string): Promise<Product | null> {
+    const result = await db
+      .select()
+      .from(products)
+      .where(eq(products.id, id));
+
+    return result[0] ?? null;
+  }
+
+  async create(data: Partial<Product>): Promise<Product> {
+    const result = await db.insert(products).values(data).returning();
+    return result[0];
+  }
+
+  async update(id: string, data: Partial<Product>): Promise<Product | null> {
+    const result = await db
+      .update(products)
+      .set(data)
+      .where(eq(products.id, id))
+      .returning();
+
+    return result[0] ?? null;
+  }
+
+  async delete(id: string): Promise<boolean> {
+    await db.delete(products).where(eq(products.id, id));
+    return true;
+  }
+}
+
+export default new ProductsRepo();
