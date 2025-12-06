@@ -11,13 +11,28 @@
     "resolveJsonModule": true,
     "isolatedModules": false,
     "skipLibCheck": true,
-    "outDir": "./dist",
+
+    "outDir": "../dist",
     "rootDir": "./src",
+
     "types": ["node"],
     "paths": {
       "@/*": ["./src/*"]
-    }
+    },
+
+    "typeRoots": [
+      "./types",
+      "./node_modules/@types"
+    ]
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+
+  "include": [
+    "src/**/*",
+    "types/**/*"
+  ],
+
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }
