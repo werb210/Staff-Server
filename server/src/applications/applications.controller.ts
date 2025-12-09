@@ -1,0 +1,137 @@
+import { Request, Response, NextFunction } from "express";
+import { z, ZodError } from "zod";
+import { ApplicationsService, mapZodError } from "./applications.service";
+import { DrizzleApplicationsRepository } from "./applications.repository";
+import { OwnersService } from "./owners.service";
+import { TimelineService } from "./timeline.service";
+import { ApplicationsRepository } from "./types";
+
+const assignSchema = z.object({ assignedTo: z.string().uuid().nullable().optional() });
+
+export class ApplicationsController {
+  private service: ApplicationsService;
+  private owners: OwnersService;
+
+  constructor(service?: ApplicationsService, repo: ApplicationsRepository = new DrizzleApplicationsRepository()) {
+    const timeline = new TimelineService(repo);
+    this.service = service ?? new ApplicationsService(repo);
+    this.owners = new OwnersService(repo, timeline);
+  }
+
+  list = async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      const apps = await this.service.listApplications();
+      res.json(apps);
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  create = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const app = await this.service.createApplication(req.body, req.user?.id);
+      res.status(201).json(app);
+    } catch (err) {
+      if (err instanceof ZodError) {
+        return res.status(400).json(mapZodError(err));
+      }
+      next(err);
+    }
+  };
+
+  getById = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const app = await this.service.getApplicationWithDetails(req.params.id);
+      if (!app) return res.status(404).json({ error: "Application not found" });
+      res.json(app);
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  update = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const app = await this.service.updateApplication(req.params.id, req.body, req.user?.id);
+      if (!app) return res.status(404).json({ error: "Application not found" });
+      res.json(app);
+    } catch (err) {
+      if (err instanceof ZodError) {
+        return res.status(400).json(mapZodError(err));
+      }
+      next(err);
+    }
+  };
+
+  changeStatus = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const app = await this.service.changeStatus(req.params.id, req.body, req.user?.id);
+      if (!app) return res.status(404).json({ error: "Application not found" });
+      res.json(app);
+    } catch (err) {
+      if (err instanceof Error && err.message.includes("Status transition")) {
+        return res.status(400).json({ error: err.message });
+      }
+      if (err instanceof ZodError) {
+        return res.status(400).json(mapZodError(err));
+      }
+      next(err);
+    }
+  };
+
+  assign = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const parsed = assignSchema.parse(req.body);
+      const app = await this.service.assignApplication(req.params.id, parsed.assignedTo ?? null, req.user?.id);
+      if (!app) return res.status(404).json({ error: "Application not found" });
+      res.json(app);
+    } catch (err) {
+      if (err instanceof ZodError) {
+        return res.status(400).json(mapZodError(err));
+      }
+      next(err);
+    }
+  };
+
+  timeline = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const events = await this.service.getTimeline(req.params.id);
+      res.json(events);
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  addOwner = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const owner = await this.owners.addOwner(req.params.id, req.body, req.user?.id);
+      res.status(201).json(owner);
+    } catch (err) {
+      if (err instanceof ZodError) {
+        return res.status(400).json(mapZodError(err));
+      }
+      next(err);
+    }
+  };
+
+  updateOwner = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const owner = await this.owners.updateOwner(req.params.id, req.params.ownerId, req.body, req.user?.id);
+      if (!owner) return res.status(404).json({ error: "Owner not found" });
+      res.json(owner);
+    } catch (err) {
+      if (err instanceof ZodError) {
+        return res.status(400).json(mapZodError(err));
+      }
+      next(err);
+    }
+  };
+
+  deleteOwner = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await this.owners.deleteOwner(req.params.id, req.params.ownerId, req.user?.id);
+      res.status(204).end();
+    } catch (err) {
+      next(err);
+    }
+  };
+}
