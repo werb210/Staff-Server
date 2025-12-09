@@ -77,7 +77,7 @@ describe("Authentication and authorization", () => {
 
     expect(refresh.status).toBe(200);
     expect(refresh.body.tokens.accessToken).toBeDefined();
-    expect(refresh.body.tokens.refreshToken).toBeDefined();
+    expect(refresh.body.tokens.refreshToken).not.toEqual(refreshToken);
   });
 
   test("role-protected routes block unauthorized users", async () => {
