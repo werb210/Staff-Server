@@ -24,7 +24,7 @@ class ContactsRepo {
     return result[0] ?? null;
   }
 
-  async create(data: Partial<Contact>): Promise<Contact> {
+  async create(data: Omit<Contact, "id" | "createdAt">): Promise<Contact> {
     const result = await db.insert(contacts).values(data).returning();
     return result[0];
   }

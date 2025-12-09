@@ -24,7 +24,7 @@ class ProductsRepo {
     return result[0] ?? null;
   }
 
-  async create(data: Partial<Product>): Promise<Product> {
+  async create(data: Omit<Product, "id" | "createdAt">): Promise<Product> {
     const result = await db.insert(products).values(data).returning();
     return result[0];
   }

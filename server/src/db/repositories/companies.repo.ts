@@ -24,7 +24,7 @@ class CompaniesRepo {
     return result[0] ?? null;
   }
 
-  async create(data: Partial<Company>): Promise<Company> {
+  async create(data: Omit<Company, "id" | "createdAt">): Promise<Company> {
     const result = await db.insert(companies).values(data).returning();
     return result[0];
   }
