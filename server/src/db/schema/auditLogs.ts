@@ -1,15 +1,14 @@
-import { jsonb, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { users } from "./users";
 
-export const auditActionEnum = pgEnum("audit_action", ["create", "update", "delete", "login", "logout"]);
+export const auditEventEnum = pgEnum("audit_event_type", ["login_success", "login_failure"]);
 
 export const auditLogs = pgTable("audit_logs", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
-  action: auditActionEnum("action").notNull(),
-  entityType: text("entity_type").notNull(),
-  entityId: text("entity_id").notNull(),
-  description: text("description"),
-  metadata: jsonb("metadata"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  emailAttempt: text("email_attempt").notNull(),
+  eventType: auditEventEnum("event_type").notNull(),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  timestamp: timestamp("timestamp", { withTimezone: true }).defaultNow().notNull(),
 });
