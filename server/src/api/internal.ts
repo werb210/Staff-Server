@@ -1,11 +1,14 @@
 import { Router } from "express";
 import { pgPool } from "../db/client";
+import { requireAuth } from "../middleware/requireAuth";
 
 const router = Router();
 
 router.get("/health", (_req, res) => {
   res.json({ ok: true });
 });
+
+router.use(requireAuth);
 
 router.get("/db", async (_req, res) => {
   try {

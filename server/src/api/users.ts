@@ -1,13 +1,15 @@
 import { Router } from "express";
+import { eq } from "drizzle-orm";
 import { db } from "../db/client";
 import { users } from "../db/schema";
-import { authenticate } from "../middleware/authMiddleware";
-import { eq } from "drizzle-orm";
-import bcrypt from "bcryptjs";
+import { requireAuth } from "../middleware/requireAuth";
+import { requireRole } from "../middleware/requireRole";
+import { passwordService } from "../services/password.service";
 
 const router = Router();
 
-router.use(authenticate);
+router.use(requireAuth);
+router.use(requireRole("Admin"));
 
 router.get("/", async (_req, res, next) => {
   try {
@@ -34,7 +36,7 @@ router.post("/", async (req, res, next) => {
     if (!email || !password || !firstName || !lastName) {
       return res.status(400).json({ error: "Missing required fields" });
     }
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await passwordService.hashPassword(password);
     const [created] = await db
       .insert(users)
       .values({ email, passwordHash, firstName, lastName, role })

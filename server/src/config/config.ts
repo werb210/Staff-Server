@@ -12,6 +12,9 @@ const envSchema = z
     AZURE_BLOB_KEY: z.string().min(1, "AZURE_BLOB_KEY is required"),
     AZURE_BLOB_CONTAINER: z.string().min(1, "AZURE_BLOB_CONTAINER is required"),
     JWT_SECRET: z.string().min(10, "JWT_SECRET must be at least 10 characters"),
+    ACCESS_TOKEN_SECRET: z.string().min(10, "ACCESS_TOKEN_SECRET must be at least 10 characters").optional(),
+    REFRESH_TOKEN_SECRET: z.string().min(10, "REFRESH_TOKEN_SECRET must be at least 10 characters").optional(),
+    TOKEN_TRANSPORT: z.enum(["cookie", "body", "both"]).default("cookie"),
   })
   .transform((values) => ({
     ...values,
@@ -31,3 +34,11 @@ if (!parsed.success) {
 }
 
 export const config = parsed.data;
+
+export const authConfig = {
+  ACCESS_TOKEN_SECRET: parsed.data.ACCESS_TOKEN_SECRET ?? parsed.data.JWT_SECRET,
+  REFRESH_TOKEN_SECRET: parsed.data.REFRESH_TOKEN_SECRET ?? parsed.data.JWT_SECRET,
+  ACCESS_TOKEN_EXPIRES_IN: "15m",
+  REFRESH_TOKEN_EXPIRES_IN: "14d",
+  TOKEN_TRANSPORT: parsed.data.TOKEN_TRANSPORT,
+};
