@@ -1,33 +1,40 @@
-import { BlobServiceClient, StorageSharedKeyCredential, generateBlobSASQueryParameters, BlobSASPermissions } from "@azure/storage-blob";
-import { randomUUID, createHash } from "crypto";
-import { config } from "../config/config";
+import { createHash } from "crypto";
+import { Readable } from "stream";
+import {
+  buildDocumentBlobKey,
+  createContainerClient,
+  createBlobClient,
+  generateReadSas,
+  generateUploadSas,
+  headBlob,
+} from "./azureBlob";
 
-const credential = new StorageSharedKeyCredential(config.AZURE_BLOB_ACCOUNT, config.AZURE_BLOB_KEY);
-const serviceClient = new BlobServiceClient(
-  `https://${config.AZURE_BLOB_ACCOUNT}.blob.core.windows.net`,
-  credential,
-);
+export { buildDocumentBlobKey, generateUploadSas, generateReadSas, headBlob };
 
-function getContainerClient(container = config.AZURE_BLOB_CONTAINER) {
-  return serviceClient.getContainerClient(container);
-}
-
-export async function uploadBuffer(path: string, buffer: Buffer, contentType?: string) {
-  const container = getContainerClient();
-  await container.createIfNotExists();
-  const blobClient = container.getBlockBlobClient(path);
+export async function uploadBuffer(blobKey: string, buffer: Buffer, contentType?: string) {
+  const containerClient = createContainerClient();
+  await containerClient.createIfNotExists();
+  const client = containerClient.getBlockBlobClient(blobKey);
   const checksum = createHash("sha256").update(buffer).digest("hex");
-  await blobClient.uploadData(buffer, {
+  await client.uploadData(buffer, {
     blobHTTPHeaders: contentType ? { blobContentType: contentType } : undefined,
     metadata: { checksum },
   });
-  return { path, url: blobClient.url, checksum };
+  return { blobKey, url: client.url, checksum };
 }
 
-export async function getFile(path: string) {
-  const container = getContainerClient();
-  const blobClient = container.getBlobClient(path);
-  const download = await blobClient.download();
+export async function uploadStream(blobKey: string, stream: Readable, contentType?: string) {
+  const containerClient = createContainerClient();
+  await containerClient.createIfNotExists();
+  const client = containerClient.getBlockBlobClient(blobKey);
+  return client.uploadStream(stream, undefined, undefined, {
+    blobHTTPHeaders: contentType ? { blobContentType: contentType } : undefined,
+  });
+}
+
+export async function getFile(blobKey: string) {
+  const client = createBlobClient(blobKey);
+  const download = await client.download();
   const chunks: Buffer[] = [];
   for await (const chunk of download.readableStreamBody || []) {
     chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
@@ -35,30 +42,17 @@ export async function getFile(path: string) {
   return Buffer.concat(chunks);
 }
 
-export async function softDeleteFile(path: string) {
-  const container = getContainerClient();
-  const blobClient = container.getBlobClient(path);
-  const metadata = { ...(await blobClient.getProperties().then((p) => p.metadata).catch(() => ({} as Record<string, string | undefined>))), deleted: "true", deletedAt: new Date().toISOString() };
-  await blobClient.setMetadata(metadata);
-  return { path, metadata };
+export async function softDeleteFile(blobKey: string) {
+  const client = createBlobClient(blobKey);
+  const metadata = {
+    ...(await client.getProperties().then((p) => p.metadata).catch(() => ({} as Record<string, string | undefined>))),
+    deleted: "true",
+    deletedAt: new Date().toISOString(),
+  };
+  await client.setMetadata(metadata);
+  return { blobKey, metadata };
 }
 
-export function generatePresignedUrl(path: string, expiresInMinutes = 15) {
-  const expiry = new Date();
-  expiry.setMinutes(expiry.getMinutes() + expiresInMinutes);
-  const sasToken = generateBlobSASQueryParameters(
-    {
-      containerName: config.AZURE_BLOB_CONTAINER,
-      blobName: path,
-      expiresOn: expiry,
-      permissions: BlobSASPermissions.parse("r"),
-    },
-    credential,
-  ).toString();
-  return `${serviceClient.url}/${config.AZURE_BLOB_CONTAINER}/${path}?${sasToken}`;
-}
-
-export function buildBlobPath(fileName: string) {
-  const id = randomUUID();
-  return `uploads/${id}/${fileName}`;
+export function generatePresignedUrl(blobKey: string, expiresInMinutes?: number) {
+  return generateReadSas(blobKey, expiresInMinutes);
 }
