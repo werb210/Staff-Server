@@ -1,17 +1,16 @@
-// server/src/db/schema/ocr.ts
-import { pgTable, uuid, jsonb, timestamp, text } from 'drizzle-orm/pg-core';
+import { jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { ocrStatusEnum } from "./enums.js";
+import { documentVersions } from "./documentVersions.js";
 
-export const ocrResults = pgTable('ocr_results', {
-  id: uuid('id').primaryKey().defaultRandom(),
-
-  applicationId: uuid('application_id'),
-  documentId: uuid('document_id').notNull(),
-
-  // Full structured OCR output
-  fields: jsonb('fields').notNull(),
-
-  // "balance_sheet", "bank_statement", "tax_return", etc.
-  docType: text('doc_type'),
-
-  createdAt: timestamp('created_at').defaultNow(),
+export const ocrResults = pgTable("ocr_results", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  documentVersionId: uuid("document_version_id")
+    .references(() => documentVersions.id, { onDelete: "cascade" })
+    .notNull(),
+  status: ocrStatusEnum("status").notNull().default("pending"),
+  rawText: text("raw_text"),
+  extractedData: jsonb("extracted_data"),
+  error: text("error"),
+  processedAt: timestamp("processed_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
