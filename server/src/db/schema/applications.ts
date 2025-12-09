@@ -1,37 +1,43 @@
-import { index, integer, jsonb, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
-import { companies } from "./companies";
-import { contacts } from "./contacts";
-import { deals } from "./deals";
-import { lenderProducts } from "./lenderProducts";
+import { index, jsonb, pgEnum, pgTable, timestamp, uuid } from "drizzle-orm/pg-core";
+import { users } from "./users";
 
 export const applicationStatusEnum = pgEnum("application_status", [
-  "draft",
-  "submitted",
-  "in_review",
-  "approved",
-  "rejected",
+  "new",
+  "requires_docs",
+  "startup_pipeline",
+  "review",
+  "lender_selection",
+  "accepted",
+  "declined",
+]);
+
+export const productCategoryEnum = pgEnum("product_category", [
+  "working_capital",
+  "term_loan",
+  "line_of_credit",
+  "invoice_factoring",
+  "equipment_financing",
+  "purchase_order",
+  "startup",
 ]);
 
 export const applications = pgTable(
   "applications",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    companyId: uuid("company_id").references(() => companies.id, { onDelete: "cascade" }).notNull(),
-    contactId: uuid("contact_id").references(() => contacts.id, { onDelete: "set null" }),
-    dealId: uuid("deal_id").references(() => deals.id, { onDelete: "set null" }),
-    lenderProductId: uuid("lender_product_id").references(() => lenderProducts.id, { onDelete: "set null" }),
-    status: applicationStatusEnum("status").default("draft").notNull(),
-    currentStep: integer("current_step").default(1).notNull(),
-    kycAnswers: jsonb("kyc_answers").default({}).notNull(),
-    productSelections: jsonb("product_selections").default({}).notNull(),
-    applicantProfile: jsonb("applicant_profile").default({}).notNull(),
-    businessProfile: jsonb("business_profile").default({}).notNull(),
-    requestedAmount: integer("requested_amount"),
+    status: applicationStatusEnum("status").default("new").notNull(),
+    productCategory: productCategoryEnum("product_category").notNull(),
+    kycData: jsonb("kyc_data").default({}).notNull(),
+    businessData: jsonb("business_data").default({}).notNull(),
+    applicantData: jsonb("applicant_data").default({}).notNull(),
+    productSelection: jsonb("product_selection").default({}).notNull(),
+    signatureData: jsonb("signature_data").default({}).notNull(),
+    assignedTo: uuid("assigned_to").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => ({
-    companyIdx: index("applications_company_idx").on(table.companyId),
     statusIdx: index("applications_status_idx").on(table.status),
+    categoryIdx: index("applications_category_idx").on(table.productCategory),
   }),
 );

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import authRouter from "./auth";
 import usersRouter from "./users";
-import applicationsRouter from "./applications";
+import applicationsRouter from "../applications/applications.routes";
 import documentsRouter from "./documents";
 import lendersRouter from "./lenders";
 import productsRouter from "./products";
