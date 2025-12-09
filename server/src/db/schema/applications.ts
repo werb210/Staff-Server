@@ -1,26 +1,37 @@
-import { numeric, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
-import {
-  applicationStageEnum,
-  applicationStatusEnum,
-  productTypeEnum,
-} from "./enums.js";
-import { users } from "./users.js";
-import { lenderProducts } from "./products.js";
+import { index, integer, jsonb, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { companies } from "./companies";
+import { contacts } from "./contacts";
+import { deals } from "./deals";
+import { lenderProducts } from "./lenderProducts";
 
-export const applications = pgTable("applications", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  referenceCode: text("reference_code").notNull().unique(),
-  applicantUserId: uuid("applicant_user_id").references(() => users.id, { onDelete: "set null" }),
-  assignedToUserId: uuid("assigned_to_user_id").references(() => users.id, { onDelete: "set null" }),
-  lenderProductId: uuid("lender_product_id").references(() => lenderProducts.id, { onDelete: "set null" }),
-  status: applicationStatusEnum("status").notNull().default("draft"),
-  stage: applicationStageEnum("stage").notNull().default("intake"),
-  requestedAmount: numeric("requested_amount", { precision: 14, scale: 2 }),
-  desiredProductType: productTypeEnum("desired_product_type"),
-  currentStep: text("current_step"),
-  source: text("source"),
-  submittedAt: timestamp("submitted_at"),
-  decisionAt: timestamp("decision_at"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+export const applicationStatusEnum = pgEnum("application_status", [
+  "draft",
+  "submitted",
+  "in_review",
+  "approved",
+  "rejected",
+]);
+
+export const applications = pgTable(
+  "applications",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    companyId: uuid("company_id").references(() => companies.id, { onDelete: "cascade" }).notNull(),
+    contactId: uuid("contact_id").references(() => contacts.id, { onDelete: "set null" }),
+    dealId: uuid("deal_id").references(() => deals.id, { onDelete: "set null" }),
+    lenderProductId: uuid("lender_product_id").references(() => lenderProducts.id, { onDelete: "set null" }),
+    status: applicationStatusEnum("status").default("draft").notNull(),
+    currentStep: integer("current_step").default(1).notNull(),
+    kycAnswers: jsonb("kyc_answers").default({}).notNull(),
+    productSelections: jsonb("product_selections").default({}).notNull(),
+    applicantProfile: jsonb("applicant_profile").default({}).notNull(),
+    businessProfile: jsonb("business_profile").default({}).notNull(),
+    requestedAmount: integer("requested_amount"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    companyIdx: index("applications_company_idx").on(table.companyId),
+    statusIdx: index("applications_status_idx").on(table.status),
+  }),
+);

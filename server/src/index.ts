@@ -1,8 +1,7 @@
 import app from "./app";
-import { config } from "dotenv";
-config();
+import { config } from "./config/config";
 
-const PORT = process.env.PORT || 5000;
+const PORT = config.PORT;
 
 app.listen(PORT, () => {
   console.log(`Staff-Server running on port ${PORT}`);
