@@ -1,5 +1,8 @@
 import { Request, Response, NextFunction } from "express";
 import { z, ZodError } from "zod";
+import { eq } from "drizzle-orm";
+import { db } from "../db/client";
+import { applications as applicationsTable, lenderRequiredDocuments, requiredDocMap } from "../db/schema";
 import { ApplicationsService, mapZodError } from "./applications.service";
 import { DrizzleApplicationsRepository } from "./applications.repository";
 import { OwnersService } from "./owners.service";
@@ -130,6 +133,43 @@ export class ApplicationsController {
     try {
       await this.owners.deleteOwner(req.params.id, req.params.ownerId, req.user?.id);
       res.status(204).end();
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  requiredDocs = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const [application] = await db
+        .select()
+        .from(applicationsTable)
+        .where(eq(applicationsTable.id, req.params.id))
+        .limit(1);
+
+      if (!application) return res.status(404).json({ error: "Application not found" });
+
+      const lenderProductId =
+        (req.query.lenderProductId as string | undefined) || (application.productSelection as any)?.lenderProductId;
+
+      if (!lenderProductId) {
+        return res.json({ applicationId: req.params.id, requiredDocuments: [] });
+      }
+
+      const requiredDocuments = await db
+        .select({
+          mappingId: requiredDocMap.id,
+          requiredDocumentId: lenderRequiredDocuments.id,
+          title: lenderRequiredDocuments.title,
+          description: lenderRequiredDocuments.description,
+          category: lenderRequiredDocuments.category,
+          isMandatory: lenderRequiredDocuments.isMandatory,
+          isRequired: requiredDocMap.isRequired,
+        })
+        .from(requiredDocMap)
+        .innerJoin(lenderRequiredDocuments, eq(requiredDocMap.requiredDocumentId, lenderRequiredDocuments.id))
+        .where(eq(requiredDocMap.lenderProductId, lenderProductId));
+
+      res.json({ applicationId: req.params.id, requiredDocuments });
     } catch (err) {
       next(err);
     }
