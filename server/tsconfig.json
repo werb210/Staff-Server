@@ -1,38 +1,21 @@
 {
+  "$schema": "https://json.schemastore.org/tsconfig",
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "CommonJS",
-    "moduleResolution": "node",
-    "lib": ["ES2022", "DOM"],
-    "allowJs": false,
+    "target": "ES2020",
+    "module": "commonjs",
+    "lib": ["ES2020"],
+    "outDir": "./dist",
+    "rootDir": "./src",
     "strict": true,
     "esModuleInterop": true,
+    "skipLibCheck": false,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "isolatedModules": false,
-    "skipLibCheck": true,
-
-    "outDir": "../dist",
-    "rootDir": "./src",
-
-    "types": ["node", "jest"],
-    "paths": {
-      "@/*": ["./src/*"]
-    },
-
+    "moduleResolution": "node",
     "typeRoots": [
       "./types",
       "./node_modules/@types"
     ]
   },
-
-  "include": [
-    "src/**/*",
-    "types/**/*"
-  ],
-
-  "exclude": [
-    "node_modules",
-    "dist"
-  ]
+  "include": ["src/**/*.ts", "types/**/*.d.ts"]
 }
