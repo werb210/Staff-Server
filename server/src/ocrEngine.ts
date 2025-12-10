@@ -3,6 +3,7 @@ import { applicationTimelineEvents, ocrResults } from "./db/schema";
 
 export interface OcrRequest {
   applicationId: string;
+  documentId: string;
   documentVersionId: string;
   blobKey: string;
   userId?: string;
@@ -16,6 +17,7 @@ export class OCREngine {
       .insert(ocrResults)
       .values({
         applicationId: request.applicationId,
+        documentId: request.documentId,
         documentVersionId: request.documentVersionId,
         blobKey: request.blobKey,
         extractedText: { content: "Stub OCR result" },
