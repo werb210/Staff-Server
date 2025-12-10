@@ -6,12 +6,12 @@ export const lenderDynamicQuestions = pgTable("lender_dynamic_questions", {
   lenderProductId: uuid("lender_product_id")
     .references(() => lenderProducts.id, { onDelete: "cascade" })
     .notNull(),
-  appliesTo: text("applies_to").notNull(),
-  prompt: text("prompt").notNull(),
-  fieldType: text("field_type").notNull(),
+  questionId: uuid("question_id"),
+  label: text("label").notNull(),
+  type: text("type").notNull(),
   options: jsonb("options").default([]).notNull(),
-  displayOrder: integer("display_order").default(0).notNull(),
-  isRequired: boolean("is_required").default(true).notNull(),
+  required: boolean("required").default(true).notNull(),
+  orderIndex: integer("order_index").default(0).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });

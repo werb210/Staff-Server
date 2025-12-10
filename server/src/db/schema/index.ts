@@ -17,3 +17,4 @@ export * from "./aiTrainingChunks";
 export * from "./lenderDynamicQuestions";
 export * from "./ocrResults";
 export * from "./bankingAnalysis";
+export * from "./lenderProductVersions";
