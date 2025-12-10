@@ -40,6 +40,8 @@ const requiredDocSchema = z.object({
   description: z.string().optional(),
   category: z.string().default("general"),
   isMandatory: z.boolean().default(true),
+  validationRules: z.record(z.any()).default({}),
+  displayOrder: z.number().int().nonnegative().default(0),
 });
 
 router.get("/required-documents", async (req, res, next) => {

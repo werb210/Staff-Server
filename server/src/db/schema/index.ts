@@ -12,3 +12,8 @@ export * from "./auditLogs";
 export * from "./applicantOwners";
 export * from "./applicationStatusHistory";
 export * from "./applicationTimelineEvents";
+export * from "./creditSummaries";
+export * from "./aiTrainingChunks";
+export * from "./lenderDynamicQuestions";
+export * from "./ocrResults";
+export * from "./bankingAnalysis";

@@ -8,17 +8,20 @@ import { DrizzleApplicationsRepository } from "./applications.repository";
 import { OwnersService } from "./owners.service";
 import { TimelineService } from "./timeline.service";
 import { ApplicationsRepository } from "./types";
+import { CreditSummaryEngine } from "../ai/creditSummaryEngine";
 
 const assignSchema = z.object({ assignedTo: z.string().uuid().nullable().optional() });
 
 export class ApplicationsController {
   private service: ApplicationsService;
   private owners: OwnersService;
+  private creditSummaryEngine: CreditSummaryEngine;
 
   constructor(service?: ApplicationsService, repo: ApplicationsRepository = new DrizzleApplicationsRepository()) {
     const timeline = new TimelineService(repo);
     this.service = service ?? new ApplicationsService(repo);
     this.owners = new OwnersService(repo, timeline);
+    this.creditSummaryEngine = new CreditSummaryEngine();
   }
 
   list = async (_req: Request, res: Response, next: NextFunction) => {
@@ -170,6 +173,19 @@ export class ApplicationsController {
         .where(eq(requiredDocMap.lenderProductId, lenderProductId));
 
       res.json({ applicationId: req.params.id, requiredDocuments });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  regenerateCreditSummary = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await this.creditSummaryEngine.generate({
+        applicationId: req.params.id,
+        userId: req.user?.id,
+        context: req.body.context ?? {},
+      });
+      res.status(201).json(result);
     } catch (err) {
       next(err);
     }

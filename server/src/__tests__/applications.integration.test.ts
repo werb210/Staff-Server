@@ -29,6 +29,7 @@ class InMemoryApplicationsRepository implements ApplicationsRepository {
       applicantData: data.applicantData ?? {},
       productSelection: data.productSelection ?? {},
       signatureData: data.signatureData ?? {},
+      creditSummaryVersion: (data as any).creditSummaryVersion ?? 0,
       assignedTo: data.assignedTo ?? null,
       createdAt: data.createdAt ?? new Date(),
       updatedAt: data.updatedAt ?? new Date(),

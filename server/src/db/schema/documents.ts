@@ -77,6 +77,8 @@ export const lenderRequiredDocuments = pgTable(
     description: text("description"),
     category: text("category").default("general").notNull(),
     isMandatory: boolean("is_mandatory").default(true).notNull(),
+    validationRules: jsonb("validation_rules").default({}).notNull(),
+    displayOrder: integer("display_order").default(0).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
