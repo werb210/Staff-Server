@@ -5,7 +5,11 @@
     "skipLibCheck": true,
     "strict": false,
     "noImplicitAny": false,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "typeRoots": [
+      "./types",
+      "./node_modules/@types"
+    ]
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*.ts", "types/**/*.d.ts"]
 }
