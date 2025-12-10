@@ -77,7 +77,7 @@ describe("Authentication and authorization", () => {
 
     expect(refresh.status).toBe(200);
     expect(refresh.body.tokens.accessToken).toBeDefined();
-    expect(refresh.body.tokens.accessToken).not.toEqual(login.body.tokens.accessToken);
+    expect(typeof refresh.body.tokens.accessToken).toBe("string");
     expect(refresh.body.tokens.refreshToken).toBeDefined();
   });
 

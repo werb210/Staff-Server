@@ -1,4 +1,4 @@
-import { index, jsonb, pgEnum, pgTable, timestamp, uuid } from "drizzle-orm/pg-core";
+import { index, integer, jsonb, pgEnum, pgTable, timestamp, uuid } from "drizzle-orm/pg-core";
 import { users } from "./users";
 
 export const applicationStatusEnum = pgEnum("application_status", [
@@ -32,6 +32,7 @@ export const applications = pgTable(
     applicantData: jsonb("applicant_data").default({}).notNull(),
     productSelection: jsonb("product_selection").default({}).notNull(),
     signatureData: jsonb("signature_data").default({}).notNull(),
+    creditSummaryVersion: integer("credit_summary_version").default(0).notNull(),
     assignedTo: uuid("assigned_to").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),

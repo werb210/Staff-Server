@@ -9,6 +9,8 @@ import ocrRouter from "./ocr";
 import analysisRouter from "./analysis";
 import pipelineRouter from "./pipeline";
 import internalRouter from "./internal";
+import aiRouter from "./ai";
+import bankingRouter from "./banking";
 import { requireAuth } from "../middleware/requireAuth";
 import { requireRole } from "../middleware/requireRole";
 
@@ -16,6 +18,8 @@ const router = Router();
 
 router.use("/auth", authRouter);
 router.use("/_int", internalRouter);
+router.use("/_ai", aiRouter);
+router.use("/_banking", bankingRouter);
 router.use(requireAuth);
 router.use("/users", usersRouter);
 router.use("/applications", applicationsRouter);

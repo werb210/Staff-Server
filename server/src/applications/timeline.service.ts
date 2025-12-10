@@ -9,7 +9,15 @@ type TimelineEventType =
   | "owner_removed"
   | "status_changed"
   | "application_assigned"
-  | "signature_submitted";
+  | "signature_submitted"
+  | "OCR_REQUESTED"
+  | "OCR_COMPLETED"
+  | "BANKING_ANALYSIS_REQUESTED"
+  | "BANKING_ANALYSIS_COMPLETED"
+  | "CREDIT_SUMMARY_REQUESTED"
+  | "CREDIT_SUMMARY_COMPLETED"
+  | "REQUIRED_DOCS_UPDATED"
+  | "AI_EVENT_LOGGED";
 
 export class TimelineService {
   constructor(private repo: ApplicationsRepository) {}

@@ -1,0 +1,1 @@
+Produce a concise credit summary for {{businessName}}.
