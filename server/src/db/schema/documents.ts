@@ -73,7 +73,9 @@ export const lenderRequiredDocuments = pgTable(
     lenderProductId: uuid("lender_product_id")
       .references(() => lenderProducts.id, { onDelete: "cascade" })
       .notNull(),
-    title: text("title").notNull(),
+    docCategory: text("doc_category").notNull(),
+    required: boolean("required").default(true).notNull(),
+    title: text("title").default("Document").notNull(),
     description: text("description"),
     category: text("category").default("general").notNull(),
     isMandatory: boolean("is_mandatory").default(true).notNull(),

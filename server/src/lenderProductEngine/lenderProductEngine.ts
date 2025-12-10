@@ -19,9 +19,8 @@ export interface ProductEngineInput {
 
 export interface ProductEngineOutput {
   recommendedCategories: string[];
-  requiredQuestionsBusiness: Array<{ prompt: string; fieldType: string; isRequired: boolean }>;
-  requiredQuestionsApplicant: Array<{ prompt: string; fieldType: string; isRequired: boolean }>;
-  requiredDocuments: Array<{ title: string; description: string | null; category: string; isMandatory: boolean }>;
+  dynamicQuestions: Array<{ label: string; type: string; required: boolean; options: any[]; lenderProductId: string }>;
+  requiredDocuments: Array<{ docCategory: string; required: boolean; lenderProductId: string }>;
   matchedProducts: Array<typeof lenderProducts.$inferSelect>;
 }
 
@@ -33,7 +32,10 @@ interface ProductDataProvider {
 
 class DrizzleProductDataProvider implements ProductDataProvider {
   async fetchProducts() {
-    return db.select().from(lenderProducts).where(eq(lenderProducts.isActive, true));
+    return db
+      .select()
+      .from(lenderProducts)
+      .where(eq(lenderProducts.active, true));
   }
 
   async fetchRequiredDocuments(productIds: string[]) {
@@ -79,8 +81,7 @@ export class LenderProductEngine {
 
     return {
       recommendedCategories: this.recommendCategories(matchedProducts, input),
-      requiredQuestionsBusiness: this.filterQuestions(questions, "business"),
-      requiredQuestionsApplicant: this.filterQuestions(questions, "applicant"),
+      dynamicQuestions: this.mergeQuestions(questions),
       requiredDocuments: this.mergeDocuments(docs),
       matchedProducts,
     };
@@ -97,35 +98,39 @@ export class LenderProductEngine {
 
   private recommendCategories(products: Array<typeof lenderProducts.$inferSelect>, input: ProductEngineInput) {
     if (input.chosenCategory) return [input.chosenCategory];
-    const categories = new Set(products.map((p) => p.productType));
+    const categories = new Set(products.map((p) => p.productCategory ?? p.productType));
     return Array.from(categories);
   }
 
-  private filterQuestions(records: Array<typeof lenderDynamicQuestions.$inferSelect>, scope: string) {
-    const filtered = records.filter((q) => q.appliesTo === scope);
-    filtered.sort((a, b) => a.displayOrder - b.displayOrder);
-    const seen = new Set<string>();
-    return filtered
-      .filter((q) => {
-        if (seen.has(q.prompt)) return false;
-        seen.add(q.prompt);
-        return true;
-      })
-      .map((q) => ({ prompt: q.prompt, fieldType: q.fieldType, isRequired: q.isRequired }));
+  private mergeQuestions(records: Array<typeof lenderDynamicQuestions.$inferSelect>) {
+    const map = new Map<string, typeof lenderDynamicQuestions.$inferSelect>();
+    records
+      .sort((a, b) => a.orderIndex - b.orderIndex)
+      .forEach((q) => {
+        if (!map.has(q.label)) {
+          map.set(q.label, q);
+        }
+      });
+    return Array.from(map.values()).map((q) => ({
+      label: q.label,
+      type: q.type,
+      required: q.required,
+      options: Array.isArray(q.options) ? q.options : [],
+      lenderProductId: q.lenderProductId,
+    }));
   }
 
   private mergeDocuments(records: Array<typeof lenderRequiredDocuments.$inferSelect & { isRequired?: boolean }>) {
     const map = new Map<string, typeof lenderRequiredDocuments.$inferSelect & { isRequired?: boolean }>();
     records.forEach((doc) => {
-      if (!map.has(doc.title)) {
-        map.set(doc.title, doc);
+      if (!map.has(doc.docCategory)) {
+        map.set(doc.docCategory, doc);
       }
     });
     return Array.from(map.values()).map((doc) => ({
-      title: doc.title,
-      description: doc.description ?? null,
-      category: doc.category,
-      isMandatory: doc.isMandatory && (doc.isRequired ?? true),
+      docCategory: doc.docCategory,
+      required: doc.required && (doc.isRequired ?? true),
+      lenderProductId: doc.lenderProductId,
     }));
   }
 }
