@@ -36,6 +36,7 @@ router.post("/products", async (req, res, next) => {
 
 const requiredDocSchema = z.object({
   lenderProductId: z.string().uuid(),
+  docCategory: z.string().default("general"),
   title: z.string().min(1),
   description: z.string().optional(),
   category: z.string().default("general"),

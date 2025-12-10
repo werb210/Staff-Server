@@ -9,6 +9,8 @@ import { OwnersService } from "./owners.service";
 import { TimelineService } from "./timeline.service";
 import { ApplicationsRepository } from "./types";
 import { CreditSummaryEngine } from "../ai/creditSummaryEngine";
+import { OcrService } from "../ocr/ocr.service";
+import { BankingService } from "../banking/banking.service";
 
 const assignSchema = z.object({ assignedTo: z.string().uuid().nullable().optional() });
 
@@ -16,12 +18,16 @@ export class ApplicationsController {
   private service: ApplicationsService;
   private owners: OwnersService;
   private creditSummaryEngine: CreditSummaryEngine;
+  private ocrService: OcrService;
+  private bankingService: BankingService;
 
   constructor(service?: ApplicationsService, repo: ApplicationsRepository = new DrizzleApplicationsRepository()) {
     const timeline = new TimelineService(repo);
     this.service = service ?? new ApplicationsService(repo);
     this.owners = new OwnersService(repo, timeline);
     this.creditSummaryEngine = new CreditSummaryEngine();
+    this.ocrService = new OcrService();
+    this.bankingService = new BankingService();
   }
 
   list = async (_req: Request, res: Response, next: NextFunction) => {
@@ -173,6 +179,49 @@ export class ApplicationsController {
         .where(eq(requiredDocMap.lenderProductId, lenderProductId));
 
       res.json({ applicationId: req.params.id, requiredDocuments });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  context = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const applicationId = req.params.id;
+      const ocrResults = await this.ocrService.listByApplication(applicationId);
+      const banking = await this.bankingService.listByApplication(applicationId);
+
+      const ocrSummaries = ocrResults.map((r) => ({
+        documentId: (r as any).documentId,
+        categoriesDetected: r.categoriesDetected,
+        extractedJson: r.extractedJson,
+      }));
+
+      const extractedEntitiesGlobal = ocrResults.flatMap((r) => Object.values(r.extractedJson.globalFields || {})).filter(Boolean);
+      const conflictingValues = ocrResults.flatMap((r) => r.conflictingFields || []);
+      const ocrDocumentMap = ocrResults.reduce<Record<string, any>>((acc, r) => {
+        acc[(r as any).documentId] = r.categoriesDetected;
+        return acc;
+      }, {});
+
+      const bankingMonthlyBreakdown = banking.flatMap((b) => Object.keys(b.monthlyJson || {}).map((month) => ({ month, transactions: b.monthlyJson[month] })));
+      const financialSignals = banking[0]
+        ? {
+            revenueTrend: banking[0].metricsJson.monthToMonthRevenueTrend,
+            nsfCount: banking[0].metricsJson.nsfCount,
+            volatilityIndex: banking[0].metricsJson.volatilityIndex,
+          }
+        : undefined;
+
+      res.json({
+        applicationId,
+        ocrSummaries,
+        bankingSummaries: banking,
+        extractedEntitiesGlobal,
+        conflictingValues,
+        ocrDocumentMap,
+        bankingMonthlyBreakdown,
+        financialSignals,
+      });
     } catch (err) {
       next(err);
     }

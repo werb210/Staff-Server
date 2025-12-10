@@ -11,10 +11,15 @@ import {
 import { authenticate } from "../middleware/authMiddleware";
 import { buildDocumentBlobKey, generateReadSas, generateUploadSas, headBlob } from "../services/blobService";
 import { DocumentCompleteSchema, DocumentCreateSchema, DocumentValidateSchema } from "../documents/documents.validators";
+import { OcrService } from "../ocr/ocr.service";
+import { BankingService } from "../banking/banking.service";
 
 const router = Router();
 
 router.use(authenticate);
+
+const ocrService = new OcrService();
+const bankingService = new BankingService();
 
 async function logIntegrityEvent(documentId: string, eventType: string, metadata: Record<string, unknown> = {}) {
   await db.insert(documentIntegrityEvents).values({ documentId, eventType, metadata });
@@ -125,19 +130,45 @@ router.post("/complete", async (req, res, next) => {
       .set({ isCurrent: false })
       .where(eq(documentVersions.documentId, parsed.documentId));
 
-    await db.insert(documentVersions).values({
-      documentId: parsed.documentId,
-      versionNumber: document.version,
-      blobKey: parsed.blobKey,
-      checksumSha256: parsed.checksumSha256,
-      sizeBytes: parsed.sizeBytes,
-      azureMetadata: metadata,
-      uploadedByUserId: req.user?.id,
-      isCurrent: true,
-    });
+    const [version] = await db
+      .insert(documentVersions)
+      .values({
+        documentId: parsed.documentId,
+        versionNumber: document.version,
+        blobKey: parsed.blobKey,
+        checksumSha256: parsed.checksumSha256,
+        sizeBytes: parsed.sizeBytes,
+        azureMetadata: metadata,
+        uploadedByUserId: req.user?.id,
+        isCurrent: true,
+      })
+      .returning();
 
     await logIntegrityEvent(parsed.documentId, "upload_completed", { version: document.version });
     await logIntegrityEvent(parsed.documentId, "checksum_verified", { checksum: parsed.checksumSha256 });
+
+    const applicationId = document.applicationId as string | null;
+    if (!applicationId) {
+      return res.status(400).json({ error: "Document is not linked to an application" });
+    }
+
+    // Automatic OCR + banking triggers
+    await ocrService.process({
+      applicationId,
+      documentId: parsed.documentId,
+      documentVersionId: version.id,
+      blobKey: parsed.blobKey,
+      userId: req.user?.id,
+    });
+
+    const looksLikeBankStatement = /bank|statement/i.test(parsed.fileName);
+    if (looksLikeBankStatement) {
+      await bankingService.analyze({
+        applicationId,
+        documentVersionIds: [version.id],
+        userId: req.user?.id,
+      });
+    }
 
     res.json({ ok: true, version: document.version });
   } catch (err) {

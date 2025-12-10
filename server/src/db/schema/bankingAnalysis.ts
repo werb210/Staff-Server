@@ -9,6 +9,8 @@ export const bankingAnalysis = pgTable("banking_analysis", {
     .notNull(),
   documentVersionId: uuid("document_version_id").references(() => documentVersions.id, { onDelete: "set null" }),
   summary: jsonb("summary").default({}).notNull(),
+  metricsJson: jsonb("metrics_json").default({}).notNull(),
+  monthlyJson: jsonb("monthly_json").default({}).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   status: text("status").default("completed").notNull(),
 });
