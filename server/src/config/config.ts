@@ -15,6 +15,10 @@ const envSchema = z
     ACCESS_TOKEN_SECRET: z.string().min(10, "ACCESS_TOKEN_SECRET must be at least 10 characters").optional(),
     REFRESH_TOKEN_SECRET: z.string().min(10, "REFRESH_TOKEN_SECRET must be at least 10 characters").optional(),
     TOKEN_TRANSPORT: z.enum(["cookie", "body", "both"]).default("cookie"),
+    TWILIO_ACCOUNT_SID: z.string().optional(),
+    TWILIO_AUTH_TOKEN: z.string().optional(),
+    TWILIO_PHONE_NUMBER_BF: z.string().optional(),
+    TWILIO_PHONE_NUMBER_SLF: z.string().optional(),
   })
   .transform((values) => ({
     ...values,
