@@ -3,15 +3,11 @@
  * Extends Request with authenticated user information.
  */
 
-import { UserRole } from "../src/auth/types";
+import { AuthenticatedUser } from "../src/auth/auth.types";
 
 declare global {
   namespace Express {
-    interface UserAuth {
-      id: string;
-      email: string;
-      role: UserRole;
-    }
+    type UserAuth = AuthenticatedUser & { sessionId: string };
 
     interface Request {
       user?: UserAuth;

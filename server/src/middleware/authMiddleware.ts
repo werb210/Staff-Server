@@ -10,8 +10,18 @@ export function authenticate(req: Request, res: Response, next: NextFunction) {
   }
   const token = header.replace(/^Bearer\s+/i, "");
   try {
-    const payload = jwt.verify(token, config.JWT_SECRET) as { id: string; email: string; role?: UserRole };
-    req.user = { id: payload.id, email: payload.email, role: payload.role ?? "Staff" };
+    const payload = jwt.verify(token, config.JWT_SECRET) as {
+      id: string;
+      email: string;
+      role?: UserRole;
+      sessionId?: string;
+    };
+    req.user = {
+      id: payload.id,
+      email: payload.email,
+      role: payload.role ?? "Staff",
+      sessionId: payload.sessionId ?? "",
+    };
     return next();
   } catch (err) {
     return res.status(401).json({ error: "Invalid or expired token" });

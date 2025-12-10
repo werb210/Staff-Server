@@ -130,7 +130,12 @@ function createTestApp(repo: InMemoryApplicationsRepository) {
   const app = express();
   app.use(express.json());
   app.use((req, _res, next) => {
-    req.user = { id: "staff-user", email: "staff@example.com", role: "Admin" as any };
+    req.user = {
+      id: "staff-user",
+      email: "staff@example.com",
+      role: "Admin" as any,
+      sessionId: "test-session",
+    };
     next();
   });
   app.use("/applications", createApplicationsRouter(controller));
