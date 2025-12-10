@@ -11,6 +11,9 @@ import pipelineRouter from "./pipeline";
 import internalRouter from "./internal";
 import aiRouter from "./ai";
 import bankingRouter from "./banking";
+import communicationsRouter from "../communications/communications.routes";
+import tasksRouter from "../tasks/tasks.routes";
+import notificationsRouter from "../notifications/notifications.routes";
 import { requireAuth } from "../middleware/requireAuth";
 import { requireRole } from "../middleware/requireRole";
 
@@ -20,6 +23,7 @@ router.use("/auth", authRouter);
 router.use("/_int", internalRouter);
 router.use("/_ai", aiRouter);
 router.use("/_banking", bankingRouter);
+router.use("/communications", communicationsRouter);
 router.use(requireAuth);
 router.use("/users", usersRouter);
 router.use("/applications", applicationsRouter);
@@ -29,6 +33,8 @@ router.use("/products", productsRouter);
 router.use("/ocr", ocrRouter);
 router.use("/analysis", analysisRouter);
 router.use("/pipeline", pipelineRouter);
+router.use("/tasks", tasksRouter);
+router.use("/notifications", notificationsRouter);
 
 router.get("/protected/admin-check", requireRole("Admin"), (_req, res) => {
   res.json({ ok: true, scope: "admin" });

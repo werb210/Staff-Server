@@ -17,7 +17,17 @@ type TimelineEventType =
   | "CREDIT_SUMMARY_REQUESTED"
   | "CREDIT_SUMMARY_COMPLETED"
   | "REQUIRED_DOCS_UPDATED"
-  | "AI_EVENT_LOGGED";
+  | "AI_EVENT_LOGGED"
+  | "SMS_INCOMING"
+  | "SMS_OUTGOING"
+  | "CHAT_MESSAGE"
+  | "REPORT_ISSUE_RECEIVED"
+  | "STAFF_MESSAGE_SENT"
+  | "CALL_STARTED"
+  | "CALL_ENDED"
+  | "CALL_MISSED"
+  | "TASK_ASSIGNED"
+  | "TASK_COMPLETED";
 
 export class TimelineService {
   constructor(private repo: ApplicationsRepository) {}

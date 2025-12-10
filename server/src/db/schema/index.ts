@@ -18,3 +18,6 @@ export * from "./lenderDynamicQuestions";
 export * from "./ocrResults";
 export * from "./bankingAnalysis";
 export * from "./lenderProductVersions";
+export * from "./communications";
+export * from "./tasks";
+export * from "./notifications";
