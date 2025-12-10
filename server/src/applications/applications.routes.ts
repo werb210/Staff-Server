@@ -11,6 +11,7 @@ export function createApplicationsRouter(controller = new ApplicationsController
   router.patch("/:id/status", controller.changeStatus);
   router.patch("/:id/assign", controller.assign);
   router.get("/:id/timeline", controller.timeline);
+  router.get("/:id/context", controller.context);
   router.get("/:id/required-docs", controller.requiredDocs);
   router.post("/:id/credit-summary/regenerate", controller.regenerateCreditSummary);
 
