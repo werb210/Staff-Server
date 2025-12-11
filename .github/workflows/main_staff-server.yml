@@ -17,40 +17,34 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
+          cache-dependency-path: server/package-lock.json
 
-      # Install dependencies inside the /server folder
       - name: Install dependencies (server)
         working-directory: server
         run: npm ci
 
-      # Build TypeScript inside the /server folder
       - name: Build TypeScript (server)
         working-directory: server
         run: npm run build
 
-      # Prepare deployment folder
-      - name: Prepare deploy folder
-        run: |
-          mkdir deploy
-          cp -r server/dist deploy/
-          cp server/package.json deploy/
-          cp server/package-lock.json deploy/
-
-      # Create deploy ZIP
+      # Package the built server into a ZIP artifact
       - name: Create deployment ZIP
         run: |
+          rm -rf deploy
+          mkdir -p deploy
+          # copy built code and runtime files
+          cp -R server/dist deploy/dist
+          cp server/package.json deploy/package.json
+          cp server/package-lock.json deploy/package-lock.json
+          # create zip file
           cd deploy
-          zip -r ../deploy.zip .
+          zip -r ../staff-server-build.zip .
 
-      # Azure Login using Publish Profile ONLY
-      - name: Azure Login
-        uses: azure/login@v2
-        with:
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-
-      # Deploy ZIP to Azure Web App
-      - name: Deploy to Azure Web App
-        uses: azure/webapps-deploy@v2
+      # Deploy using Azure Web App publish profile (NO azure/login)
+      - name: Deploy ZIP to Azure Web App
+        uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
-          package: deploy.zip
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: staff-server-build.zip
