@@ -1,4 +1,4 @@
-# Staff App Clean Backend
+# Staff Server Backend
 
 This repository contains a minimal Express + TypeScript backend scaffold for the **staff-app-clean** project. It includes routing, middleware, and configuration ready for local development in a GitHub Codespace.
 
