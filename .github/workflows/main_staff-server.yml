@@ -18,39 +18,39 @@ jobs:
         with:
           node-version: 20
 
-      # Install dependencies in the server folder
+      # Install dependencies inside the /server folder
       - name: Install dependencies (server)
-        working-directory: ./server
+        working-directory: server
         run: npm ci
 
-      # Build the TypeScript server
+      # Build TypeScript inside the /server folder
       - name: Build TypeScript (server)
-        working-directory: ./server
+        working-directory: server
         run: npm run build
 
-      # Prepare a clean deploy folder with only what Azure needs
+      # Prepare deployment folder
       - name: Prepare deploy folder
         run: |
-          rm -rf deploy
           mkdir deploy
-          cp -r server/dist deploy/dist
+          cp -r server/dist deploy/
           cp server/package.json deploy/
           cp server/package-lock.json deploy/
 
-      # Create the deployment ZIP from the deploy folder
+      # Create deploy ZIP
       - name: Create deployment ZIP
-        working-directory: ./deploy
-        run: zip -r ../staff-server.zip .
+        run: |
+          cd deploy
+          zip -r ../deploy.zip .
 
-      # Login to Azure using the PUBLISH PROFILE secret
+      # Azure Login using Publish Profile ONLY
       - name: Azure Login
         uses: azure/login@v2
         with:
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
 
-      # Deploy the ZIP to the boreal-staff-server Web App
-      - name: Deploy ZIP to Azure Web App
-        uses: azure/webapps-deploy@v3
+      # Deploy ZIP to Azure Web App
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v2
         with:
-          app-name: boreal-staff-server
-          package: staff-server.zip
+          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
+          package: deploy.zip
