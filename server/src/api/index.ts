@@ -1,5 +1,3 @@
-// server/src/api/index.ts
-
 import { Router } from "express";
 
 import aiRoutes from "./ai";
@@ -16,20 +14,22 @@ import userRoutes from "./users";
 
 const router = Router();
 
-// Core API modules
+// Public health endpoint for Azure liveness / external checks
+router.get("/public/health", (_req, res) => {
+  res.status(200).json({ status: "ok" });
+});
+
+// Mount all API modules
 router.use("/ai", aiRoutes);
 router.use("/analysis", analysisRoutes);
 router.use("/auth", authRoutes);
 router.use("/banking", bankingRoutes);
 router.use("/documents", documentRoutes);
+router.use("/internal", internalRoutes);
 router.use("/lenders", lenderRoutes);
 router.use("/ocr", ocrRoutes);
 router.use("/pipeline", pipelineRoutes);
 router.use("/products", productRoutes);
 router.use("/users", userRoutes);
-
-// Health endpoints (no auth)
-router.use("/internal", internalRoutes); // /api/internal/health
-router.use("/public", internalRoutes);   // /api/public/health
 
 export default router;
