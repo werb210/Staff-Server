@@ -1,47 +1,30 @@
 import { Router } from "express";
-import authRouter from "./auth";
-import usersRouter from "./users";
-import applicationsRouter from "../applications/applications.routes";
-import documentsRouter from "./documents";
-import lendersRouter from "./lenders";
-import productsRouter from "./products";
-import ocrRouter from "./ocr";
-import analysisRouter from "./analysis";
-import pipelineRouter from "./pipeline";
-import internalRouter from "./internal";
-import aiRouter from "./ai";
-import bankingRouter from "./banking";
-import communicationsRouter from "../communications/communications.routes";
-import tasksRouter from "../tasks/tasks.routes";
-import notificationsRouter from "../notifications/notifications.routes";
-import { requireAuth } from "../middleware/requireAuth";
-import { requireRole } from "../middleware/requireRole";
+
+import aiRoutes from "./ai";
+import analysisRoutes from "./analysis";
+import authRoutes from "./auth";
+import bankingRoutes from "./banking";
+import documentRoutes from "./documents";
+import internalRoutes from "./internal.routes";
+import lenderRoutes from "./lenders";
+import ocrRoutes from "./ocr";
+import pipelineRoutes from "./pipeline";
+import productRoutes from "./products";
+import userRoutes from "./users";
 
 const router = Router();
 
-router.use("/auth", authRouter);
-router.use("/_int", internalRouter);
-router.use("/_ai", aiRouter);
-router.use("/_banking", bankingRouter);
-router.use("/communications", communicationsRouter);
-router.use(requireAuth);
-router.use("/users", usersRouter);
-router.use("/applications", applicationsRouter);
-router.use("/documents", documentsRouter);
-router.use("/lenders", lendersRouter);
-router.use("/products", productsRouter);
-router.use("/ocr", ocrRouter);
-router.use("/analysis", analysisRouter);
-router.use("/pipeline", pipelineRouter);
-router.use("/tasks", tasksRouter);
-router.use("/notifications", notificationsRouter);
-
-router.get("/protected/admin-check", requireRole("Admin"), (_req, res) => {
-  res.json({ ok: true, scope: "admin" });
-});
-
-router.get("/", (_req, res) => {
-  res.json({ ok: true, message: "Staff Server API" });
-});
+// Mount all API modules
+router.use("/ai", aiRoutes);
+router.use("/analysis", analysisRoutes);
+router.use("/auth", authRoutes);
+router.use("/banking", bankingRoutes);
+router.use("/documents", documentRoutes);
+router.use("/internal", internalRoutes);
+router.use("/lenders", lenderRoutes);
+router.use("/ocr", ocrRoutes);
+router.use("/pipeline", pipelineRoutes);
+router.use("/products", productRoutes);
+router.use("/users", userRoutes);
 
 export default router;
