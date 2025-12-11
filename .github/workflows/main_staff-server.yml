@@ -18,36 +18,39 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install dependencies (server folder)
-        working-directory: server
+      # Install dependencies in the server folder
+      - name: Install dependencies (server)
+        working-directory: ./server
         run: npm ci
 
-      - name: Build TypeScript (server folder)
-        working-directory: server
+      # Build the TypeScript server
+      - name: Build TypeScript (server)
+        working-directory: ./server
         run: npm run build
 
-      - name: Prepare artifact
+      # Prepare a clean deploy folder with only what Azure needs
+      - name: Prepare deploy folder
         run: |
-          mkdir build_output
-          cp -R server/dist build_output/dist
-          cp server/package.json build_output/
-          cp server/package-lock.json build_output/
-          # Required for Azure startup
-          echo "node dist/index.js" > build_output/server.js
+          rm -rf deploy
+          mkdir deploy
+          cp -r server/dist deploy/dist
+          cp server/package.json deploy/
+          cp server/package-lock.json deploy/
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: staff-server-build
-          path: build_output
+      # Create the deployment ZIP from the deploy folder
+      - name: Create deployment ZIP
+        working-directory: ./deploy
+        run: zip -r ../staff-server.zip .
 
+      # Login to Azure using the PUBLISH PROFILE secret
       - name: Azure Login
         uses: azure/login@v2
         with:
-          creds: ${{ secrets.AZUREAPPSERVICE_PUBLISH_PROFILE }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
 
+      # Deploy the ZIP to the boreal-staff-server Web App
       - name: Deploy ZIP to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
-          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
-          package: build_output
+          app-name: boreal-staff-server
+          package: staff-server.zip
