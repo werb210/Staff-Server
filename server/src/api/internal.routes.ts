@@ -5,19 +5,22 @@ import { Router } from "express";
 const router = Router();
 
 /**
- * Unauthenticated health check used by:
- * - Azure Web App health probes
- * - Your own curl checks
+ * Internal health check
  *
- * Available at:
- *   - /api/internal/health
- *   - /api/public/health  (see index.ts mounting below)
+ * This must ALWAYS return quickly and NEVER depend on:
+ * - Database connections
+ * - Azure Blob Storage
+ * - External APIs
+ *
+ * Azure and any internal monitors can safely hit this endpoint.
  */
 router.get("/health", (_req, res) => {
-  res.status(200).json({
+  res.json({
     status: "ok",
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
+    service: "staff-server",
+    scope: "internal",
   });
 });
 
