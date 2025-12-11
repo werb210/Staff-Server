@@ -1,42 +1,31 @@
 import { Router } from "express";
-import { db } from "../db";                       // adjust if your db export path differs
-import { blobClient } from "../services/azureBlob"; // adjust if needed
 
 const router = Router();
 
-// Lightweight DB check — does NOT leak data
-async function checkDb(): Promise<boolean> {
-  try {
-    await db.$queryRaw`SELECT 1`;   // works in Prisma & pg driver compatible systems
-    return true;
-  } catch {
-    return false;
-  }
-}
+/**
+ * Internal health endpoints
+ * No authentication.
+ * Always return 200.
+ */
 
-// Lightweight Blob Storage check
-async function checkBlob(): Promise<boolean> {
-  try {
-    // Attempt to list the root container segment to confirm connectivity
-    await blobClient.getProperties();
-    return true;
-  } catch {
-    return false;
-  }
-}
+// Basic health check — used by curl
+router.get("/health", (req, res) => {
+  res.status(200).json({ status: "ok" });
+});
 
-router.get("/health", async (_req, res) => {
-  const dbOk = await checkDb();
-  const blobOk = await checkBlob();
+// Azure liveness probe
+router.get("/liveness", (req, res) => {
+  res.status(200).send("alive");
+});
 
-  res.status(200).json({
-    status: "ok",
-    uptime: process.uptime(),
-    timestamp: new Date().toISOString(),
-    version: process.env.APP_VERSION || "unknown",
-    db: dbOk,
-    blob: blobOk
-  });
+// Azure readiness probe
+router.get("/readiness", (req, res) => {
+  res.status(200).send("ready");
+});
+
+// Internal ping
+router.get("/ping", (req, res) => {
+  res.status(200).json({ message: "pong" });
 });
 
 export default router;
