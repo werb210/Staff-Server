@@ -11,34 +11,40 @@ async function seed() {
   const client = new Client({ connectionString: DATABASE_URL });
   await client.connect();
 
-  console.log("Seeding users...");
+  console.log("Fetching user_role enum values...");
+
+  const enumRes = await client.query(`
+    select enumlabel
+    from pg_enum e
+    join pg_type t on t.oid = e.enumtypid
+    where t.typname = 'user_role'
+    order by e.enumsortorder
+  `);
+
+  if (enumRes.rows.length < 2) {
+    throw new Error("user_role enum does not contain enough values");
+  }
+
+  const ADMIN_ROLE = enumRes.rows[0].enumlabel;
+  const STAFF_ROLE = enumRes.rows[1].enumlabel;
+
+  console.log("Using roles:", ADMIN_ROLE, STAFF_ROLE);
 
   const passwordHash = await bcrypt.hash("ChangeMe123!", 10);
-
-  // Resolve enum values safely (case-insensitive) so we don't care if the enum is Admin/ADMIN/admin etc.
-  const roleSql = (roleLower: string) => `
-    (
-      select e.enumlabel::user_role
-      from pg_enum e
-      join pg_type t on t.oid = e.enumtypid
-      where t.typname = 'user_role'
-        and lower(e.enumlabel) = '${roleLower}'
-      limit 1
-    )
-  `;
 
   await client.query(
     `
     insert into users (id, email, password_hash, role, created_at)
     values
-      (gen_random_uuid(), 'admin@boreal.financial', $1, ${roleSql("admin")}, now()),
-      (gen_random_uuid(), 'staff@boreal.financial', $1, ${roleSql("staff")}, now())
+      (gen_random_uuid(), 'admin@boreal.financial', $1, $2, now()),
+      (gen_random_uuid(), 'staff@boreal.financial', $1, $3, now())
     on conflict (email) do nothing
-  `,
-    [passwordHash],
+    `,
+    [passwordHash, ADMIN_ROLE, STAFF_ROLE]
   );
 
-  console.log("Users seeded");
+  console.log("Users seeded successfully");
+
   await client.end();
 }
 
