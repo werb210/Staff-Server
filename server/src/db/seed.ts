@@ -15,19 +15,30 @@ async function seed() {
 
   const passwordHash = await bcrypt.hash("ChangeMe123!", 10);
 
+  // Resolve enum values safely (case-insensitive) so we don't care if the enum is Admin/ADMIN/admin etc.
+  const roleSql = (roleLower: string) => `
+    (
+      select e.enumlabel::user_role
+      from pg_enum e
+      join pg_type t on t.oid = e.enumtypid
+      where t.typname = 'user_role'
+        and lower(e.enumlabel) = '${roleLower}'
+      limit 1
+    )
+  `;
+
   await client.query(
     `
     insert into users (id, email, password_hash, role, created_at)
     values
-      (gen_random_uuid(), 'admin@boreal.financial', $1, 'Admin', now()),
-      (gen_random_uuid(), 'staff@boreal.financial', $1, 'Staff', now())
+      (gen_random_uuid(), 'admin@boreal.financial', $1, ${roleSql("admin")}, now()),
+      (gen_random_uuid(), 'staff@boreal.financial', $1, ${roleSql("staff")}, now())
     on conflict (email) do nothing
-    `,
-    [passwordHash]
+  `,
+    [passwordHash],
   );
 
   console.log("Users seeded");
-
   await client.end();
 }
 
