@@ -34,10 +34,40 @@ async function seed() {
 
   await client.query(
     `
-    insert into users (id, email, password_hash, role, created_at)
+    insert into users (
+      id,
+      email,
+      password_hash,
+      first_name,
+      last_name,
+      role,
+      status,
+      created_at,
+      updated_at
+    )
     values
-      (gen_random_uuid(), 'admin@boreal.financial', $1, $2, now()),
-      (gen_random_uuid(), 'staff@boreal.financial', $1, $3, now())
+      (
+        gen_random_uuid(),
+        'admin@boreal.financial',
+        $1,
+        'System',
+        'Admin',
+        $2,
+        'active',
+        now(),
+        now()
+      ),
+      (
+        gen_random_uuid(),
+        'staff@boreal.financial',
+        $1,
+        'System',
+        'Staff',
+        $3,
+        'active',
+        now(),
+        now()
+      )
     on conflict (email) do nothing
     `,
     [passwordHash, ADMIN_ROLE, STAFF_ROLE]
@@ -53,7 +83,7 @@ seed()
     console.log("Seed complete");
     process.exit(0);
   })
-  .catch((err) => {
+  .catch(err => {
     console.error(err);
     process.exit(1);
   });
