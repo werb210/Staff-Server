@@ -15,13 +15,16 @@ async function seed() {
 
   const passwordHash = await bcrypt.hash("ChangeMe123!", 10);
 
-  await client.query(`
+  await client.query(
+    `
     insert into users (id, email, password_hash, role, created_at)
     values
-      (gen_random_uuid(), 'admin@boreal.financial', $1, 'admin', now()),
-      (gen_random_uuid(), 'staff@boreal.financial', $1, 'staff', now())
+      (gen_random_uuid(), 'admin@boreal.financial', $1, 'Admin', now()),
+      (gen_random_uuid(), 'staff@boreal.financial', $1, 'Staff', now())
     on conflict (email) do nothing
-  `, [passwordHash]);
+    `,
+    [passwordHash]
+  );
 
   console.log("Users seeded");
 
@@ -33,7 +36,7 @@ seed()
     console.log("Seed complete");
     process.exit(0);
   })
-  .catch(err => {
+  .catch((err) => {
     console.error(err);
     process.exit(1);
   });
