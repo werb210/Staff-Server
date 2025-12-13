@@ -38,8 +38,8 @@ async function seed() {
       id,
       email,
       password_hash,
-      "firstName",
-      "lastName",
+      first_name,
+      last_name,
       role,
       status,
       created_at,
@@ -83,7 +83,7 @@ seed()
     console.log("Seed complete");
     process.exit(0);
   })
-  .catch(err => {
+  .catch((err) => {
     console.error(err);
     process.exit(1);
   });
