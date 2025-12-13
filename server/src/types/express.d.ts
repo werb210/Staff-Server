@@ -1,15 +1,11 @@
-import "express";
+import type { User } from "../db/schema";
 
 declare global {
   namespace Express {
-    interface User {
-      id: string;
-      email?: string;
-      role?: string;
-    }
-
     interface Request {
-      user?: User;
+      user?: User & {
+        sessionId?: string;
+      };
     }
   }
 }
