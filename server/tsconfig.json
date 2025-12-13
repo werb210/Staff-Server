@@ -11,9 +11,11 @@
     "resolveJsonModule": true,
     "types": ["node"]
   },
-  "include": ["src/**/*.ts"],
+  "include": [
+    "src/**/*.ts"
+  ],
   "exclude": [
-    "src/__tests__",
+    "**/__tests__/**",
     "**/*.test.ts",
     "**/*.spec.ts"
   ]
