@@ -15,13 +15,12 @@ app.use(cookieParser());
 app.use(express.json({ limit: "10mb" }));
 app.use(requestLogger);
 
-// --- BASIC ROUTES (for Azure / sanity checks) ---
+/**
+ * Root route: Azure and humans hit "/" constantly.
+ * Returning 200 prevents "Cannot GET /" confusion and helps smoke testing.
+ */
 app.get("/", (_req, res) => {
   res.status(200).send("OK");
-});
-
-app.get("/health", (_req, res) => {
-  res.status(200).json({ ok: true });
 });
 
 // --- INTERNAL HEALTH ROUTES (NO AUTH) ---
