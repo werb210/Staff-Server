@@ -1,35 +1,33 @@
 import express from "express";
 import cors from "cors";
-import cookieParser from "cookie-parser";
+import helmet from "helmet";
+import morgan from "morgan";
 
-import apiRouter from "./api";
-import internalRouter from "./api/internal.routes";
+import healthRouter from "./routes/internal/health";
+import dbHealthRouter from "./routes/internal/db";
 
-import { requestLogger } from "./middleware/requestLogger";
-import { errorHandler } from "./middleware/errorHandler";
-
+// create app
 const app = express();
 
-app.use(cors());
-app.use(cookieParser());
+// basic hard requirements
+app.use(helmet());
+app.use(cors({ origin: "*", credentials: true }));
 app.use(express.json({ limit: "10mb" }));
-app.use(requestLogger);
+app.use(express.urlencoded({ extended: true }));
+app.use(morgan("combined"));
 
-/**
- * Root route: Azure and humans hit "/" constantly.
- * Returning 200 prevents "Cannot GET /" confusion and helps smoke testing.
- */
+// INTERNAL ROUTES (NO AUTH)
+app.use("/api/internal/health", healthRouter);
+app.use("/api/internal/db", dbHealthRouter);
+
+// root (optional but safe)
 app.get("/", (_req, res) => {
   res.status(200).send("OK");
 });
 
-// --- INTERNAL HEALTH ROUTES (NO AUTH) ---
-app.use("/api/internal", internalRouter);
-
-// --- ALL OTHER ROUTES ---
-app.use("/api", apiRouter);
-
-// --- ERROR HANDLER ---
-app.use(errorHandler);
+// fallback
+app.use((_req, res) => {
+  res.status(404).json({ error: "Not found" });
+});
 
 export default app;
