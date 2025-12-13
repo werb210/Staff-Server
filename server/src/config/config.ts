@@ -6,41 +6,31 @@ dotenv.config();
 const isProd = process.env.NODE_ENV === "production";
 
 /**
- * NOTE:
- * - Keep schema permissive enough that TypeScript builds don’t fail due to missing optional integration vars.
- * - Enforce the *real* hard requirements:
- *   - DATABASE_URL + JWT_SECRET always
- *   - Azure Blob vars required only in production runtime
+ * Base env (always required)
  */
-
 const baseSchema = z.object({
-  // Required always
   DATABASE_URL: z.string().min(1),
   JWT_SECRET: z.string().min(32),
-
-  // Optional / defaults
   NODE_ENV: z.string().optional(),
-  PORT: z
-    .union([z.string().min(1), z.number()])
-    .optional()
-    .transform(v => (v === undefined ? undefined : String(v))),
-
-  /**
-   * Legacy/compat: some code may still reference AZURE_POSTGRES_URL.
-   * If present, it should be a connection string; otherwise we fall back to DATABASE_URL.
-   */
-  AZURE_POSTGRES_URL: z.string().min(1).optional(),
-
-  /**
-   * Twilio is optional (build should not fail if not configured).
-   * If your code requires these at runtime, the service layer should throw a clear error when used.
-   */
-  TWILIO_ACCOUNT_SID: z.string().min(1).optional(),
-  TWILIO_AUTH_TOKEN: z.string().min(1).optional(),
-  TWILIO_PHONE_NUMBER_BF: z.string().min(1).optional(),
-  TWILIO_PHONE_NUMBER_SLF: z.string().min(1).optional(),
+  PORT: z.string().optional(), // optional because Azure injects PORT at runtime sometimes
 });
 
+/**
+ * JWT/token configuration (required by your token helpers + jwt service)
+ * In prod: allow explicit override via env.
+ * In dev: default to deterministic values derived from JWT_SECRET so TS/build never breaks.
+ */
+const tokenSchema = z.object({
+  TOKEN_TRANSPORT: z.enum(["cookie", "header"]).optional(),
+  ACCESS_TOKEN_SECRET: z.string().min(32).optional(),
+  REFRESH_TOKEN_SECRET: z.string().min(32).optional(),
+  ACCESS_TOKEN_EXPIRES_IN: z.string().min(1).optional(),
+  REFRESH_TOKEN_EXPIRES_IN: z.string().min(1).optional(),
+});
+
+/**
+ * Azure Blob is REQUIRED only in production
+ */
 const azureSchema = z.object({
   AZURE_BLOB_ACCOUNT: z.string().min(1),
   AZURE_BLOB_KEY: z.string().min(1),
@@ -58,6 +48,17 @@ try {
   throw new Error(`Invalid environment configuration: ${message}`);
 }
 
+let parsedTokens: z.infer<typeof tokenSchema>;
+try {
+  parsedTokens = tokenSchema.parse(process.env);
+} catch (err) {
+  const message =
+    err instanceof z.ZodError
+      ? err.errors.map(e => `${e.path.join(".")}: ${e.message}`).join("; ")
+      : String(err);
+  throw new Error(`Invalid token configuration: ${message}`);
+}
+
 let parsedAzure: z.infer<typeof azureSchema> | null = null;
 if (isProd) {
   try {
@@ -71,32 +72,27 @@ if (isProd) {
   }
 }
 
-export const config = {
-  // Core
-  DATABASE_URL: parsedBase.DATABASE_URL,
-  // Legacy alias used in some modules
-  AZURE_POSTGRES_URL: parsedBase.AZURE_POSTGRES_URL ?? parsedBase.DATABASE_URL,
+// Defaults so builds never fail when you haven't set these explicitly.
+const ACCESS_TOKEN_SECRET =
+  parsedTokens.ACCESS_TOKEN_SECRET ?? `${parsedBase.JWT_SECRET}__access_token_secret__`;
+const REFRESH_TOKEN_SECRET =
+  parsedTokens.REFRESH_TOKEN_SECRET ?? `${parsedBase.JWT_SECRET}__refresh_token_secret__`;
 
+export const config = {
+  DATABASE_URL: parsedBase.DATABASE_URL,
   JWT_SECRET: parsedBase.JWT_SECRET,
   NODE_ENV: parsedBase.NODE_ENV ?? "development",
   PORT: parsedBase.PORT ?? "5000",
+
+  // Token/JWT settings (these are the missing keys causing your build to fail)
+  TOKEN_TRANSPORT: parsedTokens.TOKEN_TRANSPORT ?? "cookie",
+  ACCESS_TOKEN_SECRET,
+  REFRESH_TOKEN_SECRET,
+  ACCESS_TOKEN_EXPIRES_IN: parsedTokens.ACCESS_TOKEN_EXPIRES_IN ?? "15m",
+  REFRESH_TOKEN_EXPIRES_IN: parsedTokens.REFRESH_TOKEN_EXPIRES_IN ?? "30d",
 
   // Azure Blob (null in dev, required in prod)
   AZURE_BLOB_ACCOUNT: parsedAzure?.AZURE_BLOB_ACCOUNT ?? null,
   AZURE_BLOB_KEY: parsedAzure?.AZURE_BLOB_KEY ?? null,
   AZURE_BLOB_CONTAINER: parsedAzure?.AZURE_BLOB_CONTAINER ?? null,
-
-  // Twilio (optional)
-  TWILIO_ACCOUNT_SID: parsedBase.TWILIO_ACCOUNT_SID ?? null,
-  TWILIO_AUTH_TOKEN: parsedBase.TWILIO_AUTH_TOKEN ?? null,
-  TWILIO_PHONE_NUMBER_BF: parsedBase.TWILIO_PHONE_NUMBER_BF ?? null,
-  TWILIO_PHONE_NUMBER_SLF: parsedBase.TWILIO_PHONE_NUMBER_SLF ?? null,
-} as const;
-
-/**
- * Back-compat export: some code imports authConfig from this module.
- * Keep it here so builds stop failing.
- */
-export const authConfig = {
-  JWT_SECRET: config.JWT_SECRET,
 } as const;
