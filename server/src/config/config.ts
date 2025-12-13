@@ -3,46 +3,58 @@ import { z } from "zod";
 
 dotenv.config();
 
-const envSchema = z
-  .object({
-    NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
-    PORT: z.coerce.number().int().positive().default(8080),
-    AZURE_POSTGRES_URL: z.string().url({ message: "AZURE_POSTGRES_URL must be a valid URL" }),
-    AZURE_BLOB_ACCOUNT: z.string().min(1, "AZURE_BLOB_ACCOUNT is required"),
-    AZURE_BLOB_KEY: z.string().min(1, "AZURE_BLOB_KEY is required"),
-    AZURE_BLOB_CONTAINER: z.string().min(1, "AZURE_BLOB_CONTAINER is required"),
-    JWT_SECRET: z.string().min(10, "JWT_SECRET must be at least 10 characters"),
-    ACCESS_TOKEN_SECRET: z.string().min(10, "ACCESS_TOKEN_SECRET must be at least 10 characters").optional(),
-    REFRESH_TOKEN_SECRET: z.string().min(10, "REFRESH_TOKEN_SECRET must be at least 10 characters").optional(),
-    TOKEN_TRANSPORT: z.enum(["cookie", "body", "both"]).default("cookie"),
-    TWILIO_ACCOUNT_SID: z.string().optional(),
-    TWILIO_AUTH_TOKEN: z.string().optional(),
-    TWILIO_PHONE_NUMBER_BF: z.string().optional(),
-    TWILIO_PHONE_NUMBER_SLF: z.string().optional(),
-  })
-  .transform((values) => ({
-    ...values,
-    AZURE_POSTGRES_URL: values.AZURE_POSTGRES_URL.trim(),
-  }));
+const isProd = process.env.NODE_ENV === "production";
 
-const resolvedEnv = {
-  ...process.env,
-  AZURE_POSTGRES_URL: process.env.AZURE_POSTGRES_URL || process.env.DATABASE_URL,
-};
+/**
+ * Base env (always required)
+ */
+const baseSchema = z.object({
+  DATABASE_URL: z.string().min(1),
+  JWT_SECRET: z.string().min(32),
+  NODE_ENV: z.string().optional(),
+});
 
-const parsed = envSchema.safeParse(resolvedEnv);
+/**
+ * Azure Blob is REQUIRED only in production
+ */
+const azureSchema = z.object({
+  AZURE_BLOB_ACCOUNT: z.string().min(1),
+  AZURE_BLOB_KEY: z.string().min(1),
+  AZURE_BLOB_CONTAINER: z.string().min(1),
+});
 
-if (!parsed.success) {
-  const message = parsed.error.errors.map((err) => `${err.path.join(".")}: ${err.message}`).join("; ");
+let parsedBase;
+try {
+  parsedBase = baseSchema.parse(process.env);
+} catch (err) {
+  const message =
+    err instanceof z.ZodError
+      ? err.errors.map(e => `${e.path.join(".")}: ${e.message}`).join("; ")
+      : String(err);
   throw new Error(`Invalid environment configuration: ${message}`);
 }
 
-export const config = parsed.data;
+let parsedAzure: z.infer<typeof azureSchema> | null = null;
 
-export const authConfig = {
-  ACCESS_TOKEN_SECRET: parsed.data.ACCESS_TOKEN_SECRET ?? parsed.data.JWT_SECRET,
-  REFRESH_TOKEN_SECRET: parsed.data.REFRESH_TOKEN_SECRET ?? parsed.data.JWT_SECRET,
-  ACCESS_TOKEN_EXPIRES_IN: "15m",
-  REFRESH_TOKEN_EXPIRES_IN: "14d",
-  TOKEN_TRANSPORT: parsed.data.TOKEN_TRANSPORT,
+if (isProd) {
+  try {
+    parsedAzure = azureSchema.parse(process.env);
+  } catch (err) {
+    const message =
+      err instanceof z.ZodError
+        ? err.errors.map(e => `${e.path.join(".")}: ${e.message}`).join("; ")
+        : String(err);
+    throw new Error(`Azure Blob configuration missing in production: ${message}`);
+  }
+}
+
+export const config = {
+  DATABASE_URL: parsedBase.DATABASE_URL,
+  JWT_SECRET: parsedBase.JWT_SECRET,
+  NODE_ENV: parsedBase.NODE_ENV ?? "development",
+
+  // Azure Blob (null in dev, required in prod)
+  AZURE_BLOB_ACCOUNT: parsedAzure?.AZURE_BLOB_ACCOUNT ?? null,
+  AZURE_BLOB_KEY: parsedAzure?.AZURE_BLOB_KEY ?? null,
+  AZURE_BLOB_CONTAINER: parsedAzure?.AZURE_BLOB_CONTAINER ?? null,
 };
