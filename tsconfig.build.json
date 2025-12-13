@@ -1,5 +1,21 @@
 {
-  "extends": "./tsconfig.json",
-  "include": ["server/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "rootDir": "src",
+    "outDir": "dist",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "types": ["node"]
+  },
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "src/__tests__",
+    "**/*.test.ts",
+    "**/*.spec.ts"
+  ]
 }
