@@ -1,31 +1,26 @@
 import express from "express";
 import cors from "cors";
-import helmet from "helmet";
-import morgan from "morgan";
 
 import healthRouter from "./routes/internal/health";
 import dbHealthRouter from "./routes/internal/db";
 
-// create app
 const app = express();
 
-// basic hard requirements
-app.use(helmet());
+// middleware already supported by repo
 app.use(cors({ origin: "*", credentials: true }));
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(morgan("combined"));
 
-// INTERNAL ROUTES (NO AUTH)
+// internal routes (no auth)
 app.use("/api/internal/health", healthRouter);
 app.use("/api/internal/db", dbHealthRouter);
 
-// root (optional but safe)
+// root
 app.get("/", (_req, res) => {
   res.status(200).send("OK");
 });
 
-// fallback
+// 404 fallback
 app.use((_req, res) => {
   res.status(404).json({ error: "Not found" });
 });
