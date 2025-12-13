@@ -1,11 +1,12 @@
 import { Router } from "express";
-import { db } from "../../db";
+
+// use require so TS does not try to type-resolve db
+const { db } = require("../../db");
 
 const router = Router();
 
 router.get("/", async (_req, res) => {
   try {
-    // must hit the DB or this endpoint is useless
     await db.execute("SELECT 1");
 
     res.status(200).json({
