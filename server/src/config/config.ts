@@ -6,62 +6,40 @@ dotenv.config();
 const isProd = process.env.NODE_ENV === "production";
 
 /**
- * =========================
+ * Helpers
+ */
+const asInt = (v: unknown, fallback: number) => {
+  const n = typeof v === "string" ? Number(v) : NaN;
+  return Number.isFinite(n) ? n : fallback;
+};
+
+/**
  * Base env (always required)
- * =========================
  */
 const baseSchema = z.object({
-  DATABASE_URL: z.string().min(1),
-  JWT_SECRET: z.string().min(32),
+  DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
+  JWT_SECRET: z.string().min(32, "JWT_SECRET must be at least 32 chars"),
   NODE_ENV: z.string().optional(),
   PORT: z.string().optional(),
 });
 
 /**
- * ==========================================================
- * Auth / token config (required for build-time typing + runtime)
- * ==========================================================
- *
- * IMPORTANT:
- * - TOKEN_TRANSPORT MUST include "body" because token.helpers.ts checks it.
- * - These are DEFAULTED so builds don’t explode if you don’t use them yet,
- *   but the types exist so TS stops failing.
+ * Auth / token env (required for auth module)
  */
 const authSchema = z.object({
-  TOKEN_TRANSPORT: z.enum(["cookie", "header", "body"]).default("cookie"),
+  TOKEN_TRANSPORT: z.enum(["cookie", "header", "body"]).default("header"),
 
-  ACCESS_TOKEN_SECRET: z.string().min(32).default(process.env.JWT_SECRET ?? "x".repeat(64)),
-  REFRESH_TOKEN_SECRET: z.string().min(32).default(process.env.JWT_SECRET ?? "y".repeat(64)),
+  ACCESS_TOKEN_SECRET: z.string().min(32, "ACCESS_TOKEN_SECRET must be at least 32 chars"),
+  REFRESH_TOKEN_SECRET: z.string().min(32, "REFRESH_TOKEN_SECRET must be at least 32 chars"),
 
-  // You can use "15m", "7d", etc. If you treat these as numbers elsewhere, change there.
-  ACCESS_TOKEN_EXPIRES_IN: z.string().default("15m"),
-  REFRESH_TOKEN_EXPIRES_IN: z.string().default("30d"),
-
-  // Optional helper (if you ever support where refresh token is sent)
-  REFRESH_TOKEN_TRANSPORT: z.enum(["cookie", "header", "body"]).optional(),
+  ACCESS_TOKEN_EXPIRES_IN: z.string().optional(), // seconds
+  REFRESH_TOKEN_EXPIRES_IN: z.string().optional(), // seconds
 });
 
 /**
- * ==============================
- * Azure Blob (REQUIRED in prod)
- * ==============================
+ * Twilio (optional, but must exist as properties because services reference them)
  */
-const azureSchema = z.object({
-  AZURE_BLOB_ACCOUNT: z.string().min(1),
-  AZURE_BLOB_KEY: z.string().min(1),
-  AZURE_BLOB_CONTAINER: z.string().min(1),
-});
-
-/**
- * ==============================
- * Optional / legacy compatibility
- * ==============================
- * These exist because older code paths often reference them.
- * Making them OPTIONAL prevents TS failures without forcing runtime requirements.
- */
-const legacySchema = z.object({
-  AZURE_POSTGRES_URL: z.string().optional(),
-
+const twilioSchema = z.object({
   TWILIO_ACCOUNT_SID: z.string().optional(),
   TWILIO_AUTH_TOKEN: z.string().optional(),
   TWILIO_PHONE_NUMBER_BF: z.string().optional(),
@@ -69,11 +47,32 @@ const legacySchema = z.object({
 });
 
 /**
- * Parse + type env
+ * Azure Blob is REQUIRED only in production
  */
+const azureBlobSchema = z.object({
+  AZURE_BLOB_ACCOUNT: z.string().min(1, "AZURE_BLOB_ACCOUNT is required in production"),
+  AZURE_BLOB_KEY: z.string().min(1, "AZURE_BLOB_KEY is required in production"),
+  AZURE_BLOB_CONTAINER: z.string().min(1, "AZURE_BLOB_CONTAINER is required in production"),
+});
+
+/**
+ * Optional / legacy compat
+ */
+const optionalSchema = z.object({
+  AZURE_POSTGRES_URL: z.string().optional(),
+});
+
 let parsedBase: z.infer<typeof baseSchema>;
+let parsedAuth: z.infer<typeof authSchema>;
+let parsedTwilio: z.infer<typeof twilioSchema>;
+let parsedOptional: z.infer<typeof optionalSchema>;
+let parsedAzureBlob: z.infer<typeof azureBlobSchema> | undefined;
+
 try {
   parsedBase = baseSchema.parse(process.env);
+  parsedAuth = authSchema.parse(process.env);
+  parsedTwilio = twilioSchema.parse(process.env);
+  parsedOptional = optionalSchema.parse(process.env);
 } catch (err) {
   const message =
     err instanceof z.ZodError
@@ -82,21 +81,9 @@ try {
   throw new Error(`Invalid environment configuration: ${message}`);
 }
 
-let parsedAuth: z.infer<typeof authSchema>;
-try {
-  parsedAuth = authSchema.parse(process.env);
-} catch (err) {
-  const message =
-    err instanceof z.ZodError
-      ? err.errors.map(e => `${e.path.join(".")}: ${e.message}`).join("; ")
-      : String(err);
-  throw new Error(`Invalid auth configuration: ${message}`);
-}
-
-let parsedAzure: z.infer<typeof azureSchema> | null = null;
 if (isProd) {
   try {
-    parsedAzure = azureSchema.parse(process.env);
+    parsedAzureBlob = azureBlobSchema.parse(process.env);
   } catch (err) {
     const message =
       err instanceof z.ZodError
@@ -106,48 +93,38 @@ if (isProd) {
   }
 }
 
-let parsedLegacy: z.infer<typeof legacySchema>;
-try {
-  parsedLegacy = legacySchema.parse(process.env);
-} catch {
-  parsedLegacy = {};
-}
-
 /**
- * ======================
- * Exports used by the app
- * ======================
+ * Exported configs
+ * IMPORTANT: use `undefined` for “not set” (NOT `null`) to avoid TS2322 string|null errors.
  */
 export const config = {
   DATABASE_URL: parsedBase.DATABASE_URL,
   JWT_SECRET: parsedBase.JWT_SECRET,
   NODE_ENV: parsedBase.NODE_ENV ?? "development",
-  PORT: parsedBase.PORT ?? "5000",
+  PORT: asInt(parsedBase.PORT, 5000),
 
-  // Azure Blob (null in dev, required in prod)
-  AZURE_BLOB_ACCOUNT: parsedAzure?.AZURE_BLOB_ACCOUNT ?? null,
-  AZURE_BLOB_KEY: parsedAzure?.AZURE_BLOB_KEY ?? null,
-  AZURE_BLOB_CONTAINER: parsedAzure?.AZURE_BLOB_CONTAINER ?? null,
+  // Azure Blob (undefined in dev, required in prod)
+  AZURE_BLOB_ACCOUNT: parsedAzureBlob?.AZURE_BLOB_ACCOUNT,
+  AZURE_BLOB_KEY: parsedAzureBlob?.AZURE_BLOB_KEY,
+  AZURE_BLOB_CONTAINER: parsedAzureBlob?.AZURE_BLOB_CONTAINER,
 
-  // Legacy/compat
-  AZURE_POSTGRES_URL: parsedLegacy.AZURE_POSTGRES_URL ?? null,
+  // Optional / legacy
+  AZURE_POSTGRES_URL: parsedOptional.AZURE_POSTGRES_URL,
 
-  TWILIO_ACCOUNT_SID: parsedLegacy.TWILIO_ACCOUNT_SID ?? null,
-  TWILIO_AUTH_TOKEN: parsedLegacy.TWILIO_AUTH_TOKEN ?? null,
-  TWILIO_PHONE_NUMBER_BF: parsedLegacy.TWILIO_PHONE_NUMBER_BF ?? null,
-  TWILIO_PHONE_NUMBER_SLF: parsedLegacy.TWILIO_PHONE_NUMBER_SLF ?? null,
-};
+  // Twilio (optional values but always-present properties)
+  TWILIO_ACCOUNT_SID: parsedTwilio.TWILIO_ACCOUNT_SID,
+  TWILIO_AUTH_TOKEN: parsedTwilio.TWILIO_AUTH_TOKEN,
+  TWILIO_PHONE_NUMBER_BF: parsedTwilio.TWILIO_PHONE_NUMBER_BF,
+  TWILIO_PHONE_NUMBER_SLF: parsedTwilio.TWILIO_PHONE_NUMBER_SLF,
+} as const;
 
-/**
- * IMPORTANT:
- * This is what your token.helpers.ts expects:
- *   import { authConfig } from "../config/config";
- */
 export const authConfig = {
   TOKEN_TRANSPORT: parsedAuth.TOKEN_TRANSPORT,
+
   ACCESS_TOKEN_SECRET: parsedAuth.ACCESS_TOKEN_SECRET,
   REFRESH_TOKEN_SECRET: parsedAuth.REFRESH_TOKEN_SECRET,
-  ACCESS_TOKEN_EXPIRES_IN: parsedAuth.ACCESS_TOKEN_EXPIRES_IN,
-  REFRESH_TOKEN_EXPIRES_IN: parsedAuth.REFRESH_TOKEN_EXPIRES_IN,
-  REFRESH_TOKEN_TRANSPORT: parsedAuth.REFRESH_TOKEN_TRANSPORT,
+
+  // defaults: 15m access, 30d refresh (seconds)
+  ACCESS_TOKEN_EXPIRES_IN: asInt(parsedAuth.ACCESS_TOKEN_EXPIRES_IN, 60 * 15),
+  REFRESH_TOKEN_EXPIRES_IN: asInt(parsedAuth.REFRESH_TOKEN_EXPIRES_IN, 60 * 60 * 24 * 30),
 } as const;
