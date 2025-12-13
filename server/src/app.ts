@@ -1,19 +1,15 @@
 import express from "express";
 import cors from "cors";
 
-// use require to avoid TS module resolution failures
-const healthRouter = require("./routes/internal/health").default;
-const dbHealthRouter = require("./routes/internal/db").default;
-
 const app = express();
 
 app.use(cors({ origin: "*", credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// internal routes
-app.use("/api/internal/health", healthRouter);
-app.use("/api/internal/db", dbHealthRouter);
+// NOTE:
+// Internal health route REMOVED.
+// It referenced a file that does not exist at runtime and caused crashes.
 
 // root
 app.get("/", (_req, res) => {
