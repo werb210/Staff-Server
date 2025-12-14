@@ -1,22 +1,21 @@
-import { Client } from 'pg';
+import { Client } from "pg";
 
-let client: Client | null = null;
-
-export async function connectDb() {
-  if (client) return client;
-
-  client = new Client({
-    connectionString: process.env.DATABASE_URL,
-    ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
-  });
-
-  await client.connect();
-  return client;
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL is not set");
 }
 
-export function getDb() {
-  if (!client) {
-    throw new Error('DB not connected');
+export const dbClient = new Client({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
+
+export async function verifyDbConnection() {
+  try {
+    await dbClient.connect();
+    await dbClient.query("select 1");
+    console.log("Database connection OK");
+  } catch (err) {
+    console.error("Database connection FAILED");
+    throw err;
   }
-  return client;
 }
