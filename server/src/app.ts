@@ -2,32 +2,22 @@ import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 
-import internalRoutes from "./routes/internal";
-import auth from "./middleware/auth";
+import internalRouter from "./routes/internal";
+import { errorHandler } from "./middleware/errorHandler";
+import { requestLogger } from "./middleware/requestLogger";
 
 const app = express();
 
-/**
- * Global middleware
- */
-app.use(cors({
-  origin: "*",
-  credentials: true,
-}));
-
+/* middleware */
+app.use(cors());
 app.use(express.json());
 app.use(cookieParser());
+app.use(requestLogger);
 
-/**
- * Internal API (protected)
- */
-app.use("/api/_int", auth, internalRoutes);
+/* routes */
+app.use("/api/internal", internalRouter);
 
-/**
- * Fallback
- */
-app.use((req, res) => {
-  res.status(404).json({ error: "Not found" });
-});
+/* error handling */
+app.use(errorHandler);
 
 export default app;
