@@ -1,28 +1,31 @@
 import express from "express";
 import cors from "cors";
 
+import authMiddleware from "./middleware/auth";
 import internalRoutes from "./api/internal";
+import apiRoutes from "./api";
 
 const app = express();
 
+/* middleware */
 app.use(cors({ origin: "*", credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// public root
+/* PUBLIC ROUTES — MUST BE ABOVE AUTH */
 app.get("/", (_req, res) => {
   res.status(200).send("OK");
 });
 
-// public health
-app.get("/health", (_req, res) => {
-  res.status(200).json({ status: "ok" });
-});
-
-// INTERNAL (unauthenticated)
 app.use("/api/_int", internalRoutes);
 
-// fallback
+/* AUTH — PROTECT EVERYTHING ELSE */
+app.use(authMiddleware);
+
+/* PROTECTED API */
+app.use("/api", apiRoutes);
+
+/* fallback */
 app.use((_req, res) => {
   res.status(404).json({ error: "Not found" });
 });
