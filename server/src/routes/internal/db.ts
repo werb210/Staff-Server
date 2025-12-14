@@ -1,14 +1,15 @@
 import { Router } from "express";
 import { db } from "../../db";
 
-export const dbRouter = Router();
+const router = Router();
 
-dbRouter.get("/", async (_req, res) => {
+router.get("/health", async (_req, res) => {
   try {
-    await db.execute("select 1");
-    res.json({ status: "ok", db: "connected" });
+    await db.query("select 1");
+    res.json({ status: "ok" });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "db_failed" });
+    res.status(500).json({ status: "db_error" });
   }
 });
+
+export default router;
