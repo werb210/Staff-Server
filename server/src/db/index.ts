@@ -1,12 +1,16 @@
 import { Client } from "pg";
 
-export const db = new Client({
+const client = new Client({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+  ssl: { rejectUnauthorized: false },
 });
 
-export async function connectDb() {
-  if (db._connected) return;
-  await db.connect();
-  (db as any)._connected = true;
+let connected = false;
+
+export async function getDb() {
+  if (!connected) {
+    await client.connect();
+    connected = true;
+  }
+  return client;
 }
