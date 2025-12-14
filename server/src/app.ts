@@ -1,13 +1,10 @@
-import express from "express";
-import cors from "cors";
-
-import internalRoutes from "./api/internal";
+import express from 'express';
+import internalRoutes from './routes/internal';
 
 const app = express();
 
-app.use(cors());
 app.use(express.json());
 
-app.use("/api/_int", internalRoutes);
+app.use('/internal', internalRoutes);
 
 export default app;
