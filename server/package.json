@@ -4,11 +4,7 @@
   "private": true,
   "type": "commonjs",
   "main": "dist/index.js",
-  "engines": {
-    "node": "20.x"
-  },
   "scripts": {
-    "dev": "nodemon src/index.ts",
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/index.js"
   },
@@ -37,7 +33,6 @@
     "@types/node": "^20.11.0",
     "@types/pg": "^8.11.10",
     "@types/ws": "^8.5.12",
-    "nodemon": "^3.0.2",
     "typescript": "^5.6.3"
   }
 }
