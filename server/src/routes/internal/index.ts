@@ -1,8 +1,10 @@
 import { Router } from "express";
-import dbRouter from "./db";
+import dbRoutes from "./db";
+import healthRoutes from "./health";
 
 const router = Router();
 
-router.use("/db", dbRouter);
+router.use("/db", dbRoutes);
+router.use("/health", healthRoutes);
 
 export default router;
