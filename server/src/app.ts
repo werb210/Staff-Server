@@ -2,14 +2,14 @@ import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 
-import { healthRouter } from "./routes/internal/health";
-import { dbRouter } from "./routes/internal/db";
-
-import { requestLogger } from "./middleware/requestLogger";
-import { errorHandler } from "./middleware/errorHandler";
+import internalRoutes from "./routes/internal";
+import auth from "./middleware/auth";
 
 const app = express();
 
+/**
+ * Global middleware
+ */
 app.use(cors({
   origin: "*",
   credentials: true,
@@ -17,18 +17,17 @@ app.use(cors({
 
 app.use(express.json());
 app.use(cookieParser());
-app.use(requestLogger);
 
 /**
- * INTERNAL – NO AUTH
- * These must stay PUBLIC or Azure health checks break
+ * Internal API (protected)
  */
-app.use("/api/_int/health", healthRouter);
-app.use("/api/_int/db", dbRouter);
+app.use("/api/_int", auth, internalRoutes);
 
 /**
- * Error handler must be last
+ * Fallback
  */
-app.use(errorHandler);
+app.use((req, res) => {
+  res.status(404).json({ error: "Not found" });
+});
 
 export default app;
