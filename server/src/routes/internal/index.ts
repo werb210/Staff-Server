@@ -1,15 +1,8 @@
-import { Router } from 'express';
-import { connectDb } from '../../db';
+import { Router } from "express";
+import dbRoutes from "./db";
 
-const router = Router();
+const r = Router();
 
-router.get('/health', async (_req, res) => {
-  try {
-    await connectDb();
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(500).json({ ok: false, error: String(err) });
-  }
-});
+r.use("/db", dbRoutes);
 
-export default router;
+export default r;
