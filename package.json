@@ -1,11 +1,9 @@
 {
-  "name": "staff-server",
-  "version": "1.0.0",
+  "name": "staff-server-root",
   "private": true,
   "scripts": {
-    "postinstall": "npm --prefix server ci",
-    "build": "cd server && npm run build",
-    "start": "npm run build && node server/dist/index.js",
-    "dev": "cd server && npm run dev"
+    "postinstall": "npm --prefix server install",
+    "build": "npm --prefix server run build",
+    "start": "node server/dist/index.js"
   }
 }
