@@ -1,12 +1,15 @@
-import express from "express";
-import cors from "cors";
 import cookieParser from "cookie-parser";
+import cors from "cors";
+import express from "express";
 
 import apiRoutes from "./api";
-import { pool } from "./db";
 
 const app = express();
 
+// 1. express.json()
+app.use(express.json({ limit: "5mb" }));
+
+// 2. security middleware (CORS)
 app.use(
   cors({
     origin: (origin, cb) => {
@@ -22,29 +25,22 @@ app.use(
     credentials: true,
   })
 );
-app.use(express.json({ limit: "5mb" }));
+
 app.use(cookieParser());
 
-const healthHandler = async (_req: express.Request, res: express.Response) => {
-  try {
-    await pool.query("select 1 as ok");
-    res.status(200).json({ status: "ok", db: "connected" });
-  } catch (error: any) {
-    res.status(500).json({ status: "error", db: "disconnected", error: String(error?.message ?? error) });
-  }
-};
-
-app.get("/health", healthHandler);
-app.get("/api/health", healthHandler);
-
+// 3. /api router
 app.use("/api", apiRoutes);
 
-app.get("/", (_req, res) => {
-  res.status(200).send("OK");
-});
-
+// 4. 404 handler
 app.use((_req, res) => {
   res.status(404).json({ error: "Not Found" });
+});
+
+// 5. error handler
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error("Unhandled error", err);
+  res.status(500).json({ error: "Internal Server Error" });
 });
 
 export { app };

@@ -1,5 +1,7 @@
 import { Router } from "express";
 
+import { config } from "../config/config";
+import { listRegisteredRoutes } from "../routes/listRoutes";
 import aiRoutes from "./ai";
 import analysisRoutes from "./analysis";
 import authRoutes from "./auth";
@@ -33,5 +35,27 @@ router.use("/pipeline", pipelineRoutes);
 router.use("/products", productRoutes);
 router.use("/protected", protectedRoutes);
 router.use("/users", userRoutes);
+
+if (config.NODE_ENV !== "production") {
+  router.get("/_debug/routes", (req, res) => {
+    const routes = listRegisteredRoutes(req.app, "");
+    res.json({ routes });
+  });
+
+  router.get("/_debug/env", (_req, res) => {
+    const envVars = Object.keys(process.env)
+      .sort()
+      .reduce<Record<string, string>>((acc, key) => {
+        const value = process.env[key];
+        acc[key] = typeof value === "string" && value.length > 0 ? "[masked]" : "";
+        return acc;
+      }, {});
+
+    res.json({
+      environment: config.NODE_ENV,
+      variables: envVars,
+    });
+  });
+}
 
 export default router;

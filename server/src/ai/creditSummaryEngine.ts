@@ -1,5 +1,5 @@
 import { desc, eq } from "drizzle-orm";
-import { db } from "../db/client";
+import { db } from "../db";
 import { applications, applicationTimelineEvents, creditSummaries } from "../db/schema";
 import { AIEngine, AIProvider, EchoAIProvider } from "./aiEngine";
 

@@ -8,7 +8,8 @@ export const authController = {
   async login(req: Request, res: Response, next: NextFunction) {
     try {
       const parsed = loginSchema.parse(req.body);
-      const result = await authService.login(parsed, {
+      const normalized = { ...parsed, email: parsed.email.toLowerCase() };
+      const result = await authService.login(normalized, {
         ipAddress: req.ip,
         userAgent: req.get("user-agent") || undefined,
       });
@@ -57,4 +58,12 @@ export const authController = {
       next(error);
     }
   },
-}; 
+
+  async me(req: Request, res: Response) {
+    if (!req.user) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    return res.json({ user: req.user });
+  },
+};

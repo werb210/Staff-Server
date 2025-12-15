@@ -1,4 +1,4 @@
-import { db } from "./db/client";
+import { db } from "./db";
 import { applicationTimelineEvents, ocrResults } from "./db/schema";
 
 export interface OcrRequest {

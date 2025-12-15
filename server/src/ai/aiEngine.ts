@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { db } from "../db/client";
+import { db } from "../db";
 import { aiTrainingChunks } from "../db/schema";
 
 export type AIRequestType = "summarize" | "extract" | "rewrite" | "credit-summary";

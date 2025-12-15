@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { z, ZodError } from "zod";
 import { eq } from "drizzle-orm";
-import { db } from "../db/client";
+import { db } from "../db";
 import { applications as applicationsTable, lenderRequiredDocuments, requiredDocMap } from "../db/schema";
 import { ApplicationsService, mapZodError } from "./applications.service";
 import { DrizzleApplicationsRepository } from "./applications.repository";

@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { db } from "../db/client";
+import { db } from "../db";
 import { users } from "../db/schema";
 import { AuthenticatedUser } from "../auth/auth.types";
 
@@ -16,12 +16,13 @@ function toAuthenticated(user: UserRecord): AuthenticatedUser {
 }
 
 export async function findUserByEmail(email: string) {
+  const normalizedEmail = email.toLowerCase();
   const customFinder = (db as any).findUserByEmail;
   if (typeof customFinder === "function") {
-    return customFinder(email);
+    return customFinder(normalizedEmail);
   }
   const user = await db.query.users.findFirst({
-    where: eq(users.email, email),
+    where: eq(users.email, normalizedEmail),
   });
   return user ?? null;
 }

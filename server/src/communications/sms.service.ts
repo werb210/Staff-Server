@@ -1,5 +1,5 @@
 import twilio from "twilio";
-import { db } from "../db/client";
+import { db } from "../db";
 import { communications } from "../db/schema";
 import { config } from "../config/config";
 import { SmsDirection } from "./communications.types";

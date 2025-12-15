@@ -19,7 +19,7 @@ const ocrInsertReturn = [{
   createdAt: new Date(),
 }];
 
-jest.mock("../../db/client", () => {
+jest.mock("../../db", () => {
   const mockInsert = jest.fn(() => ({
     values: jest.fn().mockReturnThis(),
     returning: jest.fn().mockResolvedValue(ocrInsertReturn),
@@ -47,7 +47,7 @@ jest.mock("../../db/schema", () => ({
 
 describe("OCR Service", () => {
   it("processes OCR and records categories", async () => {
-    const { __mocks } = require("../../db/client");
+    const { __mocks } = require("../../db");
     const mockInsert = __mocks.mockInsert as jest.Mock;
     const mockSelect = __mocks.mockSelect as jest.Mock;
     const mockWhere = __mocks.mockWhere as jest.Mock;
