@@ -1,73 +1,80 @@
-import express from "express";
-import cors from "cors";
-import cookieParser from "cookie-parser";
-import morgan from "morgan";
+import 'dotenv/config';
+import express from 'express';
+import cors from 'cors';
+import morgan from 'morgan';
+import cookieParser from 'cookie-parser';
 
-import authRoutes from "./routes/auth";
-import internalRoutes from "./routes/internal";
-import publicRoutes from "./routes/public";
+// 🔴 DB INIT — MUST EXIST
+import './db/init';
 
-import { initDb } from "./db/init";
+// 🔴 ROUTES — MUST EXIST
+import authRoutes from './routes/auth';
+import internalRoutes from './routes/internal';
+import publicRoutes from './routes/public';
 
 const app = express();
 
-/* ================================
-   CORS — MUST BE FIRST
-   ================================ */
+/* =========================
+   🔴 CORS — DO NOT MOVE 🔴
+   MUST BE IMMEDIATELY AFTER
+   const app = express()
+   ========================= */
 
-const rawOrigins = process.env.CORS_ORIGINS || "";
+const rawOrigins = process.env.CORS_ORIGINS || '';
 const allowedOrigins = rawOrigins
-  .split(",")
+  .split(',')
   .map(o => o.trim())
   .filter(Boolean);
 
-app.use(
-  cors({
-    origin: (origin, cb) => {
-      // allow server-to-server + health checks
-      if (!origin) return cb(null, true);
+const corsOptions: cors.CorsOptions = {
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true); // curl / health checks
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error(`CORS blocked: ${origin}`));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+};
 
-      if (allowedOrigins.includes(origin)) {
-        return cb(null, true);
-      }
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
-      return cb(new Error(`CORS blocked origin: ${origin}`));
-    },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
-
-/* 🔴 THIS WAS MISSING — REQUIRED FOR BROWSERS */
-app.options("*", cors());
-
-/* ================================
+/* =========================
    MIDDLEWARE
-   ================================ */
+   ========================= */
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-app.use(morgan("dev"));
+app.use(morgan('dev'));
 
-/* ================================
+/* =========================
    ROUTES
-   ================================ */
+   ========================= */
 
-app.use("/api/auth", authRoutes);
-app.use("/api/internal", internalRoutes);
-app.use("/api/public", publicRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/internal', internalRoutes);
+app.use('/api/public', publicRoutes);
 
-/* ================================
-   BOOT
-   ================================ */
+/* =========================
+   ROOT + FALLBACK
+   ========================= */
+
+app.get('/api', (_req, res) => {
+  res.json({ status: 'ok' });
+});
+
+app.use((_req, res) => {
+  res.status(404).json({ error: 'Not found' });
+});
+
+/* =========================
+   START SERVER
+   ========================= */
 
 const PORT = Number(process.env.PORT) || 8080;
 
-(async () => {
-  await initDb();
-
-  app.listen(PORT, () => {
-    console.log(`Staff Server running on port ${PORT}`);
-  });
-})();
+app.listen(PORT, () => {
+  console.log(`Staff Server running on port ${PORT}`);
+});
