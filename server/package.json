@@ -6,7 +6,8 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/index.js",
     "dev": "nodemon src/index.ts",
-    "test": "jest"
+    "test": "jest",
+    "reset-admin-password": "node dist/scripts/resetAdminPassword.js"
   },
   "dependencies": {
     "@azure/storage-blob": "^12.29.1",

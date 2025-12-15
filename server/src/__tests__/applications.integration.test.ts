@@ -134,6 +134,7 @@ function createTestApp(repo: InMemoryApplicationsRepository) {
       id: "staff-user",
       email: "staff@example.com",
       role: "Admin" as any,
+      status: "active" as any,
       sessionId: "test-session",
     };
     next();

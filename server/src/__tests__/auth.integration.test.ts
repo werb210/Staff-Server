@@ -23,14 +23,16 @@ import app from "../app";
 const adminPassword = "SecurePass123";
 const lenderPassword = "SecurePass456";
 
-function seedUsers() {
+async function seedUsers() {
   mock.userStore.length = 0;
   mock.auditStore.length = 0;
   sessionService.clearAllSessions();
+  const adminHash = await passwordService.hashPassword(adminPassword);
+  const lenderHash = await passwordService.hashPassword(lenderPassword);
   mock.userStore.push({
     id: randomUUID(),
     email: "admin@example.com",
-    password_hash: "",
+    passwordHash: adminHash,
     firstName: "Admin",
     lastName: "User",
     role: "Admin",
@@ -39,7 +41,7 @@ function seedUsers() {
   mock.userStore.push({
     id: randomUUID(),
     email: "lender@example.com",
-    password_hash: "",
+    passwordHash: lenderHash,
     firstName: "Lender",
     lastName: "User",
     role: "Lender",
@@ -48,9 +50,7 @@ function seedUsers() {
 }
 
 beforeEach(async () => {
-  seedUsers();
-  mock.userStore[0].password_hash = await passwordService.hashPassword(adminPassword);
-  mock.userStore[1].password_hash = await passwordService.hashPassword(lenderPassword);
+  await seedUsers();
 });
 
 describe("Authentication and authorization", () => {

@@ -30,7 +30,7 @@ async function seed() {
 
   console.log("Using roles:", ADMIN_ROLE, STAFF_ROLE);
 
-  const password_hash = await bcrypt.hash("ChangeMe123!", 10);
+  const passwordHash = await bcrypt.hash("ChangeMe123!", 12);
 
   await client.query(
     `
@@ -70,7 +70,7 @@ async function seed() {
       )
     on conflict (email) do nothing
     `,
-    [password_hash, ADMIN_ROLE, STAFF_ROLE]
+    [passwordHash, ADMIN_ROLE, STAFF_ROLE]
   );
 
   console.log("Users seeded successfully");

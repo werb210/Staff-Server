@@ -9,14 +9,21 @@ export function createMockDb() {
   const auditStore: AuditRecord[] = [];
 
   const db = {
-    findUserByEmail: async (email: string) => userStore.find((u) => u.email === email) ?? null,
+    findUserByEmail: async (email: string) => {
+      const normalized = email.trim().toLowerCase();
+      return userStore.find((u) => u.email === normalized) ?? null;
+    },
     findUserById: async (id: string) => userStore.find((u) => u.id === id) ?? null,
     select: () => ({
       from: (table: any) => ({
         where: (_where: any) => ({
           limit: async (_count: number) => {
             if (table === users) {
-              return userStore;
+              const emailFilter = typeof _where?.value === "string" ? _where.value : undefined;
+              const results = emailFilter
+                ? userStore.filter((u) => u.email === emailFilter)
+                : [...userStore];
+              return results;
             }
             return [];
           },
