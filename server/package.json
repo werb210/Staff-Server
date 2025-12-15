@@ -1,46 +1,22 @@
 {
-  "name": "staff-server-core",
+  "name": "staff-server",
   "version": "1.0.0",
   "private": true,
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "start": "node dist/index.js",
-    "dev": "nodemon src/index.ts",
-    "test": "jest",
-    "reset-admin-password": "node dist/scripts/resetAdminPassword.js"
+    "start": "node dist/index.js"
   },
   "dependencies": {
-    "@azure/storage-blob": "^12.29.1",
-    "bcryptjs": "^2.4.3",
-    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "drizzle-orm": "^0.44.7",
-    "express": "^4.22.1",
+    "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
-    "multer": "^1.4.5-lts.1",
-    "pg": "^8.16.3",
-    "twilio": "^5.3.6",
-    "ws": "^8.18.0",
-    "zod": "^3.25.6"
+    "morgan": "^1.10.0"
   },
   "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
-    "@types/cookie-parser": "^1.4.7",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
-    "@types/jest": "^29.5.12",
-    "@types/jsonwebtoken": "^9.0.7",
-    "@types/multer": "^1.4.12",
-    "@types/node": "^20.11.0",
-    "@types/pg": "^8.11.10",
-    "@types/supertest": "^6.0.3",
-    "@types/ws": "^8.5.12",
-    "jest": "^29.7.0",
-    "nodemon": "^3.0.2",
-    "supertest": "^7.0.0",
-    "ts-jest": "^29.3.4",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.6.3"
+    "@types/jsonwebtoken": "^9.0.5",
+    "@types/morgan": "^1.9.9",
+    "typescript": "^5.4.5"
   }
 }
