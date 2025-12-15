@@ -2,6 +2,7 @@ import { app } from "./app";
 import { config } from "./config/config";
 import { verifyDatabaseConnection } from "./db";
 import { listRegisteredRoutes } from "./routes/listRoutes";
+import { ensureDefaultUsers } from "./services/defaultUsers.service";
 
 async function start() {
   try {
@@ -14,6 +15,8 @@ async function start() {
       throw new Error("Database connection verification failed");
     }
     console.log("Database connection verified");
+
+    await ensureDefaultUsers();
   } catch (error: any) {
     console.error("Failed to connect to database:", error?.message ?? error);
     process.exit(1);
