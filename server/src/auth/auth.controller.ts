@@ -8,7 +8,7 @@ export const authController = {
   async login(req: Request, res: Response, next: NextFunction) {
     try {
       const parsed = loginSchema.parse(req.body);
-      const normalized = { ...parsed, email: parsed.email.toLowerCase() };
+      const normalized = { ...parsed, email: parsed.email.trim().toLowerCase() };
       const result = await authService.login(normalized, {
         ipAddress: req.ip,
         userAgent: req.get("user-agent") || undefined,
