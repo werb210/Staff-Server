@@ -27,11 +27,11 @@ beforeEach(async () => {
   mock.auditStore.length = 0;
   sessionService.clearAllSessions();
 
-  const passwordHash = await passwordService.hashPassword(password);
+  const password_hash = await passwordService.hashPassword(password);
   mock.userStore.push({
     id: randomUUID(),
     email: "smoke@example.com",
-    passwordHash,
+    password_hash,
     firstName: "Smoke",
     lastName: "Test",
     role: "Staff",
@@ -47,7 +47,7 @@ describe("Auth smoke test", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(response.body.tokens?.accessToken).toBeDefined();
+    expect(response.body.token).toBeDefined();
     expect(response.body.user.email).toBe("smoke@example.com");
   });
 });

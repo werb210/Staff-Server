@@ -36,10 +36,10 @@ router.post("/", async (req, res, next) => {
     if (!email || !password || !firstName || !lastName) {
       return res.status(400).json({ error: "Missing required fields" });
     }
-    const passwordHash = await passwordService.hashPassword(password);
+    const password_hash = await passwordService.hashPassword(password);
     const [created] = await db
       .insert(users)
-      .values({ email, passwordHash, firstName, lastName, role })
+      .values({ email, password_hash, firstName, lastName, role })
       .returning();
     res.status(201).json(created);
   } catch (err) {
