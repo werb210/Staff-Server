@@ -11,6 +11,18 @@ export function createMockDb() {
   const db = {
     findUserByEmail: async (email: string) => userStore.find((u) => u.email === email) ?? null,
     findUserById: async (id: string) => userStore.find((u) => u.id === id) ?? null,
+    select: () => ({
+      from: (table: any) => ({
+        where: (_where: any) => ({
+          limit: async (_count: number) => {
+            if (table === users) {
+              return userStore;
+            }
+            return [];
+          },
+        }),
+      }),
+    }),
     insert: (table: any) => ({
       values: (payload: any) => {
         const rows = Array.isArray(payload) ? payload : [payload];

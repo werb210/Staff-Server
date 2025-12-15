@@ -1,17 +1,11 @@
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { sql } from "drizzle-orm";
 import { Pool } from "pg";
-
-import { config } from "./config/config";
-import * as schema from "./db/schema";
-
-const sslConfig = config.DATABASE_URL.includes("postgres.database.azure.com")
-  ? { rejectUnauthorized: false }
-  : undefined;
+import * as schema from "./schema";
 
 const pool = new Pool({
-  connectionString: config.DATABASE_URL,
-  ssl: sslConfig,
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
 });
 
 export const db: NodePgDatabase<typeof schema> = drizzle(pool, { schema });

@@ -53,9 +53,9 @@ export const authService = {
     }
 
     if (config.NODE_ENV !== "production") {
-      console.debug("Auth login hash length", { email: normalizedEmail, hashLength: userRecord.passwordHash.length });
+      console.debug("Auth login hash length", { email: normalizedEmail, hashLength: userRecord.password_hash.length });
     }
-    const passwordValid = await passwordService.verifyPassword(payload.password, userRecord.passwordHash);
+    const passwordValid = await passwordService.verifyPassword(payload.password, userRecord.password_hash);
     if (config.NODE_ENV !== "production") {
       console.debug("Auth login bcrypt compare result", { email: normalizedEmail, passwordValid });
     }
