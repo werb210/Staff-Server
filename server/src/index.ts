@@ -1,79 +1,62 @@
 import express from "express";
-import http from "http";
 import cors from "cors";
-import cookieParser from "cookie-parser";
 import morgan from "morgan";
 
-// ---- ROUTES (adjust paths only if your repo differs) ----
-import authRoutes from "./routes/auth";
-import publicRoutes from "./routes/public";
-import internalRoutes from "./routes/internal";
+import authRouter from "./routes/auth/index";
+import publicRouter from "./routes/public/index";
+import internalRouter from "./routes/internal/index";
 
-// ---- ENV ----
-const PORT = process.env.PORT || 8080;
-
-// ---- APP ----
 const app = express();
 
 /**
- * ============================
- * CORS — MUST BE FIRST
- * ============================
- * This fixes the Staff Portal login.
- * Browser preflight was being blocked before routes.
+ * CORS — MUST be before ANY routes
  */
-const allowedOrigins = new Set(
-  (
-    process.env.CORS_ORIGINS ??
-    "https://staff.boreal.financial,https://staff-portal-azesc6enhyh9fncx.canadacentral-01.azurewebsites.net"
-  )
-    .split(",")
-    .map((o) => o.trim())
-    .filter(Boolean)
+const allowedOrigins = (process.env.CORS_ORIGINS || "")
+  .split(",")
+  .map(o => o.trim())
+  .filter(Boolean);
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error("CORS blocked"), false);
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
 );
 
-const corsOptions: cors.CorsOptions = {
-  origin: (origin, cb) => {
-    // allow curl / server-to-server (no Origin header)
-    if (!origin) return cb(null, true);
-    if (allowedOrigins.has(origin)) return cb(null, true);
-    return cb(new Error(`CORS blocked origin: ${origin}`));
-  },
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-  exposedHeaders: ["Authorization"],
-  maxAge: 86400,
-};
+app.options("*", cors());
 
-app.use(cors(corsOptions));
-app.options("*", cors(corsOptions)); // <-- THIS is what your browser needed
+/**
+ * Core middleware
+ */
+app.use(express.json());
+app.use(morgan("dev"));
 
-// ---- MIDDLEWARE ----
-app.use(morgan("combined"));
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser());
+/**
+ * Routes
+ */
+app.use("/api/auth", authRouter);
+app.use("/api/public", publicRouter);
+app.use("/api/internal", internalRouter);
 
-// ---- ROUTES (AFTER CORS) ----
-app.use("/api/auth", authRoutes);
-app.use("/api/public", publicRoutes);
-app.use("/api/internal", internalRoutes);
-
-// ---- FALLBACKS ----
-app.get("/api/health", (_req, res) => {
+/**
+ * Health
+ */
+app.get("/api/public/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
-app.use((_req, res) => {
-  res.status(404).json({ error: "Not found" });
+/**
+ * Start
+ */
+const port = process.env.PORT || 5000;
+app.listen(port, () => {
+  console.log(`Staff Server running on port ${port}`);
 });
-
-// ---- SERVER ----
-const server = http.createServer(app);
-
-server.listen(PORT, () => {
-  console.log(`Staff-Server listening on port ${PORT}`);
-});
-
-export default app;
