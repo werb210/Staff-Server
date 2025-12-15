@@ -20,22 +20,22 @@ jobs:
           cache: npm
           cache-dependency-path: server/package-lock.json
 
-      # Install deps needed to BUILD (includes dev deps)
+      # Install ALL deps (including dev) so TypeScript can build
       - name: Install dependencies (server)
         working-directory: server
         run: npm ci
 
-      # Compile TypeScript
+      # Build TypeScript
       - name: Build TypeScript (server)
         working-directory: server
         run: npm run build
 
-      # Remove dev dependencies AFTER build
-      - name: Prune dev dependencies
+      # Remove devDependencies, KEEP runtime deps
+      - name: Prune dev dependencies (server)
         working-directory: server
         run: npm prune --omit=dev
 
-      # Package runtime artifact INCLUDING node_modules
+      # Package dist + node_modules so Azure does NOT build
       - name: Create deployment ZIP (dist + node_modules)
         run: |
           rm -rf deploy
@@ -47,7 +47,6 @@ jobs:
           cd deploy
           zip -r ../staff-server-build.zip .
 
-      # Deploy ZIP to Azure App Service
       - name: Deploy ZIP to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
