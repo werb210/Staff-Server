@@ -20,7 +20,7 @@ jobs:
           cache: npm
           cache-dependency-path: server/package-lock.json
 
-      - name: Install dependencies (server)
+      - name: Install deps (server)
         working-directory: server
         run: npm ci
 
@@ -28,20 +28,22 @@ jobs:
         working-directory: server
         run: npm run build
 
-      # Package the built server into a ZIP artifact
-      - name: Create deployment ZIP
+      # Remove devDependencies so ZIP contains only production runtime deps
+      - name: Prune dev deps (server)
+        working-directory: server
+        run: npm prune --omit=dev
+
+      - name: Create deployment ZIP (dist + node_modules)
         run: |
           rm -rf deploy
           mkdir -p deploy
-          # copy built code and runtime files
           cp -R server/dist deploy/dist
+          cp -R server/node_modules deploy/node_modules
           cp server/package.json deploy/package.json
           cp server/package-lock.json deploy/package-lock.json
-          # create zip file
           cd deploy
           zip -r ../staff-server-build.zip .
 
-      # Deploy using Azure Web App publish profile (NO azure/login)
       - name: Deploy ZIP to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
