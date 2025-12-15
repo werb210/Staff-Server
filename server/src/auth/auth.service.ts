@@ -41,7 +41,7 @@ function validatePortalRole(user: AuthenticatedUser, portal?: string) {
 
 export const authService = {
   async login(payload: LoginRequestBody, ctx: RequestContext): Promise<LoginResult> {
-    const normalizedEmail = payload.email.toLowerCase();
+    const normalizedEmail = payload.email.trim().toLowerCase();
     const userRecord = await findUserByEmail(normalizedEmail);
     if (config.NODE_ENV !== "production") {
       console.debug("Auth login user lookup", { email: normalizedEmail, found: Boolean(userRecord) });
@@ -52,10 +52,16 @@ export const authService = {
       throw new AuthError("Invalid credentials");
     }
 
-    if (config.NODE_ENV !== "production") {
-      console.debug("Auth login hash length", { email: normalizedEmail, hashLength: userRecord.password_hash.length });
+    if (!userRecord.passwordHash) {
+      await recordLoginAudit(normalizedEmail, "login_failure", ctx, userRecord.id);
+      console.warn("Login failed: missing password hash", { email: normalizedEmail });
+      throw new AuthError("Invalid credentials");
     }
-    const passwordValid = await passwordService.verifyPassword(payload.password, userRecord.password_hash);
+
+    if (config.NODE_ENV !== "production") {
+      console.debug("Auth login hash length", { email: normalizedEmail, hashLength: userRecord.passwordHash.length });
+    }
+    const passwordValid = await passwordService.verifyPassword(payload.password, userRecord.passwordHash);
     if (config.NODE_ENV !== "production") {
       console.debug("Auth login bcrypt compare result", { email: normalizedEmail, passwordValid });
     }

@@ -27,11 +27,11 @@ beforeEach(async () => {
   mock.auditStore.length = 0;
   sessionService.clearAllSessions();
 
-  const password_hash = await passwordService.hashPassword(password);
+  const passwordHash = await passwordService.hashPassword(password);
   mock.userStore.push({
     id: randomUUID(),
     email: "smoke@example.com",
-    password_hash,
+    passwordHash,
     firstName: "Smoke",
     lastName: "Test",
     role: "Staff",

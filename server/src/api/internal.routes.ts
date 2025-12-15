@@ -1,4 +1,6 @@
 import { Router } from "express";
+
+import { verifyDatabaseConnection } from "../db";
 import { listRegisteredRoutes } from "../routes/listRoutes";
 
 const router = Router();
@@ -6,14 +8,30 @@ const router = Router();
 /**
  * GET /api/internal/health
  */
-router.get("/health", (_req, res) => {
-  res.status(200).json({
-    status: "ok",
-    uptime: process.uptime(),
-    timestamp: new Date().toISOString(),
-    service: "staff-server",
-    scope: "internal",
-  });
+router.get("/health", async (_req, res) => {
+  try {
+    const dbConnected = await verifyDatabaseConnection();
+    const status = dbConnected ? "ok" : "degraded";
+    const httpStatus = dbConnected ? 200 : 503;
+
+    res.status(httpStatus).json({
+      status,
+      dbConnected,
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+      service: "staff-server",
+      scope: "internal",
+    });
+  } catch (err: any) {
+    res.status(500).json({
+      status: "error",
+      dbConnected: false,
+      message: err?.message ?? "Health check failed",
+      timestamp: new Date().toISOString(),
+      service: "staff-server",
+      scope: "internal",
+    });
+  }
 });
 
 /**

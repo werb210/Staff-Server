@@ -10,13 +10,14 @@ function toAuthenticated(user: UserRecord): AuthenticatedUser {
     id: user.id,
     email: user.email,
     role: user.role as AuthenticatedUser["role"],
+    status: user.status as AuthenticatedUser["status"],
     firstName: user.firstName,
     lastName: user.lastName,
   };
 }
 
 export async function findUserByEmail(email: string) {
-  const normalizedEmail = email.toLowerCase();
+  const normalizedEmail = email.trim().toLowerCase();
   const customFinder = (db as any).findUserByEmail;
   if (typeof customFinder === "function") {
     return customFinder(normalizedEmail);

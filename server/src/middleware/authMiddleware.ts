@@ -11,15 +11,18 @@ export function authenticate(req: Request, res: Response, next: NextFunction) {
   const token = header.replace(/^Bearer\s+/i, "");
   try {
     const payload = jwt.verify(token, config.JWT_SECRET) as {
-      id: string;
-      email: string;
+      id?: string;
+      sub?: string;
+      email?: string;
       role?: UserRole;
       sessionId?: string;
+      status?: string;
     };
     req.user = {
-      id: payload.id,
-      email: payload.email,
+      id: payload.id ?? payload.sub ?? "",
+      email: payload.email ?? "",
       role: payload.role ?? "Staff",
+      status: (payload.status as any) ?? "active",
       sessionId: payload.sessionId ?? "",
     };
     return next();
