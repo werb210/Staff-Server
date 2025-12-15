@@ -1,14 +1,16 @@
 import { Pool } from "pg";
+import { config } from "./config/config";
 
-const DATABASE_URL = process.env.DATABASE_URL;
-
-if (!DATABASE_URL) {
-  throw new Error("DATABASE_URL missing");
-}
+const sslConfig = config.DATABASE_URL.includes("postgres.database.azure.com")
+  ? { rejectUnauthorized: false }
+  : undefined;
 
 export const pool = new Pool({
-  connectionString: DATABASE_URL,
-  ssl: DATABASE_URL.includes("postgres.database.azure.com")
-    ? { rejectUnauthorized: false }
-    : undefined,
+  connectionString: config.DATABASE_URL,
+  ssl: sslConfig,
 });
+
+export async function verifyDatabaseConnection() {
+  const result = await pool.query("select 1 as ok");
+  return result.rows[0]?.ok === 1;
+}

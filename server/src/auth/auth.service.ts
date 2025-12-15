@@ -43,12 +43,14 @@ export const authService = {
     const userRecord = await findUserByEmail(payload.email);
     if (!userRecord) {
       await recordLoginAudit(payload.email, "login_failure", ctx);
+      console.warn("Login failed: user not found", { email: payload.email });
       throw new AuthError("Invalid credentials");
     }
 
     const passwordValid = await passwordService.verifyPassword(payload.password, userRecord.passwordHash);
     if (!passwordValid) {
       await recordLoginAudit(payload.email, "login_failure", ctx, userRecord.id);
+      console.warn("Login failed: invalid password", { email: payload.email });
       throw new AuthError("Invalid credentials");
     }
 
