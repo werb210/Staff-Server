@@ -10,6 +10,7 @@ import lenderRoutes from "./lenders";
 import ocrRoutes from "./ocr";
 import pipelineRoutes from "./pipeline";
 import productRoutes from "./products";
+import protectedRoutes from "./protected";
 import userRoutes from "./users";
 
 const router = Router();
@@ -30,6 +31,7 @@ router.use("/lenders", lenderRoutes);
 router.use("/ocr", ocrRoutes);
 router.use("/pipeline", pipelineRoutes);
 router.use("/products", productRoutes);
+router.use("/protected", protectedRoutes);
 router.use("/users", userRoutes);
 
 export default router;
