@@ -1,29 +1,37 @@
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import morgan from "morgan";
 
-import authRouter from "./routes/auth/index";
-import publicRouter from "./routes/public/index";
-import internalRouter from "./routes/internal/index";
+import authRoutes from "./routes/auth";
+import internalRoutes from "./routes/internal";
+import publicRoutes from "./routes/public";
+
+import { initDb } from "./db/init";
 
 const app = express();
 
-/**
- * CORS — MUST be before ANY routes
- */
-const allowedOrigins = (process.env.CORS_ORIGINS || "")
+/* ================================
+   CORS — MUST BE FIRST
+   ================================ */
+
+const rawOrigins = process.env.CORS_ORIGINS || "";
+const allowedOrigins = rawOrigins
   .split(",")
   .map(o => o.trim())
   .filter(Boolean);
 
 app.use(
   cors({
-    origin: (origin, callback) => {
-      if (!origin) return callback(null, true);
+    origin: (origin, cb) => {
+      // allow server-to-server + health checks
+      if (!origin) return cb(null, true);
+
       if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
+        return cb(null, true);
       }
-      return callback(new Error("CORS blocked"), false);
+
+      return cb(new Error(`CORS blocked origin: ${origin}`));
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -31,32 +39,35 @@ app.use(
   })
 );
 
+/* 🔴 THIS WAS MISSING — REQUIRED FOR BROWSERS */
 app.options("*", cors());
 
-/**
- * Core middleware
- */
+/* ================================
+   MIDDLEWARE
+   ================================ */
+
 app.use(express.json());
+app.use(cookieParser());
 app.use(morgan("dev"));
 
-/**
- * Routes
- */
-app.use("/api/auth", authRouter);
-app.use("/api/public", publicRouter);
-app.use("/api/internal", internalRouter);
+/* ================================
+   ROUTES
+   ================================ */
 
-/**
- * Health
- */
-app.get("/api/public/health", (_req, res) => {
-  res.json({ status: "ok" });
-});
+app.use("/api/auth", authRoutes);
+app.use("/api/internal", internalRoutes);
+app.use("/api/public", publicRoutes);
 
-/**
- * Start
- */
-const port = process.env.PORT || 5000;
-app.listen(port, () => {
-  console.log(`Staff Server running on port ${port}`);
-});
+/* ================================
+   BOOT
+   ================================ */
+
+const PORT = Number(process.env.PORT) || 8080;
+
+(async () => {
+  await initDb();
+
+  app.listen(PORT, () => {
+    console.log(`Staff Server running on port ${PORT}`);
+  });
+})();
