@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db } from "../db/client";
+import { db } from "../db";
 import { applications } from "../db/schema";
 import { authenticate } from "../middleware/authMiddleware";
 

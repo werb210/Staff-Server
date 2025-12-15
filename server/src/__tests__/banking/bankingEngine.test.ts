@@ -6,7 +6,7 @@ jest.mock("../../services/blobService", () => ({
   ),
 }));
 
-jest.mock("../../db/client", () => {
+jest.mock("../../db", () => {
   const mockInsert = jest.fn(() => ({
     values: jest.fn().mockReturnThis(),
     returning: jest.fn().mockResolvedValue([
@@ -42,7 +42,7 @@ jest.mock("../../db/schema", () => ({
 
 describe("Banking Service", () => {
   it("analyzes transactions and stores metrics", async () => {
-    const { __mocks } = require("../../db/client");
+    const { __mocks } = require("../../db");
     const mockInsert = __mocks.mockInsert as jest.Mock;
     const mockSelect = __mocks.mockSelect as jest.Mock;
     const mockWhere = __mocks.mockWhere as jest.Mock;

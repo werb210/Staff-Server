@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
-import { db } from "../db/client";
+import { db } from "../db";
 import { lenderProducts, lenderRequiredDocuments, requiredDocMap } from "../db/schema";
 import { authenticate } from "../middleware/authMiddleware";
 

@@ -1,5 +1,5 @@
 import { eq, inArray } from "drizzle-orm";
-import { db } from "../db/client";
+import { db } from "../db";
 import { applicationTimelineEvents, bankingAnalysis, documentVersions } from "../db/schema";
 import { OcrProcessor } from "../ocr/ocr.processor";
 import { BankingAnalyzer } from "./banking.analyzer";

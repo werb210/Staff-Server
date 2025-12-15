@@ -1,4 +1,5 @@
-import { db } from "../db/client";
+import { config } from "../config/config";
+import { db } from "../db";
 import { auditLogs } from "../db/schema";
 import { passwordService } from "../services/password.service";
 import { sessionService } from "../services/session.service";
@@ -40,17 +41,27 @@ function validatePortalRole(user: AuthenticatedUser, portal?: string) {
 
 export const authService = {
   async login(payload: LoginRequestBody, ctx: RequestContext): Promise<LoginResult> {
-    const userRecord = await findUserByEmail(payload.email);
+    const normalizedEmail = payload.email.toLowerCase();
+    const userRecord = await findUserByEmail(normalizedEmail);
+    if (config.NODE_ENV !== "production") {
+      console.debug("Auth login user lookup", { email: normalizedEmail, found: Boolean(userRecord) });
+    }
     if (!userRecord) {
-      await recordLoginAudit(payload.email, "login_failure", ctx);
-      console.warn("Login failed: user not found", { email: payload.email });
+      await recordLoginAudit(normalizedEmail, "login_failure", ctx);
+      console.warn("Login failed: user not found", { email: normalizedEmail });
       throw new AuthError("Invalid credentials");
     }
 
+    if (config.NODE_ENV !== "production") {
+      console.debug("Auth login hash length", { email: normalizedEmail, hashLength: userRecord.passwordHash.length });
+    }
     const passwordValid = await passwordService.verifyPassword(payload.password, userRecord.passwordHash);
+    if (config.NODE_ENV !== "production") {
+      console.debug("Auth login bcrypt compare result", { email: normalizedEmail, passwordValid });
+    }
     if (!passwordValid) {
-      await recordLoginAudit(payload.email, "login_failure", ctx, userRecord.id);
-      console.warn("Login failed: invalid password", { email: payload.email });
+      await recordLoginAudit(normalizedEmail, "login_failure", ctx, userRecord.id);
+      console.warn("Login failed: invalid password", { email: normalizedEmail });
       throw new AuthError("Invalid credentials");
     }
 
@@ -58,10 +69,10 @@ export const authService = {
     try {
       validatePortalRole(user, payload.portal);
     } catch (error) {
-      await recordLoginAudit(payload.email, "login_failure", ctx, user.id);
+      await recordLoginAudit(normalizedEmail, "login_failure", ctx, user.id);
       throw error;
     }
-    await recordLoginAudit(payload.email, "login_success", ctx, user.id);
+    await recordLoginAudit(normalizedEmail, "login_success", ctx, user.id);
 
     const tokens = await sessionService.createSession(user);
     return { user, tokens };

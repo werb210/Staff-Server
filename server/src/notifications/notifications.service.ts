@@ -1,5 +1,5 @@
 import { asc, eq } from "drizzle-orm";
-import { db } from "../db/client";
+import { db } from "../db";
 import { notifications } from "../db/schema";
 
 export type NotificationType =

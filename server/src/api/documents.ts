@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { desc, eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
-import { db } from "../db/client";
+import { db } from "../db";
 import {
   applications,
   documentIntegrityEvents,

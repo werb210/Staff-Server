@@ -2,14 +2,21 @@ import request from "supertest";
 import { randomUUID } from "crypto";
 import { passwordService } from "../services/password.service";
 import { sessionService } from "../services/session.service";
-import { createMockDb } from "../testUtils/mockDb";
 
-const mock = createMockDb();
+type MockDb = ReturnType<typeof import("../testUtils/mockDb")["createMockDb"]>;
 
-jest.mock("../db/client", () => ({
-  db: mock.db,
-  pgPool: { end: jest.fn(), query: jest.fn() },
-}));
+jest.mock("../db", () => {
+  const { createMockDb } = require("../testUtils/mockDb");
+  const mockDb = createMockDb();
+  return {
+    db: mockDb.db,
+    verifyDatabaseConnection: jest.fn().mockResolvedValue(true),
+    closeDatabase: jest.fn(),
+    __mockDb: mockDb,
+  };
+});
+
+const { __mockDb: mock } = jest.requireMock("../db") as { __mockDb: MockDb };
 
 import app from "../app";
 

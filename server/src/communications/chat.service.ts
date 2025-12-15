@@ -1,5 +1,5 @@
 import { asc, and, eq } from "drizzle-orm";
-import { db } from "../db/client";
+import { db } from "../db";
 import { communications } from "../db/schema";
 import { DrizzleApplicationsRepository } from "../applications/applications.repository";
 import { TimelineService } from "../applications/timeline.service";

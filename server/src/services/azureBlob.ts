@@ -15,9 +15,9 @@ type AzureBlobRequired = {
 };
 
 function requireAzureBlobConfig(): AzureBlobRequired {
-  const account = config.AZURE_BLOB_ACCOUNT;
-  const key = config.AZURE_BLOB_KEY;
-  const container = config.AZURE_BLOB_CONTAINER;
+  const account = config.AZURE_BLOB_ACCOUNT ?? process.env.AZURE_BLOB_ACCOUNT;
+  const key = config.AZURE_BLOB_KEY ?? process.env.AZURE_BLOB_KEY;
+  const container = config.AZURE_BLOB_CONTAINER ?? process.env.AZURE_BLOB_CONTAINER;
 
   // In production, config.ts already enforces these.
   // In non-prod, we allow the app to boot without Azure configured, but any blob call must fail clearly.

@@ -5,7 +5,7 @@ import {
   applicationTimelineEvents,
   applications,
 } from "../db/schema";
-import { db } from "../db/client";
+import { db } from "../db";
 import { ApplicationsRepository } from "./types";
 
 export class DrizzleApplicationsRepository implements ApplicationsRepository {
