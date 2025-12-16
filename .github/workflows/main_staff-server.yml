@@ -32,18 +32,16 @@ jobs:
         run: test -f server/dist/index.js
 
       # ---- PACKAGE EVERYTHING AZURE NEEDS (INCLUDING node_modules) ----
-      - name: Create deployment ZIP (dist + node_modules)
+      - name: Create deployment ZIP (preserve server/ structure)
         run: |
           rm -rf deploy
-          mkdir -p deploy/server
+          mkdir -p deploy
 
-          cp -R server/dist deploy/server/dist
-          cp -R server/node_modules deploy/server/node_modules
-          cp server/package.json deploy/server/package.json
-          cp server/package-lock.json deploy/server/package-lock.json
+          # Copy the entire server directory so dist/ and node_modules/ are preserved
+          cp -R server deploy/server
 
           cd deploy
-          zip -r ../staff-server-build.zip .
+          zip -r ../staff-server-build.zip server
 
       # ---- DEPLOY ZIP ONLY (NO AZURE BUILD) ----
       - name: Deploy ZIP to Azure Web App
