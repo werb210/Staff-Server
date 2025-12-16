@@ -31,19 +31,12 @@ jobs:
       - name: Verify build output exists
         run: test -f server/dist/index.js
 
-      - name: Snapshot build layout
-        run: |
-          ls -la server
-          ls -la server/dist
-
-      # ---- PACKAGE EVERYTHING AZURE NEEDS (INCLUDING node_modules) ----
-      - name: Create deployment ZIP (preserve server/ structure)
+      - name: Package deployment ZIP
         run: |
           rm -f staff-server-build.zip
           zip -r staff-server-build.zip server
 
-      # ---- DEPLOY ZIP ONLY (NO AZURE BUILD) ----
-      - name: Deploy ZIP to Azure Web App
+      - name: Deploy ZIP to Azure Web App (Linux)
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
