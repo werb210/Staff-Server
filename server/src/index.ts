@@ -1,16 +1,20 @@
-import 'dotenv/config';
-import express from 'express';
-import cors from 'cors';
-import morgan from 'morgan';
-import cookieParser from 'cookie-parser';
+import "dotenv/config";
+import express from "express";
+import cors from "cors";
+import morgan from "morgan";
+import cookieParser from "cookie-parser";
+
+import { assertDatabaseConnection } from "./db";
+import { config } from "./config/config";
 
 // 🔴 DB INIT — MUST EXIST
-import './db/init';
+import "./db/init";
 
 // 🔴 ROUTES — MUST EXIST
-import authRoutes from './routes/auth';
-import internalRoutes from './routes/internal';
-import publicRoutes from './routes/public';
+import authRoutes from "./routes/auth";
+import internalRoutes from "./routes/internal";
+import publicRoutes from "./routes/public";
+import healthRoutes from "./routes/health";
 
 const app = express();
 
@@ -20,11 +24,13 @@ const app = express();
    const app = express()
    ========================= */
 
-const rawOrigins = process.env.CORS_ORIGINS || '';
-const allowedOrigins = rawOrigins
-  .split(',')
+const productionOrigins = ["https://staff.boreal.financial", "https://client.boreal.financial"];
+const nonProdOrigins = (process.env.CORS_ORIGINS || "")
+  .split(",")
   .map(o => o.trim())
   .filter(Boolean);
+
+const allowedOrigins = config.NODE_ENV === "production" ? productionOrigins : [...productionOrigins, ...nonProdOrigins];
 
 const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {
@@ -33,12 +39,12 @@ const corsOptions: cors.CorsOptions = {
     return callback(new Error(`CORS blocked: ${origin}`));
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
 };
 
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
+app.options("*", cors(corsOptions));
 
 /* =========================
    MIDDLEWARE
@@ -53,9 +59,10 @@ app.use(morgan('dev'));
    ROUTES
    ========================= */
 
-app.use('/api/auth', authRoutes);
-app.use('/api/internal', internalRoutes);
-app.use('/api/public', publicRoutes);
+app.use(healthRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/api/internal", internalRoutes);
+app.use("/api/public", publicRoutes);
 
 /* =========================
    ROOT + FALLBACK
@@ -75,6 +82,14 @@ app.use((_req, res) => {
 
 const PORT = Number(process.env.PORT) || 8080;
 
-app.listen(PORT, () => {
-  console.log(`Staff Server running on port ${PORT}`);
+async function startServer() {
+  await assertDatabaseConnection();
+  app.listen(PORT, () => {
+    console.log(`Staff Server running on port ${PORT}`);
+  });
+}
+
+startServer().catch(err => {
+  console.error("Server failed to start", err);
+  process.exit(1);
 });

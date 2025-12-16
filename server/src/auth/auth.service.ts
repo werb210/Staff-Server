@@ -5,6 +5,7 @@ import { passwordService } from "../services/password.service";
 import { sessionService } from "../services/session.service";
 import { findUserByEmail, findUserById, mapAuthenticated } from "../services/user.service";
 import { AuthenticatedUser, LoginRequestBody, LoginResult, RefreshResult, RequestContext } from "./auth.types";
+import { twilioVerifyService } from "../services/twilioVerify.service";
 
 class AuthError extends Error {
   status: number;
@@ -78,6 +79,16 @@ export const authService = {
       await recordLoginAudit(normalizedEmail, "login_failure", ctx, user.id);
       throw error;
     }
+    try {
+      await twilioVerifyService.verifyCode(user.email, payload.verificationCode);
+    } catch (error) {
+      await recordLoginAudit(normalizedEmail, "login_failure", ctx, user.id);
+      throw new AuthError(
+        error instanceof Error ? error.message : "Two-factor verification failed",
+        401,
+      );
+    }
+
     await recordLoginAudit(normalizedEmail, "login_success", ctx, user.id);
 
     const tokens = await sessionService.createSession(user);
