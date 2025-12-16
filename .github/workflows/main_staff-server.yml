@@ -34,7 +34,13 @@ jobs:
       - name: Package deployment ZIP
         run: |
           rm -f staff-server-build.zip
-          zip -r staff-server-build.zip server
+          rm -rf staff-server-deploy
+          mkdir staff-server-deploy
+          cp server/package.json staff-server-deploy/
+          cp -r server/node_modules staff-server-deploy/node_modules
+          cp -r server/dist staff-server-deploy/dist
+          cd staff-server-deploy
+          zip -r ../staff-server-build.zip .
 
       - name: Deploy ZIP to Azure Web App (Linux)
         uses: azure/webapps-deploy@v3
