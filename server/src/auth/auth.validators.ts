@@ -11,10 +11,15 @@ export const loginSchema = z.object({
   email: z.string().email(),
   password: passwordComplexity,
   portal: z.enum(["lender", "referrer", "staff"]).optional(),
+  verificationCode: z.string().min(4, "Verification code is required"),
 });
 
 export const refreshSchema = z.object({
   refreshToken: z.string().min(10, "Refresh token is required"),
+});
+
+export const startVerificationSchema = z.object({
+  email: z.string().email(),
 });
 
 export const logoutSchema = z.object({
@@ -24,3 +29,4 @@ export const logoutSchema = z.object({
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RefreshInput = z.infer<typeof refreshSchema>;
 export type LogoutInput = z.infer<typeof logoutSchema>;
+export type StartVerificationInput = z.infer<typeof startVerificationSchema>;

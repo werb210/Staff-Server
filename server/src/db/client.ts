@@ -1,15 +1,13 @@
-cat > server/src/db/client.ts <<'EOF'
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
+import { config } from "../config/config";
 
-const connectionString = process.env.DATABASE_URL;
+const connectionString = config.DATABASE_URL;
 
 if (!connectionString) {
   throw new Error("DATABASE_URL is not set");
 }
 
-// Azure Postgres commonly requires SSL.
-// If your DATABASE_URL includes sslmode=require, enforce SSL in pg.
 const needsSsl =
   connectionString.includes("sslmode=require") ||
   process.env.PGSSLMODE === "require" ||
@@ -21,4 +19,3 @@ export const pool = new Pool({
 });
 
 export const db = drizzle(pool);
-EOF

@@ -5,7 +5,7 @@
 //
 // Keep it safe + minimal: just ensure the DB layer modules load.
 
-import "./client";
+import "./index";
 import "./schema";
 
 // No exports needed (side-effects only)

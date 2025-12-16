@@ -40,8 +40,11 @@ const authSchema = z.object({
  * Twilio (optional, but must exist as properties because services reference them)
  */
 const twilioSchema = z.object({
-  TWILIO_ACCOUNT_SID: z.string().optional(),
-  TWILIO_AUTH_TOKEN: z.string().optional(),
+  TWILIO_ACCOUNT_SID: z.string().min(1, "TWILIO_ACCOUNT_SID is required"),
+  TWILIO_AUTH_TOKEN: z.string().min(1, "TWILIO_AUTH_TOKEN is required"),
+  TWILIO_VERIFY_SERVICE_SID: z
+    .string()
+    .min(1, "TWILIO_VERIFY_SERVICE_SID is required for 2FA"),
   TWILIO_PHONE_NUMBER_BF: z.string().optional(),
   TWILIO_PHONE_NUMBER_SLF: z.string().optional(),
 });
@@ -114,6 +117,7 @@ export const config = {
   // Twilio (optional values but always-present properties)
   TWILIO_ACCOUNT_SID: parsedTwilio.TWILIO_ACCOUNT_SID,
   TWILIO_AUTH_TOKEN: parsedTwilio.TWILIO_AUTH_TOKEN,
+  TWILIO_VERIFY_SERVICE_SID: parsedTwilio.TWILIO_VERIFY_SERVICE_SID,
   TWILIO_PHONE_NUMBER_BF: parsedTwilio.TWILIO_PHONE_NUMBER_BF,
   TWILIO_PHONE_NUMBER_SLF: parsedTwilio.TWILIO_PHONE_NUMBER_SLF,
 } as const;
