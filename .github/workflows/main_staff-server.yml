@@ -36,11 +36,17 @@ jobs:
           rm -f staff-server-build.zip
           rm -rf staff-server-deploy
           mkdir staff-server-deploy
-          cp server/package.json staff-server-deploy/
+          cp server/package.json staff-server-deploy/package.json
           cp -r server/node_modules staff-server-deploy/node_modules
           cp -r server/dist staff-server-deploy/dist
           cd staff-server-deploy
           zip -r ../staff-server-build.zip .
+
+      - name: Validate ZIP layout
+        run: |
+          unzip -l staff-server-build.zip | awk '{print $4}' | grep -Fx "package.json"
+          unzip -l staff-server-build.zip | awk '{print $4}' | grep -Fx "dist/index.js"
+          unzip -l staff-server-build.zip | awk '{print $4}' | grep -Fx "node_modules/"
 
       - name: Deploy ZIP to Azure Web App (Linux)
         uses: azure/webapps-deploy@v3

@@ -55,8 +55,9 @@ server/
 
 ## API Endpoints
 
-- `GET /api/health` → `{ "status": "ok" }`
-- `GET /api/applications` → `{ "status": "ok", "applications": [] }`
+- `GET /health` → `{ "status": "ok" }`
+- `GET /api/internal/health` → `{ "status": "ok" }`
+- `GET /api/public/health` → `{ "status": "ok" }`
 
 ## Environment Variables
 
@@ -105,7 +106,7 @@ The repository now includes Azure-first assets for deploying the containerized A
 ### Runtime expectations
 
 - The container honors `WEBSITES_PORT` (preferred on Azure) and `PORT` environment variables; defaults to `8080` locally.
-- `/api/_int/live` is wired as the container health check and App Service probe path.
+- The internal health probe is served at `/api/internal/health` (mounted from `server/src/routes/internal/index.ts`).
 - The runtime Docker image runs as the non-root `node` user and includes an internal health check for local and container orchestrators.
 
  
