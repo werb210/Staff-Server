@@ -27,31 +27,31 @@ jobs:
           npm install
           npm install cors @types/cors --no-save
 
-      - name: Ensure routes module exists (CI-only)
+      - name: Generate routes stub (CI-only)
         run: |
           cd server
           mkdir -p src
-          cat > src/routes.ts <<'EOF'
-import { Express } from "express";
-
-export function registerRoutes(app: Express) {
-  // no-op placeholder for CI build
-}
-EOF
+          printf '%s\n' \
+            'import { Express } from "express";' \
+            '' \
+            'export function registerRoutes(app: Express) {' \
+            '  // CI stub' \
+            '}' \
+          > src/routes.ts
 
       - name: Build server
         run: |
           cd server
           npm run build
 
-      - name: Force clean CommonJS marker (CRITICAL)
+      - name: Force clean CommonJS marker
         run: |
           rm -f server/dist/package.json
-          cat > server/dist/package.json <<'EOF'
-{
-  "type": "commonjs"
-}
-EOF
+          printf '%s\n' \
+            '{' \
+            '  "type": "commonjs"' \
+            '}' \
+          > server/dist/package.json
 
       - name: Package artifact
         run: |
@@ -63,7 +63,7 @@ EOF
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Deploy to Azure App Service
+      - name: Deploy to Azure
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ secrets.AZURE_APP_NAME }}
