@@ -79,6 +79,9 @@ export const authService = {
       await recordLoginAudit(normalizedEmail, "login_failure", ctx, user.id);
       throw error;
     }
+    if (!twilioVerifyService.isEnabled()) {
+      throw new AuthError("Twilio not configured", 501);
+    }
     try {
       await twilioVerifyService.verifyCode(user.email, payload.verificationCode);
     } catch (error) {

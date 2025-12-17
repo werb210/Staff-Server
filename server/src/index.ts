@@ -6,7 +6,7 @@ const app = express();
 
 app.use(
   cors({
-    origin: ["https://staff.boreal.financial", "https://server.boreal.financial"],
+    origin: ["https://staff.boreal.financial"],
     credentials: true,
   }),
 );

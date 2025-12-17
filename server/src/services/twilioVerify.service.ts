@@ -1,27 +1,39 @@
-import twilio from "twilio";
 import { config } from "../config/config";
+import { isTwilioVerifyConfigured, twilioClient } from "./twilioClient";
 
 class TwilioVerifyService {
-  private client = twilio(config.TWILIO_ACCOUNT_SID, config.TWILIO_AUTH_TOKEN);
+  private client = twilioClient;
   private verifyServiceSid = config.TWILIO_VERIFY_SERVICE_SID;
 
+  isEnabled() {
+    return Boolean(this.client && this.verifyServiceSid && isTwilioVerifyConfigured);
+  }
+
+  private ensureConfigured() {
+    if (!this.isEnabled()) {
+      throw new Error("Twilio not configured");
+    }
+  }
+
   async startVerification(email: string) {
+    this.ensureConfigured();
     if (!email) {
       throw new Error("Verification target is required");
     }
 
-    await this.client.verify.v2
-      .services(this.verifyServiceSid)
+    await this.client!.verify.v2
+      .services(this.verifyServiceSid as string)
       .verifications.create({ to: email, channel: "email" });
   }
 
   async verifyCode(email: string, code: string) {
+    this.ensureConfigured();
     if (!code || code.trim().length === 0) {
       throw new Error("Verification code is required");
     }
 
-    const result = await this.client.verify.v2
-      .services(this.verifyServiceSid)
+    const result = await this.client!.verify.v2
+      .services(this.verifyServiceSid as string)
       .verificationChecks.create({ to: email, code });
 
     if (result.status !== "approved") {

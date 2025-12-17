@@ -37,6 +37,10 @@ export const authController = {
         return res.status(404).json({ error: "User not found" });
       }
 
+      if (!twilioVerifyService.isEnabled()) {
+        return res.status(501).json({ error: "Twilio not configured" });
+      }
+
       await twilioVerifyService.startVerification(normalizedEmail);
       res.status(202).json({ status: "pending" });
     } catch (error) {

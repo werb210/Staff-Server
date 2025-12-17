@@ -1,4 +1,4 @@
-import twilio from "twilio";
+import type twilio from "twilio";
 import { db } from "../db";
 import { communications } from "../db/schema";
 import { config } from "../config/config";
@@ -6,17 +6,19 @@ import { SmsDirection } from "./communications.types";
 import { DrizzleApplicationsRepository } from "../applications/applications.repository";
 import { TimelineService } from "../applications/timeline.service";
 import { eq, asc, and } from "drizzle-orm";
+import { hasTwilioMessaging, twilioClient } from "../services/twilioClient";
 
 export class SmsService {
   private twilioClient: ReturnType<typeof twilio> | null;
   private timeline: TimelineService;
 
   constructor(private database = db) {
-    this.twilioClient =
-      config.TWILIO_ACCOUNT_SID && config.TWILIO_AUTH_TOKEN
-        ? twilio(config.TWILIO_ACCOUNT_SID, config.TWILIO_AUTH_TOKEN)
-        : null;
+    this.twilioClient = twilioClient;
     this.timeline = new TimelineService(new DrizzleApplicationsRepository(database));
+  }
+
+  isConfigured() {
+    return Boolean(this.twilioClient && hasTwilioMessaging);
   }
 
   private async logCommunication(params: {
@@ -53,14 +55,15 @@ export class SmsService {
   }
 
   async sendSms(applicationId: string | null, to: string, body: string, from?: string) {
+    if (!this.isConfigured()) {
+      throw new Error("Twilio not configured");
+    }
     const fromNumber = from || config.TWILIO_PHONE_NUMBER_BF || config.TWILIO_PHONE_NUMBER_SLF;
     if (!fromNumber) {
       throw new Error("No Twilio phone number configured");
     }
 
-    if (this.twilioClient) {
-      await this.twilioClient.messages.create({ to, from: fromNumber, body });
-    }
+    await this.twilioClient!.messages.create({ to, from: fromNumber, body });
 
     return this.logCommunication({ applicationId, direction: "outgoing", body, from: fromNumber, to });
   }
