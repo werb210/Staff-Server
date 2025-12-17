@@ -17,30 +17,30 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
 
       - name: Install root dependencies
         run: npm install
 
       - name: Install server dependencies
-        run: npm install
-        working-directory: server
+        run: |
+          cd server
+          npm install
+          npm install cors @types/cors --no-save
 
       - name: Build server
-        run: npm run build
-        working-directory: server
+        run: |
+          cd server
+          npm run build
 
-      # 🔴 REQUIRED FIX — CI-ONLY, NO SOURCE CHANGES
       - name: Force CommonJS runtime for compiled output
         run: |
           mkdir -p server/dist
           echo '{ "type": "commonjs" }' > server/dist/package.json
 
       - name: Archive server build
-        uses: actions/upload-artifact@v4
-        with:
-          name: server-dist
-          path: server/dist
+        run: |
+          cd server
+          tar -czf server-build.tar.gz dist
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
