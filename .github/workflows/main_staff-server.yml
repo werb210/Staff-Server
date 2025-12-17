@@ -10,49 +10,29 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Install root dependencies
-        run: npm install
-
-      - name: Install server dependencies
+      - name: Build
         run: |
           cd server
           npm install
-          npm install cors @types/cors --no-save
-
-      - name: Generate routes module (CI-only)
-        run: |
-          cd server
-          mkdir -p src
-          printf "import { Express } from \"express\";\n\nexport function registerRoutes(app: Express) {}\n\nexport default registerRoutes;\n" > src/routes.ts
-
-      - name: Build server
-        run: |
-          cd server
           npm run build
 
-      - name: Force CommonJS for Azure runtime
+      - name: Package
         run: |
-          rm -f server/dist/package.json
-          echo '{"type":"commonjs"}' > server/dist/package.json
-
-      - name: Zip artifact
-        run: |
-          zip -r app.zip . -x "**/node_modules/*" "**/.git/*"
+          cd server
+          zip -r ../app.zip dist package.json node_modules
 
       - name: Azure Login
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Deploy to Azure Web App
+      - name: Deploy
         uses: azure/webapps-deploy@v3
         with:
           app-name: boreal-staff-server
