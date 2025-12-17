@@ -6,15 +6,15 @@ on:
       - main
 
 permissions:
+  id-token: write
   contents: read
-  id-token: write   # REQUIRED for Azure OIDC – this is the root cause
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repo
         uses: actions/checkout@v4
 
       - name: Azure Login (OIDC)
