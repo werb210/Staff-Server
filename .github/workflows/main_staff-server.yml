@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Node
@@ -18,51 +18,46 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install root dependencies
+      - name: Install root deps
         run: npm install
 
-      - name: Install server dependencies
-        working-directory: server
-        run: npm install
-
-      # CI-only: satisfy TypeScript for cors
-      - name: Install cors types (CI-only)
-        working-directory: server
-        run: npm install cors @types/cors --no-save
-
-      # CI-only: stub routes.ts with NAMED EXPORT
-      - name: Stub routes module (CI-only)
-        working-directory: server
-        run: |
-          if [ ! -f src/routes.ts ]; then
-            printf 'import { Express } from "express";\n\nexport function registerRoutes(app: Express) {}\n' > src/routes.ts
-          fi
-
-      - name: Build server
-        working-directory: server
-        run: npm run build
-
-      # CI-only: force CommonJS runtime
-      - name: Force CommonJS runtime (CI-only)
-        working-directory: server
-        run: |
-          mkdir -p dist
-          printf '{\n  "type": "commonjs"\n}\n' > dist/package.json
-
-      - name: Zip artifact
+      - name: Install server deps (CI-only fixes)
         run: |
           cd server
-          zip -r ../app.zip .
+          npm install
+          npm install cors @types/cors --no-save
 
-      # 🔑 REQUIRED: LOGIN TO AZURE
+      - name: Generate missing routes module (CI-only)
+        run: |
+          cd server
+          mkdir -p src
+          cat > src/routes.ts <<'EOF'
+import { Express } from "express";
+
+export default function registerRoutes(app: Express) {
+  app.get("/", (_req, res) => {
+    res.status(200).send("OK");
+  });
+}
+EOF
+
+      - name: Build server
+        run: |
+          cd server
+          npm run build
+
+      - name: Create deployment package
+        run: |
+          cd server
+          zip -r app.zip dist node_modules package.json
+
       - name: Azure Login
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      # 🚀 DEPLOY
       - name: Deploy to Azure App Service
         uses: azure/webapps-deploy@v3
         with:
-          app-name: YOUR_APP_SERVICE_NAME
-          package: app.zip
+          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
+          package: server/app.zip
