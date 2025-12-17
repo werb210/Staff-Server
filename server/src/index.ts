@@ -1,6 +1,6 @@
 import express from "express";
 import helmet from "helmet";
-import intRoutes from "./routes/_int.routes.js";
+import intRoutes from "./routes/_int.routes";
 
 const app = express();
 
@@ -10,11 +10,11 @@ app.use(express.json());
 app.use("/api/_int", intRoutes);
 
 app.get("/", (_req, res) => {
-  res.status(404).json({ error: "Not found" });
+  res.status(200).send("OK");
 });
 
-const port = process.env.PORT ? Number(process.env.PORT) : 8080;
+const PORT = process.env.PORT || 8080;
 
-app.listen(port, () => {
-  console.log(`Staff Server running on port ${port}`);
+app.listen(PORT, () => {
+  console.log(`Staff Server running on port ${PORT}`);
 });
