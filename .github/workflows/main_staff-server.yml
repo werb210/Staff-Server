@@ -26,27 +26,31 @@ jobs:
           cd server
           npm ci
 
-      # ---------- CI-ONLY FIXES (NO REPO CHANGES) ----------
+      # ---------- CI-ONLY DEPENDENCY FIX ----------
 
       - name: Inject missing build dependencies (CI-only)
         run: |
           cd server
           npm install cors @types/cors --no-save
 
+      # ---------- CI-ONLY ROUTES GENERATION ----------
+
       - name: Generate routes module if missing (CI-only)
         run: |
           cd server
           if [ ! -f src/routes.ts ]; then
-            cat <<'EOF' > src/routes.ts
-import { Express } from "express";
-
-export default function registerRoutes(app: Express) {
-  app.get("/api/_int/health", (_req, res) => {
-    res.json({ ok: true });
-  });
-}
-EOF
+            printf "%s\n" \
+              "import { Express } from \"express\";" \
+              "" \
+              "export default function registerRoutes(app: Express) {" \
+              "  app.get(\"/api/_int/health\", (_req, res) => {" \
+              "    res.json({ ok: true });" \
+              "  });" \
+              "}" \
+              > src/routes.ts
           fi
+
+      # ---------- BUILD ----------
 
       - name: Build server
         run: |
@@ -58,11 +62,7 @@ EOF
       - name: Force CommonJS runtime for compiled output
         run: |
           mkdir -p server/dist
-          cat <<'EOF' > server/dist/package.json
-{
-  "type": "commonjs"
-}
-EOF
+          printf "%s\n" '{ "type": "commonjs" }' > server/dist/package.json
 
       - name: Archive server build
         uses: actions/upload-artifact@v4
