@@ -17,6 +17,7 @@
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.11.5",
+    "twilio": "^5.10.7",
     "zod": "^3.23.8"
   },
   "devDependencies": {
