@@ -1,22 +1,7 @@
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { sql } from "drizzle-orm";
-import { Pool } from "pg";
-import { config } from "../config/config";
 import * as schema from "./schema";
-
-if (!config.DATABASE_URL) {
-  throw new Error("DATABASE_URL is required for database connectivity");
-}
-
-const needsSsl =
-  config.DATABASE_URL.includes("sslmode=require") ||
-  process.env.PGSSLMODE === "require" ||
-  process.env.DATABASE_SSL === "true";
-
-export const pool = new Pool({
-  connectionString: config.DATABASE_URL,
-  ssl: needsSsl ? { rejectUnauthorized: false } : undefined,
-});
+import { pool } from "./pool";
 
 export const db: NodePgDatabase<typeof schema> = drizzle(pool, { schema });
 
