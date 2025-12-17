@@ -10,61 +10,58 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Install root dependencies
+      - name: Install root deps
         run: npm install
 
-      - name: Install server dependencies (CI-only)
+      - name: Install server deps (CI only)
         run: |
           cd server
           npm install
           npm install cors @types/cors --no-save
 
-      - name: Generate routes stub (CI-only)
-        run: |
-          cd server
-          mkdir -p src
-          printf '%s\n' \
-            'import { Express } from "express";' \
-            '' \
-            'export function registerRoutes(app: Express) {' \
-            '  // CI stub' \
-            '}' \
-          > src/routes.ts
+      - name: Generate routes stub (CI only)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = 'server/src/routes.ts';
+            fs.mkdirSync('server/src', { recursive: true });
+            fs.writeFileSync(
+              path,
+              `import { Express } from "express";
+
+export function registerRoutes(app: Express) {
+  // CI stub
+}
+`
+            );
 
       - name: Build server
         run: |
           cd server
           npm run build
 
-      - name: Force clean CommonJS marker
+      - name: Fix CommonJS for Azure
         run: |
           rm -f server/dist/package.json
-          printf '%s\n' \
-            '{' \
-            '  "type": "commonjs"' \
-            '}' \
-          > server/dist/package.json
+          echo '{ "type": "commonjs" }' > server/dist/package.json
 
-      - name: Package artifact
+      - name: Package
         run: |
           cd server
           zip -r ../app.zip dist package.json
 
-      - name: Azure Login
-        uses: azure/login@v2
+      - uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Deploy to Azure
-        uses: azure/webapps-deploy@v3
+      - uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ secrets.AZURE_APP_NAME }}
           package: app.zip
