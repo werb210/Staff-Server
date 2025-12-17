@@ -10,30 +10,31 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Build
+      - name: Install server dependencies
         run: |
           cd server
-          npm install
-          npm run build
+          npm ci
 
-      - name: Package
+      - name: Build server
         run: |
           cd server
-          zip -r ../app.zip dist package.json node_modules
+          npm run build
 
       - name: Azure Login
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Deploy
+      - name: Deploy to Azure App Service
         uses: azure/webapps-deploy@v3
         with:
           app-name: boreal-staff-server
-          package: app.zip
+          package: server
