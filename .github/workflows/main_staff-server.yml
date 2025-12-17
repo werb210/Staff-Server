@@ -26,6 +26,11 @@ jobs:
           cd server
           npm install
 
+      - name: Seed Admin User (forced)
+        run: |
+          cd server
+          npm run seed:admin
+
       - name: Build server
         run: |
           cd server
