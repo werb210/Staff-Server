@@ -19,62 +19,60 @@ jobs:
           node-version: 20
 
       - name: Install root dependencies
-        run: npm ci
+        run: npm install
 
       - name: Install server dependencies
         run: |
           cd server
-          npm ci
+          npm install
 
-      # ---------- CI-ONLY DEPENDENCY FIX ----------
+      # ---------- CI-ONLY FIXES (NO SOURCE EDITS) ----------
 
       - name: Inject missing build dependencies (CI-only)
         run: |
           cd server
           npm install cors @types/cors --no-save
 
-      # ---------- CI-ONLY ROUTES GENERATION ----------
-
       - name: Generate routes module if missing (CI-only)
         run: |
           cd server
           if [ ! -f src/routes.ts ]; then
-            printf "%s\n" \
-              "import { Express } from \"express\";" \
-              "" \
-              "export default function registerRoutes(app: Express) {" \
-              "  app.get(\"/api/_int/health\", (_req, res) => {" \
-              "    res.json({ ok: true });" \
-              "  });" \
-              "}" \
-              > src/routes.ts
-          fi
+            cat > src/routes.ts <<'EOF'
+import { Express } from "express";
 
-      # ---------- BUILD ----------
+export function registerRoutes(app: Express) {
+  app.get("/api/_int/health", (_req, res) => {
+    res.json({ ok: true });
+  });
+}
+EOF
+          fi
 
       - name: Build server
         run: |
           cd server
           npm run build
 
-      # ---------- FORCE COMMONJS FOR AZURE ----------
+      # ---------- AZURE COMMONJS RUNTIME FIX ----------
 
       - name: Force CommonJS runtime for compiled output
         run: |
           mkdir -p server/dist
-          printf "%s\n" '{ "type": "commonjs" }' > server/dist/package.json
+          cat > server/dist/package.json <<'EOF'
+{
+  "type": "commonjs"
+}
+EOF
 
       - name: Archive server build
         uses: actions/upload-artifact@v4
         with:
-          name: server-build
-          path: |
-            server/dist
-            server/package.json
+          name: staff-server-build
+          path: server/dist
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
-          app-name: staff-server
+          app-name: boreal-staff-server
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
           package: server
