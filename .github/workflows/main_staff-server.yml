@@ -19,34 +19,17 @@ jobs:
       - name: Install root deps
         run: npm install
 
-      - name: Install server deps (CI only)
+      - name: Install server deps
         run: |
           cd server
           npm install
           npm install cors @types/cors --no-save
 
       - name: Generate routes stub (CI only)
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require("fs");
-            const dir = "server/src";
-            const file = "server/src/routes.ts";
-
-            if (!fs.existsSync(dir)) {
-              fs.mkdirSync(dir, { recursive: true });
-            }
-
-            const lines = [
-              'import { Express } from "express";',
-              '',
-              'export function registerRoutes(app: Express) {',
-              '  // CI stub',
-              '}',
-              ''
-            ];
-
-            fs.writeFileSync(file, lines.join("\n"));
+        run: |
+          mkdir -p server/src
+          echo 'import { Express } from "express";' > server/src/routes.ts
+          echo 'export function registerRoutes(app: Express) {}' >> server/src/routes.ts
 
       - name: Build server
         run: |
@@ -58,7 +41,7 @@ jobs:
           rm -f server/dist/package.json
           echo '{ "type": "commonjs" }' > server/dist/package.json
 
-      - name: Package
+      - name: Package app
         run: |
           cd server
           zip -r ../app.zip dist package.json
@@ -69,5 +52,5 @@ jobs:
 
       - uses: azure/webapps-deploy@v3
         with:
-          app-name: "${{ secrets.AZURE_APP_NAME }}"
+          app-name: boreal-staff-server
           package: app.zip
