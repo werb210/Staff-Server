@@ -10,47 +10,44 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Install root deps
+      - name: Install root dependencies
         run: npm install
 
-      - name: Install server deps
+      - name: Install server dependencies
         run: |
           cd server
           npm install
           npm install cors @types/cors --no-save
-
-      - name: Generate routes stub (CI only)
-        run: |
-          mkdir -p server/src
-          echo 'import { Express } from "express";' > server/src/routes.ts
-          echo 'export function registerRoutes(app: Express) {}' >> server/src/routes.ts
 
       - name: Build server
         run: |
           cd server
           npm run build
 
-      - name: Force CommonJS for Azure
+      - name: Force CommonJS for Azure runtime
         run: |
           rm -f server/dist/package.json
-          echo '{ "type": "commonjs" }' > server/dist/package.json
+          printf '%s\n' '{"type":"commonjs"}' > server/dist/package.json
 
-      - name: Package app
+      - name: Zip artifact
         run: |
-          cd server
-          zip -r ../app.zip dist package.json
+          zip -r app.zip . -x "**/node_modules/*" "**/.git/*"
 
-      - uses: azure/login@v2
+      - name: Azure Login
+        uses: azure/login@v2
         with:
-          creds: "${{ secrets.AZURE_CREDENTIALS }}"
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - uses: azure/webapps-deploy@v3
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
         with:
           app-name: boreal-staff-server
           package: app.zip
