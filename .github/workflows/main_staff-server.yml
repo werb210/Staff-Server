@@ -2,50 +2,36 @@ name: Deploy Staff Server
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     env:
-      NODE_ENV: production
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Use Node.js 20
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
 
       - name: Install server dependencies
-        working-directory: server
-        run: npm ci
+        run: |
+          cd server
+          npm ci
 
       - name: Build server
-        working-directory: server
-        run: npm run build
-
-      - name: Seed Admin User (forced)
-        working-directory: server
-        run: npm run seed:admin
-
-      - name: Zip artifact for deployment
-        working-directory: server
         run: |
-          zip -r ../staff-server.zip . \
-            -x "node_modules/*" \
-            -x ".git/*"
+          cd server
+          npm run build
 
       - name: Deploy to Azure App Service
         uses: azure/webapps-deploy@v3
         with:
           app-name: boreal-staff-server
-          slot-name: Production
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: staff-server.zip
+          publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE }}
+          package: server
