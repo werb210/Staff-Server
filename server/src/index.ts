@@ -4,7 +4,12 @@ import { registerRoutes } from "./routes";
 
 const app = express();
 
-app.use(cors());
+app.use(
+  cors({
+    origin: ["https://staff.boreal.financial", "https://server.boreal.financial"],
+    credentials: true,
+  }),
+);
 app.use(express.json());
 
 registerRoutes(app);
