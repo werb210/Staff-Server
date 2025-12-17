@@ -11,7 +11,7 @@ export const loginSchema = z.object({
   email: z.string().email(),
   password: passwordComplexity,
   portal: z.enum(["lender", "referrer", "staff"]).optional(),
-  verificationCode: z.string().min(4, "Verification code is required"),
+  verificationCode: z.string().min(4, "Verification code is required").optional(),
 });
 
 export const refreshSchema = z.object({
