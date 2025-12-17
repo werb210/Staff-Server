@@ -2,21 +2,14 @@ import { Router } from "express";
 
 const router = Router();
 
-/**
- * GET /api/_int/health
- */
 router.get("/health", (_req, res) => {
-  res.status(200).json({ status: "ok" });
+  res.json({ status: "ok" });
 });
 
-/**
- * GET /api/_int/build
- */
 router.get("/build", (_req, res) => {
-  res.status(200).json({
+  res.json({
     name: "staff-server",
-    env: process.env.NODE_ENV ?? "unknown",
-    timestamp: new Date().toISOString(),
+    env: process.env.NODE_ENV || "unknown",
   });
 });
 
