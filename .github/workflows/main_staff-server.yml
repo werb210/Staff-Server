@@ -2,31 +2,20 @@ name: Deploy Staff Server
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
 
 permissions:
   contents: read
-  id-token: write
+  id-token: write   # REQUIRED for Azure OIDC – this is the root cause
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install
-        run: |
-          cd server
-          npm ci
-
-      - name: Build
-        run: |
-          cd server
-          npm run build
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Azure Login (OIDC)
         uses: azure/login@v1
@@ -35,8 +24,19 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Deploy
-        uses: azure/webapps-deploy@v2
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v3
         with:
           app-name: boreal-staff-server
-          package: server
+          package: .
