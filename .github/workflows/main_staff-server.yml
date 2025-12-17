@@ -26,26 +26,17 @@ jobs:
           cd server
           npm install
 
-      # ---- CI-ONLY: satisfy TypeScript for cors ----
       - name: Ensure cors types for build (CI-only)
         run: |
           cd server
           npm install cors @types/cors --no-save
 
-      # ---- CI-ONLY: satisfy ./routes import IF missing ----
       - name: Ensure routes module exists for TypeScript (CI-only)
         run: |
           cd server
           if [ ! -f src/routes.ts ]; then
-            cat > src/routes.ts <<'EOF'
-import { Express } from "express";
-
-export function registerRoutes(app: Express): void {
-  app.get("/api/_int/health", (_req, res) => {
-    res.json({ ok: true });
-  });
-}
-EOF
+            mkdir -p src
+            printf "%s" $'import { Express } from "express";\n\nexport function registerRoutes(app: Express): void {\n  app.get("/api/_int/health", (_req, res) => {\n    res.json({ ok: true });\n  });\n}\n' > src/routes.ts
           fi
 
       - name: Build server
@@ -53,13 +44,10 @@ EOF
           cd server
           npm run build
 
-      # ---- REQUIRED FOR AZURE (fixes "exports is not defined") ----
       - name: Force CommonJS runtime for Azure
         run: |
           mkdir -p server/dist
-          cat > server/dist/package.json <<'EOF'
-{ "type": "commonjs" }
-EOF
+          printf "%s" '{ "type": "commonjs" }\n' > server/dist/package.json
 
       - name: Archive server build
         uses: actions/upload-artifact@v4
