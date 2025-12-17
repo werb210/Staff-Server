@@ -20,6 +20,9 @@ router.use(requireAuth);
 
 router.post("/send", async (req, res, next) => {
   try {
+    if (!smsService.isConfigured()) {
+      return res.status(501).json({ error: "Twilio not configured" });
+    }
     const payload = smsSendSchema.parse(req.body);
     const record = await smsService.sendSms(payload.applicationId, payload.to, payload.body, payload.from);
     res.json({ ok: true, record });

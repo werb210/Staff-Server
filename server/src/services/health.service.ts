@@ -1,4 +1,5 @@
 import { authConfig, config } from "../config/config";
+import { isTwilioVerifyConfigured } from "./twilioClient";
 
 export interface HealthResponse {
   status: "ok" | "fail";
@@ -12,9 +13,14 @@ export function authHealthCheck(): HealthResponse {
   if (!authConfig.REFRESH_TOKEN_SECRET) issues.push("REFRESH_TOKEN_SECRET missing");
   if (!config.JWT_SECRET) issues.push("JWT_SECRET missing");
 
-  if (!config.TWILIO_ACCOUNT_SID) issues.push("TWILIO_ACCOUNT_SID missing");
-  if (!config.TWILIO_AUTH_TOKEN) issues.push("TWILIO_AUTH_TOKEN missing");
-  if (!config.TWILIO_VERIFY_SERVICE_SID) issues.push("TWILIO_VERIFY_SERVICE_SID missing");
+  const twilioKeysProvided = [
+    config.TWILIO_ACCOUNT_SID,
+    config.TWILIO_AUTH_TOKEN,
+    config.TWILIO_VERIFY_SERVICE_SID,
+  ].filter(Boolean).length;
+  if (twilioKeysProvided > 0 && !isTwilioVerifyConfigured) {
+    issues.push("Twilio configuration incomplete");
+  }
 
   return issues.length === 0
     ? { status: "ok" }

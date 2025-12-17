@@ -12,9 +12,6 @@ const devDefaults = isProd
       JWT_SECRET: "dev-jwt-secret-01234567890123456789012",
       ACCESS_TOKEN_SECRET: "dev-access-secret-0123456789012345",
       REFRESH_TOKEN_SECRET: "dev-refresh-secret-012345678901234",
-      TWILIO_ACCOUNT_SID: "dev-twilio-account-sid",
-      TWILIO_AUTH_TOKEN: "dev-twilio-auth-token",
-      TWILIO_VERIFY_SERVICE_SID: "dev-twilio-verify-sid",
     } satisfies Record<string, string>;
 
 const env = { ...devDefaults, ...process.env } satisfies NodeJS.ProcessEnv;
@@ -53,15 +50,17 @@ const authSchema = z.object({
 /**
  * Twilio (optional, but must exist as properties because services reference them)
  */
-const twilioSchema = z.object({
-  TWILIO_ACCOUNT_SID: z.string().min(1, "TWILIO_ACCOUNT_SID is required"),
-  TWILIO_AUTH_TOKEN: z.string().min(1, "TWILIO_AUTH_TOKEN is required"),
-  TWILIO_VERIFY_SERVICE_SID: z
-    .string()
-    .min(1, "TWILIO_VERIFY_SERVICE_SID is required for 2FA"),
-  TWILIO_PHONE_NUMBER_BF: z.string().optional(),
-  TWILIO_PHONE_NUMBER_SLF: z.string().optional(),
-});
+const twilioSchema = z
+  .object({
+    TWILIO_ACCOUNT_SID: z.string().min(1, "TWILIO_ACCOUNT_SID is required"),
+    TWILIO_AUTH_TOKEN: z.string().min(1, "TWILIO_AUTH_TOKEN is required"),
+    TWILIO_VERIFY_SERVICE_SID: z
+      .string()
+      .min(1, "TWILIO_VERIFY_SERVICE_SID is required for 2FA"),
+    TWILIO_PHONE_NUMBER_BF: z.string().optional(),
+    TWILIO_PHONE_NUMBER_SLF: z.string().optional(),
+  })
+  .partial();
 
 /**
  * Azure Blob is REQUIRED only in production
@@ -89,6 +88,17 @@ try {
   parsedBase = baseSchema.parse(env);
   parsedAuth = authSchema.parse(env);
   parsedTwilio = twilioSchema.parse(env);
+  const twilioKeysProvided = [
+    parsedTwilio.TWILIO_ACCOUNT_SID,
+    parsedTwilio.TWILIO_AUTH_TOKEN,
+    parsedTwilio.TWILIO_VERIFY_SERVICE_SID,
+  ].filter(Boolean).length;
+  if (
+    twilioKeysProvided > 0 &&
+    !(parsedTwilio.TWILIO_ACCOUNT_SID && parsedTwilio.TWILIO_AUTH_TOKEN && parsedTwilio.TWILIO_VERIFY_SERVICE_SID)
+  ) {
+    console.warn("Twilio configuration incomplete; Twilio features will be disabled.");
+  }
   parsedOptional = optionalSchema.parse(env);
 } catch (err) {
   const message =
