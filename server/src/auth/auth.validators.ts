@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { OTP_ENABLED } from "../services/otpToggle";
 
 const passwordComplexity = z
   .string()
@@ -11,7 +12,9 @@ export const loginSchema = z.object({
   email: z.string().email(),
   password: passwordComplexity,
   portal: z.enum(["lender", "referrer", "staff"]).optional(),
-  verificationCode: z.string().min(4, "Verification code is required").optional(),
+  verificationCode: OTP_ENABLED
+    ? z.string().min(4, "Verification code is required")
+    : z.string().optional(),
 });
 
 export const refreshSchema = z.object({

@@ -6,6 +6,7 @@ import { sessionService } from "../services/session.service";
 import { findUserByEmail, findUserById, mapAuthenticated } from "../services/user.service";
 import { AuthenticatedUser, LoginRequestBody, LoginResult, RefreshResult, RequestContext } from "./auth.types";
 import { twilioVerifyService } from "../services/twilioVerify.service";
+import { OTP_ENABLED } from "../services/otpToggle";
 
 class AuthError extends Error {
   status: number;
@@ -79,8 +80,7 @@ export const authService = {
       await recordLoginAudit(normalizedEmail, "login_failure", ctx, user.id);
       throw error;
     }
-    const otpEnabled = twilioVerifyService.isEnabled();
-    if (otpEnabled) {
+    if (OTP_ENABLED) {
       try {
         if (!payload.verificationCode) {
           throw new AuthError("Verification code is required", 400);
