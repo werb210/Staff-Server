@@ -26,41 +26,28 @@ jobs:
           cd server
           npm install
 
-      - name: Ensure cors types for build (CI-only)
-        run: |
-          cd server
-          npm install cors @types/cors --no-save
-
-      - name: Ensure routes module exists for TypeScript (CI-only)
-        run: |
-          cd server
-          if [ ! -f src/routes.ts ]; then
-            mkdir -p src
-            printf "%s" $'import { Express } from "express";\n\nexport function registerRoutes(app: Express): void {\n  app.get("/api/_int/health", (_req, res) => {\n    res.json({ ok: true });\n  });\n}\n' > src/routes.ts
-          fi
-
       - name: Build server
         run: |
           cd server
           npm run build
 
-      - name: Force CommonJS runtime for Azure
+      # ---- CI-ONLY FIX: force CommonJS runtime for Azure ----
+      - name: Write dist/package.json (force CommonJS)
         run: |
           mkdir -p server/dist
-          printf "%s" '{ "type": "commonjs" }\n' > server/dist/package.json
+          cat > server/dist/package.json <<'EOF'
+          {
+            "type": "commonjs"
+          }
+          EOF
 
-      - name: Archive server build
+      - name: Archive build output
+        run: |
+          cd server
+          tar -czf server-build.tar.gz dist package.json
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: staff-server
-          path: |
-            server/dist
-            server/package.json
-            server/package-lock.json
-
-      - name: Deploy to Azure Web App
-        uses: azure/webapps-deploy@v3
-        with:
-          app-name: boreal-staff-server
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: server
+          name: staff-server-build
+          path: server/server-build.tar.gz
