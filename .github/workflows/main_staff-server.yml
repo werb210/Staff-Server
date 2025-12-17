@@ -10,8 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-
-      - name: Checkout repo
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Node
@@ -22,45 +21,50 @@ jobs:
       - name: Install root dependencies
         run: npm install
 
-      - name: Install server dependencies
-        working-directory: server
-        run: npm install
-
-      - name: CI-only install cors
-        working-directory: server
-        run: npm install cors @types/cors --no-save
-
-      - name: CI-only create routes stub
-        working-directory: server
+      - name: Install server dependencies (CI-only)
         run: |
+          cd server
+          npm install
+          npm install cors @types/cors --no-save
+
+      - name: Ensure routes module exists (CI-only)
+        run: |
+          cd server
           mkdir -p src
-          printf '%s\n' \
-            'import { Express } from "express";' \
-            '' \
-            'export function registerRoutes(app: Express) {}' \
-            > src/routes.ts
+          cat > src/routes.ts <<'EOF'
+import { Express } from "express";
+
+export function registerRoutes(app: Express) {
+  // no-op placeholder for CI build
+}
+EOF
 
       - name: Build server
-        working-directory: server
-        run: npm run build
-
-      - name: CI-only force CommonJS
-        working-directory: server
         run: |
-          mkdir -p dist
-          printf '%s\n' '{ "type": "commonjs" }' > dist/package.json
+          cd server
+          npm run build
 
-      - name: Zip deployment package
-        working-directory: server
-        run: zip -r ../app.zip dist node_modules package.json package-lock.json
+      - name: Force clean CommonJS marker (CRITICAL)
+        run: |
+          rm -f server/dist/package.json
+          cat > server/dist/package.json <<'EOF'
+{
+  "type": "commonjs"
+}
+EOF
+
+      - name: Package artifact
+        run: |
+          cd server
+          zip -r ../app.zip dist package.json
 
       - name: Azure Login
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Deploy to Azure
+      - name: Deploy to Azure App Service
         uses: azure/webapps-deploy@v3
         with:
-          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
+          app-name: ${{ secrets.AZURE_APP_NAME }}
           package: app.zip
