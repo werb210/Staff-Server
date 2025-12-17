@@ -5,6 +5,20 @@ dotenv.config();
 
 const isProd = process.env.NODE_ENV === "production";
 
+const devDefaults = isProd
+  ? {}
+  : {
+      DATABASE_URL: "postgres://postgres:postgres@localhost:5432/postgres",
+      JWT_SECRET: "dev-jwt-secret-01234567890123456789012",
+      ACCESS_TOKEN_SECRET: "dev-access-secret-0123456789012345",
+      REFRESH_TOKEN_SECRET: "dev-refresh-secret-012345678901234",
+      TWILIO_ACCOUNT_SID: "dev-twilio-account-sid",
+      TWILIO_AUTH_TOKEN: "dev-twilio-auth-token",
+      TWILIO_VERIFY_SERVICE_SID: "dev-twilio-verify-sid",
+    } satisfies Record<string, string>;
+
+const env = { ...devDefaults, ...process.env } satisfies NodeJS.ProcessEnv;
+
 /**
  * Helpers
  */
@@ -72,10 +86,10 @@ let parsedOptional: z.infer<typeof optionalSchema>;
 let parsedAzureBlob: z.infer<typeof azureBlobSchema> | undefined;
 
 try {
-  parsedBase = baseSchema.parse(process.env);
-  parsedAuth = authSchema.parse(process.env);
-  parsedTwilio = twilioSchema.parse(process.env);
-  parsedOptional = optionalSchema.parse(process.env);
+  parsedBase = baseSchema.parse(env);
+  parsedAuth = authSchema.parse(env);
+  parsedTwilio = twilioSchema.parse(env);
+  parsedOptional = optionalSchema.parse(env);
 } catch (err) {
   const message =
     err instanceof z.ZodError
