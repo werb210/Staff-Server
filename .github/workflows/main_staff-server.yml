@@ -40,7 +40,7 @@ jobs:
             cat > src/routes.ts <<'EOF'
 import { Express } from "express";
 
-export function registerRoutes(app: Express) {
+export function registerRoutes(app: Express): void {
   app.get("/api/_int/health", (_req, res) => {
     res.json({ ok: true });
   });
