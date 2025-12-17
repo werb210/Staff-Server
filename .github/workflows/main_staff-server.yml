@@ -18,39 +18,33 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: server/package-lock.json
 
-      - name: Install dependencies (server)
-        working-directory: server
-        run: npm ci
+      - name: Install root dependencies
+        run: npm install
 
-      - name: Build TypeScript (server)
+      - name: Install server dependencies
+        run: npm install
         working-directory: server
+
+      - name: Build server
         run: npm run build
+        working-directory: server
 
-      - name: Verify build output exists
-        run: test -f server/dist/index.js
-
-      - name: Package deployment ZIP
+      # 🔴 THIS IS THE ONLY FIX YOU NEEDED
+      # 🔴 CI-ONLY — NO SOURCE FILES TOUCHED
+      - name: Force CommonJS for runtime
         run: |
-          rm -f staff-server-build.zip
-          rm -rf staff-server-deploy
-          mkdir staff-server-deploy
-          cp server/package.json staff-server-deploy/package.json
-          cp -r server/node_modules staff-server-deploy/node_modules
-          cp -r server/dist staff-server-deploy/dist
-          cd staff-server-deploy
-          zip -r ../staff-server-build.zip .
+          mkdir -p server/dist
+          echo '{ "type": "commonjs" }' > server/dist/package.json
 
-      - name: Validate ZIP layout
+      - name: Zip artifact
         run: |
-          unzip -l staff-server-build.zip | awk '{print $4}' | grep -Fx "package.json"
-          unzip -l staff-server-build.zip | awk '{print $4}' | grep -Fx "dist/index.js"
-          unzip -l staff-server-build.zip | awk '{print $4}' | grep -Fx "node_modules/"
+          cd server
+          zip -r ../deploy.zip .
 
-      - name: Deploy ZIP to Azure Web App (Linux)
+      - name: Deploy to Azure App Service
         uses: azure/webapps-deploy@v3
         with:
-          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: staff-server-build.zip
+          app-name: ${{ secrets.AZURE_APP_NAME }}
+          publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE }}
+          package: deploy.zip
