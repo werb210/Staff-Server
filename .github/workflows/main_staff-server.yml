@@ -8,11 +8,15 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
-    env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
-
     steps:
       - uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -29,9 +33,15 @@ jobs:
           cd server
           npm run build
 
+      - name: Seed Admin User
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          cd server
+          npm run seed:admin
+
       - name: Deploy to Azure App Service
-        uses: azure/webapps-deploy@v3
+        uses: azure/webapps-deploy@v2
         with:
           app-name: boreal-staff-server
-          publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE }}
           package: server
