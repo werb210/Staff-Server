@@ -31,7 +31,7 @@ jobs:
         run: |
           cd server
           mkdir -p src
-          cat > src/routes.ts <<'EOF'
+          cat <<'EOF' > src/routes.ts
 import { Express } from "express";
 
 export default function registerRoutes(app: Express) {
