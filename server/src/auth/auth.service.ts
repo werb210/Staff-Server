@@ -79,17 +79,21 @@ export const authService = {
       await recordLoginAudit(normalizedEmail, "login_failure", ctx, user.id);
       throw error;
     }
-    if (!twilioVerifyService.isEnabled()) {
-      throw new AuthError("Twilio not configured", 501);
-    }
-    try {
-      await twilioVerifyService.verifyCode(user.email, payload.verificationCode);
-    } catch (error) {
-      await recordLoginAudit(normalizedEmail, "login_failure", ctx, user.id);
-      throw new AuthError(
-        error instanceof Error ? error.message : "Two-factor verification failed",
-        401,
-      );
+    const otpEnabled = twilioVerifyService.isEnabled();
+    if (otpEnabled) {
+      try {
+        if (!payload.verificationCode) {
+          throw new AuthError("Verification code is required", 400);
+        }
+
+        await twilioVerifyService.verifyCode(user.email, payload.verificationCode);
+      } catch (error) {
+        await recordLoginAudit(normalizedEmail, "login_failure", ctx, user.id);
+        throw new AuthError(
+          error instanceof Error ? error.message : "Two-factor verification failed",
+          401,
+        );
+      }
     }
 
     await recordLoginAudit(normalizedEmail, "login_success", ctx, user.id);

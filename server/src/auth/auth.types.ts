@@ -30,7 +30,7 @@ export interface TokenPair {
 export interface LoginRequestBody {
   email: string;
   password: string;
-  verificationCode: string;
+  verificationCode?: string;
   portal?: "lender" | "referrer" | "staff";
 }
 
