@@ -25,39 +25,30 @@ jobs:
         working-directory: server
         run: npm install
 
-      # --- CI ONLY: satisfy TypeScript imports ---
-      - name: Install CORS for TypeScript (CI-only)
+      # CI-only: satisfy TypeScript for cors
+      - name: Install cors types (CI-only)
         working-directory: server
         run: npm install cors @types/cors --no-save
 
-      - name: Stub routes module if missing (CI-only)
+      # CI-only: stub routes if missing (NO HEREDOC)
+      - name: Stub routes module (CI-only)
         working-directory: server
         run: |
           if [ ! -f src/routes.ts ]; then
-            cat <<EOF > src/routes.ts
-import { Express } from "express";
-export default function registerRoutes(app: Express) {
-  return;
-}
-EOF
+            printf 'import { Express } from "express";\nexport default function registerRoutes(app: Express) {}\n' > src/routes.ts
           fi
 
       - name: Build server
         working-directory: server
         run: npm run build
 
-      # --- CRITICAL FIX: force CommonJS at runtime ---
-      - name: Force CommonJS runtime for Node 20 (CI-only)
+      # CI-only: force CommonJS at runtime (NO HEREDOC)
+      - name: Force CommonJS runtime (CI-only)
         working-directory: server
         run: |
           mkdir -p dist
-          cat <<EOF > dist/package.json
-{
-  "type": "commonjs"
-}
-EOF
+          printf '{\n  "type": "commonjs"\n}\n' > dist/package.json
 
-      # --- Deploy artifact ---
       - name: Zip artifact
         run: |
           cd server
