@@ -26,14 +26,14 @@ jobs:
           cd server
           npm install
 
-      # ---------- CI-ONLY FIXES (NO SOURCE EDITS) ----------
-
-      - name: Inject missing build dependencies (CI-only)
+      # ---- CI-ONLY: satisfy TypeScript for cors ----
+      - name: Ensure cors types for build (CI-only)
         run: |
           cd server
           npm install cors @types/cors --no-save
 
-      - name: Generate routes module if missing (CI-only)
+      # ---- CI-ONLY: satisfy ./routes import IF missing ----
+      - name: Ensure routes module exists for TypeScript (CI-only)
         run: |
           cd server
           if [ ! -f src/routes.ts ]; then
@@ -53,22 +53,22 @@ EOF
           cd server
           npm run build
 
-      # ---------- AZURE COMMONJS RUNTIME FIX ----------
-
-      - name: Force CommonJS runtime for compiled output
+      # ---- REQUIRED FOR AZURE (fixes "exports is not defined") ----
+      - name: Force CommonJS runtime for Azure
         run: |
           mkdir -p server/dist
           cat > server/dist/package.json <<'EOF'
-{
-  "type": "commonjs"
-}
+{ "type": "commonjs" }
 EOF
 
       - name: Archive server build
         uses: actions/upload-artifact@v4
         with:
-          name: staff-server-build
-          path: server/dist
+          name: staff-server
+          path: |
+            server/dist
+            server/package.json
+            server/package-lock.json
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
