@@ -2,44 +2,44 @@ name: Deploy Staff Server
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+
+permissions:
+  contents: read
+  id-token: write   # REQUIRED for Azure OIDC login
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
-      - name: Azure Login
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+
+      - name: Build server
+        working-directory: server
+        run: npm run build
+
+      # ---- AZURE AUTH (THIS IS WHAT WAS BROKEN) ----
+      - name: Azure Login (OIDC)
         uses: azure/login@v1
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install server dependencies
-        run: |
-          cd server
-          npm ci
-
-      - name: Build server
-        run: |
-          cd server
-          npm run build
-
-      - name: Seed Admin User
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: |
-          cd server
-          npm run seed:admin
-
+      # ---- DEPLOY ----
       - name: Deploy to Azure App Service
         uses: azure/webapps-deploy@v2
         with:
