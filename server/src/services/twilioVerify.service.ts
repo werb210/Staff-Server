@@ -1,12 +1,15 @@
 import { config } from "../config/config";
 import { isTwilioVerifyConfigured, twilioClient } from "./twilioClient";
+import { OTP_ENABLED } from "./otpToggle";
 
 class TwilioVerifyService {
   private client = twilioClient;
   private verifyServiceSid = config.TWILIO_VERIFY_SERVICE_SID;
 
   isEnabled() {
-    return Boolean(this.client && this.verifyServiceSid && isTwilioVerifyConfigured);
+    return (
+      OTP_ENABLED && Boolean(this.client && this.verifyServiceSid && isTwilioVerifyConfigured)
+    );
   }
 
   private ensureConfigured() {

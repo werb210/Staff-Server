@@ -12,6 +12,8 @@ These settings mirror the environment Azure App Service uses when running the pr
 Set these App Settings in Azure:
 - `NODE_ENV=production`
 - `PORT=8080`
+- `JWT_SECRET=<strong secret value>`
+- `OTP_ENABLED=false` (set to `true` only when Twilio Verify is fully configured)
 - Provide required secrets (database, JWT, token secrets, Azure Blob credentials, Twilio keys) with production values.
 
 ## Dependencies
