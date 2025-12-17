@@ -1,20 +1,70 @@
 import express from "express";
 import helmet from "helmet";
-import intRoutes from "./routes/_int.routes";
+import cors from "cors";
+import dotenv from "dotenv";
+
+import { registerRoutes } from "./routes";
+
+dotenv.config();
 
 const app = express();
 
-app.use(helmet());
-app.use(express.json());
+/**
+ * SECURITY
+ */
+app.use(
+  helmet({
+    crossOriginResourcePolicy: false,
+  })
+);
 
-app.use("/api/_int", intRoutes);
+/**
+ * CORS — FIXED
+ * Explicit allow-list. No wildcards. Credentials supported.
+ */
+app.use(
+  cors({
+    origin: [
+      "https://staff.boreal.financial",
+      "https://server.boreal.financial",
+      "http://localhost:5173",
+      "http://localhost:3000",
+    ],
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Requested-With",
+      "Accept",
+    ],
+    exposedHeaders: ["Authorization"],
+  })
+);
 
-app.get("/", (_req, res) => {
-  res.status(200).send("OK");
+/**
+ * BODY PARSING
+ */
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true }));
+
+/**
+ * ROUTES
+ */
+registerRoutes(app);
+
+/**
+ * FALLBACK
+ */
+app.use((_req, res) => {
+  res.status(404).json({ error: "Not found" });
 });
 
-const PORT = process.env.PORT || 8080;
+/**
+ * BOOT
+ */
+const port = process.env.PORT || 8080;
 
-app.listen(PORT, () => {
-  console.log(`Staff Server running on port ${PORT}`);
+app.listen(port, () => {
+  console.log(`Staff Server running on port ${port}`);
 });
