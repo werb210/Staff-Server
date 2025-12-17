@@ -59,6 +59,10 @@ server/
 - `GET /api/internal/health` → `{ "status": "ok" }`
 - `GET /api/public/health` → `{ "status": "ok" }`
 
+## Deployment
+
+- For Azure App Service settings and runtime expectations, see [`docs/azure-app-service.md`](docs/azure-app-service.md).
+
 ## Environment Variables
 
 Create a `.env` file at the project root to override defaults. The server listens on `PORT` if specified (defaults to `5000`).
