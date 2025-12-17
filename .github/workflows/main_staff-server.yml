@@ -30,19 +30,19 @@ jobs:
         working-directory: server
         run: npm install cors @types/cors --no-save
 
-      # CI-only: stub routes if missing (NO HEREDOC)
+      # CI-only: stub routes.ts with NAMED EXPORT
       - name: Stub routes module (CI-only)
         working-directory: server
         run: |
           if [ ! -f src/routes.ts ]; then
-            printf 'import { Express } from "express";\nexport default function registerRoutes(app: Express) {}\n' > src/routes.ts
+            printf 'import { Express } from "express";\n\nexport function registerRoutes(app: Express) {}\n' > src/routes.ts
           fi
 
       - name: Build server
         working-directory: server
         run: npm run build
 
-      # CI-only: force CommonJS at runtime (NO HEREDOC)
+      # CI-only: force CommonJS runtime
       - name: Force CommonJS runtime (CI-only)
         working-directory: server
         run: |
