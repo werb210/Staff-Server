@@ -10,38 +10,42 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
+      NODE_ENV: production
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
     steps:
-      - name: Checkout repository
+      - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Use Node.js 20
         uses: actions/setup-node@v4
         with:
           node-version: 20
-
-      - name: Install root dependencies
-        run: npm install
+          cache: npm
 
       - name: Install server dependencies
-        run: |
-          cd server
-          npm install
-
-      - name: Seed Admin User (forced)
-        run: |
-          cd server
-          npm run seed:admin
+        working-directory: server
+        run: npm ci
 
       - name: Build server
+        working-directory: server
+        run: npm run build
+
+      - name: Seed Admin User (forced)
+        working-directory: server
+        run: npm run seed:admin
+
+      - name: Zip artifact for deployment
+        working-directory: server
         run: |
-          cd server
-          npm run build
+          zip -r ../staff-server.zip . \
+            -x "node_modules/*" \
+            -x ".git/*"
 
       - name: Deploy to Azure App Service
-        uses: azure/webapps-deploy@v2
+        uses: azure/webapps-deploy@v3
         with:
-          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
+          app-name: boreal-staff-server
+          slot-name: Production
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: server
+          package: staff-server.zip
