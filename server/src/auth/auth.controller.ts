@@ -18,16 +18,14 @@ export const authController = {
   async login(req: Request, res: Response, next: NextFunction) {
     try {
       const parsed = loginSchema.parse(req.body);
-
-      // 🔒 FORCE REQUIRED FIELDS (fixes TS error without changing behavior)
       if (!parsed.password) {
-        return res.status(400).json({ error: "Password is required" });
+        return res.status(400).json({ error: "Password required" });
       }
 
       const normalized = {
         ...parsed,
         email: parsed.email.trim().toLowerCase(),
-        password: parsed.password, // now guaranteed
+        password: parsed.password,
       };
 
       const result = await authService.login(normalized, {

@@ -24,20 +24,22 @@ export class ApplicationsService {
   async createApplication(payload: unknown, actorUserId?: string) {
     const parsed = createApplicationSchema.parse(payload);
 
-    // 🔒 REQUIRED BY DB SCHEMA
     if (!parsed.productCategory) {
       throw new Error("productCategory is required");
     }
 
-    const status = this.pipeline.initialStatus(parsed.productCategory);
+    const { productCategory, assignedTo, signatureData, ...rest } = parsed;
+    const status = this.pipeline.initialStatus(productCategory);
     const now = new Date();
 
     const created = await this.repo.createApplication({
-      ...parsed,
-      productCategory: parsed.productCategory,
+      productCategory,
       status,
       createdAt: now,
       updatedAt: now,
+      assignedTo: assignedTo ?? null,
+      signatureData: signatureData ?? null,
+      ...rest,
     });
 
     await this.repo.addStatusHistory({
@@ -51,11 +53,11 @@ export class ApplicationsService {
     await this.timeline.logEvent(
       created.id,
       "application_created",
-      { status, productCategory: parsed.productCategory },
+      { status, productCategory },
       actorUserId,
     );
 
-    if (parsed.signatureData) {
+    if (signatureData) {
       await this.timeline.logEvent(
         created.id,
         "signature_submitted",
@@ -72,7 +74,6 @@ export class ApplicationsService {
     const existing = await this.repo.findApplicationById(id);
     if (!existing) return null;
 
-    // productCategory is required by DB even on updates
     const updatePayload = {
       ...parsed,
       productCategory:

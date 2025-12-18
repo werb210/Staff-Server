@@ -13,7 +13,12 @@ router.use("/chat", chatRouter);
 
 router.post("/voice/log", requireAuth, async (req, res, next) => {
   try {
-    const payload = voiceLogSchema.parse(req.body);
+    const payload = voiceLogSchema.parse({
+      applicationId: req.body.applicationId!,
+      phoneNumber: req.body.phoneNumber!,
+      eventType: req.body.eventType!,
+      durationSeconds: req.body.durationSeconds ?? undefined,
+    });
     const record = await voiceService.logEvent(payload);
     res.json({ ok: true, record });
   } catch (err) {

@@ -14,18 +14,20 @@ router.post("/required-documents", async (req, res, next) => {
       throw new Error("lenderProductId and docCategory are required");
     }
 
+    const values = {
+      lenderProductId: parsed.lenderProductId!,
+      docCategory: parsed.docCategory!,
+      title: parsed.title ?? null,
+      description: parsed.description ?? null,
+      category: parsed.category ?? null,
+      isMandatory: parsed.isMandatory ?? false,
+      validationRules: parsed.validationRules ?? {},
+      displayOrder: parsed.displayOrder ?? 0,
+    };
+
     const [created] = await db
       .insert(lenderRequiredDocuments)
-      .values({
-        lenderProductId: parsed.lenderProductId,
-        docCategory: parsed.docCategory,
-        title: parsed.title ?? null,
-        description: parsed.description ?? null,
-        category: parsed.category ?? null,
-        isMandatory: parsed.isMandatory ?? false,
-        validationRules: parsed.validationRules ?? null,
-        displayOrder: parsed.displayOrder ?? 0,
-      })
+      .values(values)
       .returning();
 
     res.json(created);
