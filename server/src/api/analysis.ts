@@ -9,8 +9,6 @@ router.use(authenticate);
 
 router.get("/applications", async (_req, res, next) => {
   try {
-    const counts: Record<string, number> = {};
-
     const result = await db.execute<{
       status: string;
       count: string;
@@ -18,6 +16,7 @@ router.get("/applications", async (_req, res, next) => {
       sql`select status, count(*)::text as count from applications group by status`
     );
 
+    const counts: Record<string, number> = {};
     for (const row of result.rows) {
       counts[row.status] = Number(row.count);
     }
