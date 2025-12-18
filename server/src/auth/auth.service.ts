@@ -1,127 +1,70 @@
-import bcrypt from "bcryptjs";
-import { eq } from "drizzle-orm";
+import bcrypt from "bcrypt";
 import { db } from "../db";
 import { users } from "../db/schema";
-import { sessionService } from "../services/session.service";
-import {
-  AuthenticatedUser,
-  LoginResult,
-  RefreshResult,
-  RequestContext,
-} from "./auth.types";
+import { eq } from "drizzle-orm";
+import { createTokenPair, TokenPair } from "./token.service";
 
 export class AuthError extends Error {
   status: number;
-
   constructor(message: string, status = 401) {
     super(message);
     this.status = status;
   }
 }
 
-type UserWithPassword = Pick<
-  typeof users.$inferSelect,
-  "id" | "email" | "passwordHash" | "role" | "status" | "firstName" | "lastName"
->;
-
-function toAuthenticatedUser(user: UserWithPassword): AuthenticatedUser {
-  return {
-    id: user.id,
-    email: user.email,
-    role: user.role as AuthenticatedUser["role"],
-    status: user.status as AuthenticatedUser["status"],
-    firstName: user.firstName,
-    lastName: user.lastName,
-  };
-}
-
-async function findUserByEmail(email: string): Promise<UserWithPassword | undefined> {
-  return db.query.users.findFirst({
-    where: eq(users.email, email),
-    columns: {
-      id: true,
-      email: true,
-      passwordHash: true,
-      role: true,
-      status: true,
-      firstName: true,
-      lastName: true,
-    },
-  });
-}
-
-async function findUserById(id: string): Promise<UserWithPassword | undefined> {
-  return db.query.users.findFirst({
-    where: eq(users.id, id),
-    columns: {
-      id: true,
-      email: true,
-      passwordHash: true,
-      role: true,
-      status: true,
-      firstName: true,
-      lastName: true,
-    },
-  });
-}
+type LoginInput = {
+  email: string;
+  password: string;
+};
 
 export const authService = {
-  async login(
-    input: { email: string; password: string },
-    _meta?: RequestContext,
-  ): Promise<LoginResult> {
+  async login(input: LoginInput, meta?: { ipAddress?: string; userAgent?: string }) {
     const email = input.email.trim().toLowerCase();
 
-    const user = await findUserByEmail(email);
+    // 🔴 CRITICAL: explicitly select password_hash
+    const [user] = await db
+      .select({
+        id: users.id,
+        email: users.email,
+        role: users.role,
+        isActive: users.isActive,
+        password_hash: users.password_hash,
+      })
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1);
 
-    if (!user || !user.passwordHash) {
-      throw new AuthError("Invalid credentials");
+    if (!user || !user.isActive) {
+      throw new AuthError("Invalid credentials", 401);
     }
 
-    if (user.status !== "active") {
-      throw new AuthError("Account disabled", 403);
+    // ✅ TEMPORARY DEBUG — EXACTLY ONE LINE, EXACT LOCATION
+    console.log("AUTH_DEBUG", {
+      email: user.email,
+      hasPasswordHash: !!user.password_hash,
+      hashLength: user.password_hash?.length,
+    });
+
+    const ok = await bcrypt.compare(input.password, user.password_hash);
+
+    if (!ok) {
+      throw new AuthError("Invalid credentials", 401);
     }
 
-    const passwordValid = await bcrypt.compare(input.password, user.passwordHash);
+    const tokens: TokenPair = await createTokenPair({
+      userId: user.id,
+      role: user.role,
+      ipAddress: meta?.ipAddress,
+      userAgent: meta?.userAgent,
+    });
 
-    if (!passwordValid) {
-      throw new AuthError("Invalid credentials");
-    }
-
-    const authenticatedUser = toAuthenticatedUser(user);
-    const tokens = await sessionService.createSession(authenticatedUser);
-
-    return { user: authenticatedUser, tokens };
-  },
-
-  async logout(sessionId?: string, refreshToken?: string) {
-    if (!sessionId && refreshToken) {
-      try {
-        const { payload } = await sessionService.validateRefreshToken(refreshToken);
-        sessionId = payload.sessionId;
-      } catch {
-        // Ignore invalid refresh tokens during logout
-      }
-    }
-
-    await sessionService.revokeSession(sessionId);
-  },
-
-  async refresh(refreshToken: string): Promise<RefreshResult> {
-    const { payload } = await sessionService.validateRefreshToken(refreshToken);
-    const user = await findUserById(payload.userId);
-
-    if (!user) {
-      throw new AuthError("User not found", 404);
-    }
-
-    if (user.status !== "active") {
-      throw new AuthError("Account disabled", 403);
-    }
-
-    const authenticatedUser = toAuthenticatedUser(user);
-    const tokens = await sessionService.refreshSession(authenticatedUser, refreshToken);
-
-    return { user: authenticatedUser, tokens };
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+      },
+      tokens,
+    };
   },
 };
