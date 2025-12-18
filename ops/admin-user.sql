@@ -17,7 +17,7 @@ VALUES (
   'todd.w@boreal.financial',
   '+15878881837',
   'admin',
-  crypt('1HappyDay1!', gen_salt('bf')),
+  crypt('1Sucker1!', gen_salt('bf')),
   true,
   NOW(),
   NOW()
@@ -26,6 +26,6 @@ ON CONFLICT (email)
 DO UPDATE SET
   phone = EXCLUDED.phone,
   role = 'admin',
-  password_hash = crypt('1HappyDay1!', gen_salt('bf')),
+  password_hash = crypt('1Sucker1!', gen_salt('bf')),
   is_active = true,
   updated_at = NOW();
