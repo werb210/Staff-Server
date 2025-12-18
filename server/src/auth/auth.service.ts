@@ -1,4 +1,4 @@
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import { db } from "../db";
 import { users } from "../db/schema";
 import { eq } from "drizzle-orm";
@@ -24,9 +24,9 @@ export const authService = {
       columns: {
         id: true,
         email: true,
-        password_hash: true,
+        passwordHash: true,
         role: true,
-        is_active: true,
+        status: true,
       },
     });
 
@@ -34,17 +34,17 @@ export const authService = {
       throw new AuthError("Invalid credentials");
     }
 
-    if (!user.is_active) {
+    if (user.status !== "active") {
       throw new AuthError("Account disabled", 403);
     }
 
-    if (!user.password_hash) {
+    if (!user.passwordHash) {
       throw new AuthError("Invalid credentials");
     }
 
     const passwordValid = await bcrypt.compare(
       input.password,
-      user.password_hash
+      user.passwordHash
     );
 
     if (!passwordValid) {
