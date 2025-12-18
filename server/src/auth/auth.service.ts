@@ -1,7 +1,14 @@
 import bcrypt from "bcryptjs";
+import { eq } from "drizzle-orm";
 import { db } from "../db";
 import { users } from "../db/schema";
-import { eq } from "drizzle-orm";
+import { sessionService } from "../services/session.service";
+import {
+  AuthenticatedUser,
+  LoginResult,
+  RefreshResult,
+  RequestContext,
+} from "./auth.types";
 
 export class AuthError extends Error {
   status: number;
@@ -12,25 +19,62 @@ export class AuthError extends Error {
   }
 }
 
+type UserWithPassword = Pick<
+  typeof users.$inferSelect,
+  "id" | "email" | "passwordHash" | "role" | "status" | "firstName" | "lastName"
+>;
+
+function toAuthenticatedUser(user: UserWithPassword): AuthenticatedUser {
+  return {
+    id: user.id,
+    email: user.email,
+    role: user.role as AuthenticatedUser["role"],
+    status: user.status as AuthenticatedUser["status"],
+    firstName: user.firstName,
+    lastName: user.lastName,
+  };
+}
+
+async function findUserByEmail(email: string): Promise<UserWithPassword | undefined> {
+  return db.query.users.findFirst({
+    where: eq(users.email, email),
+    columns: {
+      id: true,
+      email: true,
+      passwordHash: true,
+      role: true,
+      status: true,
+      firstName: true,
+      lastName: true,
+    },
+  });
+}
+
+async function findUserById(id: string): Promise<UserWithPassword | undefined> {
+  return db.query.users.findFirst({
+    where: eq(users.id, id),
+    columns: {
+      id: true,
+      email: true,
+      passwordHash: true,
+      role: true,
+      status: true,
+      firstName: true,
+      lastName: true,
+    },
+  });
+}
+
 export const authService = {
   async login(
     input: { email: string; password: string },
-    meta?: { ipAddress?: string; userAgent?: string }
-  ) {
+    _meta?: RequestContext,
+  ): Promise<LoginResult> {
     const email = input.email.trim().toLowerCase();
 
-    const user = await db.query.users.findFirst({
-      where: eq(users.email, email),
-      columns: {
-        id: true,
-        email: true,
-        passwordHash: true,
-        role: true,
-        status: true,
-      },
-    });
+    const user = await findUserByEmail(email);
 
-    if (!user) {
+    if (!user || !user.passwordHash) {
       throw new AuthError("Invalid credentials");
     }
 
@@ -38,38 +82,46 @@ export const authService = {
       throw new AuthError("Account disabled", 403);
     }
 
-    if (!user.passwordHash) {
-      throw new AuthError("Invalid credentials");
-    }
-
-    const passwordValid = await bcrypt.compare(
-      input.password,
-      user.passwordHash
-    );
+    const passwordValid = await bcrypt.compare(input.password, user.passwordHash);
 
     if (!passwordValid) {
       throw new AuthError("Invalid credentials");
     }
 
-    // TEMP: token stub — keep existing token logic if you have it elsewhere
-    return {
-      user: {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-      },
-      tokens: {
-        accessToken: "VALID",
-        refreshToken: "VALID",
-      },
-    };
+    const authenticatedUser = toAuthenticatedUser(user);
+    const tokens = await sessionService.createSession(authenticatedUser);
+
+    return { user: authenticatedUser, tokens };
   },
 
-  async logout() {
-    return;
+  async logout(sessionId?: string, refreshToken?: string) {
+    if (!sessionId && refreshToken) {
+      try {
+        const { payload } = await sessionService.validateRefreshToken(refreshToken);
+        sessionId = payload.sessionId;
+      } catch {
+        // Ignore invalid refresh tokens during logout
+      }
+    }
+
+    await sessionService.revokeSession(sessionId);
   },
 
-  async refresh() {
-    throw new AuthError("Not implemented", 501);
+  async refresh(refreshToken: string): Promise<RefreshResult> {
+    const { payload } = await sessionService.validateRefreshToken(refreshToken);
+    const user = await findUserById(payload.userId);
+
+    if (!user) {
+      throw new AuthError("User not found", 404);
+    }
+
+    if (user.status !== "active") {
+      throw new AuthError("Account disabled", 403);
+    }
+
+    const authenticatedUser = toAuthenticatedUser(user);
+    const tokens = await sessionService.refreshSession(authenticatedUser, refreshToken);
+
+    return { user: authenticatedUser, tokens };
   },
 };
