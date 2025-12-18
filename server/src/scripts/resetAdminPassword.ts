@@ -12,11 +12,11 @@ async function run() {
     throw new Error("ADMIN_RESET_PASSWORD is required in the environment");
   }
 
-  const passwordHash = await bcrypt.hash(password, 12);
+  const password_hash = await bcrypt.hash(password, 12);
 
   const updated = await db
     .update(users)
-    .set({ passwordHash })
+    .set({ password_hash })
     .where(eq(users.email, targetEmail))
     .returning({ id: users.id, email: users.email });
 

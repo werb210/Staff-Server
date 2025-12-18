@@ -11,8 +11,8 @@ function toAuthenticated(user: UserRecord): AuthenticatedUser {
     email: user.email,
     role: user.role as AuthenticatedUser["role"],
     status: user.status as AuthenticatedUser["status"],
-    firstName: user.firstName,
-    lastName: user.lastName,
+    firstName: user.first_name,
+    lastName: user.last_name,
   };
 }
 

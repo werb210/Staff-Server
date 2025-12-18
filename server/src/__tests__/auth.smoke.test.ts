@@ -27,15 +27,16 @@ beforeEach(async () => {
   mock.auditStore.length = 0;
   tokenService.clearAllSessions();
 
-  const passwordHash = await passwordService.hashPassword(password);
+  const password_hash = await passwordService.hashPassword(password);
   mock.userStore.push({
     id: randomUUID(),
     email: "smoke@example.com",
-    passwordHash,
-    firstName: "Smoke",
-    lastName: "Test",
+    password_hash,
+    first_name: "Smoke",
+    last_name: "Test",
     role: "Staff",
     status: "active",
+    is_active: true,
   });
 });
 

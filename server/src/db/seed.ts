@@ -42,6 +42,7 @@ async function seed() {
       last_name,
       role,
       status,
+      is_active,
       created_at,
       updated_at
     )
@@ -54,6 +55,7 @@ async function seed() {
         'Admin',
         $2,
         'active',
+        true,
         now(),
         now()
       ),
@@ -65,6 +67,7 @@ async function seed() {
         'Staff',
         $3,
         'active',
+        true,
         now(),
         now()
       )

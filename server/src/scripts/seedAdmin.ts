@@ -7,30 +7,32 @@ import { users } from "../db/schema";
 async function seedAdmin() {
   const email = "todd.w@boreal.financial";
   const password = "1Sucker1!";
-  const passwordHash = await bcrypt.hash(password, 12);
+  const password_hash = await bcrypt.hash(password, 12);
 
   const existing = await db.select().from(users).where(eq(users.email, email));
 
   if (existing.length === 0) {
     await db.insert(users).values({
       email,
-      passwordHash,
-      firstName: "Todd",
-      lastName: "W",
+      password_hash,
+      first_name: "Todd",
+      last_name: "W",
       role: "Admin",
       status: "active",
+      is_active: true,
     });
     console.log("✅ Admin user CREATED");
   } else {
     await db
       .update(users)
       .set({
-        passwordHash,
-        firstName: "Todd",
-        lastName: "W",
+        password_hash,
+        first_name: "Todd",
+        last_name: "W",
         role: "Admin",
         status: "active",
-        updatedAt: sql`now()`,
+        is_active: true,
+        updated_at: sql`now()`,
       })
       .where(eq(users.email, email));
     console.log("♻️ Admin password RESET");
