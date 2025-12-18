@@ -1,3 +1,4 @@
+import { ownerSchema } from "./applications.validators";
 import { DrizzleApplicationsRepository } from "./applications.repository";
 import { TimelineService } from "./timeline.service";
 import { ApplicationsRepository } from "./types";
@@ -14,24 +15,22 @@ export class OwnersService {
     this.timeline = timeline ?? new TimelineService(repo);
   }
 
-  private normalizeOwner(payload: any) {
-    if (!payload.email) {
-      throw new Error("Owner email is required");
-    }
+  private normalizeOwner(payload: unknown) {
+    const parsed = ownerSchema.parse(payload);
 
     return {
-      email: payload.email!,
-      firstName: payload.firstName!,
-      lastName: payload.lastName!,
-      phone: payload.phone!,
-      address: payload.address!,
-      city: payload.city!,
-      state: payload.state!,
-      zip: payload.zip!,
-      dob: payload.dob!,
-      ssn: payload.ssn!,
-      ownershipPercentage: payload.ownershipPercentage!,
-    };
+      email: parsed.email,
+      firstName: parsed.firstName,
+      lastName: parsed.lastName,
+      phone: parsed.phone,
+      address: parsed.address,
+      city: parsed.city,
+      state: parsed.state,
+      zip: parsed.zip,
+      dob: parsed.dob,
+      ssn: parsed.ssn,
+      ownershipPercentage: parsed.ownershipPercentage,
+    } satisfies Omit<Parameters<ApplicationsRepository["createOwner"]>[1], "applicationId">;
   }
 
   async addOwner(applicationId: string, payload: any, actorUserId?: string) {
