@@ -8,7 +8,12 @@ const smsService = new SmsService();
 
 router.post("/inbound", async (req, res, next) => {
   try {
-    const payload = smsInboundSchema.parse(req.body);
+    const payload = smsInboundSchema.parse({
+      From: req.body.From!,
+      To: req.body.To!,
+      Body: req.body.Body!,
+      applicationId: req.body.applicationId ?? undefined,
+    });
     const record = await smsService.handleInbound(payload);
     res.json({ ok: true, record });
   } catch (err) {
@@ -24,7 +29,12 @@ router.post("/send", async (req, res, next) => {
       return res.status(501).json({ error: "Twilio not configured" });
     }
     const payload = smsSendSchema.parse(req.body);
-    const record = await smsService.sendSms(payload.applicationId, payload.to, payload.body, payload.from);
+    const record = await smsService.sendSms(
+      payload.applicationId,
+      payload.to,
+      payload.body,
+      payload.from,
+    );
     res.json({ ok: true, record });
   } catch (err) {
     next(err);

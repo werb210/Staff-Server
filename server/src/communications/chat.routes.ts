@@ -10,7 +10,12 @@ router.use(requireAuth);
 
 router.post("/send", async (req, res, next) => {
   try {
-    const payload = chatSendSchema.parse(req.body);
+    const payload = chatSendSchema.parse({
+      applicationId: req.body.applicationId!,
+      direction: req.body.direction!,
+      body: req.body.body!,
+      issueReport: req.body.issueReport ?? false,
+    });
     const record = await chatService.sendMessage(payload);
     res.json({ ok: true, record });
   } catch (err) {
