@@ -23,7 +23,7 @@ router.post("/required-documents", async (req, res, next) => {
         description: parsed.description ?? null,
         category: parsed.category ?? null,
         isMandatory: parsed.isMandatory ?? false,
-        validationRules: parsed.validationRules ?? {},
+        validationRules: parsed.validationRules ?? null,
         displayOrder: parsed.displayOrder ?? 0,
       })
       .returning();
