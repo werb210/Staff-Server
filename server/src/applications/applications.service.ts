@@ -23,11 +23,18 @@ export class ApplicationsService {
 
   async createApplication(payload: unknown, actorUserId?: string) {
     const parsed = createApplicationSchema.parse(payload);
+
+    // 🔒 REQUIRED BY DB SCHEMA
+    if (!parsed.productCategory) {
+      throw new Error("productCategory is required");
+    }
+
     const status = this.pipeline.initialStatus(parsed.productCategory);
     const now = new Date();
 
     const created = await this.repo.createApplication({
       ...parsed,
+      productCategory: parsed.productCategory,
       status,
       createdAt: now,
       updatedAt: now,
@@ -49,7 +56,12 @@ export class ApplicationsService {
     );
 
     if (parsed.signatureData) {
-      await this.timeline.logEvent(created.id, "signature_submitted", {}, actorUserId);
+      await this.timeline.logEvent(
+        created.id,
+        "signature_submitted",
+        {},
+        actorUserId,
+      );
     }
 
     return this.getApplicationWithDetails(created.id);
@@ -60,7 +72,15 @@ export class ApplicationsService {
     const existing = await this.repo.findApplicationById(id);
     if (!existing) return null;
 
-    await this.repo.updateApplication(id, parsed as any);
+    // productCategory is required by DB even on updates
+    const updatePayload = {
+      ...parsed,
+      productCategory:
+        parsed.productCategory ?? existing.productCategory,
+    };
+
+    await this.repo.updateApplication(id, updatePayload as any);
+
     await this.timeline.logEvent(
       id,
       "application_updated",
@@ -69,7 +89,12 @@ export class ApplicationsService {
     );
 
     if (parsed.signatureData) {
-      await this.timeline.logEvent(id, "signature_submitted", {}, actorUserId);
+      await this.timeline.logEvent(
+        id,
+        "signature_submitted",
+        {},
+        actorUserId,
+      );
     }
 
     return this.getApplicationWithDetails(id);
@@ -78,21 +103,23 @@ export class ApplicationsService {
   async getApplicationWithDetails(id: string) {
     const app = await this.repo.findApplicationById(id);
     if (!app) return null;
+
     const owners = await this.repo.listOwners(id);
     const statusHistory = await this.repo.listStatusHistory(id);
+
     return { ...app, owners, statusHistory };
   }
 
   async listApplications() {
     const apps = await this.repo.listApplications();
-    const withOwners = await Promise.all(
+
+    return Promise.all(
       apps.map(async (app) => ({
         ...app,
         owners: await this.repo.listOwners(app.id),
         statusHistory: await this.repo.listStatusHistory(app.id),
       })),
     );
-    return withOwners;
   }
 
   async changeStatus(id: string, payload: unknown, actorUserId?: string) {
@@ -100,12 +127,15 @@ export class ApplicationsService {
     const app = await this.repo.findApplicationById(id);
     if (!app) return null;
 
-    const currentStatus = app.status as (typeof applicationStatusEnum.enumValues)[number];
+    const currentStatus =
+      app.status as (typeof applicationStatusEnum.enumValues)[number];
+
     if (!this.pipeline.canTransition(currentStatus, parsed.status)) {
       throw new Error("Status transition not allowed");
     }
 
     await this.repo.updateApplication(id, { status: parsed.status });
+
     await this.repo.addStatusHistory({
       applicationId: id,
       fromStatus: currentStatus,
@@ -124,11 +154,25 @@ export class ApplicationsService {
     return this.getApplicationWithDetails(id);
   }
 
-  async assignApplication(id: string, assignedTo: string | null, actorUserId?: string) {
+  async assignApplication(
+    id: string,
+    assignedTo: string | null,
+    actorUserId?: string,
+  ) {
     const app = await this.repo.findApplicationById(id);
     if (!app) return null;
-    await this.repo.updateApplication(id, { assignedTo: assignedTo ?? null });
-    await this.timeline.logEvent(id, "application_assigned", { assignedTo }, actorUserId);
+
+    await this.repo.updateApplication(id, {
+      assignedTo: assignedTo ?? null,
+    });
+
+    await this.timeline.logEvent(
+      id,
+      "application_assigned",
+      { assignedTo },
+      actorUserId,
+    );
+
     return this.getApplicationWithDetails(id);
   }
 
