@@ -11,11 +11,11 @@ router.use(requireAuth);
 router.post("/", async (req, res, next) => {
   try {
     const payload = createTaskSchema.parse({
-      title: req.body.title!,
-      description: req.body.description ?? null,
-      applicationId: req.body.applicationId ?? null,
-      assignedToUserId: req.body.assignedToUserId ?? null,
-      dueDate: req.body.dueDate ?? null,
+      title: req.body.title,
+      description: req.body.description ?? "",
+      applicationId: req.body.applicationId ?? undefined,
+      assignedToUserId: req.body.assignedToUserId ?? undefined,
+      dueDate: req.body.dueDate ?? undefined,
     });
     const record = await tasksService.createTask({
       ...payload,

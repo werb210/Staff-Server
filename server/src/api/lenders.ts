@@ -8,19 +8,20 @@ router.use(authenticate);
 
 router.post("/required-documents", async (req, res, next) => {
   try {
-    const parsed = req.body;
+    const parsed = req.body ?? {};
 
     if (!parsed.lenderProductId || !parsed.docCategory) {
       throw new Error("lenderProductId and docCategory are required");
     }
 
-    const values = {
-      lenderProductId: parsed.lenderProductId!,
-      docCategory: parsed.docCategory!,
-      title: parsed.title ?? null,
+    const values: typeof lenderRequiredDocuments.$inferInsert = {
+      lenderProductId: parsed.lenderProductId,
+      docCategory: parsed.docCategory,
+      required: parsed.required ?? true,
+      title: parsed.title ?? "Document",
       description: parsed.description ?? null,
-      category: parsed.category ?? null,
-      isMandatory: parsed.isMandatory ?? false,
+      category: parsed.category ?? "general",
+      isMandatory: parsed.isMandatory ?? true,
       validationRules: parsed.validationRules ?? {},
       displayOrder: parsed.displayOrder ?? 0,
     };

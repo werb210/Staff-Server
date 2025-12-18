@@ -32,14 +32,22 @@ export class ApplicationsService {
     const status = this.pipeline.initialStatus(productCategory);
     const now = new Date();
 
+    const normalizedPayload = {
+      ...rest,
+      kycData: rest.kycData ?? {},
+      businessData: rest.businessData ?? {},
+      applicantData: rest.applicantData ?? {},
+      productSelection: rest.productSelection ?? {},
+      signatureData: signatureData ?? {},
+    };
+
     const created = await this.repo.createApplication({
       productCategory,
       status,
       createdAt: now,
       updatedAt: now,
       assignedTo: assignedTo ?? null,
-      signatureData: signatureData ?? null,
-      ...rest,
+      ...normalizedPayload,
     });
 
     await this.repo.addStatusHistory({

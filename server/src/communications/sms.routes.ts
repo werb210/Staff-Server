@@ -8,12 +8,7 @@ const smsService = new SmsService();
 
 router.post("/inbound", async (req, res, next) => {
   try {
-    const payload = smsInboundSchema.parse({
-      From: req.body.From!,
-      To: req.body.To!,
-      Body: req.body.Body!,
-      applicationId: req.body.applicationId ?? undefined,
-    });
+    const payload = smsInboundSchema.parse(req.body);
     const record = await smsService.handleInbound(payload);
     res.json({ ok: true, record });
   } catch (err) {
