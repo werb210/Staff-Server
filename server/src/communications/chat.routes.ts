@@ -10,7 +10,21 @@ router.use(requireAuth);
 
 router.post("/send", async (req, res, next) => {
   try {
-    const payload = chatSendSchema.parse(req.body);
+    const parsed = chatSendSchema.parse(req.body);
+
+    if (!parsed.applicationId || !parsed.direction || !parsed.body) {
+      return res
+        .status(400)
+        .json({ error: "applicationId, direction, and body are required" });
+    }
+
+    const payload: Parameters<(typeof chatService)["sendMessage"]>[0] = {
+      applicationId: parsed.applicationId,
+      direction: parsed.direction,
+      body: parsed.body,
+      issueReport: parsed.issueReport ?? false,
+    };
+
     const record = await chatService.sendMessage(payload);
     res.json({ ok: true, record });
   } catch (err) {

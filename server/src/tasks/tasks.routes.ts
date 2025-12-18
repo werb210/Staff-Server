@@ -10,17 +10,28 @@ router.use(requireAuth);
 
 router.post("/", async (req, res, next) => {
   try {
-    const payload = createTaskSchema.parse({
-      title: req.body.title,
-      description: req.body.description ?? "",
-      applicationId: req.body.applicationId ?? undefined,
-      assignedToUserId: req.body.assignedToUserId ?? undefined,
-      dueDate: req.body.dueDate ?? undefined,
+    const parsed = createTaskSchema.parse({
+      title: req.body?.title,
+      description: req.body?.description ?? "",
+      applicationId: req.body?.applicationId ?? undefined,
+      assignedToUserId: req.body?.assignedToUserId ?? undefined,
+      dueDate: req.body?.dueDate ?? undefined,
     });
-    const record = await tasksService.createTask({
-      ...payload,
+
+    if (!parsed.title) {
+      return res.status(400).json({ error: "title is required" });
+    }
+
+    const taskPayload: Parameters<(typeof tasksService)["createTask"]>[0] = {
       assignedByUserId: req.user!.id,
-    });
+      assignedToUserId: parsed.assignedToUserId,
+      applicationId: parsed.applicationId,
+      title: parsed.title,
+      description: parsed.description ?? "",
+      dueDate: parsed.dueDate,
+    };
+
+    const record = await tasksService.createTask(taskPayload);
     res.json({ ok: true, task: record });
   } catch (err) {
     next(err);
@@ -38,15 +49,16 @@ router.get("/my", async (req, res, next) => {
 
 router.patch("/:id", async (req, res, next) => {
   try {
-    const payload = updateTaskSchema.parse(req.body);
+    const parsed = updateTaskSchema.parse(req.body);
     let updated = null;
-    if (payload.status === "completed") {
+    if (parsed.status === "completed") {
       updated = await tasksService.completeTask(req.params.id);
     } else {
-      updated = await tasksService.updateTask(req.params.id, {
-        ...payload,
-        dueDate: payload.dueDate ? new Date(payload.dueDate) : null,
-      });
+      const updatePayload = {
+        ...parsed,
+        dueDate: parsed.dueDate ? new Date(parsed.dueDate) : null,
+      };
+      updated = await tasksService.updateTask(req.params.id, updatePayload);
     }
     res.json({ ok: true, task: updated });
   } catch (err) {
