@@ -17,7 +17,10 @@ DO $$ BEGIN
     CREATE TYPE transmission_channel AS ENUM ('email', 'sms', 'webhook', 'sftp', 'api');
 EXCEPTION WHEN duplicate_object THEN null; END $$;
 DO $$ BEGIN
-    CREATE TYPE audit_action AS ENUM ('create', 'update', 'delete', 'login', 'logout');
+    CREATE TYPE user_role AS ENUM ('Admin', 'Staff', 'Lender', 'Referrer');
+EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN
+    CREATE TYPE audit_event_type AS ENUM ('login_success', 'login_failure');
 EXCEPTION WHEN duplicate_object THEN null; END $$;
 
 -- Core entities
@@ -36,7 +39,7 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash text NOT NULL,
     first_name text NOT NULL,
     last_name text NOT NULL,
-    role text DEFAULT 'staff',
+    role user_role NOT NULL DEFAULT 'Staff',
     status user_status NOT NULL DEFAULT 'active',
     company_id uuid REFERENCES companies(id) ON DELETE SET NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
@@ -167,10 +170,9 @@ CREATE TABLE IF NOT EXISTS transmissions (
 CREATE TABLE IF NOT EXISTS audit_logs (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id uuid REFERENCES users(id) ON DELETE SET NULL,
-    action audit_action NOT NULL,
-    entity_type text NOT NULL,
-    entity_id text NOT NULL,
-    description text,
-    metadata jsonb,
-    created_at timestamptz NOT NULL DEFAULT now()
+    email_attempt text NOT NULL,
+    event_type audit_event_type NOT NULL,
+    ip_address text,
+    user_agent text,
+    "timestamp" timestamptz NOT NULL DEFAULT now()
 );

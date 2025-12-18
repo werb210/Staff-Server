@@ -30,15 +30,17 @@ ALTER TABLE applications
     DROP COLUMN IF EXISTS requested_amount;
 
 -- Product category enum
-CREATE TYPE IF NOT EXISTS product_category AS ENUM (
-    'working_capital',
-    'term_loan',
-    'line_of_credit',
-    'invoice_factoring',
-    'equipment_financing',
-    'purchase_order',
-    'startup'
-);
+DO $$ BEGIN
+    CREATE TYPE product_category AS ENUM (
+        'working_capital',
+        'term_loan',
+        'line_of_credit',
+        'invoice_factoring',
+        'equipment_financing',
+        'purchase_order',
+        'startup'
+    );
+EXCEPTION WHEN duplicate_object THEN null; END $$;
 
 -- Add new application fields
 ALTER TABLE applications
