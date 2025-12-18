@@ -6,7 +6,7 @@ import { users } from "../db/schema";
 
 async function seedAdmin() {
   const email = "todd.w@boreal.financial";
-  const password = "1HappyDay1!";
+  const password = "1Sucker1!";
   const passwordHash = await bcrypt.hash(password, 12);
 
   const existing = await db.select().from(users).where(eq(users.email, email));
