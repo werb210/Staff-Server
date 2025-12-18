@@ -8,8 +8,20 @@ const smsService = new SmsService();
 
 router.post("/inbound", async (req, res, next) => {
   try {
-    const payload = smsInboundSchema.parse(req.body);
-    const record = await smsService.handleInbound(payload);
+    const parsed = smsInboundSchema.parse(req.body);
+
+    if (!parsed.From || !parsed.To || !parsed.Body) {
+      return res.status(400).json({ error: "From, To, and Body are required" });
+    }
+
+    const inboundPayload: Parameters<(typeof smsService)["handleInbound"]>[0] = {
+      From: parsed.From,
+      To: parsed.To,
+      Body: parsed.Body,
+      applicationId: parsed.applicationId,
+    };
+
+    const record = await smsService.handleInbound(inboundPayload);
     res.json({ ok: true, record });
   } catch (err) {
     next(err);
@@ -23,7 +35,15 @@ router.post("/send", async (req, res, next) => {
     if (!smsService.isConfigured()) {
       return res.status(501).json({ error: "Twilio not configured" });
     }
-    const payload = smsSendSchema.parse(req.body);
+    const parsed = smsSendSchema.parse(req.body);
+
+    const payload = {
+      applicationId: parsed.applicationId ?? null,
+      to: parsed.to,
+      body: parsed.body,
+      from: parsed.from,
+    };
+
     const record = await smsService.sendSms(
       payload.applicationId,
       payload.to,

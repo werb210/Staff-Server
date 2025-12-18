@@ -18,7 +18,7 @@ export class OwnersService {
   private normalizeOwner(payload: unknown) {
     const parsed = ownerSchema.parse(payload);
 
-    return {
+    const owner = {
       email: parsed.email,
       firstName: parsed.firstName,
       lastName: parsed.lastName,
@@ -31,9 +31,11 @@ export class OwnersService {
       ssn: parsed.ssn,
       ownershipPercentage: parsed.ownershipPercentage,
     } satisfies Omit<Parameters<ApplicationsRepository["createOwner"]>[1], "applicationId">;
+
+    return owner;
   }
 
-  async addOwner(applicationId: string, payload: any, actorUserId?: string) {
+  async addOwner(applicationId: string, payload: unknown, actorUserId?: string) {
     const owner = this.normalizeOwner(payload);
     const created = await this.repo.createOwner(applicationId, owner);
     await this.timeline.logEvent(
@@ -48,7 +50,7 @@ export class OwnersService {
   async updateOwner(
     applicationId: string,
     ownerId: string,
-    payload: any,
+    payload: unknown,
     actorUserId?: string,
   ) {
     const owner = this.normalizeOwner(payload);

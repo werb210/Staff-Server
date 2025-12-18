@@ -13,7 +13,21 @@ router.use("/chat", chatRouter);
 
 router.post("/voice/log", requireAuth, async (req, res, next) => {
   try {
-    const payload = voiceLogSchema.parse(req.body);
+    const parsed = voiceLogSchema.parse(req.body);
+
+    if (!parsed.applicationId || !parsed.phoneNumber || !parsed.eventType) {
+      return res
+        .status(400)
+        .json({ error: "applicationId, phoneNumber, and eventType are required" });
+    }
+
+    const payload: Parameters<(typeof voiceService)["logEvent"]>[0] = {
+      applicationId: parsed.applicationId,
+      phoneNumber: parsed.phoneNumber,
+      eventType: parsed.eventType,
+      durationSeconds: parsed.durationSeconds,
+    };
+
     const record = await voiceService.logEvent(payload);
     res.json({ ok: true, record });
   } catch (err) {
