@@ -45,31 +45,19 @@ export const authService = {
   async login(payload: LoginRequestBody, ctx: RequestContext): Promise<LoginResult> {
     const normalizedEmail = payload.email.trim().toLowerCase();
     const userRecord = await findUserByEmail(normalizedEmail);
-    if (config.NODE_ENV !== "production") {
-      console.debug("Auth login user lookup", { email: normalizedEmail, found: Boolean(userRecord) });
-    }
     if (!userRecord) {
       await recordLoginAudit(normalizedEmail, "login_failure", ctx);
-      console.warn("Login failed: user not found", { email: normalizedEmail });
       throw new AuthError("Invalid credentials");
     }
 
     if (!userRecord.passwordHash) {
       await recordLoginAudit(normalizedEmail, "login_failure", ctx, userRecord.id);
-      console.warn("Login failed: missing password hash", { email: normalizedEmail });
       throw new AuthError("Invalid credentials");
     }
 
-    if (config.NODE_ENV !== "production") {
-      console.debug("Auth login hash length", { email: normalizedEmail, hashLength: userRecord.passwordHash.length });
-    }
     const passwordValid = await passwordService.verifyPassword(payload.password, userRecord.passwordHash);
-    if (config.NODE_ENV !== "production") {
-      console.debug("Auth login bcrypt compare result", { email: normalizedEmail, passwordValid });
-    }
     if (!passwordValid) {
       await recordLoginAudit(normalizedEmail, "login_failure", ctx, userRecord.id);
-      console.warn("Login failed: invalid password", { email: normalizedEmail });
       throw new AuthError("Invalid credentials");
     }
 
