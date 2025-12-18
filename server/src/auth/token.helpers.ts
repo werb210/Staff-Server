@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { authConfig } from "../config/config";
-import { TokenPair } from "./auth.types";
+import { TokenPair } from "./token.service";
 
 const secureCookie = process.env.NODE_ENV === "production";
 

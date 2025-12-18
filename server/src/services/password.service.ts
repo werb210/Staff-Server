@@ -1,4 +1,4 @@
-import bcrypt from "bcryptjs";
+import bcrypt from "bcrypt";
 
 const TOKEN_SALT_ROUNDS = 10;
 const PASSWORD_SALT_ROUNDS = 12;

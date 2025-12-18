@@ -1,5 +1,5 @@
 import { Client } from "pg";
-import bcrypt from "bcryptjs";
+import bcrypt from "bcrypt";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 

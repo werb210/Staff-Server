@@ -1,8 +1,8 @@
 import { NextFunction, Request, Response } from "express";
 import { TokenExpiredError } from "jsonwebtoken";
 import { extractAccessToken, extractRefreshToken, setTokenCookies } from "../auth/token.helpers";
+import { tokenService } from "../auth/token.service";
 import { jwtService } from "../services/jwt.service";
-import { sessionService } from "../services/session.service";
 import { findUserById, mapAuthenticated } from "../services/user.service";
 
 async function resolveUser(userId: string) {
@@ -41,10 +41,10 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   }
 
   try {
-    const { payload } = await sessionService.validateRefreshToken(refreshToken);
+    const { payload } = await tokenService.validateRefreshToken(refreshToken);
     const user = await resolveUser(payload.userId);
     if (!user) return res.status(401).json({ error: "User not found" });
-    const tokens = await sessionService.refreshSession(user, refreshToken);
+    const tokens = await tokenService.refreshTokenPair(user, refreshToken);
     setTokenCookies(res, tokens);
     res.locals.tokens = tokens;
     req.user = { ...user, sessionId: tokens.sessionId };

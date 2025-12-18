@@ -1,7 +1,8 @@
 import bcrypt from "bcrypt";
+import { eq } from "drizzle-orm";
 import { db } from "../db";
 import { users } from "../db/schema";
-import { eq } from "drizzle-orm";
+import { AuthenticatedUser } from "./auth.types";
 import { createTokenPair, TokenPair } from "./token.service";
 
 export class AuthError extends Error {
@@ -12,23 +13,19 @@ export class AuthError extends Error {
   }
 }
 
-type LoginInput = {
-  email: string;
-  password: string;
-};
-
 export const authService = {
-  async login(input: LoginInput, meta?: { ipAddress?: string; userAgent?: string }) {
+  async login(input: { email: string; password: string }) {
     const email = input.email.trim().toLowerCase();
-
-    // 🔴 CRITICAL: explicitly select password_hash
     const [user] = await db
       .select({
         id: users.id,
         email: users.email,
         role: users.role,
+        status: users.status,
+        firstName: users.firstName,
+        lastName: users.lastName,
         isActive: users.isActive,
-        password_hash: users.password_hash,
+        passwordHash: users.passwordHash,
       })
       .from(users)
       .where(eq(users.email, email))
@@ -38,25 +35,22 @@ export const authService = {
       throw new AuthError("Invalid credentials", 401);
     }
 
-    // ✅ TEMPORARY DEBUG — EXACTLY ONE LINE, EXACT LOCATION
-    console.log("AUTH_DEBUG", {
-      email: user.email,
-      hasPasswordHash: !!user.password_hash,
-      hashLength: user.password_hash?.length,
-    });
-
-    const ok = await bcrypt.compare(input.password, user.password_hash);
+    const ok = await bcrypt.compare(input.password, user.passwordHash);
 
     if (!ok) {
       throw new AuthError("Invalid credentials", 401);
     }
 
-    const tokens: TokenPair = await createTokenPair({
-      userId: user.id,
+    const authUser: AuthenticatedUser = {
+      id: user.id,
+      email: user.email,
       role: user.role,
-      ipAddress: meta?.ipAddress,
-      userAgent: meta?.userAgent,
-    });
+      status: user.status,
+      firstName: user.firstName ?? undefined,
+      lastName: user.lastName ?? undefined,
+    };
+
+    const tokens: TokenPair = await createTokenPair(authUser);
 
     return {
       user: {
