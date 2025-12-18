@@ -1,6 +1,6 @@
-import { Request, Response, NextFunction } from "express";
+import { NextFunction, Request, Response } from "express";
 import { ZodError } from "zod";
-import { authService, AuthError } from "./auth.service";
+import { AuthError, authService } from "./auth.service";
 import {
   loginSchema,
   refreshSchema,
