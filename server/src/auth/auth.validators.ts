@@ -17,19 +17,9 @@ export const loginSchema = z.object({
     : z.string().optional(),
 });
 
-export const refreshSchema = z.object({
-  refreshToken: z.string().min(10, "Refresh token is required"),
-});
-
 export const startVerificationSchema = z.object({
   email: z.string().email(),
 });
 
-export const logoutSchema = z.object({
-  refreshToken: z.string().min(10, "Refresh token is required"),
-});
-
 export type LoginInput = z.infer<typeof loginSchema>;
-export type RefreshInput = z.infer<typeof refreshSchema>;
-export type LogoutInput = z.infer<typeof logoutSchema>;
 export type StartVerificationInput = z.infer<typeof startVerificationSchema>;

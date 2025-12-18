@@ -5,6 +5,11 @@ import { users } from "../db/schema";
 import { AuthenticatedUser } from "./auth.types";
 import { createTokenPair, TokenPair } from "./token.service";
 
+export interface LoginResult {
+  user: AuthenticatedUser;
+  tokens: TokenPair;
+}
+
 export class AuthError extends Error {
   status: number;
   constructor(message: string, status = 401) {
@@ -14,7 +19,7 @@ export class AuthError extends Error {
 }
 
 export const authService = {
-  async login(input: { email: string; password: string }) {
+  async login(input: { email: string; password: string }): Promise<LoginResult> {
     const email = input.email.trim().toLowerCase();
     const [user] = await db
       .select({
@@ -52,13 +57,6 @@ export const authService = {
 
     const tokens: TokenPair = await createTokenPair(authUser);
 
-    return {
-      user: {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-      },
-      tokens,
-    };
+    return { user: authUser, tokens };
   },
 };
