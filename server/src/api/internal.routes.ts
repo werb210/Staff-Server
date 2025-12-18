@@ -84,7 +84,7 @@ router.post("/admin/reset-password", async (req, res) => {
 
   await db
     .update(users)
-    .set({ passwordHash: hashedPassword })
+    .set({ password_hash: hashedPassword })
     .where(eq(users.email, email));
 
   return res.status(200).json({ ok: true });

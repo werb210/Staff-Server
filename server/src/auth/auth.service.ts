@@ -27,10 +27,10 @@ export const authService = {
         email: users.email,
         role: users.role,
         status: users.status,
-        firstName: users.firstName,
-        lastName: users.lastName,
-        isActive: users.isActive,
-        passwordHash: users.passwordHash,
+        firstName: users.first_name,
+        lastName: users.last_name,
+        isActive: users.is_active,
+        passwordHash: users.password_hash,
       })
       .from(users)
       .where(eq(users.email, email))

@@ -32,20 +32,22 @@ async function seedUsers() {
   mock.userStore.push({
     id: randomUUID(),
     email: "admin@example.com",
-    passwordHash: adminHash,
-    firstName: "Admin",
-    lastName: "User",
+    password_hash: adminHash,
+    first_name: "Admin",
+    last_name: "User",
     role: "Admin",
     status: "active",
+    is_active: true,
   });
   mock.userStore.push({
     id: randomUUID(),
     email: "lender@example.com",
-    passwordHash: lenderHash,
-    firstName: "Lender",
-    lastName: "User",
+    password_hash: lenderHash,
+    first_name: "Lender",
+    last_name: "User",
     role: "Lender",
     status: "active",
+    is_active: true,
   });
 }
 

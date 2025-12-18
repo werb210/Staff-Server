@@ -14,7 +14,7 @@ export function createMockDb() {
       return userStore.find((u) => u.email === normalized) ?? null;
     },
     findUserById: async (id: string) => userStore.find((u) => u.id === id) ?? null,
-    select: () => ({
+    select: (selection?: Record<string, any>) => ({
       from: (table: any) => ({
         where: (_where: any) => ({
           limit: async (_count: number) => {
@@ -23,7 +23,18 @@ export function createMockDb() {
               const results = emailFilter
                 ? userStore.filter((u) => u.email === emailFilter)
                 : [...userStore];
-              return results;
+
+              if (!selection) return results as any;
+
+              return results.map((row) => {
+                const mapped: Record<string, any> = {};
+                for (const key of Object.keys(selection)) {
+                  const column = selection[key];
+                  const columnName = typeof column?.name === "string" ? column.name : key;
+                  mapped[key] = (row as any)[columnName];
+                }
+                return mapped;
+              });
             }
             return [];
           },

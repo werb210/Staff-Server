@@ -17,27 +17,29 @@ type DefaultUserSpec = {
 };
 
 async function upsertDefaultUser(user: DefaultUserSpec) {
-  const passwordHash = await passwordService.hashPassword(user.password);
+  const password_hash = await passwordService.hashPassword(user.password);
 
   await db
     .insert(users)
-    .values({
-      email: user.email.toLowerCase(),
-      firstName: user.firstName,
-      lastName: user.lastName,
-      role: user.role,
-      status: "active",
-      passwordHash,
-    })
+      .values({
+        email: user.email.toLowerCase(),
+        first_name: user.firstName,
+        last_name: user.lastName,
+        role: user.role,
+        status: "active",
+        password_hash,
+        is_active: true,
+      })
     .onConflictDoUpdate({
       target: users.email,
       set: {
-        firstName: user.firstName,
-        lastName: user.lastName,
+        first_name: user.firstName,
+        last_name: user.lastName,
         role: user.role,
         status: "active",
-        passwordHash,
-        updatedAt: sql`now()`,
+        password_hash,
+        is_active: true,
+        updated_at: sql`now()`,
       },
     });
 }
