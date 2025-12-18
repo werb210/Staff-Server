@@ -1,37 +1,25 @@
-import { ApplicationsRepository, OwnerRecord } from "./types";
-import { ownerSchema, ownerUpdateSchema } from "./applications.validators";
-import { TimelineService } from "./timeline.service";
+import { DrizzleApplicationsRepository } from "./applications.repository";
 
 export class OwnersService {
-  constructor(private repo: ApplicationsRepository, private timeline: TimelineService) {}
+  private repo = new DrizzleApplicationsRepository();
 
-  async listOwners(applicationId: string) {
-    return this.repo.listOwners(applicationId);
-  }
-
-  async addOwner(applicationId: string, payload: unknown, actorUserId?: string): Promise<OwnerRecord> {
-    const parsed = ownerSchema.parse(payload);
-    const owner = await this.repo.createOwner(applicationId, parsed);
-    await this.timeline.logEvent(applicationId, "owner_added", { ownerId: owner.id }, actorUserId);
-    return owner;
-  }
-
-  async updateOwner(
-    applicationId: string,
-    ownerId: string,
-    payload: unknown,
-    actorUserId?: string,
-  ): Promise<OwnerRecord | null> {
-    const parsed = ownerUpdateSchema.parse(payload);
-    const updated = await this.repo.updateOwner(ownerId, parsed);
-    if (updated) {
-      await this.timeline.logEvent(applicationId, "owner_updated", { ownerId: updated.id }, actorUserId);
+  async createOwner(applicationId: string, payload: any) {
+    if (!payload.email) {
+      throw new Error("Owner email is required");
     }
-    return updated;
-  }
 
-  async deleteOwner(applicationId: string, ownerId: string, actorUserId?: string) {
-    await this.repo.deleteOwner(ownerId);
-    await this.timeline.logEvent(applicationId, "owner_removed", { ownerId }, actorUserId);
+    return this.repo.createOwner(applicationId, {
+      email: payload.email,
+      firstName: payload.firstName ?? "",
+      lastName: payload.lastName ?? "",
+      phone: payload.phone ?? "",
+      address: payload.address ?? "",
+      city: payload.city ?? "",
+      state: payload.state ?? "",
+      zip: payload.zip ?? "",
+      dob: payload.dob ?? "",
+      ssn: payload.ssn ?? "",
+      ownershipPercentage: payload.ownershipPercentage ?? 0,
+    });
   }
 }
