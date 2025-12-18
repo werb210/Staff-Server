@@ -18,33 +18,3 @@ export interface TokenPayload {
   role: UserRole;
   sessionId: string;
 }
-
-export interface TokenPair {
-  accessToken: string;
-  refreshToken: string;
-  accessExpiresAt: Date;
-  refreshExpiresAt: Date;
-  sessionId: string;
-}
-
-export interface LoginRequestBody {
-  email: string;
-  password: string;
-  verificationCode?: string;
-  portal?: "lender" | "referrer" | "staff";
-}
-
-export interface LoginResult {
-  user: AuthenticatedUser;
-  tokens: TokenPair;
-}
-
-export interface RefreshResult {
-  tokens: TokenPair;
-  user: AuthenticatedUser;
-}
-
-export interface RequestContext {
-  ipAddress?: string;
-  userAgent?: string;
-}

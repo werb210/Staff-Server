@@ -1,4 +1,11 @@
-import { pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { companies } from "./companies";
 
 export const userStatusEnum = pgEnum("user_status", ["active", "inactive", "locked"]);
@@ -12,6 +19,7 @@ export const users = pgTable("users", {
   lastName: text("last_name").notNull(),
   role: userRoleEnum("role").notNull().default("Staff"),
   status: userStatusEnum("status").default("active").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
   companyId: uuid("company_id").references(() => companies.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),

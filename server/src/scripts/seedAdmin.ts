@@ -1,4 +1,4 @@
-import bcrypt from "bcryptjs";
+import bcrypt from "bcrypt";
 import { eq, sql } from "drizzle-orm";
 
 import { closeDatabase, db } from "../db";

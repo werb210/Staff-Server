@@ -2,8 +2,8 @@ import { randomUUID } from "crypto";
 import request from "supertest";
 
 import app from "../app";
+import { tokenService } from "../auth/token.service";
 import { passwordService } from "../services/password.service";
-import { sessionService } from "../services/session.service";
 
 type MockDb = ReturnType<typeof import("../testUtils/mockDb")["createMockDb"]>;
 
@@ -25,7 +25,7 @@ const password = "SmokePass123";
 beforeEach(async () => {
   mock.userStore.length = 0;
   mock.auditStore.length = 0;
-  sessionService.clearAllSessions();
+  tokenService.clearAllSessions();
 
   const passwordHash = await passwordService.hashPassword(password);
   mock.userStore.push({
@@ -47,7 +47,8 @@ describe("Auth smoke test", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(response.body.token).toBeDefined();
+    expect(response.body.tokens.accessToken).toBeDefined();
+    expect(response.body.tokens.refreshToken).toBeDefined();
     expect(response.body.user.email).toBe("smoke@example.com");
   });
 });

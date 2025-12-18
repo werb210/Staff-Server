@@ -1,7 +1,7 @@
 import request from "supertest";
 import { randomUUID } from "crypto";
+import { tokenService } from "../auth/token.service";
 import { passwordService } from "../services/password.service";
-import { sessionService } from "../services/session.service";
 
 type MockDb = ReturnType<typeof import("../testUtils/mockDb")["createMockDb"]>;
 
@@ -26,7 +26,7 @@ const lenderPassword = "SecurePass456";
 async function seedUsers() {
   mock.userStore.length = 0;
   mock.auditStore.length = 0;
-  sessionService.clearAllSessions();
+  tokenService.clearAllSessions();
   const adminHash = await passwordService.hashPassword(adminPassword);
   const lenderHash = await passwordService.hashPassword(lenderPassword);
   mock.userStore.push({
@@ -61,7 +61,8 @@ describe("Authentication and authorization", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(response.body.token).toBeDefined();
+    expect(response.body.tokens.accessToken).toBeDefined();
+    expect(response.body.tokens.refreshToken).toBeDefined();
     expect(response.body.user.email).toBe("admin@example.com");
   });
 
@@ -72,6 +73,6 @@ describe("Authentication and authorization", () => {
     });
 
     expect(response.status).toBe(401);
-    expect(response.body.token).toBeUndefined();
+    expect(response.body.tokens).toBeUndefined();
   });
 });
