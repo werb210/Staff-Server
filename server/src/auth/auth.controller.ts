@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import { ZodError } from "zod";
-import { AuthError, authService } from "./auth.service";
+import { AuthError, authService, LoginResult } from "./auth.service";
 import { loginSchema } from "./auth.validators";
 import { setTokenCookies } from "./token.helpers";
 
@@ -8,9 +8,6 @@ export const authController = {
   async login(req: Request, res: Response, next: NextFunction) {
     try {
       const parsed = loginSchema.parse(req.body);
-      if (!parsed.password) {
-        return res.status(400).json({ error: "Password required" });
-      }
 
       const normalized = {
         ...parsed,
@@ -18,7 +15,7 @@ export const authController = {
         password: parsed.password,
       };
 
-      const result = await authService.login(normalized);
+      const result: LoginResult = await authService.login(normalized);
 
       setTokenCookies(res, result.tokens);
 
