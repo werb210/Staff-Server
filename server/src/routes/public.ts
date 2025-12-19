@@ -10,7 +10,7 @@ const router = Router();
  * Supports filtering by stage via query param
  * Example: /api/applications?stage=new
  */
-router.get("/applications", async (req, res) => {
+router.get("/api/applications", async (req, res) => {
   try {
     const stage = req.query.stage as string | undefined;
 

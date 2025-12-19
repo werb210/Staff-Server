@@ -1,29 +1,31 @@
 import express from "express";
-import cors from "cors";
+import cors, { CorsOptions } from "cors";
 import { registerRoutes } from "./routes";
 
 const app = express();
 
-app.use(
-  cors({
-    origin: ["https://staff.boreal.financial"],
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
+const corsOptions: CorsOptions = {
+  origin: ["https://staff.boreal.financial"],
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+};
 
-// Explicit preflight support
-app.options("*", cors());
+app.use(cors(corsOptions));
+
+// REQUIRED for browser preflight with matching config
+app.options("*", cors(corsOptions));
 
 app.use(express.json());
 
-// Mount ALL routes ONCE at root
-// registerRoutes must internally use `/api/...`
+// IMPORTANT:
+// registerRoutes() ALREADY defines `/api/...`
+// DO NOT prefix anything here
 registerRoutes(app);
 
 const port = Number(process.env.PORT) || 8080;
-
 app.listen(port, () => {
   console.log(`Staff Server running on port ${port}`);
 });
+
+export default app;

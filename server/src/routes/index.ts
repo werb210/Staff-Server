@@ -1,10 +1,12 @@
 import { Express } from "express";
 import publicRoutes from "./public";
 
-export function registerRoutes(app: Express) {
-  app.use("/api", publicRoutes);
+const API_PREFIX = "/api";
 
-  app.get("/health", (_req, res) => {
+export function registerRoutes(app: Express) {
+  app.use(publicRoutes);
+
+  app.get(`${API_PREFIX}/health`, (_req, res) => {
     res.json({ status: "ok" });
   });
 }
