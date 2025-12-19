@@ -2,6 +2,7 @@ import { Router } from "express";
 import { smsInboundSchema, smsSendSchema } from "./communications.validators";
 import { SmsService } from "./sms.service";
 import { requireAuth } from "../middleware/requireAuth";
+import { BadRequest } from "../errors";
 
 const router = Router();
 const smsService = new SmsService();
@@ -11,17 +12,15 @@ router.post("/inbound", async (req, res, next) => {
     const parsed = smsInboundSchema.parse(req.body);
 
     if (!parsed.From || !parsed.To || !parsed.Body) {
-      return res.status(400).json({ error: "From, To, and Body are required" });
+      throw new BadRequest("invalid sms payload");
     }
 
-    const inboundPayload: Parameters<(typeof smsService)["handleInbound"]>[0] = {
+    const record = await smsService.handleInbound({
       From: parsed.From,
       To: parsed.To,
       Body: parsed.Body,
       applicationId: parsed.applicationId,
-    };
-
-    const record = await smsService.handleInbound(inboundPayload);
+    });
     res.json({ ok: true, record });
   } catch (err) {
     next(err);

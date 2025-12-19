@@ -4,6 +4,7 @@ import chatRouter from "./chat.routes";
 import { VoiceService } from "./voice.service";
 import { voiceLogSchema } from "./communications.validators";
 import { requireAuth } from "../middleware/requireAuth";
+import { BadRequest } from "../errors";
 
 const router = Router();
 const voiceService = new VoiceService();
@@ -13,22 +14,18 @@ router.use("/chat", chatRouter);
 
 router.post("/voice/log", requireAuth, async (req, res, next) => {
   try {
-    const parsed = voiceLogSchema.parse(req.body);
+    const payload = voiceLogSchema.parse(req.body);
 
-    if (!parsed.applicationId || !parsed.phoneNumber || !parsed.eventType) {
-      return res
-        .status(400)
-        .json({ error: "applicationId, phoneNumber, and eventType are required" });
+    if (!payload.applicationId || !payload.phoneNumber || !payload.eventType) {
+      throw new BadRequest("invalid voice payload");
     }
 
-    const payload: Parameters<(typeof voiceService)["logEvent"]>[0] = {
-      applicationId: parsed.applicationId,
-      phoneNumber: parsed.phoneNumber,
-      eventType: parsed.eventType,
-      durationSeconds: parsed.durationSeconds,
-    };
-
-    const record = await voiceService.logEvent(payload);
+    const record = await voiceService.logEvent({
+      applicationId: payload.applicationId,
+      phoneNumber: payload.phoneNumber,
+      eventType: payload.eventType,
+      durationSeconds: payload.durationSeconds,
+    });
     res.json({ ok: true, record });
   } catch (err) {
     next(err);
