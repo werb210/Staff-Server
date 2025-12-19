@@ -13,12 +13,13 @@ app.use(
   })
 );
 
-// Explicit preflight handling
+// Explicit preflight support
 app.options("*", cors());
 
 app.use(express.json());
 
-// Register ALL API routes
+// Mount ALL routes ONCE at root
+// registerRoutes must internally use `/api/...`
 registerRoutes(app);
 
 const port = Number(process.env.PORT) || 8080;
