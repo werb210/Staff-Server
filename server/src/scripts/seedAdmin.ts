@@ -1,3 +1,4 @@
+import "dotenv/config";
 import bcrypt from "bcrypt";
 
 import { closeDatabase, db } from "../db";
@@ -6,9 +7,10 @@ import { users } from "../db/schema";
 async function seedAdmin() {
   const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
   const password = process.env.ADMIN_PASSWORD;
+  const phone = process.env.ADMIN_PHONE?.trim();
 
-  if (!email || !password) {
-    throw new Error("ADMIN_EMAIL and ADMIN_PASSWORD must be set");
+  if (!email || !password || !phone) {
+    throw new Error("ADMIN_EMAIL, ADMIN_PASSWORD, and ADMIN_PHONE must be set");
   }
 
   console.log("🔥 Deleting ALL users");
@@ -25,6 +27,8 @@ async function seedAdmin() {
     role: "Admin",
     status: "active",
     is_active: true,
+    phone,
+    phone_verified: false,
   });
 
   console.log("✅ Admin seeded:", email);
