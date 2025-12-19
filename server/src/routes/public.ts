@@ -1,51 +1,33 @@
-import { Router } from "express";
+import { Router, Request, Response } from "express";
 import { db } from "../db";
-import { applications, lenders, tasks, calendarEvents } from "../db/schema";
+import { applications } from "../db/schema";
+import { desc } from "drizzle-orm";
 
 const router = Router();
 
 /**
- * GET /api/applications?stage=new
+ * Health check
  */
-router.get("/applications", async (req, res) => {
-  const stage = req.query.stage as string | undefined;
-
-  const results = await db.query.applications.findMany({
-    where: stage
-      ? (app, { eq }) => eq(app.stage, stage)
-      : undefined,
-    orderBy: (app, { desc }) => desc(app.createdAt),
-  });
-
-  res.json(results);
+router.get("/health", (_req: Request, res: Response) => {
+  res.json({ ok: true });
 });
 
 /**
- * GET /api/lenders
+ * Applications (no stage filtering yet — schema does not support it)
  */
-router.get("/lenders", async (_req, res) => {
-  const results = await db.query.lenders.findMany();
-  res.json(results);
-});
+router.get("/applications", async (_req: Request, res: Response) => {
+  try {
+    const results = await db
+      .select()
+      .from(applications)
+      .orderBy(desc(applications.createdAt))
+      .limit(50);
 
-/**
- * GET /api/tasks
- */
-router.get("/tasks", async (_req, res) => {
-  const results = await db.query.tasks.findMany({
-    orderBy: (t, { desc }) => desc(t.createdAt),
-  });
-  res.json(results);
-});
-
-/**
- * GET /api/calendar/events
- */
-router.get("/calendar/events", async (_req, res) => {
-  const results = await db.query.calendarEvents.findMany({
-    orderBy: (e, { asc }) => asc(e.startTime),
-  });
-  res.json(results);
+    res.json(results);
+  } catch (error) {
+    console.error("Failed to fetch applications", error);
+    res.status(500).json({ error: "Failed to fetch applications" });
+  }
 });
 
 export default router;
