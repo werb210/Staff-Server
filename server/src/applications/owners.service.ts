@@ -18,21 +18,19 @@ export class OwnersService {
   private normalizeOwner(payload: unknown) {
     const parsed = ownerSchema.parse(payload);
 
-    const owner = {
-      email: parsed.email,
-      firstName: parsed.firstName,
-      lastName: parsed.lastName,
-      phone: parsed.phone,
-      address: parsed.address,
-      city: parsed.city,
-      state: parsed.state,
-      zip: parsed.zip,
-      dob: parsed.dob,
-      ssn: parsed.ssn,
-      ownershipPercentage: parsed.ownershipPercentage,
+    return {
+      email: parsed.email!,
+      firstName: parsed.firstName!,
+      lastName: parsed.lastName!,
+      phone: parsed.phone ?? "",
+      address: parsed.address ?? "",
+      city: parsed.city ?? "",
+      state: parsed.state ?? "",
+      zip: parsed.zip ?? "",
+      dob: parsed.dob ?? "",
+      ssn: parsed.ssn ?? "",
+      ownershipPercentage: parsed.ownershipPercentage ?? 0,
     } satisfies Omit<Parameters<ApplicationsRepository["createOwner"]>[1], "applicationId">;
-
-    return owner;
   }
 
   async addOwner(applicationId: string, payload: unknown, actorUserId?: string) {

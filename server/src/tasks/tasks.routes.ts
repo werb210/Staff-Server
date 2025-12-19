@@ -2,6 +2,7 @@ import { Router } from "express";
 import { requireAuth } from "../middleware/requireAuth";
 import { TasksService } from "./tasks.service";
 import { createTaskSchema, updateTaskSchema } from "./tasks.validators";
+import { BadRequest } from "../errors";
 
 const router = Router();
 const tasksService = new TasksService();
@@ -10,7 +11,7 @@ router.use(requireAuth);
 
 router.post("/", async (req, res, next) => {
   try {
-    const parsed = createTaskSchema.parse({
+    const payload = createTaskSchema.parse({
       title: req.body?.title,
       description: req.body?.description ?? "",
       applicationId: req.body?.applicationId ?? undefined,
@@ -18,17 +19,17 @@ router.post("/", async (req, res, next) => {
       dueDate: req.body?.dueDate ?? undefined,
     });
 
-    if (!parsed.title) {
-      return res.status(400).json({ error: "title is required" });
+    if (!payload.title) {
+      throw new BadRequest("title required");
     }
 
     const taskPayload: Parameters<(typeof tasksService)["createTask"]>[0] = {
       assignedByUserId: req.user!.id,
-      assignedToUserId: parsed.assignedToUserId,
-      applicationId: parsed.applicationId,
-      title: parsed.title,
-      description: parsed.description ?? "",
-      dueDate: parsed.dueDate,
+      title: payload.title,
+      applicationId: payload.applicationId,
+      description: payload.description ?? "",
+      assignedToUserId: payload.assignedToUserId,
+      dueDate: payload.dueDate,
     };
 
     const record = await tasksService.createTask(taskPayload);

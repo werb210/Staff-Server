@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 import { AuthError, authService, LoginResult } from "./auth.service";
 import { loginSchema } from "./auth.validators";
 import { setTokenCookies } from "./token.helpers";
+import { BadRequest } from "../errors";
 
 export const authController = {
   async login(req: Request, res: Response, next: NextFunction) {
@@ -15,7 +16,13 @@ export const authController = {
         password: parsed.password,
       };
 
-      const result: LoginResult = await authService.login(normalized);
+      if (!normalized.password) {
+        throw new BadRequest("password required");
+      }
+
+      const result: LoginResult = await authService.login(
+        normalized as Parameters<typeof authService.login>[0],
+      );
 
       setTokenCookies(res, result.tokens);
 

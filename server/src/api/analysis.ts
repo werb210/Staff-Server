@@ -12,9 +12,11 @@ router.get("/applications", async (_req, res, next) => {
     const result = await db.execute<{
       status: string;
       count: string;
-    }>(
-      sql`select status, count(*)::text as count from applications group by status`
-    );
+    }>(sql`
+      select status, count(*)::text as count
+      from applications
+      group by status
+    `);
 
     const counts: Record<string, number> = {};
     for (const row of result.rows) {

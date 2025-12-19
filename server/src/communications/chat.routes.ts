@@ -2,6 +2,7 @@ import { Router } from "express";
 import { chatSendSchema } from "./communications.validators";
 import { ChatService } from "./chat.service";
 import { requireAuth } from "../middleware/requireAuth";
+import { BadRequest } from "../errors";
 
 const router = Router();
 const chatService = new ChatService();
@@ -10,22 +11,18 @@ router.use(requireAuth);
 
 router.post("/send", async (req, res, next) => {
   try {
-    const parsed = chatSendSchema.parse(req.body);
+    const payload = chatSendSchema.parse(req.body);
 
-    if (!parsed.applicationId || !parsed.direction || !parsed.body) {
-      return res
-        .status(400)
-        .json({ error: "applicationId, direction, and body are required" });
+    if (!payload.applicationId || !payload.body || !payload.direction) {
+      throw new BadRequest("invalid chat payload");
     }
 
-    const payload: Parameters<(typeof chatService)["sendMessage"]>[0] = {
-      applicationId: parsed.applicationId,
-      direction: parsed.direction,
-      body: parsed.body,
-      issueReport: parsed.issueReport ?? false,
-    };
-
-    const record = await chatService.sendMessage(payload);
+    const record = await chatService.sendMessage({
+      applicationId: payload.applicationId,
+      direction: payload.direction,
+      body: payload.body,
+      issueReport: payload.issueReport,
+    });
     res.json({ ok: true, record });
   } catch (err) {
     next(err);

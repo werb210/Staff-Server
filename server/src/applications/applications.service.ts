@@ -28,26 +28,21 @@ export class ApplicationsService {
       throw new Error("productCategory is required");
     }
 
-    const { productCategory, assignedTo, signatureData, ...rest } = parsed;
+    const productCategory = parsed.productCategory;
     const status = this.pipeline.initialStatus(productCategory);
     const now = new Date();
 
-    const normalizedPayload = {
-      ...rest,
-      kycData: rest.kycData ?? {},
-      businessData: rest.businessData ?? {},
-      applicantData: rest.applicantData ?? {},
-      productSelection: rest.productSelection ?? {},
-      signatureData: signatureData ?? {},
-    };
-
     const created = await this.repo.createApplication({
-      productCategory,
+      productCategory: parsed.productCategory!,
       status,
       createdAt: now,
       updatedAt: now,
-      assignedTo: assignedTo ?? null,
-      ...normalizedPayload,
+      assignedTo: parsed.assignedTo ?? null,
+      kycData: parsed.kycData ?? {},
+      businessData: parsed.businessData ?? {},
+      applicantData: parsed.applicantData ?? {},
+      productSelection: parsed.productSelection ?? {},
+      signatureData: parsed.signatureData ?? {},
     });
 
     await this.repo.addStatusHistory({
@@ -65,7 +60,7 @@ export class ApplicationsService {
       actorUserId,
     );
 
-    if (signatureData) {
+    if (parsed.signatureData) {
       await this.timeline.logEvent(
         created.id,
         "signature_submitted",
