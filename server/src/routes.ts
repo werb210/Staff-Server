@@ -9,7 +9,7 @@ import notificationsRoutes from "./notifications/notifications.routes";
 import publicRoutes from "./routes/public";
 import userRoutes from "./routes/users.routes";
 
-import applicationsRoutes from "./applications/applications.routes";
+import applicationsRoutes from "./routes/applications.routes";
 import eventsRoutes from "./routes/events.routes";
 import ocrRoutes from "./ocr/ocr.routes";
 import tasksRoutes from "./tasks/tasks.routes";
