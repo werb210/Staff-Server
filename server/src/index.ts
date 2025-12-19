@@ -13,7 +13,7 @@ app.use(
   })
 );
 
-// Explicit preflight support
+// Explicit preflight handling
 app.options("*", cors());
 
 app.use(express.json());
