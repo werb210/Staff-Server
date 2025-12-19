@@ -5,6 +5,8 @@ import healthRoutes from "./routes/health";
 import internalRoutes from "./routes/internal";
 import publicRoutes from "./routes/public";
 import intRoutes from "./routes/_int.routes";
+import eventsRoutes from "./routes/events.routes";
+import tasksRoutes from "./routes/tasks.routes";
 import userRoutes from "./routes/users.routes";
 
 export function registerRoutes(app: Express) {
@@ -13,6 +15,8 @@ export function registerRoutes(app: Express) {
   app.use("/api/internal", internalRoutes);
   app.use("/api/banking", bankingRoutes);
   app.use("/api/auth", authRoutes);
+  app.use("/api/events", eventsRoutes);
+  app.use("/api/tasks", tasksRoutes);
   app.use("/api/users", userRoutes);
   app.use("/api", healthRoutes);
 
