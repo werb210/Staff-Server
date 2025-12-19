@@ -1,8 +1,11 @@
 import { Router } from "express";
+import { requireAuth } from "../middleware/requireAuth";
 import { ApplicationsController } from "./applications.controller";
 
 export function createApplicationsRouter(controller = new ApplicationsController()) {
   const router = Router();
+
+  router.use(requireAuth);
 
   router.get("/", controller.list);
   router.post("/", controller.create);
