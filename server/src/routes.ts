@@ -16,11 +16,7 @@ export function registerRoutes(app: Express) {
   app.use("/api/users", userRoutes);
   app.use("/api", healthRoutes);
 
-  app.get("/", (_req: Request, res: Response) => {
+  app.get("/api", (_req: Request, res: Response) => {
     res.status(200).send("OK");
-  });
-
-  app.get("/health", (_req: Request, res: Response) => {
-    res.status(200).json({ status: "healthy" });
   });
 }
