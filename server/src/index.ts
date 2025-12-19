@@ -7,12 +7,18 @@ const app = express();
 app.use(
   cors({
     origin: ["https://staff.boreal.financial"],
-    credentials: true
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
+// Explicit preflight support
+app.options("*", cors());
+
 app.use(express.json());
 
+// Register ALL API routes
 registerRoutes(app);
 
 const port = Number(process.env.PORT) || 8080;
