@@ -13,6 +13,7 @@ import applicationsRoutes from "./applications/applications.routes";
 import eventsRoutes from "./routes/events.routes";
 import ocrRoutes from "./ocr/ocr.routes";
 import tasksRoutes from "./tasks/tasks.routes";
+import pipelineRoutes from "./api/pipeline";
 
 export function registerRoutes(app: Express) {
   // Core namespaces
@@ -29,6 +30,7 @@ export function registerRoutes(app: Express) {
   app.use("/api/events", eventsRoutes);
   app.use("/api/ocr", ocrRoutes);
   app.use("/api/tasks", tasksRoutes);
+  app.use("/api/pipeline", pipelineRoutes);
 
   // Health + root
   app.use("/api", healthRoutes);

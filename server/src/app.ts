@@ -1,11 +1,12 @@
 import express from "express";
 
-import apiRoutes from "./api";
+import { registerRoutes } from "./routes";
 
 const app = express();
 
 app.use(express.json());
-app.use("/api", apiRoutes);
+
+registerRoutes(app);
 
 // 404 handler
 app.use((_req, res) => {
