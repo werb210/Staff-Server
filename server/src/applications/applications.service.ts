@@ -6,6 +6,7 @@ import { TimelineService } from "./timeline.service";
 import { ApplicationsRepository } from "./types";
 import {
   createApplicationSchema,
+  declineSchema,
   statusChangeSchema,
   updateApplicationSchema,
 } from "./applications.validators";
@@ -102,6 +103,30 @@ export class ApplicationsService {
     }
 
     return this.getApplicationWithDetails(id);
+  }
+
+  async acceptApplication(id: string, actorUserId?: string) {
+    const result = await this.changeStatus(id, { status: "accepted" }, actorUserId);
+    if (!result) return null;
+
+    await this.timeline.logEvent(id, "application_accepted", {}, actorUserId);
+
+    return result;
+  }
+
+  async declineApplication(id: string, payload: unknown, actorUserId?: string) {
+    const parsed = declineSchema.parse(payload);
+    const result = await this.changeStatus(id, { status: "declined" }, actorUserId);
+    if (!result) return null;
+
+    await this.timeline.logEvent(
+      id,
+      "application_declined",
+      { reason: parsed.reason ?? null },
+      actorUserId,
+    );
+
+    return result;
   }
 
   async getApplicationWithDetails(id: string) {

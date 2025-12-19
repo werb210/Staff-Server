@@ -9,6 +9,8 @@ type TimelineEventType =
   | "owner_removed"
   | "status_changed"
   | "application_assigned"
+  | "application_accepted"
+  | "application_declined"
   | "signature_submitted"
   | "OCR_REQUESTED"
   | "OCR_COMPLETED"

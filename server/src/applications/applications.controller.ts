@@ -90,6 +90,35 @@ export class ApplicationsController {
     }
   };
 
+  accept = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const app = await this.service.acceptApplication(req.params.id, req.user?.id);
+      if (!app) return res.status(404).json({ error: "Application not found" });
+      res.json(app);
+    } catch (err) {
+      if (err instanceof Error && err.message.includes("Status transition")) {
+        return res.status(400).json({ error: err.message });
+      }
+      next(err);
+    }
+  };
+
+  decline = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const app = await this.service.declineApplication(req.params.id, req.body, req.user?.id);
+      if (!app) return res.status(404).json({ error: "Application not found" });
+      res.json(app);
+    } catch (err) {
+      if (err instanceof Error && err.message.includes("Status transition")) {
+        return res.status(400).json({ error: err.message });
+      }
+      if (err instanceof ZodError) {
+        return res.status(400).json(mapZodError(err));
+      }
+      next(err);
+    }
+  };
+
   assign = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const parsed = assignSchema.parse(req.body);

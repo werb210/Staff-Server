@@ -97,6 +97,10 @@ export const statusChangeSchema = z.object({
   status: z.enum(statusEnumValues),
 });
 
+export const declineSchema = z.object({
+  reason: z.string().min(1).optional(),
+});
+
 export const ownerUpdateSchema = ownerSchema.partial().refine((data) => Object.keys(data).length > 0, {
   message: "At least one owner field must be provided",
 });
