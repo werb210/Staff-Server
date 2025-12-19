@@ -1,49 +1,40 @@
 import bcrypt from "bcrypt";
-import { eq, sql } from "drizzle-orm";
 
 import { closeDatabase, db } from "../db";
 import { users } from "../db/schema";
 
 async function seedAdmin() {
-  const email = "todd.w@boreal.financial";
-  const password = "1Sucker1!";
+  const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  const password = process.env.ADMIN_PASSWORD;
+
+  if (!email || !password) {
+    throw new Error("ADMIN_EMAIL and ADMIN_PASSWORD must be set");
+  }
+
+  console.log("🔥 Deleting ALL users");
+  await db.delete(users);
+
+  console.log("🔐 Creating ADMIN user");
   const password_hash = await bcrypt.hash(password, 12);
 
-  const existing = await db.select().from(users).where(eq(users.email, email));
+  await db.insert(users).values({
+    email,
+    password_hash,
+    first_name: "Admin",
+    last_name: "User",
+    role: "Admin",
+    status: "active",
+    is_active: true,
+  });
 
-  if (existing.length === 0) {
-    await db.insert(users).values({
-      email,
-      password_hash,
-      first_name: "Todd",
-      last_name: "W",
-      role: "Admin",
-      status: "active",
-      is_active: true,
-    });
-    console.log("✅ Admin user CREATED");
-  } else {
-    await db
-      .update(users)
-      .set({
-        password_hash,
-        first_name: "Todd",
-        last_name: "W",
-        role: "Admin",
-        status: "active",
-        is_active: true,
-        updated_at: sql`now()`,
-      })
-      .where(eq(users.email, email));
-    console.log("♻️ Admin password RESET");
-  }
+  console.log("✅ Admin seeded:", email);
 }
 
 let exitCode = 0;
 
 seedAdmin()
   .catch((error) => {
-    console.error("Failed to seed admin user", error);
+    console.error("❌ Seed failed:", error);
     exitCode = 1;
   })
   .finally(async () => {
