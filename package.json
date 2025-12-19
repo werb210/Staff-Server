@@ -1,9 +1,13 @@
 {
-  "name": "staff-server-root",
+  "name": "staff-server",
+  "version": "1.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
-    "postinstall": "npm --prefix server install",
-    "build": "npm --prefix server run build",
-    "start": "node server/dist/index.js"
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/index.js"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }
