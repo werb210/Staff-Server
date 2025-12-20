@@ -2,17 +2,30 @@
   "compilerOptions": {
     "target": "ES2020",
     "module": "CommonJS",
-    "rootDir": "src",
-    "outDir": "dist",
+    "rootDir": "server/src",
+    "outDir": "dist/server",
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "strict": false,
     "skipLibCheck": true,
-    "noEmitOnError": false,
+    "noEmitOnError": true,
     "resolveJsonModule": true,
     "moduleResolution": "node",
-    "allowJs": true
+    "allowJs": false,
+    "sourceMap": false,
+    "declaration": false
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules"]
+  "include": [
+    "server/src/**/*.ts",
+    "types/**/*.ts",
+    "prisma/**/*.ts"
+  ],
+  "exclude": [
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "tests/**",
+    "simulation/**",
+    "node_modules/**",
+    "dist/**"
+  ]
 }
