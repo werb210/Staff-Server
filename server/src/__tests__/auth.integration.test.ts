@@ -56,7 +56,7 @@ beforeEach(async () => {
 });
 
 describe("Authentication and authorization", () => {
-  test("successful login returns a token", async () => {
+  test("successful login returns an access token", async () => {
     const response = await request(app).post("/api/auth/login").send({
       email: "admin@example.com",
       password: adminPassword,
@@ -64,7 +64,6 @@ describe("Authentication and authorization", () => {
 
     expect(response.status).toBe(200);
     expect(response.body.accessToken).toBeDefined();
-    expect(response.body.refreshToken).toBeDefined();
     expect(response.body.user.email).toBe("admin@example.com");
   });
 
@@ -76,11 +75,19 @@ describe("Authentication and authorization", () => {
 
     expect(response.status).toBe(401);
     expect(response.body.accessToken).toBeUndefined();
-    expect(response.body.refreshToken).toBeUndefined();
   });
 
   test("protected routes reject missing bearer token", async () => {
     const response = await request(app).get("/api/applications");
+
+    expect(response.status).toBe(401);
+    expect(response.body.error).toMatch(/authorization/i);
+  });
+
+  test("protected routes reject requests with cookies but no Authorization header", async () => {
+    const response = await request(app)
+      .get("/api/applications")
+      .set("Cookie", ["session=fake"]);
 
     expect(response.status).toBe(401);
     expect(response.body.error).toMatch(/authorization/i);
@@ -111,5 +118,14 @@ describe("Authentication and authorization", () => {
 
     expect(response.status).toBe(401);
     expect(response.body.error).toMatch(/invalid/i);
+  });
+
+  test("protected routes reject malformed authorization headers", async () => {
+    const response = await request(app)
+      .get("/api/applications")
+      .set("Authorization", "Token abc123");
+
+    expect(response.status).toBe(401);
+    expect(response.body.error).toMatch(/bearer/i);
   });
 });
