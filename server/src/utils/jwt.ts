@@ -1,26 +1,40 @@
+// server/src/utils/jwt.ts
 import jwt from "jsonwebtoken";
 
-const ACCESS_TTL = "15m";
-const REFRESH_TTL = "7d";
+const JWT_SECRET = process.env.JWT_SECRET!;
+const ACCESS_TOKEN_TTL = "15m";
+const REFRESH_TOKEN_TTL = "7d";
 
-export function generateAccessToken(user: { id: string; email: string; role: string }) {
+if (!JWT_SECRET) {
+  throw new Error("JWT_SECRET is not set");
+}
+
+export function generateAccessToken(user: {
+  id: string;
+  email: string;
+  role: string;
+}) {
   return jwt.sign(
     { sub: user.id, email: user.email, role: user.role },
-    process.env.ACCESS_TOKEN_SECRET!,
-    { expiresIn: ACCESS_TTL },
+    JWT_SECRET,
+    { expiresIn: ACCESS_TOKEN_TTL }
   );
 }
 
-export function generateRefreshToken(user: { id: string }) {
+export function generateRefreshToken(user: {
+  id: string;
+  email: string;
+  role: string;
+}) {
   return jwt.sign(
-    { sub: user.id },
-    process.env.REFRESH_TOKEN_SECRET!,
-    { expiresIn: REFRESH_TTL },
+    { sub: user.id, type: "refresh" },
+    JWT_SECRET,
+    { expiresIn: REFRESH_TOKEN_TTL }
   );
 }
 
 export function verifyAccessToken(token: string) {
-  return jwt.verify(token, process.env.ACCESS_TOKEN_SECRET!) as {
+  return jwt.verify(token, JWT_SECRET) as {
     sub: string;
     email: string;
     role: string;
