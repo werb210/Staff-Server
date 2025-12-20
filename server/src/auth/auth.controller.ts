@@ -28,7 +28,7 @@ export const authController = {
 
       const { token: accessToken } = generateAccessToken(user);
 
-      res.json({
+      res.status(200).json({
         user,
         accessToken,
       });
