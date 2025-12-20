@@ -1,10 +1,10 @@
 import { Router } from "express";
 import { db } from "../db";
 import { lenderRequiredDocuments } from "../db/schema";
-import { authenticate } from "../middleware/authMiddleware";
+import { requireAuth } from "../middleware/requireAuth";
 
 const router = Router();
-router.use(authenticate);
+router.use(requireAuth);
 
 router.post("/required-documents", async (req, res, next) => {
   try {

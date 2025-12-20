@@ -8,7 +8,7 @@ import {
   documentVersions,
   documents,
 } from "../db/schema";
-import { authenticate } from "../middleware/authMiddleware";
+import { requireAuth } from "../middleware/requireAuth";
 import { buildDocumentBlobKey, generateReadSas, generateUploadSas, headBlob } from "../services/blobService";
 import { DocumentCompleteSchema, DocumentCreateSchema, DocumentValidateSchema } from "../documents/documents.validators";
 import { OcrService } from "../ocr/ocr.service";
@@ -16,7 +16,7 @@ import { BankingService } from "../banking/banking.service";
 
 const router = Router();
 
-router.use(authenticate);
+router.use(requireAuth);
 
 const ocrService = new OcrService();
 const bankingService = new BankingService();
