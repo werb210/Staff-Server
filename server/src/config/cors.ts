@@ -1,22 +1,21 @@
 import cors, { CorsOptions } from "cors";
 import { Express } from "express";
 
-const allowedOrigin = "https://staff.boreal.financial";
+const allowedOrigins = ["https://staff.boreal.financial"];
 
 export const corsOptions: CorsOptions = {
-  origin: allowedOrigin,
+  origin: allowedOrigins,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
+  exposedHeaders: ["Authorization"],
   credentials: false,
-  optionsSuccessStatus: 200,
 };
 
 export function applyCors(app: Express) {
-  // Attach CORS headers for all requests
-  app.use(cors(corsOptions));
+  const corsMiddleware = cors(corsOptions);
 
-  // Ensure OPTIONS preflight always succeeds with the correct headers
-  app.options("*", cors(corsOptions));
+  app.use(corsMiddleware);
+  app.options("*", corsMiddleware);
   app.use((req, res, next) => {
     if (req.method === "OPTIONS") {
       return res.sendStatus(200);
