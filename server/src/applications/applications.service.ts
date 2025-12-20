@@ -35,15 +35,10 @@ export class ApplicationsService {
 
     const created = await this.repo.createApplication({
       productCategory: parsed.productCategory!,
-      status,
+      status: status,
+      assignedTo: parsed.assignedTo,
       createdAt: now,
       updatedAt: now,
-      assignedTo: parsed.assignedTo ?? null,
-      kycData: parsed.kycData ?? {},
-      businessData: parsed.businessData ?? {},
-      applicantData: parsed.applicantData ?? {},
-      productSelection: parsed.productSelection ?? {},
-      signatureData: parsed.signatureData ?? {},
     });
 
     await this.repo.addStatusHistory({

@@ -13,7 +13,7 @@ export const authController = {
       const normalized = {
         ...parsed,
         email: parsed.email.trim().toLowerCase(),
-        password: parsed.password,
+        password: parsed.password!,
       };
 
       if (!normalized.password) {

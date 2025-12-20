@@ -18,10 +18,10 @@ router.post("/send", async (req, res, next) => {
     }
 
     const record = await chatService.sendMessage({
-      applicationId: payload.applicationId,
-      direction: payload.direction,
-      body: payload.body,
-      issueReport: payload.issueReport,
+      applicationId: payload.applicationId!,
+      direction: payload.direction!,
+      body: payload.body!,
+      issueReport: payload.issueReport ?? false,
     });
     res.json({ ok: true, record });
   } catch (err) {

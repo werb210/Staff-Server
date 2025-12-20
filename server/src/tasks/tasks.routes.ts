@@ -23,16 +23,14 @@ router.post("/", async (req, res, next) => {
       throw new BadRequest("title required");
     }
 
-    const taskPayload: Parameters<(typeof tasksService)["createTask"]>[0] = {
-      assignedByUserId: req.user!.id,
-      title: payload.title,
+    const record = await tasksService.createTask({
+      title: payload.title!,
+      description: payload.description,
       applicationId: payload.applicationId,
-      description: payload.description ?? "",
       assignedToUserId: payload.assignedToUserId,
       dueDate: payload.dueDate,
-    };
-
-    const record = await tasksService.createTask(taskPayload);
+      assignedByUserId: req.user!.id,
+    });
     res.json({ ok: true, task: record });
   } catch (err) {
     next(err);

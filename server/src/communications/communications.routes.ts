@@ -21,9 +21,9 @@ router.post("/voice/log", requireAuth, async (req, res, next) => {
     }
 
     const record = await voiceService.logEvent({
-      applicationId: payload.applicationId,
-      phoneNumber: payload.phoneNumber,
-      eventType: payload.eventType,
+      applicationId: payload.applicationId!,
+      phoneNumber: payload.phoneNumber!,
+      eventType: payload.eventType!,
       durationSeconds: payload.durationSeconds,
     });
     res.json({ ok: true, record });
