@@ -38,7 +38,7 @@ const baseSchema = z.object({
  * Auth / token env (required for auth module)
  */
 const authSchema = z.object({
-  TOKEN_TRANSPORT: z.enum(["cookie", "header", "body"]).default("header"),
+  TOKEN_TRANSPORT: z.literal("header"),
 
   ACCESS_TOKEN_SECRET: z.string().min(32, "ACCESS_TOKEN_SECRET must be at least 32 chars"),
   REFRESH_TOKEN_SECRET: z.string().min(32, "REFRESH_TOKEN_SECRET must be at least 32 chars"),
