@@ -1,13 +1,20 @@
+// server/src/services/authService.ts
 import bcrypt from "bcryptjs";
-import { eq } from "drizzle-orm";
 import { db } from "../db";
 import { users } from "../db/schema";
+import { eq } from "drizzle-orm";
 
-export async function verifyUserCredentials(email: string, password: string) {
-  const user = await db.query.users.findFirst({
-    where: eq(users.email, email.toLowerCase()),
-  });
+export async function verifyUserCredentials(
+  email: string,
+  password: string
+) {
+  const result = await db
+    .select()
+    .from(users)
+    .where(eq(users.email, email))
+    .limit(1);
 
+  const user = result[0];
   if (!user) return null;
 
   const ok = await bcrypt.compare(password, user.password_hash);
