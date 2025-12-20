@@ -14,13 +14,22 @@ import eventsRoutes from "./routes/events.routes";
 import ocrRoutes from "./ocr/ocr.routes";
 import tasksRoutes from "./tasks/tasks.routes";
 import pipelineRoutes from "./api/pipeline";
+import { requireAuth } from "./middleware/auth";
 
 export function registerRoutes(app: Express) {
-  // Core namespaces
+  // Public endpoints
   app.use("/api/auth", authRoutes);
+  app.get("/api/_int/health", (_req: Request, res: Response) => {
+    res.status(200).json({ status: "ok" });
+  });
+
+  // Everything beyond this point requires Bearer authentication
+  app.use(requireAuth);
+
+  // Core namespaces
   app.use("/api/banking", bankingRoutes);
   app.use("/api/communications", communicationsRoutes);
-  app.use("/api/internal", internalRoutes);
+  app.use("/api/_int", internalRoutes);
   app.use("/api/notifications", notificationsRoutes);
   app.use("/api/public", publicRoutes);
   app.use("/api/users", userRoutes);

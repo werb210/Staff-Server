@@ -1,8 +1,9 @@
 import { NextFunction, Request, Response } from "express";
 import { ZodError } from "zod";
-import { AuthError, authService, LoginResult } from "./auth.service";
 import { loginSchema } from "./auth.validators";
 import { BadRequest } from "../errors";
+import { verifyUserCredentials } from "../services/authService";
+import { generateAccessToken } from "../utils/jwt";
 
 export const authController = {
   async login(req: Request, res: Response, next: NextFunction) {
@@ -19,21 +20,19 @@ export const authController = {
         throw new BadRequest("password required");
       }
 
-      const result: LoginResult = await authService.login(
-        normalized as Parameters<typeof authService.login>[0],
-      );
+      const user = await verifyUserCredentials(normalized.email, normalized.password);
 
-      const { accessToken, refreshToken } = result.tokens;
+      if (!user) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+
+      const { token: accessToken } = generateAccessToken(user);
 
       res.json({
-        user: result.user,
+        user,
         accessToken,
-        refreshToken,
       });
     } catch (error) {
-      if (error instanceof AuthError) {
-        return res.status(error.status).json({ error: error.message });
-      }
       if (error instanceof ZodError) {
         return res
           .status(400)
