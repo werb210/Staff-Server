@@ -63,8 +63,8 @@ describe("Authentication and authorization", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(response.body.tokens.accessToken).toBeDefined();
-    expect(response.body.tokens.refreshToken).toBeDefined();
+    expect(response.body.accessToken).toBeDefined();
+    expect(response.body.refreshToken).toBeDefined();
     expect(response.body.user.email).toBe("admin@example.com");
   });
 
@@ -75,14 +75,15 @@ describe("Authentication and authorization", () => {
     });
 
     expect(response.status).toBe(401);
-    expect(response.body.tokens).toBeUndefined();
+    expect(response.body.accessToken).toBeUndefined();
+    expect(response.body.refreshToken).toBeUndefined();
   });
 
   test("protected routes reject missing bearer token", async () => {
     const response = await request(app).get("/api/applications");
 
     expect(response.status).toBe(401);
-    expect(response.body.error).toMatch(/token/i);
+    expect(response.body.error).toMatch(/authorization/i);
   });
 
   test("protected routes accept valid bearer tokens", async () => {
@@ -101,5 +102,14 @@ describe("Authentication and authorization", () => {
       .set("Authorization", `Bearer ${tokens.accessToken}`);
 
     expect(response.status).toBe(200);
+  });
+
+  test("protected routes reject invalid bearer tokens", async () => {
+    const response = await request(app)
+      .get("/api/applications")
+      .set("Authorization", "Bearer not-a-valid-token");
+
+    expect(response.status).toBe(401);
+    expect(response.body.error).toMatch(/invalid/i);
   });
 });

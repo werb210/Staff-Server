@@ -48,8 +48,8 @@ describe("Auth smoke test", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(response.body.tokens.accessToken).toBeDefined();
-    expect(response.body.tokens.refreshToken).toBeDefined();
+    expect(response.body.accessToken).toBeDefined();
+    expect(response.body.refreshToken).toBeDefined();
     expect(response.body.user.email).toBe("smoke@example.com");
   });
 });

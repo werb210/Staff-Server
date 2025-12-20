@@ -23,9 +23,12 @@ export const authController = {
         normalized as Parameters<typeof authService.login>[0],
       );
 
+      const { accessToken, refreshToken } = result.tokens;
+
       res.json({
         user: result.user,
-        tokens: result.tokens,
+        accessToken,
+        refreshToken,
       });
     } catch (error) {
       if (error instanceof AuthError) {
