@@ -54,6 +54,8 @@ beforeEach(async () => {
   await seedUsers();
 });
 
+const allowedOrigin = "https://staff.boreal.financial";
+
 describe("Authentication and authorization", () => {
   test("successful login returns an access token", async () => {
     const response = await request(app).post("/api/auth/login").send({
@@ -64,6 +66,7 @@ describe("Authentication and authorization", () => {
     expect(response.status).toBe(200);
     expect(response.body.accessToken).toBeDefined();
     expect(response.body.user.email).toBe("admin@example.com");
+    expect(response.header["set-cookie"]).toBeUndefined();
   });
 
   test("failed login rejects invalid credentials", async () => {
@@ -126,5 +129,19 @@ describe("Authentication and authorization", () => {
 
     expect(response.status).toBe(401);
     expect(response.body.error).toMatch(/bearer/i);
+  });
+
+  test("CORS preflight allows the staff portal origin", async () => {
+    const response = await request(app)
+      .options("/api/auth/login")
+      .set("Origin", allowedOrigin)
+      .set("Access-Control-Request-Method", "POST")
+      .set("Access-Control-Request-Headers", "Content-Type, Authorization");
+
+    expect(response.status).toBe(200);
+    expect(response.headers["access-control-allow-origin"]).toBe(allowedOrigin);
+    expect(response.headers["access-control-allow-headers"]).toMatch(/authorization/i);
+    expect(response.headers["access-control-allow-methods"]).toMatch(/options/i);
+    expect(response.headers["set-cookie"]).toBeUndefined();
   });
 });
