@@ -2,7 +2,7 @@ import cors, { CorsOptions } from "cors";
 import { Express } from "express";
 
 export const corsOptions: CorsOptions = {
-  origin: "https://staff.boreal.financial",
+  origin: ["https://staff.boreal.financial"],
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Authorization", "Content-Type"],
   credentials: false,
@@ -10,7 +10,6 @@ export const corsOptions: CorsOptions = {
 };
 
 export function applyCors(app: Express) {
-  const corsHandler = cors(corsOptions);
-  app.use(corsHandler);
-  app.options("*", corsHandler);
+  app.use(cors(corsOptions));
+  app.options("*", cors(corsOptions));
 }
