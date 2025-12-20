@@ -13,6 +13,10 @@ import { PipelineService } from "../applications/pipeline.service";
 import { ApplicationRecord, ApplicationsRepository, OwnerRecord } from "../applications/types";
 import { createApplicationsRouter } from "../applications/applications.routes";
 
+jest.mock("../middleware/requireAuth", () => ({
+  requireAuth: (_req: any, _res: any, next: () => void) => next(),
+}));
+
 class InMemoryApplicationsRepository implements ApplicationsRepository {
   applications: ApplicationRecord[] = [];
   owners: OwnerRecord[] = [];

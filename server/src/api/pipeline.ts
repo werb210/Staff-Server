@@ -1,11 +1,11 @@
 import { Router } from "express";
 import { db } from "../db";
 import { deals } from "../db/schema";
-import { authenticate } from "../middleware/authMiddleware";
+import { requireAuth } from "../middleware/requireAuth";
 import { eq } from "drizzle-orm";
 
 const router = Router();
-router.use(authenticate);
+router.use(requireAuth);
 
 const stageOrder = ["prospect", "qualified", "proposal", "closed_won", "closed_lost"] as const;
 

@@ -1,32 +1,6 @@
 import { NextFunction, Request, Response } from "express";
-import jwt from "jsonwebtoken";
-import { config } from "../config/config";
-import { UserRole } from "../auth/auth.types";
+import { requireAuth } from "./requireAuth";
 
 export function authenticate(req: Request, res: Response, next: NextFunction) {
-  const header = req.headers.authorization;
-  if (!header) {
-    return res.status(401).json({ error: "Authorization header missing" });
-  }
-  const token = header.replace(/^Bearer\s+/i, "");
-  try {
-    const payload = jwt.verify(token, config.JWT_SECRET) as {
-      id?: string;
-      sub?: string;
-      email?: string;
-      role?: UserRole;
-      sessionId?: string;
-      status?: string;
-    };
-    req.user = {
-      id: payload.id ?? payload.sub ?? "",
-      email: payload.email ?? "",
-      role: payload.role ?? "Staff",
-      status: (payload.status as any) ?? "active",
-      sessionId: payload.sessionId ?? "",
-    };
-    return next();
-  } catch (err) {
-    return res.status(401).json({ error: "Invalid or expired token" });
-  }
+  return requireAuth(req, res, next);
 }

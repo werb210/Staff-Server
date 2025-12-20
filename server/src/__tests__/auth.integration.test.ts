@@ -77,4 +77,29 @@ describe("Authentication and authorization", () => {
     expect(response.status).toBe(401);
     expect(response.body.tokens).toBeUndefined();
   });
+
+  test("protected routes reject missing bearer token", async () => {
+    const response = await request(app).get("/api/applications");
+
+    expect(response.status).toBe(401);
+    expect(response.body.error).toMatch(/token/i);
+  });
+
+  test("protected routes accept valid bearer tokens", async () => {
+    const user = mock.userStore[0]!;
+    const tokens = await tokenService.createTokenPair({
+      id: user.id!,
+      email: user.email,
+      role: user.role as any,
+      status: user.status as any,
+      firstName: user.first_name ?? undefined,
+      lastName: user.last_name ?? undefined,
+    });
+
+    const response = await request(app)
+      .get("/api/applications")
+      .set("Authorization", `Bearer ${tokens.accessToken}`);
+
+    expect(response.status).toBe(200);
+  });
 });
