@@ -16,9 +16,9 @@ router.post("/inbound", async (req, res, next) => {
     }
 
     const record = await smsService.handleInbound({
-      From: parsed.From,
-      To: parsed.To,
-      Body: parsed.Body,
+      From: parsed.From!,
+      To: parsed.To!,
+      Body: parsed.Body!,
       applicationId: parsed.applicationId,
     });
     res.json({ ok: true, record });

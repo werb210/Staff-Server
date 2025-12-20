@@ -19,9 +19,9 @@ router.post("/required-documents", async (req, res, next) => {
       .values({
         lenderProductId: parsed.lenderProductId!,
         docCategory: parsed.docCategory!,
-        title: parsed.title ?? "",
-        description: parsed.description ?? "",
-        category: parsed.category ?? "general",
+        title: parsed.title!,
+        description: parsed.description ?? null,
+        category: parsed.category ?? null,
         isMandatory: parsed.isMandatory ?? false,
         validationRules: parsed.validationRules ?? {},
         displayOrder: parsed.displayOrder ?? 0,

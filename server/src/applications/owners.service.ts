@@ -22,14 +22,14 @@ export class OwnersService {
       email: parsed.email!,
       firstName: parsed.firstName!,
       lastName: parsed.lastName!,
-      phone: parsed.phone ?? "",
-      address: parsed.address ?? "",
-      city: parsed.city ?? "",
-      state: parsed.state ?? "",
-      zip: parsed.zip ?? "",
-      dob: parsed.dob ?? "",
-      ssn: parsed.ssn ?? "",
-      ownershipPercentage: parsed.ownershipPercentage ?? 0,
+      phone: parsed.phone!,
+      address: parsed.address!,
+      city: parsed.city!,
+      state: parsed.state!,
+      zip: parsed.zip!,
+      dob: parsed.dob!,
+      ssn: parsed.ssn!,
+      ownershipPercentage: parsed.ownershipPercentage!,
     } satisfies Omit<Parameters<ApplicationsRepository["createOwner"]>[1], "applicationId">;
   }
 
