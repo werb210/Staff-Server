@@ -1,6 +1,4 @@
 // server/src/utils/jwt.ts
-import { randomUUID } from "crypto";
-
 import { TokenPayload } from "../auth/auth.types";
 import { jwtService } from "../services/jwt.service";
 
@@ -13,7 +11,6 @@ export function generateAccessToken(user: {
     userId: user.id,
     email: user.email,
     role: user.role as TokenPayload["role"],
-    sessionId: randomUUID(),
   };
 
   return { token: jwtService.signAccessToken(payload), payload };

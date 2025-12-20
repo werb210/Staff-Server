@@ -21,20 +21,13 @@
  ****************************************************************************************/
 
 import express from "express";
-import cors, { CorsOptions } from "cors";
 import { registerRoutes } from "./routes";
+import { applyCors } from "./config/cors";
 
 const app = express();
 
-const corsOptions: CorsOptions = {
-  origin: ["https://staff.boreal.financial"],
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-};
-
 // CORS + preflight (MUST MATCH EXACTLY)
-app.use(cors(corsOptions));
-app.options("*", cors(corsOptions));
+applyCors(app);
 
 app.use(express.json());
 
