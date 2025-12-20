@@ -3,11 +3,11 @@ import { eq } from "drizzle-orm";
 import { db } from "../db";
 import { users } from "../db/schema";
 import { AuthenticatedUser } from "./auth.types";
-import { createTokenPair, TokenPair } from "./token.service";
+import { AccessTokenResult, createAccessToken } from "./token.service";
 
 export interface LoginResult {
   user: AuthenticatedUser;
-  tokens: TokenPair;
+  tokens: AccessTokenResult;
 }
 
 export class AuthError extends Error {
@@ -55,7 +55,7 @@ export const authService = {
       lastName: user.lastName ?? undefined,
     };
 
-    const tokens: TokenPair = await createTokenPair(authUser);
+    const tokens: AccessTokenResult = createAccessToken(authUser);
 
     return { user: authUser, tokens };
   },

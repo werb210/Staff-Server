@@ -1,9 +1,11 @@
 import express from "express";
 
 import { registerRoutes } from "./routes";
+import { applyCors } from "./config/cors";
 
 const app = express();
 
+applyCors(app);
 app.use(express.json());
 
 registerRoutes(app);

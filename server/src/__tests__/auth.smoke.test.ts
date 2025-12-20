@@ -2,7 +2,6 @@ import { randomUUID } from "crypto";
 import request from "supertest";
 
 import app from "../app";
-import { tokenService } from "../auth/token.service";
 import { passwordService } from "../services/password.service";
 
 type MockDb = ReturnType<typeof import("../testUtils/mockDb")["createMockDb"]>;
@@ -25,7 +24,6 @@ const password = "SmokePass123";
 beforeEach(async () => {
   mock.userStore.length = 0;
   mock.auditStore.length = 0;
-  tokenService.clearAllSessions();
 
   const password_hash = await passwordService.hashPassword(password);
   mock.userStore.push({

@@ -10,11 +10,8 @@ export interface AuthenticatedUser {
   lastName?: string;
 }
 
-export type User = AuthenticatedUser & { sessionId?: string };
-
 export interface TokenPayload {
   userId: string;
   email: string;
   role: UserRole;
-  sessionId: string;
 }

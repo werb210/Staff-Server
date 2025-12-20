@@ -7,7 +7,7 @@ import { AuthenticatedUser } from "../src/auth/auth.types";
 
 declare global {
   namespace Express {
-    type UserAuth = AuthenticatedUser & { sessionId: string };
+    type UserAuth = AuthenticatedUser;
 
     interface Request {
       user?: UserAuth;

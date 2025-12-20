@@ -26,7 +26,6 @@ const lenderPassword = "SecurePass456";
 async function seedUsers() {
   mock.userStore.length = 0;
   mock.auditStore.length = 0;
-  tokenService.clearAllSessions();
   const adminHash = await passwordService.hashPassword(adminPassword);
   const lenderHash = await passwordService.hashPassword(lenderPassword);
   mock.userStore.push({
@@ -95,7 +94,7 @@ describe("Authentication and authorization", () => {
 
   test("protected routes accept valid bearer tokens", async () => {
     const user = mock.userStore[0]!;
-    const tokens = await tokenService.createTokenPair({
+    const tokens = tokenService.createAccessToken({
       id: user.id!,
       email: user.email,
       role: user.role as any,

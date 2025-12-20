@@ -11,7 +11,6 @@ const devDefaults = isProd
       DATABASE_URL: "postgres://postgres:postgres@localhost:5432/postgres",
       JWT_SECRET: "dev-jwt-secret-01234567890123456789012",
       ACCESS_TOKEN_SECRET: "dev-access-secret-0123456789012345",
-      REFRESH_TOKEN_SECRET: "dev-refresh-secret-012345678901234",
     } satisfies Record<string, string>;
 
 const env = { ...devDefaults, ...process.env } satisfies NodeJS.ProcessEnv;
@@ -41,10 +40,8 @@ const authSchema = z.object({
   TOKEN_TRANSPORT: z.literal("header"),
 
   ACCESS_TOKEN_SECRET: z.string().min(32, "ACCESS_TOKEN_SECRET must be at least 32 chars"),
-  REFRESH_TOKEN_SECRET: z.string().min(32, "REFRESH_TOKEN_SECRET must be at least 32 chars"),
 
   ACCESS_TOKEN_EXPIRES_IN: z.string().optional(), // seconds
-  REFRESH_TOKEN_EXPIRES_IN: z.string().optional(), // seconds
 });
 
 /**
@@ -150,9 +147,7 @@ export const authConfig = {
   TOKEN_TRANSPORT: parsedAuth.TOKEN_TRANSPORT,
 
   ACCESS_TOKEN_SECRET: parsedAuth.ACCESS_TOKEN_SECRET,
-  REFRESH_TOKEN_SECRET: parsedAuth.REFRESH_TOKEN_SECRET,
 
-  // defaults: 15m access, 30d refresh (seconds)
+  // default: 15m access (seconds)
   ACCESS_TOKEN_EXPIRES_IN: asInt(parsedAuth.ACCESS_TOKEN_EXPIRES_IN, 60 * 15),
-  REFRESH_TOKEN_EXPIRES_IN: asInt(parsedAuth.REFRESH_TOKEN_EXPIRES_IN, 60 * 60 * 24 * 30),
 } as const;
