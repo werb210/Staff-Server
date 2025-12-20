@@ -10,12 +10,9 @@ export async function login(req: Request, res: Response) {
     return res.status(401).json({ error: "Invalid credentials" });
   }
 
-  const accessToken = generateAccessToken(user);
-  const refreshToken = generateRefreshToken(user);
-
   return res.status(200).json({
-    accessToken,
-    refreshToken,
-    user
+    accessToken: generateAccessToken(user),
+    refreshToken: generateRefreshToken(user),
+    user,
   });
 }

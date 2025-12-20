@@ -1,20 +1,17 @@
 import { Request, Response, NextFunction } from "express";
 import { verifyAccessToken } from "../utils/jwt";
 
-export function authenticate(req: Request, res: Response, next: NextFunction) {
-  const auth = req.headers.authorization;
-
-  if (!auth || !auth.startsWith("Bearer ")) {
-    return res.status(401).json({ error: "Unauthorized" });
+export function requireAuth(req: Request, res: Response, next: NextFunction) {
+  const header = req.headers.authorization;
+  if (!header?.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Missing token" });
   }
 
-  const token = auth.slice(7);
-  const payload = verifyAccessToken(token);
-
-  if (!payload) {
+  try {
+    const payload = verifyAccessToken(header.replace("Bearer ", ""));
+    (req as any).user = payload;
+    next();
+  } catch {
     return res.status(401).json({ error: "Invalid token" });
   }
-
-  req.user = payload;
-  next();
 }
