@@ -1,21 +1,18 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.ChatService = void 0;
-const drizzle_orm_1 = require("drizzle-orm");
-const db_1 = require("../db");
-const schema_1 = require("../db/schema");
-const applications_repository_1 = require("../applications/applications.repository");
-const timeline_service_1 = require("../applications/timeline.service");
-class ChatService {
+import { asc, and, eq } from "drizzle-orm";
+import { db } from "../db";
+import { communications } from "../db/schema";
+import { DrizzleApplicationsRepository } from "../applications/applications.repository";
+import { TimelineService } from "../applications/timeline.service";
+export class ChatService {
     database;
     timeline;
-    constructor(database = db_1.db) {
+    constructor(database = db) {
         this.database = database;
-        this.timeline = new timeline_service_1.TimelineService(new applications_repository_1.DrizzleApplicationsRepository(database));
+        this.timeline = new TimelineService(new DrizzleApplicationsRepository(database));
     }
     async sendMessage(params) {
         const [created] = await this.database
-            .insert(schema_1.communications)
+            .insert(communications)
             .values({
             applicationId: params.applicationId,
             type: "chat",
@@ -38,9 +35,8 @@ class ChatService {
     async thread(applicationId) {
         return this.database
             .select()
-            .from(schema_1.communications)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.communications.applicationId, applicationId), (0, drizzle_orm_1.eq)(schema_1.communications.type, "chat")))
-            .orderBy((0, drizzle_orm_1.asc)(schema_1.communications.timestamp));
+            .from(communications)
+            .where(and(eq(communications.applicationId, applicationId), eq(communications.type, "chat")))
+            .orderBy(asc(communications.timestamp));
     }
 }
-exports.ChatService = ChatService;

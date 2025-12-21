@@ -1,6 +1,3 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.listRegisteredRoutes = listRegisteredRoutes;
 function normalizePath(path) {
     if (!path)
         return "";
@@ -31,7 +28,7 @@ function joinPaths(base, path) {
     const combined = `${base}/${path}`.replace(/\/+/g, "/");
     return combined === "/" ? "/" : combined.replace(/\/$/, "");
 }
-function listRegisteredRoutes(container, basePath = "") {
+export function listRegisteredRoutes(container, basePath = "") {
     const stack = (container._router?.stack ??
         container.stack ??
         []) || [];

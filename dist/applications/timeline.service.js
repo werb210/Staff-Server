@@ -1,7 +1,4 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.TimelineService = void 0;
-class TimelineService {
+export class TimelineService {
     repo;
     constructor(repo) {
         this.repo = repo;
@@ -19,4 +16,3 @@ class TimelineService {
         return this.repo.listTimeline(applicationId);
     }
 }
-exports.TimelineService = TimelineService;

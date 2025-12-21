@@ -1,10 +1,3 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.extractCategories = extractCategories;
-exports.extractGlobalFields = extractGlobalFields;
-exports.buildExtractedJson = buildExtractedJson;
-exports.mergeConflicts = mergeConflicts;
-exports.summarizeCategories = summarizeCategories;
 const categoryKeywords = {
     balance_sheet: [/balance sheet/i, /assets/i, /liabilities/i],
     income_statement: [/income statement/i, /revenue/i, /expenses/i],
@@ -21,7 +14,7 @@ const globalPatterns = {
     legalNames: /(Inc\.|LLC|Corporation|Corp\.)/gi,
     addresses: /\d+\s+[^,\n]+\,?\s+[A-Za-z ]+\,?\s*[A-Z]{2}\s*\d{5}/g,
 };
-function extractCategories(rawText) {
+export function extractCategories(rawText) {
     const categories = {};
     const detected = [];
     Object.keys(categoryKeywords).forEach((category) => {
@@ -33,7 +26,7 @@ function extractCategories(rawText) {
     });
     return { categories, detected };
 }
-function extractGlobalFields(rawText) {
+export function extractGlobalFields(rawText) {
     return {
         sinOrSsn: rawText.match(globalPatterns.sinOrSsn) ?? undefined,
         websiteUrls: rawText.match(globalPatterns.websiteUrls) ?? undefined,
@@ -43,7 +36,7 @@ function extractGlobalFields(rawText) {
         addresses: rawText.match(globalPatterns.addresses) ?? undefined,
     };
 }
-function buildExtractedJson(rawText) {
+export function buildExtractedJson(rawText) {
     const { categories, detected } = extractCategories(rawText);
     const globalFields = extractGlobalFields(rawText);
     return {
@@ -52,7 +45,7 @@ function buildExtractedJson(rawText) {
         globalFields,
     };
 }
-function mergeConflicts(existing, current) {
+export function mergeConflicts(existing, current) {
     const conflicts = [];
     const fields = ["sinOrSsn", "websiteUrls", "phoneNumbers", "emails", "legalNames", "addresses"];
     fields.forEach((field) => {
@@ -65,7 +58,7 @@ function mergeConflicts(existing, current) {
     });
     return conflicts;
 }
-function summarizeCategories(extracted) {
+export function summarizeCategories(extracted) {
     const map = {};
     extracted.forEach((item, idx) => {
         const categories = Object.keys(item.categories);

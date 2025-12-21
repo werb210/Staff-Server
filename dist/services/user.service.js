@@ -1,11 +1,6 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.findUserByEmail = findUserByEmail;
-exports.findUserById = findUserById;
-exports.mapAuthenticated = mapAuthenticated;
-const drizzle_orm_1 = require("drizzle-orm");
-const db_1 = require("../db");
-const schema_1 = require("../db/schema");
+import { eq } from "drizzle-orm";
+import { db } from "../db";
+import { users } from "../db/schema";
 function toAuthenticated(user) {
     return {
         id: user.id,
@@ -16,27 +11,27 @@ function toAuthenticated(user) {
         lastName: user.last_name,
     };
 }
-async function findUserByEmail(email) {
+export async function findUserByEmail(email) {
     const normalizedEmail = email.trim().toLowerCase();
-    const customFinder = db_1.db.findUserByEmail;
+    const customFinder = db.findUserByEmail;
     if (typeof customFinder === "function") {
         return customFinder(normalizedEmail);
     }
-    const user = await db_1.db.query.users.findFirst({
-        where: (0, drizzle_orm_1.eq)(schema_1.users.email, normalizedEmail),
+    const user = await db.query.users.findFirst({
+        where: eq(users.email, normalizedEmail),
     });
     return user ?? null;
 }
-async function findUserById(id) {
-    const customFinder = db_1.db.findUserById;
+export async function findUserById(id) {
+    const customFinder = db.findUserById;
     if (typeof customFinder === "function") {
         return customFinder(id);
     }
-    const user = await db_1.db.query.users.findFirst({
-        where: (0, drizzle_orm_1.eq)(schema_1.users.id, id),
+    const user = await db.query.users.findFirst({
+        where: eq(users.id, id),
     });
     return user ?? null;
 }
-function mapAuthenticated(user) {
+export function mapAuthenticated(user) {
     return user ? toAuthenticated(user) : null;
 }

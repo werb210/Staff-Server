@@ -1,17 +1,14 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.NotificationsService = void 0;
-const drizzle_orm_1 = require("drizzle-orm");
-const db_1 = require("../db");
-const schema_1 = require("../db/schema");
-class NotificationsService {
+import { asc, eq } from "drizzle-orm";
+import { db } from "../db";
+import { notifications } from "../db/schema";
+export class NotificationsService {
     database;
-    constructor(database = db_1.db) {
+    constructor(database = db) {
         this.database = database;
     }
     async create(userId, type, payload = {}) {
         const [record] = await this.database
-            .insert(schema_1.notifications)
+            .insert(notifications)
             .values({ userId, type, payloadJson: payload })
             .returning();
         return record;
@@ -19,12 +16,11 @@ class NotificationsService {
     async listForUser(userId) {
         return this.database
             .select()
-            .from(schema_1.notifications)
-            .where((0, drizzle_orm_1.eq)(schema_1.notifications.userId, userId))
-            .orderBy((0, drizzle_orm_1.asc)(schema_1.notifications.createdAt));
+            .from(notifications)
+            .where(eq(notifications.userId, userId))
+            .orderBy(asc(notifications.createdAt));
     }
     async markAllRead(userId) {
-        await this.database.update(schema_1.notifications).set({ read: true }).where((0, drizzle_orm_1.eq)(schema_1.notifications.userId, userId));
+        await this.database.update(notifications).set({ read: true }).where(eq(notifications.userId, userId));
     }
 }
-exports.NotificationsService = NotificationsService;

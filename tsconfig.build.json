@@ -1,23 +1,19 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "outDir": "./dist",
+    "outDir": "dist",
     "rootDir": "server/src",
-    "noEmitOnError": true,
-    "sourceMap": false,
-    "declaration": false
+    "module": "ES2022",
+    "moduleResolution": "node",
+    "target": "ES2022"
   },
   "include": [
     "server/src/**/*.ts",
-    "types/**/*.ts",
-    "prisma/**/*.ts"
+    "server/types/**/*.ts"
   ],
   "exclude": [
     "**/*.test.ts",
     "**/*.spec.ts",
-    "tests/**",
-    "simulation/**",
-    "node_modules/**",
-    "dist/**"
+    "**/__tests__/**"
   ]
 }

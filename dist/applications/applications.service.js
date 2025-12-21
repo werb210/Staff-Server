@@ -1,23 +1,19 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.ApplicationsService = void 0;
-exports.mapZodError = mapZodError;
-const zod_1 = require("zod");
-const applications_repository_1 = require("./applications.repository");
-const pipeline_service_1 = require("./pipeline.service");
-const timeline_service_1 = require("./timeline.service");
-const applications_validators_1 = require("./applications.validators");
-class ApplicationsService {
+import { ZodError } from "zod";
+import { DrizzleApplicationsRepository } from "./applications.repository";
+import { pipelineService } from "./pipeline.service";
+import { TimelineService } from "./timeline.service";
+import { createApplicationSchema, declineSchema, statusChangeSchema, updateApplicationSchema, } from "./applications.validators";
+export class ApplicationsService {
     repo;
     pipeline;
     timeline;
     constructor(repo, pipeline) {
-        this.repo = repo ?? new applications_repository_1.DrizzleApplicationsRepository();
-        this.pipeline = pipeline ?? pipeline_service_1.pipelineService;
-        this.timeline = new timeline_service_1.TimelineService(this.repo);
+        this.repo = repo ?? new DrizzleApplicationsRepository();
+        this.pipeline = pipeline ?? pipelineService;
+        this.timeline = new TimelineService(this.repo);
     }
     async createApplication(payload, actorUserId) {
-        const parsed = applications_validators_1.createApplicationSchema.parse(payload);
+        const parsed = createApplicationSchema.parse(payload);
         if (!parsed.productCategory) {
             throw new Error("productCategory is required");
         }
@@ -28,6 +24,11 @@ class ApplicationsService {
             productCategory: parsed.productCategory,
             status: status,
             assignedTo: parsed.assignedTo,
+            kycData: parsed.kycData ?? {},
+            businessData: parsed.businessData ?? {},
+            applicantData: parsed.applicantData ?? {},
+            productSelection: parsed.productSelection ?? {},
+            signatureData: parsed.signatureData ?? {},
             createdAt: now,
             updatedAt: now,
         });
@@ -45,7 +46,7 @@ class ApplicationsService {
         return this.getApplicationWithDetails(created.id);
     }
     async updateApplication(id, payload, actorUserId) {
-        const parsed = applications_validators_1.updateApplicationSchema.parse(payload);
+        const parsed = updateApplicationSchema.parse(payload);
         const existing = await this.repo.findApplicationById(id);
         if (!existing)
             return null;
@@ -68,7 +69,7 @@ class ApplicationsService {
         return result;
     }
     async declineApplication(id, payload, actorUserId) {
-        const parsed = applications_validators_1.declineSchema.parse(payload);
+        const parsed = declineSchema.parse(payload);
         const result = await this.changeStatus(id, { status: "declined" }, actorUserId);
         if (!result)
             return null;
@@ -92,7 +93,7 @@ class ApplicationsService {
         })));
     }
     async changeStatus(id, payload, actorUserId) {
-        const parsed = applications_validators_1.statusChangeSchema.parse(payload);
+        const parsed = statusChangeSchema.parse(payload);
         const app = await this.repo.findApplicationById(id);
         if (!app)
             return null;
@@ -125,9 +126,8 @@ class ApplicationsService {
         return this.timeline.listEvents(id);
     }
 }
-exports.ApplicationsService = ApplicationsService;
-function mapZodError(error) {
-    if (error instanceof zod_1.ZodError) {
+export function mapZodError(error) {
+    if (error instanceof ZodError) {
         return { error: "Validation failed", details: error.errors };
     }
     return { error: "Invalid payload" };

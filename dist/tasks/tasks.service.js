@@ -1,24 +1,21 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.TasksService = void 0;
-const drizzle_orm_1 = require("drizzle-orm");
-const db_1 = require("../db");
-const schema_1 = require("../db/schema");
-const applications_repository_1 = require("../applications/applications.repository");
-const timeline_service_1 = require("../applications/timeline.service");
-const notifications_service_1 = require("../notifications/notifications.service");
-class TasksService {
+import { asc, eq } from "drizzle-orm";
+import { db } from "../db";
+import { tasks } from "../db/schema";
+import { DrizzleApplicationsRepository } from "../applications/applications.repository";
+import { TimelineService } from "../applications/timeline.service";
+import { NotificationsService } from "../notifications/notifications.service";
+export class TasksService {
     database;
     timeline;
     notifications;
-    constructor(database = db_1.db) {
+    constructor(database = db) {
         this.database = database;
-        this.timeline = new timeline_service_1.TimelineService(new applications_repository_1.DrizzleApplicationsRepository(database));
-        this.notifications = new notifications_service_1.NotificationsService(database);
+        this.timeline = new TimelineService(new DrizzleApplicationsRepository(database));
+        this.notifications = new NotificationsService(database);
     }
     async createTask(params) {
         const [record] = await this.database
-            .insert(schema_1.tasks)
+            .insert(tasks)
             .values({
             assignedByUserId: params.assignedByUserId,
             assignedToUserId: params.assignedToUserId ?? null,
@@ -39,26 +36,26 @@ class TasksService {
     async listMyTasks(userId) {
         return this.database
             .select()
-            .from(schema_1.tasks)
-            .where((0, drizzle_orm_1.eq)(schema_1.tasks.assignedToUserId, userId))
-            .orderBy((0, drizzle_orm_1.asc)(schema_1.tasks.dueDate), (0, drizzle_orm_1.asc)(schema_1.tasks.createdAt));
+            .from(tasks)
+            .where(eq(tasks.assignedToUserId, userId))
+            .orderBy(asc(tasks.dueDate), asc(tasks.createdAt));
     }
     async updateTask(id, updates) {
         const [updated] = await this.database
-            .update(schema_1.tasks)
+            .update(tasks)
             .set({ ...updates, updatedAt: new Date() })
-            .where((0, drizzle_orm_1.eq)(schema_1.tasks.id, id))
+            .where(eq(tasks.id, id))
             .returning();
         return updated ?? null;
     }
     async deleteTask(id) {
-        await this.database.delete(schema_1.tasks).where((0, drizzle_orm_1.eq)(schema_1.tasks.id, id));
+        await this.database.delete(tasks).where(eq(tasks.id, id));
     }
     async completeTask(id) {
         const [updated] = await this.database
-            .update(schema_1.tasks)
+            .update(tasks)
             .set({ status: "completed", updatedAt: new Date() })
-            .where((0, drizzle_orm_1.eq)(schema_1.tasks.id, id))
+            .where(eq(tasks.id, id))
             .returning();
         if (updated?.applicationId) {
             await this.timeline.logEvent(updated.applicationId, "TASK_COMPLETED", { taskId: updated.id });
@@ -66,4 +63,3 @@ class TasksService {
         return updated;
     }
 }
-exports.TasksService = TasksService;

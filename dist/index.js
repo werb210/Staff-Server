@@ -1,28 +1,23 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = __importDefault(require("express"));
-const cors_1 = __importDefault(require("cors"));
-const auth_1 = require("./middleware/auth");
-const auth_2 = __importDefault(require("./routes/auth"));
-const routes_1 = __importDefault(require("./routes"));
-const health_1 = __importDefault(require("./routes/health"));
-const app = (0, express_1.default)();
-app.use((0, cors_1.default)({
+import express from "express";
+import cors from "cors";
+import { requireAuth } from "./middleware/auth";
+import authRoutes from "./routes/auth";
+import apiRoutes from "./routes";
+import healthRoutes from "./routes/health";
+const app = express();
+app.use(cors({
     origin: "https://staff.boreal.financial",
     credentials: true,
 }));
-app.options("*", (0, cors_1.default)({ origin: "https://staff.boreal.financial", credentials: true }));
-app.use(express_1.default.json());
+app.options("*", cors({ origin: "https://staff.boreal.financial", credentials: true }));
+app.use(express.json());
 // PUBLIC ROUTES (NO AUTH)
-app.use("/api/auth", auth_2.default);
-app.use("/api", health_1.default);
+app.use("/api/auth", authRoutes);
+app.use("/api", healthRoutes);
 // AUTH MIDDLEWARE
-app.use(auth_1.requireAuth);
+app.use(requireAuth);
 // PROTECTED ROUTES
-app.use("/api", routes_1.default);
+app.use("/api", apiRoutes);
 const port = process.env.PORT || 8080;
 app.listen(port, () => {
     console.log(`Staff Server running on port ${port}`);

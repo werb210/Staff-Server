@@ -1,9 +1,7 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = require("express");
-const requireAuth_1 = require("../middleware/requireAuth");
-const router = (0, express_1.Router)();
-router.use(requireAuth_1.requireAuth);
+import { Router } from "express";
+import { requireAuth } from "../middleware/requireAuth";
+const router = Router();
+router.use(requireAuth);
 /**
  * GET /api/applications
  * Supports pipeline queries:
@@ -20,4 +18,4 @@ router.get("/", async (req, res) => {
         items: [],
     });
 });
-exports.default = router;
+export default router;

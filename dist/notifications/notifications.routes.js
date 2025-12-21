@@ -1,11 +1,9 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = require("express");
-const requireAuth_1 = require("../middleware/requireAuth");
-const notifications_service_1 = require("./notifications.service");
-const router = (0, express_1.Router)();
-const notificationsService = new notifications_service_1.NotificationsService();
-router.use(requireAuth_1.requireAuth);
+import { Router } from "express";
+import { requireAuth } from "../middleware/requireAuth";
+import { NotificationsService } from "./notifications.service";
+const router = Router();
+const notificationsService = new NotificationsService();
+router.use(requireAuth);
 router.get("/", async (req, res, next) => {
     try {
         const userId = req.user.id;
@@ -26,4 +24,4 @@ router.post("/mark-read", async (req, res, next) => {
         next(err);
     }
 });
-exports.default = router;
+export default router;

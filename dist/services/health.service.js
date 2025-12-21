@@ -1,18 +1,15 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.authHealthCheck = authHealthCheck;
-const config_1 = require("../config/config");
-const twilioClient_1 = require("./twilioClient");
-function authHealthCheck() {
+import { authConfig, config } from "../config/config";
+import { isTwilioVerifyConfigured } from "./twilioClient";
+export function authHealthCheck() {
     const issues = [];
-    if (!config_1.authConfig.ACCESS_TOKEN_SECRET)
+    if (!authConfig.ACCESS_TOKEN_SECRET)
         issues.push("JWT secret missing");
     const twilioKeysProvided = [
-        config_1.config.TWILIO_ACCOUNT_SID,
-        config_1.config.TWILIO_AUTH_TOKEN,
-        config_1.config.TWILIO_VERIFY_SERVICE_SID,
+        config.TWILIO_ACCOUNT_SID,
+        config.TWILIO_AUTH_TOKEN,
+        config.TWILIO_VERIFY_SERVICE_SID,
     ].filter(Boolean).length;
-    if (twilioKeysProvided > 0 && !twilioClient_1.isTwilioVerifyConfigured) {
+    if (twilioKeysProvided > 0 && !isTwilioVerifyConfigured) {
         issues.push("Twilio configuration incomplete");
     }
     return issues.length === 0

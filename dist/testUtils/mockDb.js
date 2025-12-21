@@ -1,9 +1,6 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.createMockDb = createMockDb;
-const crypto_1 = require("crypto");
-const schema_1 = require("../db/schema");
-function createMockDb() {
+import { randomUUID } from "crypto";
+import { users, auditLogs } from "../db/schema";
+export function createMockDb() {
     const userStore = [];
     const auditStore = [];
     const db = {
@@ -16,7 +13,7 @@ function createMockDb() {
             from: (table) => ({
                 where: (_where) => ({
                     limit: async (_count) => {
-                        if (table === schema_1.users) {
+                        if (table === users) {
                             const emailFilter = typeof _where?.value === "string" ? _where.value : undefined;
                             const results = emailFilter
                                 ? userStore.filter((u) => u.email === emailFilter)
@@ -41,18 +38,18 @@ function createMockDb() {
         insert: (table) => ({
             values: (payload) => {
                 const rows = Array.isArray(payload) ? payload : [payload];
-                if (table === schema_1.auditLogs) {
+                if (table === auditLogs) {
                     const saved = rows.map((row) => ({
                         ...row,
-                        id: row.id ?? (0, crypto_1.randomUUID)(),
+                        id: row.id ?? randomUUID(),
                     }));
                     auditStore.push(...saved);
                     return { returning: async () => saved };
                 }
-                if (table === schema_1.users) {
+                if (table === users) {
                     const saved = rows.map((row) => ({
                         ...row,
-                        id: row.id ?? (0, crypto_1.randomUUID)(),
+                        id: row.id ?? randomUUID(),
                     }));
                     userStore.push(...saved);
                     return { returning: async () => saved };

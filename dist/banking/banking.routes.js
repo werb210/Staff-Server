@@ -1,17 +1,14 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.createBankingRouter = createBankingRouter;
-const express_1 = require("express");
-const zod_1 = require("zod");
-const requireAuth_1 = require("../middleware/requireAuth");
-const banking_service_1 = require("./banking.service");
-const banking_types_1 = require("./banking.types");
-function createBankingRouter(service = new banking_service_1.BankingService()) {
-    const router = (0, express_1.Router)();
-    router.use(requireAuth_1.requireAuth);
+import { Router } from "express";
+import { ZodError } from "zod";
+import { requireAuth } from "../middleware/requireAuth";
+import { BankingService } from "./banking.service";
+import { BankingReprocessSchema } from "./banking.types";
+export function createBankingRouter(service = new BankingService()) {
+    const router = Router();
+    router.use(requireAuth);
     router.post("/:applicationId/reprocess", async (req, res, next) => {
         try {
-            const parsed = banking_types_1.BankingReprocessSchema.parse({
+            const parsed = BankingReprocessSchema.parse({
                 ...req.body,
                 applicationId: req.params.applicationId,
             });
@@ -19,7 +16,7 @@ function createBankingRouter(service = new banking_service_1.BankingService()) {
             res.status(201).json(record);
         }
         catch (err) {
-            if (err instanceof zod_1.ZodError) {
+            if (err instanceof ZodError) {
                 return res.status(400).json({ error: err.message });
             }
             next(err);
@@ -36,4 +33,4 @@ function createBankingRouter(service = new banking_service_1.BankingService()) {
     });
     return router;
 }
-exports.default = createBankingRouter();
+export default createBankingRouter();

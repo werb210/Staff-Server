@@ -1,39 +1,23 @@
-"use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __exportStar = (this && this.__exportStar) || function(m, exports) {
-    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-__exportStar(require("./companies"), exports);
-__exportStar(require("./users"), exports);
-__exportStar(require("./contacts"), exports);
-__exportStar(require("./deals"), exports);
-__exportStar(require("./applications"), exports);
-__exportStar(require("./documents"), exports);
-__exportStar(require("./lenderProducts"), exports);
-__exportStar(require("./productRequiredDocs"), exports);
-__exportStar(require("./productQuestions"), exports);
-__exportStar(require("./transmissions"), exports);
-__exportStar(require("./auditLogs"), exports);
-__exportStar(require("./applicantOwners"), exports);
-__exportStar(require("./applicationStatusHistory"), exports);
-__exportStar(require("./applicationTimelineEvents"), exports);
-__exportStar(require("./creditSummaries"), exports);
-__exportStar(require("./aiTrainingChunks"), exports);
-__exportStar(require("./lenderDynamicQuestions"), exports);
-__exportStar(require("./ocrResults"), exports);
-__exportStar(require("./bankingAnalysis"), exports);
-__exportStar(require("./lenderProductVersions"), exports);
-__exportStar(require("./communications"), exports);
-__exportStar(require("./tasks"), exports);
-__exportStar(require("./notifications"), exports);
+export * from "./companies";
+export * from "./users";
+export * from "./contacts";
+export * from "./deals";
+export * from "./applications";
+export * from "./documents";
+export * from "./lenderProducts";
+export * from "./productRequiredDocs";
+export * from "./productQuestions";
+export * from "./transmissions";
+export * from "./auditLogs";
+export * from "./applicantOwners";
+export * from "./applicationStatusHistory";
+export * from "./applicationTimelineEvents";
+export * from "./creditSummaries";
+export * from "./aiTrainingChunks";
+export * from "./lenderDynamicQuestions";
+export * from "./ocrResults";
+export * from "./bankingAnalysis";
+export * from "./lenderProductVersions";
+export * from "./communications";
+export * from "./tasks";
+export * from "./notifications";

@@ -1,12 +1,6 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.authConfig = exports.config = void 0;
-const dotenv_1 = __importDefault(require("dotenv"));
-const zod_1 = require("zod");
-dotenv_1.default.config();
+import dotenv from "dotenv";
+import { z } from "zod";
+dotenv.config();
 const isProd = process.env.NODE_ENV === "production";
 const devDefaults = isProd
     ? {}
@@ -26,48 +20,48 @@ const asInt = (v, fallback) => {
 /**
  * Base env (always required)
  */
-const baseSchema = zod_1.z.object({
-    DATABASE_URL: zod_1.z.string().min(1, "DATABASE_URL is required"),
-    JWT_SECRET: zod_1.z.string().min(32, "JWT_SECRET must be at least 32 chars"),
-    NODE_ENV: zod_1.z.string().optional(),
-    PORT: zod_1.z.string().optional(),
+const baseSchema = z.object({
+    DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
+    JWT_SECRET: z.string().min(32, "JWT_SECRET must be at least 32 chars"),
+    NODE_ENV: z.string().optional(),
+    PORT: z.string().optional(),
 });
 /**
  * Auth / token env (required for auth module)
  */
-const authSchema = zod_1.z.object({
-    TOKEN_TRANSPORT: zod_1.z.literal("header"),
+const authSchema = z.object({
+    TOKEN_TRANSPORT: z.literal("header"),
     // Optional for backwards compatibility; falls back to JWT_SECRET
-    ACCESS_TOKEN_SECRET: zod_1.z.string().min(32, "ACCESS_TOKEN_SECRET must be at least 32 chars").optional(),
-    ACCESS_TOKEN_EXPIRES_IN: zod_1.z.string().optional(), // seconds
+    ACCESS_TOKEN_SECRET: z.string().min(32, "ACCESS_TOKEN_SECRET must be at least 32 chars").optional(),
+    ACCESS_TOKEN_EXPIRES_IN: z.string().optional(), // seconds
 });
 /**
  * Twilio (optional, but must exist as properties because services reference them)
  */
-const twilioSchema = zod_1.z
+const twilioSchema = z
     .object({
-    TWILIO_ACCOUNT_SID: zod_1.z.string().min(1, "TWILIO_ACCOUNT_SID is required"),
-    TWILIO_AUTH_TOKEN: zod_1.z.string().min(1, "TWILIO_AUTH_TOKEN is required"),
-    TWILIO_VERIFY_SERVICE_SID: zod_1.z
+    TWILIO_ACCOUNT_SID: z.string().min(1, "TWILIO_ACCOUNT_SID is required"),
+    TWILIO_AUTH_TOKEN: z.string().min(1, "TWILIO_AUTH_TOKEN is required"),
+    TWILIO_VERIFY_SERVICE_SID: z
         .string()
         .min(1, "TWILIO_VERIFY_SERVICE_SID is required for 2FA"),
-    TWILIO_PHONE_NUMBER_BF: zod_1.z.string().optional(),
-    TWILIO_PHONE_NUMBER_SLF: zod_1.z.string().optional(),
+    TWILIO_PHONE_NUMBER_BF: z.string().optional(),
+    TWILIO_PHONE_NUMBER_SLF: z.string().optional(),
 })
     .partial();
 /**
  * Azure Blob is REQUIRED only in production
  */
-const azureBlobSchema = zod_1.z.object({
-    AZURE_BLOB_ACCOUNT: zod_1.z.string().min(1, "AZURE_BLOB_ACCOUNT is required in production"),
-    AZURE_BLOB_KEY: zod_1.z.string().min(1, "AZURE_BLOB_KEY is required in production"),
-    AZURE_BLOB_CONTAINER: zod_1.z.string().min(1, "AZURE_BLOB_CONTAINER is required in production"),
+const azureBlobSchema = z.object({
+    AZURE_BLOB_ACCOUNT: z.string().min(1, "AZURE_BLOB_ACCOUNT is required in production"),
+    AZURE_BLOB_KEY: z.string().min(1, "AZURE_BLOB_KEY is required in production"),
+    AZURE_BLOB_CONTAINER: z.string().min(1, "AZURE_BLOB_CONTAINER is required in production"),
 });
 /**
  * Optional / legacy compat
  */
-const optionalSchema = zod_1.z.object({
-    AZURE_POSTGRES_URL: zod_1.z.string().optional(),
+const optionalSchema = z.object({
+    AZURE_POSTGRES_URL: z.string().optional(),
 });
 let parsedBase;
 let parsedAuth;
@@ -90,7 +84,7 @@ try {
     parsedOptional = optionalSchema.parse(env);
 }
 catch (err) {
-    const message = err instanceof zod_1.z.ZodError
+    const message = err instanceof z.ZodError
         ? err.errors.map(e => `${e.path.join(".")}: ${e.message}`).join("; ")
         : String(err);
     throw new Error(`Invalid environment configuration: ${message}`);
@@ -100,7 +94,7 @@ if (isProd) {
         parsedAzureBlob = azureBlobSchema.parse(process.env);
     }
     catch (err) {
-        const message = err instanceof zod_1.z.ZodError
+        const message = err instanceof z.ZodError
             ? err.errors.map(e => `${e.path.join(".")}: ${e.message}`).join("; ")
             : String(err);
         throw new Error(`Azure Blob configuration missing in production: ${message}`);
@@ -110,7 +104,7 @@ if (isProd) {
  * Exported configs
  * IMPORTANT: use `undefined` for “not set” (NOT `null`) to avoid TS2322 string|null errors.
  */
-exports.config = {
+export const config = {
     DATABASE_URL: parsedBase.DATABASE_URL,
     JWT_SECRET: parsedBase.JWT_SECRET,
     NODE_ENV: parsedBase.NODE_ENV ?? "development",
@@ -129,7 +123,7 @@ exports.config = {
     TWILIO_PHONE_NUMBER_SLF: parsedTwilio.TWILIO_PHONE_NUMBER_SLF,
 };
 const accessTokenSecret = parsedAuth.ACCESS_TOKEN_SECRET ?? parsedBase.JWT_SECRET;
-exports.authConfig = {
+export const authConfig = {
     TOKEN_TRANSPORT: parsedAuth.TOKEN_TRANSPORT,
     ACCESS_TOKEN_SECRET: accessTokenSecret,
     // default: 15m access (seconds)
