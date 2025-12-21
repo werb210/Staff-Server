@@ -15,18 +15,24 @@ app.use(
   })
 );
 
-app.options("*", cors());
+app.options(
+  "*",
+  cors({
+    origin: "https://staff.boreal.financial",
+    credentials: true
+  })
+);
 
 app.use(express.json());
 
-// Public routes
+// PUBLIC ROUTES (NO AUTH)
 app.use("/api/auth", authRoutes);
 app.use("/api/health", healthRoutes);
 
-// Auth middleware
+// AUTH MIDDLEWARE
 app.use(requireAuth);
 
-// Protected routes
+// PROTECTED ROUTES
 app.use("/api", apiRoutes);
 
 const port = Number(process.env.PORT) || 8080;
