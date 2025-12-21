@@ -9,7 +9,14 @@ export async function verifyUserCredentials(
   password: string
 ) {
   const result = await db
-    .select()
+    .select({
+      id: users.id,
+      email: users.email,
+      role: users.role,
+      passwordHash: users.password_hash,
+      status: users.status,
+      isActive: users.is_active,
+    })
     .from(users)
     .where(eq(users.email, email))
     .limit(1);
@@ -17,7 +24,13 @@ export async function verifyUserCredentials(
   const user = result[0];
   if (!user) return null;
 
-  const ok = await bcrypt.compare(password, user.password_hash);
+  const isDisabled =
+    (typeof user.isActive === "boolean" && !user.isActive) ||
+    (user.status && user.status !== "active");
+
+  if (isDisabled) return null;
+
+  const ok = await bcrypt.compare(password, user.passwordHash);
   if (!ok) return null;
 
   return {
