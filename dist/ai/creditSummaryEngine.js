@@ -1,23 +1,19 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.CreditSummaryEngine = void 0;
-exports.renderCreditSummaryPdf = renderCreditSummaryPdf;
-const drizzle_orm_1 = require("drizzle-orm");
-const db_1 = require("../db");
-const schema_1 = require("../db/schema");
-const aiEngine_1 = require("./aiEngine");
+import { desc, eq } from "drizzle-orm";
+import { db } from "../db";
+import { applications, applicationTimelineEvents, creditSummaries } from "../db/schema";
+import { AIEngine, EchoAIProvider } from "./aiEngine";
 class DrizzleCreditSummaryRepository {
     async latestVersion(applicationId) {
-        const [latest] = await db_1.db
+        const [latest] = await db
             .select()
-            .from(schema_1.creditSummaries)
-            .where((0, drizzle_orm_1.eq)(schema_1.creditSummaries.applicationId, applicationId))
-            .orderBy((0, drizzle_orm_1.desc)(schema_1.creditSummaries.version))
+            .from(creditSummaries)
+            .where(eq(creditSummaries.applicationId, applicationId))
+            .orderBy(desc(creditSummaries.version))
             .limit(1);
         return latest?.version ?? 0;
     }
     async saveSummary(input) {
-        await db_1.db.insert(schema_1.creditSummaries).values({
+        await db.insert(creditSummaries).values({
             applicationId: input.applicationId,
             version: input.version,
             summaryJson: input.summaryJson,
@@ -25,13 +21,13 @@ class DrizzleCreditSummaryRepository {
         });
     }
     async updateApplicationVersion(applicationId, version) {
-        await db_1.db
-            .update(schema_1.applications)
+        await db
+            .update(applications)
             .set({ creditSummaryVersion: version, updatedAt: new Date() })
-            .where((0, drizzle_orm_1.eq)(schema_1.applications.id, applicationId));
+            .where(eq(applications.id, applicationId));
     }
     async logEvent(applicationId, eventType, metadata, userId) {
-        await db_1.db.insert(schema_1.applicationTimelineEvents).values({
+        await db.insert(applicationTimelineEvents).values({
             applicationId,
             eventType,
             metadata,
@@ -40,11 +36,11 @@ class DrizzleCreditSummaryRepository {
         });
     }
 }
-class CreditSummaryEngine {
+export class CreditSummaryEngine {
     aiEngine;
     repo;
-    constructor(provider = new aiEngine_1.EchoAIProvider(), repo = new DrizzleCreditSummaryRepository(), aiEngine) {
-        this.aiEngine = aiEngine ?? new aiEngine_1.AIEngine(provider);
+    constructor(provider = new EchoAIProvider(), repo = new DrizzleCreditSummaryRepository(), aiEngine) {
+        this.aiEngine = aiEngine ?? new AIEngine(provider);
         this.repo = repo;
     }
     async generate(payload) {
@@ -81,8 +77,7 @@ class CreditSummaryEngine {
         return `documents/${applicationId}/credit-summary/v${version}/credit-summary.pdf`;
     }
 }
-exports.CreditSummaryEngine = CreditSummaryEngine;
-function renderCreditSummaryPdf(summary) {
+export function renderCreditSummaryPdf(summary) {
     const content = JSON.stringify(summary, null, 2);
     return Buffer.from(`<pdf>${content}</pdf>`);
 }

@@ -1,17 +1,15 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = require("express");
-const communications_validators_1 = require("./communications.validators");
-const sms_service_1 = require("./sms.service");
-const requireAuth_1 = require("../middleware/requireAuth");
-const errors_1 = require("../errors");
-const router = (0, express_1.Router)();
-const smsService = new sms_service_1.SmsService();
+import { Router } from "express";
+import { smsInboundSchema, smsSendSchema } from "./communications.validators";
+import { SmsService } from "./sms.service";
+import { requireAuth } from "../middleware/requireAuth";
+import { BadRequest } from "../errors";
+const router = Router();
+const smsService = new SmsService();
 router.post("/inbound", async (req, res, next) => {
     try {
-        const parsed = communications_validators_1.smsInboundSchema.parse(req.body);
+        const parsed = smsInboundSchema.parse(req.body);
         if (!parsed.From || !parsed.To || !parsed.Body) {
-            throw new errors_1.BadRequest("invalid sms payload");
+            throw new BadRequest("invalid sms payload");
         }
         const record = await smsService.handleInbound({
             From: parsed.From,
@@ -25,13 +23,13 @@ router.post("/inbound", async (req, res, next) => {
         next(err);
     }
 });
-router.use(requireAuth_1.requireAuth);
+router.use(requireAuth);
 router.post("/send", async (req, res, next) => {
     try {
         if (!smsService.isConfigured()) {
             return res.status(501).json({ error: "Twilio not configured" });
         }
-        const parsed = communications_validators_1.smsSendSchema.parse(req.body);
+        const parsed = smsSendSchema.parse(req.body);
         const payload = {
             applicationId: parsed.applicationId ?? null,
             to: parsed.to,
@@ -65,4 +63,4 @@ router.get("/messages/:applicationId", async (req, res, next) => {
         next(err);
     }
 });
-exports.default = router;
+export default router;

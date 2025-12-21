@@ -1,7 +1,4 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.BankingAnalyzer = void 0;
-class BankingAnalyzer {
+export class BankingAnalyzer {
     parseTransactions(rawText) {
         const lines = rawText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
         const transactions = [];
@@ -82,4 +79,3 @@ class BankingAnalyzer {
         return Math.sqrt(variance);
     }
 }
-exports.BankingAnalyzer = BankingAnalyzer;

@@ -1,24 +1,21 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.BankingService = void 0;
-const drizzle_orm_1 = require("drizzle-orm");
-const db_1 = require("../db");
-const schema_1 = require("../db/schema");
-const ocr_processor_1 = require("../ocr/ocr.processor");
-const banking_analyzer_1 = require("./banking.analyzer");
-class BankingService {
+import { eq, inArray } from "drizzle-orm";
+import { db } from "../db";
+import { applicationTimelineEvents, bankingAnalysis, documentVersions } from "../db/schema";
+import { OcrProcessor } from "../ocr/ocr.processor";
+import { BankingAnalyzer } from "./banking.analyzer";
+export class BankingService {
     processor;
     analyzer;
-    constructor(processor = new ocr_processor_1.OcrProcessor(), analyzer = new banking_analyzer_1.BankingAnalyzer()) {
+    constructor(processor = new OcrProcessor(), analyzer = new BankingAnalyzer()) {
         this.processor = processor;
         this.analyzer = analyzer;
     }
     async analyze(request) {
         await this.logEvent(request.applicationId, "BANKING_ANALYSIS_REQUESTED", { documentVersionIds: request.documentVersionIds }, request.userId);
-        const versions = await db_1.db
-            .select({ id: schema_1.documentVersions.id, blobKey: schema_1.documentVersions.blobKey })
-            .from(schema_1.documentVersions)
-            .where((0, drizzle_orm_1.inArray)(schema_1.documentVersions.id, request.documentVersionIds));
+        const versions = await db
+            .select({ id: documentVersions.id, blobKey: documentVersions.blobKey })
+            .from(documentVersions)
+            .where(inArray(documentVersions.id, request.documentVersionIds));
         const allTransactions = [];
         for (const version of versions) {
             const rawText = await this.processor.run({
@@ -32,8 +29,8 @@ class BankingService {
         const categorized = this.analyzer.categorize(allTransactions);
         const metrics = this.analyzer.computeMetrics(allTransactions);
         const monthlyJson = this.analyzer.monthlyBreakdown(allTransactions);
-        const [record] = await db_1.db
-            .insert(schema_1.bankingAnalysis)
+        const [record] = await db
+            .insert(bankingAnalysis)
             .values({
             applicationId: request.applicationId,
             documentVersionId: request.documentVersionIds[0],
@@ -47,11 +44,11 @@ class BankingService {
         return record;
     }
     async listByApplication(applicationId) {
-        const records = await db_1.db.select().from(schema_1.bankingAnalysis).where((0, drizzle_orm_1.eq)(schema_1.bankingAnalysis.applicationId, applicationId));
+        const records = await db.select().from(bankingAnalysis).where(eq(bankingAnalysis.applicationId, applicationId));
         return records;
     }
     async logEvent(applicationId, eventType, metadata, actorUserId) {
-        await db_1.db.insert(schema_1.applicationTimelineEvents).values({
+        await db.insert(applicationTimelineEvents).values({
             applicationId,
             eventType,
             metadata,
@@ -60,4 +57,3 @@ class BankingService {
         });
     }
 }
-exports.BankingService = BankingService;

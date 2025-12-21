@@ -1,13 +1,16 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.requireAuth = requireAuth;
-const jwt_service_1 = require("../services/jwt.service");
-const user_service_1 = require("../services/user.service");
-async function requireAuth(req, res, next) {
-    const publicPrefixes = ["/api/auth", "/api/health"];
+import { jwtService } from "../services/jwt.service";
+import { findUserById, mapAuthenticated } from "../services/user.service";
+export async function requireAuth(req, res, next) {
+    const publicRoutes = [
+        { path: "/api/auth/login", methods: ["POST", "OPTIONS"] },
+        { path: "/api/auth/refresh", methods: ["POST", "OPTIONS"] },
+    ];
     const requestPath = req.originalUrl || req.path;
     const isRouteLevelMiddleware = Boolean(req.baseUrl);
-    if (!isRouteLevelMiddleware && publicPrefixes.some((prefix) => requestPath.startsWith(prefix))) {
+    const isPublicRoute = !isRouteLevelMiddleware &&
+        publicRoutes.some(({ path, methods }) => methods.includes(req.method) &&
+            (requestPath === path || requestPath.startsWith(`${path}?`)));
+    if (isPublicRoute) {
         return next();
     }
     const headerName = process.env.TOKEN_HEADER_NAME || "authorization";
@@ -24,9 +27,9 @@ async function requireAuth(req, res, next) {
         return res.status(401).json({ error: "Missing Bearer token" });
     }
     try {
-        const payload = jwt_service_1.jwtService.verifyAccessToken(accessToken);
-        const userRecord = await (0, user_service_1.findUserById)(payload.userId);
-        const user = (0, user_service_1.mapAuthenticated)(userRecord);
+        const payload = jwtService.verifyAccessToken(accessToken);
+        const userRecord = await findUserById(payload.userId);
+        const user = mapAuthenticated(userRecord);
         if (!user) {
             return res.status(401).json({ error: "User not found" });
         }
@@ -37,4 +40,4 @@ async function requireAuth(req, res, next) {
         return res.status(401).json({ error: "Invalid or expired token" });
     }
 }
-exports.default = requireAuth;
+export default requireAuth;

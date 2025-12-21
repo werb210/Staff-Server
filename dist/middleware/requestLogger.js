@@ -1,7 +1,4 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.requestLogger = requestLogger;
-function requestLogger(req, res, next) {
+export function requestLogger(req, res, next) {
     const start = process.hrtime.bigint();
     res.on("finish", () => {
         const durationMs = Number(process.hrtime.bigint() - start) / 1_000_000;

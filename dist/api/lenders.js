@@ -1,19 +1,17 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = require("express");
-const db_1 = require("../db");
-const schema_1 = require("../db/schema");
-const requireAuth_1 = require("../middleware/requireAuth");
-const router = (0, express_1.Router)();
-router.use(requireAuth_1.requireAuth);
+import { Router } from "express";
+import { db } from "../db";
+import { lenderRequiredDocuments } from "../db/schema";
+import { requireAuth } from "../middleware/requireAuth";
+const router = Router();
+router.use(requireAuth);
 router.post("/required-documents", async (req, res, next) => {
     try {
         const parsed = req.body ?? {};
         if (!parsed.lenderProductId || !parsed.docCategory) {
             throw new Error("lenderProductId and docCategory are required");
         }
-        const [created] = await db_1.db
-            .insert(schema_1.lenderRequiredDocuments)
+        const [created] = await db
+            .insert(lenderRequiredDocuments)
             .values({
             lenderProductId: parsed.lenderProductId,
             docCategory: parsed.docCategory,
@@ -31,4 +29,4 @@ router.post("/required-documents", async (req, res, next) => {
         next(err);
     }
 });
-exports.default = router;
+export default router;

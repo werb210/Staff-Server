@@ -1,8 +1,5 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.pipelineService = exports.PipelineService = void 0;
-const schema_1 = require("../db/schema");
-class PipelineService {
+import { applicationStatusEnum } from "../db/schema";
+export class PipelineService {
     finalStatuses = ["accepted", "declined"];
     initialStatus(productCategory) {
         if (productCategory === "startup")
@@ -12,11 +9,10 @@ class PipelineService {
     canTransition(current, next) {
         if (this.finalStatuses.includes(current))
             return false;
-        return schema_1.applicationStatusEnum.enumValues.includes(next);
+        return applicationStatusEnum.enumValues.includes(next);
     }
     normalizeStatus(current, requested) {
         return this.canTransition(current, requested) ? requested : current;
     }
 }
-exports.PipelineService = PipelineService;
-exports.pipelineService = new PipelineService();
+export const pipelineService = new PipelineService();

@@ -1,16 +1,11 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const pg_1 = require("pg");
-const bcrypt_1 = __importDefault(require("bcrypt"));
+import { Client } from "pg";
+import bcrypt from "bcrypt";
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
     throw new Error("DATABASE_URL missing");
 }
 async function seed() {
-    const client = new pg_1.Client({ connectionString: DATABASE_URL });
+    const client = new Client({ connectionString: DATABASE_URL });
     await client.connect();
     console.log("Fetching user_role enum values...");
     const enumRes = await client.query(`
@@ -26,7 +21,7 @@ async function seed() {
     const ADMIN_ROLE = enumRes.rows[0].enumlabel;
     const STAFF_ROLE = enumRes.rows[1].enumlabel;
     console.log("Using roles:", ADMIN_ROLE, STAFF_ROLE);
-    const passwordHash = await bcrypt_1.default.hash("ChangeMe123!", 12);
+    const passwordHash = await bcrypt.hash("ChangeMe123!", 12);
     await client.query(`
     insert into users (
       id,

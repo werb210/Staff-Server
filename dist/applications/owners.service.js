@@ -1,18 +1,15 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.OwnersService = void 0;
-const applications_validators_1 = require("./applications.validators");
-const applications_repository_1 = require("./applications.repository");
-const timeline_service_1 = require("./timeline.service");
-class OwnersService {
+import { ownerSchema } from "./applications.validators";
+import { DrizzleApplicationsRepository } from "./applications.repository";
+import { TimelineService } from "./timeline.service";
+export class OwnersService {
     repo;
     timeline;
-    constructor(repo = new applications_repository_1.DrizzleApplicationsRepository(), timeline) {
+    constructor(repo = new DrizzleApplicationsRepository(), timeline) {
         this.repo = repo;
-        this.timeline = timeline ?? new timeline_service_1.TimelineService(repo);
+        this.timeline = timeline ?? new TimelineService(repo);
     }
     normalizeOwner(payload) {
-        const parsed = applications_validators_1.ownerSchema.parse(payload);
+        const parsed = ownerSchema.parse(payload);
         return {
             email: parsed.email,
             firstName: parsed.firstName,
@@ -46,4 +43,3 @@ class OwnersService {
         await this.timeline.logEvent(applicationId, "owner_removed", { ownerId }, actorUserId);
     }
 }
-exports.OwnersService = OwnersService;

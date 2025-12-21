@@ -1,28 +1,25 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.OcrService = void 0;
-const db_1 = require("../db");
-const schema_1 = require("../db/schema");
-const ocr_processor_1 = require("./ocr.processor");
-const ocr_extractors_1 = require("./ocr.extractors");
-const drizzle_orm_1 = require("drizzle-orm");
-class OcrService {
+import { db } from "../db";
+import { applicationTimelineEvents, ocrResults } from "../db/schema";
+import { OcrProcessor } from "./ocr.processor";
+import { buildExtractedJson, mergeConflicts } from "./ocr.extractors";
+import { eq } from "drizzle-orm";
+export class OcrService {
     processor;
-    constructor(processor = new ocr_processor_1.OcrProcessor()) {
+    constructor(processor = new OcrProcessor()) {
         this.processor = processor;
     }
     async process(request) {
         await this.logEvent(request.applicationId, "OCR_REQUESTED", { documentId: request.documentId, documentVersionId: request.documentVersionId }, request.userId);
         const rawText = await this.processor.run(request);
-        const extractedJson = (0, ocr_extractors_1.buildExtractedJson)(rawText);
-        const previous = await db_1.db
-            .select({ extractedJson: schema_1.ocrResults.extractedJson })
-            .from(schema_1.ocrResults)
-            .where((0, drizzle_orm_1.eq)(schema_1.ocrResults.applicationId, request.applicationId));
-        const conflicts = (0, ocr_extractors_1.mergeConflicts)(previous.map((p) => p.extractedJson), extractedJson);
+        const extractedJson = buildExtractedJson(rawText);
+        const previous = await db
+            .select({ extractedJson: ocrResults.extractedJson })
+            .from(ocrResults)
+            .where(eq(ocrResults.applicationId, request.applicationId));
+        const conflicts = mergeConflicts(previous.map((p) => p.extractedJson), extractedJson);
         const categoriesDetected = Object.keys(extractedJson.categories);
-        const [record] = await db_1.db
-            .insert(schema_1.ocrResults)
+        const [record] = await db
+            .insert(ocrResults)
             .values({
             applicationId: request.applicationId,
             documentId: request.documentId,
@@ -39,11 +36,11 @@ class OcrService {
         return record;
     }
     async listByApplication(applicationId) {
-        const results = await db_1.db.select().from(schema_1.ocrResults).where((0, drizzle_orm_1.eq)(schema_1.ocrResults.applicationId, applicationId));
+        const results = await db.select().from(ocrResults).where(eq(ocrResults.applicationId, applicationId));
         return results;
     }
     async logEvent(applicationId, eventType, metadata, actorUserId) {
-        await db_1.db.insert(schema_1.applicationTimelineEvents).values({
+        await db.insert(applicationTimelineEvents).values({
             applicationId,
             eventType,
             metadata,
@@ -52,4 +49,3 @@ class OcrService {
         });
     }
 }
-exports.OcrService = OcrService;

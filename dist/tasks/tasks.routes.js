@@ -1,16 +1,14 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = require("express");
-const requireAuth_1 = require("../middleware/requireAuth");
-const tasks_service_1 = require("./tasks.service");
-const tasks_validators_1 = require("./tasks.validators");
-const errors_1 = require("../errors");
-const router = (0, express_1.Router)();
-const tasksService = new tasks_service_1.TasksService();
-router.use(requireAuth_1.requireAuth);
+import { Router } from "express";
+import { requireAuth } from "../middleware/requireAuth";
+import { TasksService } from "./tasks.service";
+import { createTaskSchema, updateTaskSchema } from "./tasks.validators";
+import { BadRequest } from "../errors";
+const router = Router();
+const tasksService = new TasksService();
+router.use(requireAuth);
 router.post("/", async (req, res, next) => {
     try {
-        const payload = tasks_validators_1.createTaskSchema.parse({
+        const payload = createTaskSchema.parse({
             title: req.body?.title,
             description: req.body?.description ?? "",
             applicationId: req.body?.applicationId ?? undefined,
@@ -18,7 +16,7 @@ router.post("/", async (req, res, next) => {
             dueDate: req.body?.dueDate ?? undefined,
         });
         if (!payload.title) {
-            throw new errors_1.BadRequest("title required");
+            throw new BadRequest("title required");
         }
         const record = await tasksService.createTask({
             title: payload.title,
@@ -45,7 +43,7 @@ router.get("/my", async (req, res, next) => {
 });
 router.patch("/:id", async (req, res, next) => {
     try {
-        const parsed = tasks_validators_1.updateTaskSchema.parse(req.body);
+        const parsed = updateTaskSchema.parse(req.body);
         let updated = null;
         if (parsed.status === "completed") {
             updated = await tasksService.completeTask(req.params.id);
@@ -72,4 +70,4 @@ router.delete("/:id", async (req, res, next) => {
         next(err);
     }
 });
-exports.default = router;
+export default router;

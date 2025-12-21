@@ -1,20 +1,17 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.VoiceService = void 0;
-const db_1 = require("../db");
-const schema_1 = require("../db/schema");
-const applications_repository_1 = require("../applications/applications.repository");
-const timeline_service_1 = require("../applications/timeline.service");
-class VoiceService {
+import { db } from "../db";
+import { communications } from "../db/schema";
+import { DrizzleApplicationsRepository } from "../applications/applications.repository";
+import { TimelineService } from "../applications/timeline.service";
+export class VoiceService {
     database;
     timeline;
-    constructor(database = db_1.db) {
+    constructor(database = db) {
         this.database = database;
-        this.timeline = new timeline_service_1.TimelineService(new applications_repository_1.DrizzleApplicationsRepository(database));
+        this.timeline = new TimelineService(new DrizzleApplicationsRepository(database));
     }
     async logEvent(params) {
         const [record] = await this.database
-            .insert(schema_1.communications)
+            .insert(communications)
             .values({
             applicationId: params.applicationId,
             type: "voice",
@@ -34,4 +31,3 @@ class VoiceService {
         return record;
     }
 }
-exports.VoiceService = VoiceService;

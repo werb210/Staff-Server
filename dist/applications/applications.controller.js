@@ -1,31 +1,28 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.ApplicationsController = void 0;
-const zod_1 = require("zod");
-const drizzle_orm_1 = require("drizzle-orm");
-const db_1 = require("../db");
-const schema_1 = require("../db/schema");
-const applications_service_1 = require("./applications.service");
-const applications_repository_1 = require("./applications.repository");
-const owners_service_1 = require("./owners.service");
-const timeline_service_1 = require("./timeline.service");
-const creditSummaryEngine_1 = require("../ai/creditSummaryEngine");
-const ocr_service_1 = require("../ocr/ocr.service");
-const banking_service_1 = require("../banking/banking.service");
-const assignSchema = zod_1.z.object({ assignedTo: zod_1.z.string().uuid().nullable().optional() });
-class ApplicationsController {
+import { z, ZodError } from "zod";
+import { eq } from "drizzle-orm";
+import { db } from "../db";
+import { applications as applicationsTable, lenderRequiredDocuments, requiredDocMap } from "../db/schema";
+import { ApplicationsService, mapZodError } from "./applications.service";
+import { DrizzleApplicationsRepository } from "./applications.repository";
+import { OwnersService } from "./owners.service";
+import { TimelineService } from "./timeline.service";
+import { CreditSummaryEngine } from "../ai/creditSummaryEngine";
+import { OcrService } from "../ocr/ocr.service";
+import { BankingService } from "../banking/banking.service";
+const assignSchema = z.object({ assignedTo: z.string().uuid().nullable().optional() });
+export class ApplicationsController {
     service;
     owners;
     creditSummaryEngine;
     ocrService;
     bankingService;
-    constructor(service, repo = new applications_repository_1.DrizzleApplicationsRepository()) {
-        const timeline = new timeline_service_1.TimelineService(repo);
-        this.service = service ?? new applications_service_1.ApplicationsService(repo);
-        this.owners = new owners_service_1.OwnersService(repo, timeline);
-        this.creditSummaryEngine = new creditSummaryEngine_1.CreditSummaryEngine();
-        this.ocrService = new ocr_service_1.OcrService();
-        this.bankingService = new banking_service_1.BankingService();
+    constructor(service, repo = new DrizzleApplicationsRepository()) {
+        const timeline = new TimelineService(repo);
+        this.service = service ?? new ApplicationsService(repo);
+        this.owners = new OwnersService(repo, timeline);
+        this.creditSummaryEngine = new CreditSummaryEngine();
+        this.ocrService = new OcrService();
+        this.bankingService = new BankingService();
     }
     list = async (_req, res, next) => {
         try {
@@ -42,8 +39,8 @@ class ApplicationsController {
             res.status(201).json(app);
         }
         catch (err) {
-            if (err instanceof zod_1.ZodError) {
-                return res.status(400).json((0, applications_service_1.mapZodError)(err));
+            if (err instanceof ZodError) {
+                return res.status(400).json(mapZodError(err));
             }
             next(err);
         }
@@ -67,8 +64,8 @@ class ApplicationsController {
             res.json(app);
         }
         catch (err) {
-            if (err instanceof zod_1.ZodError) {
-                return res.status(400).json((0, applications_service_1.mapZodError)(err));
+            if (err instanceof ZodError) {
+                return res.status(400).json(mapZodError(err));
             }
             next(err);
         }
@@ -84,8 +81,8 @@ class ApplicationsController {
             if (err instanceof Error && err.message.includes("Status transition")) {
                 return res.status(400).json({ error: err.message });
             }
-            if (err instanceof zod_1.ZodError) {
-                return res.status(400).json((0, applications_service_1.mapZodError)(err));
+            if (err instanceof ZodError) {
+                return res.status(400).json(mapZodError(err));
             }
             next(err);
         }
@@ -115,8 +112,8 @@ class ApplicationsController {
             if (err instanceof Error && err.message.includes("Status transition")) {
                 return res.status(400).json({ error: err.message });
             }
-            if (err instanceof zod_1.ZodError) {
-                return res.status(400).json((0, applications_service_1.mapZodError)(err));
+            if (err instanceof ZodError) {
+                return res.status(400).json(mapZodError(err));
             }
             next(err);
         }
@@ -130,8 +127,8 @@ class ApplicationsController {
             res.json(app);
         }
         catch (err) {
-            if (err instanceof zod_1.ZodError) {
-                return res.status(400).json((0, applications_service_1.mapZodError)(err));
+            if (err instanceof ZodError) {
+                return res.status(400).json(mapZodError(err));
             }
             next(err);
         }
@@ -151,8 +148,8 @@ class ApplicationsController {
             res.status(201).json(owner);
         }
         catch (err) {
-            if (err instanceof zod_1.ZodError) {
-                return res.status(400).json((0, applications_service_1.mapZodError)(err));
+            if (err instanceof ZodError) {
+                return res.status(400).json(mapZodError(err));
             }
             next(err);
         }
@@ -165,8 +162,8 @@ class ApplicationsController {
             res.json(owner);
         }
         catch (err) {
-            if (err instanceof zod_1.ZodError) {
-                return res.status(400).json((0, applications_service_1.mapZodError)(err));
+            if (err instanceof ZodError) {
+                return res.status(400).json(mapZodError(err));
             }
             next(err);
         }
@@ -182,10 +179,10 @@ class ApplicationsController {
     };
     requiredDocs = async (req, res, next) => {
         try {
-            const [application] = await db_1.db
+            const [application] = await db
                 .select()
-                .from(schema_1.applications)
-                .where((0, drizzle_orm_1.eq)(schema_1.applications.id, req.params.id))
+                .from(applicationsTable)
+                .where(eq(applicationsTable.id, req.params.id))
                 .limit(1);
             if (!application)
                 return res.status(404).json({ error: "Application not found" });
@@ -193,19 +190,19 @@ class ApplicationsController {
             if (!lenderProductId) {
                 return res.json({ applicationId: req.params.id, requiredDocuments: [] });
             }
-            const requiredDocuments = await db_1.db
+            const requiredDocuments = await db
                 .select({
-                mappingId: schema_1.requiredDocMap.id,
-                requiredDocumentId: schema_1.lenderRequiredDocuments.id,
-                title: schema_1.lenderRequiredDocuments.title,
-                description: schema_1.lenderRequiredDocuments.description,
-                category: schema_1.lenderRequiredDocuments.category,
-                isMandatory: schema_1.lenderRequiredDocuments.isMandatory,
-                isRequired: schema_1.requiredDocMap.isRequired,
+                mappingId: requiredDocMap.id,
+                requiredDocumentId: lenderRequiredDocuments.id,
+                title: lenderRequiredDocuments.title,
+                description: lenderRequiredDocuments.description,
+                category: lenderRequiredDocuments.category,
+                isMandatory: lenderRequiredDocuments.isMandatory,
+                isRequired: requiredDocMap.isRequired,
             })
-                .from(schema_1.requiredDocMap)
-                .innerJoin(schema_1.lenderRequiredDocuments, (0, drizzle_orm_1.eq)(schema_1.requiredDocMap.requiredDocumentId, schema_1.lenderRequiredDocuments.id))
-                .where((0, drizzle_orm_1.eq)(schema_1.requiredDocMap.lenderProductId, lenderProductId));
+                .from(requiredDocMap)
+                .innerJoin(lenderRequiredDocuments, eq(requiredDocMap.requiredDocumentId, lenderRequiredDocuments.id))
+                .where(eq(requiredDocMap.lenderProductId, lenderProductId));
             res.json({ applicationId: req.params.id, requiredDocuments });
         }
         catch (err) {
@@ -265,4 +262,3 @@ class ApplicationsController {
         }
     };
 }
-exports.ApplicationsController = ApplicationsController;

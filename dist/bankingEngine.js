@@ -1,13 +1,10 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.BankingEngine = void 0;
-const db_1 = require("./db");
-const schema_1 = require("./db/schema");
-class BankingEngine {
+import { db } from "./db";
+import { applicationTimelineEvents, bankingAnalysis } from "./db/schema";
+export class BankingEngine {
     async analyze(request) {
         await this.logEvent(request.applicationId, "BANKING_ANALYSIS_REQUESTED", { documentVersionId: request.documentVersionId }, request.userId);
-        const [record] = await db_1.db
-            .insert(schema_1.bankingAnalysis)
+        const [record] = await db
+            .insert(bankingAnalysis)
             .values({
             applicationId: request.applicationId,
             documentVersionId: request.documentVersionId ?? null,
@@ -19,7 +16,7 @@ class BankingEngine {
         return record;
     }
     async logEvent(applicationId, eventType, metadata, actorUserId) {
-        await db_1.db.insert(schema_1.applicationTimelineEvents).values({
+        await db.insert(applicationTimelineEvents).values({
             applicationId,
             eventType,
             metadata,
@@ -28,4 +25,3 @@ class BankingEngine {
         });
     }
 }
-exports.BankingEngine = BankingEngine;

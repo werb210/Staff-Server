@@ -1,28 +1,25 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.SmsService = void 0;
-const db_1 = require("../db");
-const schema_1 = require("../db/schema");
-const config_1 = require("../config/config");
-const applications_repository_1 = require("../applications/applications.repository");
-const timeline_service_1 = require("../applications/timeline.service");
-const drizzle_orm_1 = require("drizzle-orm");
-const twilioClient_1 = require("../services/twilioClient");
-class SmsService {
+import { db } from "../db";
+import { communications } from "../db/schema";
+import { config } from "../config/config";
+import { DrizzleApplicationsRepository } from "../applications/applications.repository";
+import { TimelineService } from "../applications/timeline.service";
+import { eq, asc, and } from "drizzle-orm";
+import { hasTwilioMessaging, twilioClient } from "../services/twilioClient";
+export class SmsService {
     database;
     twilioClient;
     timeline;
-    constructor(database = db_1.db) {
+    constructor(database = db) {
         this.database = database;
-        this.twilioClient = twilioClient_1.twilioClient;
-        this.timeline = new timeline_service_1.TimelineService(new applications_repository_1.DrizzleApplicationsRepository(database));
+        this.twilioClient = twilioClient;
+        this.timeline = new TimelineService(new DrizzleApplicationsRepository(database));
     }
     isConfigured() {
-        return Boolean(this.twilioClient && twilioClient_1.hasTwilioMessaging);
+        return Boolean(this.twilioClient && hasTwilioMessaging);
     }
     async logCommunication(params) {
         const [created] = await this.database
-            .insert(schema_1.communications)
+            .insert(communications)
             .values({
             applicationId: params.applicationId,
             type: "sms",
@@ -43,7 +40,7 @@ class SmsService {
         if (!this.isConfigured()) {
             throw new Error("Twilio not configured");
         }
-        const fromNumber = from || config_1.config.TWILIO_PHONE_NUMBER_BF || config_1.config.TWILIO_PHONE_NUMBER_SLF;
+        const fromNumber = from || config.TWILIO_PHONE_NUMBER_BF || config.TWILIO_PHONE_NUMBER_SLF;
         if (!fromNumber) {
             throw new Error("No Twilio phone number configured");
         }
@@ -63,16 +60,15 @@ class SmsService {
     async thread(applicationId) {
         return this.database
             .select()
-            .from(schema_1.communications)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.communications.applicationId, applicationId), (0, drizzle_orm_1.eq)(schema_1.communications.type, "sms")))
-            .orderBy((0, drizzle_orm_1.asc)(schema_1.communications.timestamp));
+            .from(communications)
+            .where(and(eq(communications.applicationId, applicationId), eq(communications.type, "sms")))
+            .orderBy(asc(communications.timestamp));
     }
     async listMessages(applicationId) {
         return this.database
             .select()
-            .from(schema_1.communications)
-            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.communications.applicationId, applicationId), (0, drizzle_orm_1.eq)(schema_1.communications.type, "sms")))
-            .orderBy((0, drizzle_orm_1.asc)(schema_1.communications.timestamp));
+            .from(communications)
+            .where(and(eq(communications.applicationId, applicationId), eq(communications.type, "sms")))
+            .orderBy(asc(communications.timestamp));
     }
 }
-exports.SmsService = SmsService;

@@ -1,17 +1,14 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.ensureDefaultUsers = ensureDefaultUsers;
-const drizzle_orm_1 = require("drizzle-orm");
-const config_1 = require("../config/config");
-const db_1 = require("../db");
-const schema_1 = require("../db/schema");
-const password_service_1 = require("./password.service");
+import { sql } from "drizzle-orm";
+import { config } from "../config/config";
+import { db } from "../db";
+import { users } from "../db/schema";
+import { passwordService } from "./password.service";
 const DEFAULT_ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD ?? "BorealAdmin!2025";
 const DEFAULT_STAFF_PASSWORD = process.env.SEED_STAFF_PASSWORD ?? "BorealStaff!2025";
 async function upsertDefaultUser(user) {
-    const password_hash = await password_service_1.passwordService.hashPassword(user.password);
-    await db_1.db
-        .insert(schema_1.users)
+    const password_hash = await passwordService.hashPassword(user.password);
+    await db
+        .insert(users)
         .values({
         email: user.email.toLowerCase(),
         first_name: user.firstName,
@@ -22,7 +19,7 @@ async function upsertDefaultUser(user) {
         is_active: true,
     })
         .onConflictDoUpdate({
-        target: schema_1.users.email,
+        target: users.email,
         set: {
             first_name: user.firstName,
             last_name: user.lastName,
@@ -30,12 +27,12 @@ async function upsertDefaultUser(user) {
             status: "active",
             password_hash,
             is_active: true,
-            updated_at: (0, drizzle_orm_1.sql) `now()`,
+            updated_at: sql `now()`,
         },
     });
 }
-async function ensureDefaultUsers() {
-    if (!config_1.config.JWT_SECRET && config_1.config.NODE_ENV === "production") {
+export async function ensureDefaultUsers() {
+    if (!config.JWT_SECRET && config.NODE_ENV === "production") {
         // In production, this code runs only after required envs are set via index.ts
         // but we keep a guard here to avoid running with an invalid configuration.
         throw new Error("JWT_SECRET is required before ensuring default users");

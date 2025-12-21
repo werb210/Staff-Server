@@ -1,45 +1,42 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.LenderProductEngine = void 0;
-const drizzle_orm_1 = require("drizzle-orm");
-const db_1 = require("../db");
-const schema_1 = require("../db/schema");
+import { eq, inArray } from "drizzle-orm";
+import { db } from "../db";
+import { lenderProducts, lenderRequiredDocuments, lenderDynamicQuestions, requiredDocMap, } from "../db/schema";
 class DrizzleProductDataProvider {
     async fetchProducts() {
-        return db_1.db
+        return db
             .select()
-            .from(schema_1.lenderProducts)
-            .where((0, drizzle_orm_1.eq)(schema_1.lenderProducts.active, true));
+            .from(lenderProducts)
+            .where(eq(lenderProducts.active, true));
     }
     async fetchRequiredDocuments(productIds) {
         if (!productIds.length)
             return [];
-        const docs = await db_1.db
+        const docs = await db
             .select({
-            id: schema_1.lenderRequiredDocuments.id,
-            lenderProductId: schema_1.lenderRequiredDocuments.lenderProductId,
-            title: schema_1.lenderRequiredDocuments.title,
-            description: schema_1.lenderRequiredDocuments.description,
-            category: schema_1.lenderRequiredDocuments.category,
-            isMandatory: schema_1.lenderRequiredDocuments.isMandatory,
-            validationRules: schema_1.lenderRequiredDocuments.validationRules,
-            displayOrder: schema_1.lenderRequiredDocuments.displayOrder,
-            createdAt: schema_1.lenderRequiredDocuments.createdAt,
-            updatedAt: schema_1.lenderRequiredDocuments.updatedAt,
-            isRequired: schema_1.requiredDocMap.isRequired,
+            id: lenderRequiredDocuments.id,
+            lenderProductId: lenderRequiredDocuments.lenderProductId,
+            title: lenderRequiredDocuments.title,
+            description: lenderRequiredDocuments.description,
+            category: lenderRequiredDocuments.category,
+            isMandatory: lenderRequiredDocuments.isMandatory,
+            validationRules: lenderRequiredDocuments.validationRules,
+            displayOrder: lenderRequiredDocuments.displayOrder,
+            createdAt: lenderRequiredDocuments.createdAt,
+            updatedAt: lenderRequiredDocuments.updatedAt,
+            isRequired: requiredDocMap.isRequired,
         })
-            .from(schema_1.requiredDocMap)
-            .innerJoin(schema_1.lenderRequiredDocuments, (0, drizzle_orm_1.eq)(schema_1.requiredDocMap.requiredDocumentId, schema_1.lenderRequiredDocuments.id))
-            .where((0, drizzle_orm_1.inArray)(schema_1.requiredDocMap.lenderProductId, productIds));
+            .from(requiredDocMap)
+            .innerJoin(lenderRequiredDocuments, eq(requiredDocMap.requiredDocumentId, lenderRequiredDocuments.id))
+            .where(inArray(requiredDocMap.lenderProductId, productIds));
         return docs;
     }
     async fetchDynamicQuestions(productIds) {
         if (!productIds.length)
             return [];
-        return db_1.db.select().from(schema_1.lenderDynamicQuestions).where((0, drizzle_orm_1.inArray)(schema_1.lenderDynamicQuestions.lenderProductId, productIds));
+        return db.select().from(lenderDynamicQuestions).where(inArray(lenderDynamicQuestions.lenderProductId, productIds));
     }
 }
-class LenderProductEngine {
+export class LenderProductEngine {
     provider;
     constructor(provider = new DrizzleProductDataProvider()) {
         this.provider = provider;
@@ -104,4 +101,3 @@ class LenderProductEngine {
         }));
     }
 }
-exports.LenderProductEngine = LenderProductEngine;

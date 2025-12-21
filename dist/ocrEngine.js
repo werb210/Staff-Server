@@ -1,13 +1,10 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.OCREngine = void 0;
-const db_1 = require("./db");
-const schema_1 = require("./db/schema");
-class OCREngine {
+import { db } from "./db";
+import { applicationTimelineEvents, ocrResults } from "./db/schema";
+export class OCREngine {
     async processDocument(request) {
         await this.logEvent(request.applicationId, "OCR_REQUESTED", { documentVersionId: request.documentVersionId }, request.userId);
-        const result = await db_1.db
-            .insert(schema_1.ocrResults)
+        const result = await db
+            .insert(ocrResults)
             .values({
             applicationId: request.applicationId,
             documentId: request.documentId,
@@ -21,7 +18,7 @@ class OCREngine {
         return result[0];
     }
     async logEvent(applicationId, eventType, metadata, actorUserId) {
-        await db_1.db.insert(schema_1.applicationTimelineEvents).values({
+        await db.insert(applicationTimelineEvents).values({
             applicationId,
             eventType,
             metadata,
@@ -30,4 +27,3 @@ class OCREngine {
         });
     }
 }
-exports.OCREngine = OCREngine;
