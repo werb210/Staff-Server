@@ -6,7 +6,10 @@ import { verifyUserCredentials } from "../services/authService";
 import { generateAccessToken } from "../utils/jwt";
 
 export const me = async (req: Request, res: Response) => {
-  return res.status(200).json(req.user ?? null);
+  if (!req.user) {
+    return res.status(401).json({ error: "Unauthenticated" });
+  }
+  return res.json(req.user);
 };
 
 export const authController = {
