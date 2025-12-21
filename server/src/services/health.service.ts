@@ -9,8 +9,7 @@ export interface HealthResponse {
 export function authHealthCheck(): HealthResponse {
   const issues: string[] = [];
 
-  if (!authConfig.ACCESS_TOKEN_SECRET) issues.push("ACCESS_TOKEN_SECRET missing");
-  if (!config.JWT_SECRET) issues.push("JWT_SECRET missing");
+  if (!authConfig.ACCESS_TOKEN_SECRET) issues.push("JWT secret missing");
 
   const twilioKeysProvided = [
     config.TWILIO_ACCOUNT_SID,
