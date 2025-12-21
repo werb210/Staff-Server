@@ -21,7 +21,7 @@ export const users = pgTable("users", {
   status: userStatusEnum("status").default("active").notNull(),
   is_active: boolean("is_active").notNull().default(true),
   phone: text("phone"),
-  phone_verified: boolean("phone_verified").notNull().default(false),
+  phone_verified: boolean("phone_verified").notNull().default(true),
   company_id: uuid("company_id").references(() => companies.id, { onDelete: "set null" }),
   created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),

@@ -9,11 +9,23 @@ export async function requireAuth(
   res: Response,
   next: NextFunction,
 ) {
-  const publicPrefixes = ["/api/auth", "/api/health"];
+  const publicRoutes: { path: string; methods: string[] }[] = [
+    { path: "/api/auth/login", methods: ["POST", "OPTIONS"] },
+    { path: "/api/auth/refresh", methods: ["POST", "OPTIONS"] },
+  ];
+
   const requestPath = req.originalUrl || req.path;
   const isRouteLevelMiddleware = Boolean(req.baseUrl);
 
-  if (!isRouteLevelMiddleware && publicPrefixes.some((prefix) => requestPath.startsWith(prefix))) {
+  const isPublicRoute =
+    !isRouteLevelMiddleware &&
+    publicRoutes.some(
+      ({ path, methods }) =>
+        methods.includes(req.method) &&
+        (requestPath === path || requestPath.startsWith(`${path}?`)),
+    );
+
+  if (isPublicRoute) {
     return next();
   }
 
