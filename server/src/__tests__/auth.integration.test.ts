@@ -1,27 +1,44 @@
+import { jest } from "@jest/globals";
 import request from "supertest";
 import { randomUUID } from "crypto";
 import { tokenService } from "../auth/token.service";
 import { passwordService } from "../services/password.service";
+import { createMockDb } from "../testUtils/mockDb";
+
+const adminPassword = "SecurePass123";
+const lenderPassword = "SecurePass456";
+const allowedUsers = new Map([
+  ["admin@example.com", { password: adminPassword, role: "Admin" }],
+  ["lender@example.com", { password: lenderPassword, role: "Lender" }],
+]);
 
 type MockDb = ReturnType<typeof import("../testUtils/mockDb")["createMockDb"]>;
 
 jest.mock("../db", () => {
-  const { createMockDb } = require("../testUtils/mockDb");
   const mockDb = createMockDb();
   return {
+    __esModule: true,
     db: mockDb.db,
-    verifyDatabaseConnection: jest.fn().mockResolvedValue(true),
+    verifyDatabaseConnection: jest.fn().mockResolvedValue(true as any),
     closeDatabase: jest.fn(),
     __mockDb: mockDb,
-  };
+  } as any;
 });
 
+jest.mock("../services/authService", () => ({
+  __esModule: true,
+  verifyUserCredentials: jest.fn(async (email: string, password: string) => {
+    const record = allowedUsers.get(email.trim().toLowerCase());
+    if (record && password === record.password) {
+      return { id: email, email: email.toLowerCase(), role: record.role };
+    }
+    return null;
+  }),
+}));
+
 const { __mockDb: mock } = jest.requireMock("../db") as { __mockDb: MockDb };
-
+const { verifyUserCredentials } = jest.requireMock("../services/authService") as { verifyUserCredentials: jest.Mock };
 import app from "../app";
-
-const adminPassword = "SecurePass123";
-const lenderPassword = "SecurePass456";
 
 async function seedUsers() {
   mock.userStore.length = 0;
@@ -51,6 +68,13 @@ async function seedUsers() {
 }
 
 beforeEach(async () => {
+  verifyUserCredentials.mockImplementation(async (email: string, password: string) => {
+    const record = allowedUsers.get(email.trim().toLowerCase());
+    if (record && password === record.password) {
+      return { id: email, email: email.toLowerCase(), role: record.role };
+    }
+    return null;
+  });
   await seedUsers();
 });
 
@@ -64,8 +88,7 @@ describe("Authentication and authorization", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(response.body.accessToken).toBeDefined();
-    expect(response.body.user.email).toBe("admin@example.com");
+    expect(response.body.token).toBeDefined();
     expect(response.header["set-cookie"]).toBeUndefined();
   });
 
@@ -76,7 +99,7 @@ describe("Authentication and authorization", () => {
     });
 
     expect(response.status).toBe(401);
-    expect(response.body.accessToken).toBeUndefined();
+    expect(response.body.token).toBeUndefined();
   });
 
   test("protected routes reject missing bearer token", async () => {

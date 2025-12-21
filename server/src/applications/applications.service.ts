@@ -37,6 +37,11 @@ export class ApplicationsService {
       productCategory: parsed.productCategory!,
       status: status,
       assignedTo: parsed.assignedTo,
+      kycData: parsed.kycData ?? {},
+      businessData: parsed.businessData ?? {},
+      applicantData: parsed.applicantData ?? {},
+      productSelection: parsed.productSelection ?? {},
+      signatureData: parsed.signatureData ?? {},
       createdAt: now,
       updatedAt: now,
     });
