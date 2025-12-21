@@ -16,6 +16,7 @@ export async function verifyUserCredentials(
       passwordHash: users.password_hash,
       status: users.status,
       isActive: users.is_active,
+      phoneVerified: users.phone_verified,
     })
     .from(users)
     .where(eq(users.email, email))
@@ -26,7 +27,8 @@ export async function verifyUserCredentials(
 
   const isDisabled =
     (typeof user.isActive === "boolean" && !user.isActive) ||
-    (user.status && user.status !== "active");
+    (user.status && user.status !== "active") ||
+    (typeof user.phoneVerified === "boolean" && !user.phoneVerified);
 
   if (isDisabled) return null;
 
