@@ -1,19 +1,14 @@
 {
-  "extends": "./tsconfig.json",
   "compilerOptions": {
-    "outDir": "dist",
-    "rootDir": "server/src",
+    "target": "ES2022",
     "module": "ES2022",
     "moduleResolution": "node",
-    "target": "ES2022"
+    "outDir": "dist",
+    "rootDir": "server/src",
+    "strict": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true
   },
-  "include": [
-    "server/src/**/*.ts",
-    "server/types/**/*.ts"
-  ],
-  "exclude": [
-    "**/*.test.ts",
-    "**/*.spec.ts",
-    "**/__tests__/**"
-  ]
+  "include": ["server/src/**/*"],
+  "exclude": ["**/*.test.ts", "**/__tests__/**"]
 }
