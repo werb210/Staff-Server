@@ -1,19 +1,20 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "outDir": "dist",
-    "rootDir": "server/src",
     "module": "ES2022",
+    "target": "ES2022",
     "moduleResolution": "node",
-    "target": "ES2022"
+    "outDir": "dist",
+    "rootDir": "server",
+    "sourceMap": false
   },
   "include": [
-    "server/src/**/*.ts",
-    "server/types/**/*.ts"
+    "server/**/*.ts"
   ],
   "exclude": [
     "**/*.test.ts",
-    "**/*.spec.ts",
-    "**/__tests__/**"
+    "**/tests/**",
+    "server/drizzle.config.ts",
+    "server/simulation/**"
   ]
 }
