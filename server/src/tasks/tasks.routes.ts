@@ -40,7 +40,7 @@ router.post("/", async (req, res, next) => {
 router.get("/my", async (req, res, next) => {
   try {
     const tasks = await tasksService.listMyTasks(req.user!.id);
-    res.json({ ok: true, tasks });
+    res.json({ items: tasks ?? [] });
   } catch (err) {
     next(err);
   }

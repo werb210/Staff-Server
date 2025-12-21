@@ -10,7 +10,7 @@ export const me = async (req: Request, res: Response) => {
     return res.status(401).json({ error: "Unauthenticated" });
   }
 
-  return res.status(200).json(req.user);
+  return res.status(200).json(req.user ?? null);
 };
 
 export const authController = {
@@ -54,6 +54,6 @@ export const authController = {
     if (!req.user) {
       return res.status(401).json({ error: "Authentication required" });
     }
-    return res.json({ user: req.user });
+    return res.json(req.user ?? null);
   },
 };
