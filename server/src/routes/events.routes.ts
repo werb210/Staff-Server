@@ -7,11 +7,11 @@ const router = Router();
 router.use(requireAuth);
 
 router.get("/", (_req, res) => {
-  res.json([]);
+  res.json({ items: [] });
 });
 
 router.get("/view-week", (_req, res) => {
-  res.json([]);
+  res.json({ items: [] });
 });
 
 export default router;

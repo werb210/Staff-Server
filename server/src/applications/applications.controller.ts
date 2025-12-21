@@ -33,7 +33,7 @@ export class ApplicationsController {
   list = async (_req: Request, res: Response, next: NextFunction) => {
     try {
       const apps = await this.service.listApplications();
-      res.json(apps);
+      res.json({ items: apps ?? [] });
     } catch (err) {
       next(err);
     }
