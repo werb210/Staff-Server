@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 import { db } from "../db";
 import { aiTrainingChunks } from "../db/schema";
 
@@ -59,7 +60,8 @@ export class AIEngine {
 
   constructor(provider: AIProvider, options: AIEngineOptions = {}) {
     this.provider = provider;
-    this.templatesDir = options.templatesDir ?? path.join(__dirname, "templates");
+    const currentDir = path.dirname(fileURLToPath(import.meta.url));
+    this.templatesDir = options.templatesDir ?? path.join(currentDir, "templates");
     this.logWriter = options.logWriter ?? new DrizzleAiLogWriter();
   }
 
