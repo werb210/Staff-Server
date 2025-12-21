@@ -30,7 +30,7 @@ class ApplicationsController {
     list = async (_req, res, next) => {
         try {
             const apps = await this.service.listApplications();
-            res.json(apps);
+            res.json({ items: Array.isArray(apps) ? apps : [] });
         }
         catch (err) {
             next(err);

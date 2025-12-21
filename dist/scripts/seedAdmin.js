@@ -27,6 +27,7 @@ async function seedAdmin() {
         status: "active",
         is_active: true,
         phone,
+        phone_verified: true,
     });
     console.log("✅ Admin seeded:", email);
 }
