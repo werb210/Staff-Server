@@ -1,5 +1,4 @@
-import { NextFunction, Request, Response } from "express";
-import { ZodError } from "zod";
+import { Request, Response, NextFunction } from "express";
 import { loginSchema } from "./auth.validators";
 import { BadRequest } from "../errors";
 import { verifyUserCredentials } from "../services/authService";
@@ -17,42 +16,19 @@ export const authController = {
     try {
       const parsed = loginSchema.parse(req.body);
 
-      const normalized = {
-        ...parsed,
-        email: parsed.email.trim().toLowerCase(),
-        password: parsed.password!,
-      };
-
-      if (!normalized.password) {
-        throw new BadRequest("password required");
-      }
-
-      const user = await verifyUserCredentials(normalized.email, normalized.password);
+      const user = await verifyUserCredentials(
+        parsed.email.trim().toLowerCase(),
+        parsed.password
+      );
 
       if (!user) {
         return res.status(401).json({ error: "Invalid credentials" });
       }
 
-      const { token: accessToken } = generateAccessToken(user);
-
-      res.status(200).json({
-        user,
-        accessToken,
-      });
-    } catch (error) {
-      if (error instanceof ZodError) {
-        return res
-          .status(400)
-          .json({ error: error.errors.map((e) => e.message).join(", ") });
-      }
-      next(error);
+      const { token } = generateAccessToken(user);
+      return res.status(200).json({ token });
+    } catch (err) {
+      next(err instanceof BadRequest ? err : new BadRequest("Login failed"));
     }
-  },
-
-  async me(req: Request, res: Response) {
-    if (!req.user) {
-      return res.status(401).json({ error: "Unauthenticated" });
-    }
-    return res.status(200).json(req.user ?? null);
   },
 };

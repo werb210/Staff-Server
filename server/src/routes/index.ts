@@ -1,27 +1,19 @@
-import { Express } from "express";
-
-import applicationsRouter from "../applications/applications.routes";
-import crmRouter from "../communications/communications.routes";
-import lendersRouter from "../api/lenders";
-import tasksRouter from "../tasks/tasks.routes";
+import { Router } from "express";
 import { requireAuth } from "../middleware/requireAuth";
-import publicRoutes from "./public";
-import eventsRouter from "./events.routes";
-import internalRoutes from "./_int.routes";
+import authRoutes from "./auth.routes";
+import applicationRoutes from "./applications.routes";
+import crmRoutes from "./crm.routes";
+import taskRoutes from "./tasks.routes";
+import lenderRoutes from "./lenders.routes";
 
-const API_PREFIX = "/api";
+const router = Router();
 
-export function registerRoutes(app: Express) {
-  app.use(publicRoutes);
-  app.use(`${API_PREFIX}/_int`, internalRoutes);
+router.use("/auth", authRoutes);
 
-  app.use(`${API_PREFIX}/applications`, requireAuth, applicationsRouter);
-  app.use(`${API_PREFIX}/crm`, requireAuth, crmRouter);
-  app.use(`${API_PREFIX}/events`, requireAuth, eventsRouter);
-  app.use(`${API_PREFIX}/tasks`, requireAuth, tasksRouter);
-  app.use(`${API_PREFIX}/lenders`, requireAuth, lendersRouter);
+router.use(requireAuth);
+router.use("/applications", applicationRoutes);
+router.use("/crm", crmRoutes);
+router.use("/tasks", taskRoutes);
+router.use("/lenders", lenderRoutes);
 
-  app.get(`${API_PREFIX}/health`, (_req, res) => {
-    res.json({ status: "ok" });
-  });
-}
+export default router;
