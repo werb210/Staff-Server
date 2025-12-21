@@ -25,4 +25,5 @@ export const users = pgTable("users", {
   company_id: uuid("company_id").references(() => companies.id, { onDelete: "set null" }),
   created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  last_login_at: timestamp("last_login_at", { withTimezone: true }),
 });
