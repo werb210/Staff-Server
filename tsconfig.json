@@ -10,5 +10,6 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true
   },
-  "include": ["server/src/**/*"]
+  "include": ["server/src/**/*"],
+  "exclude": ["server/src/__tests__"]
 }
