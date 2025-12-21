@@ -4,12 +4,11 @@ export default {
   roots: ['<rootDir>/server/src'],
   testMatch: ['**/__tests__/**/*.test.ts'],
   extensionsToTreatAsEsm: ['.ts'],
-  setupFiles: ['<rootDir>/jest.setup.ts'],
-  globals: {
-    'ts-jest': {
-      useESM: true,
-      tsconfig: '<rootDir>/tsconfig.json',
-      diagnostics: false,
-    },
+  setupFiles: ['<rootDir>/jest.setup.js'],
+  transform: {
+    '^.+\\.tsx?$': [
+      'ts-jest',
+      { useESM: true, tsconfig: '<rootDir>/server/tsconfig.jest.json', diagnostics: false },
+    ],
   },
 };
