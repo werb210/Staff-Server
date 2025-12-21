@@ -3,6 +3,7 @@ import cors from "cors";
 import { requireAuth } from "./middleware/auth";
 import authRoutes from "./routes/auth";
 import apiRoutes from "./routes";
+import healthRoutes from "./routes/health";
 
 const app = express();
 
@@ -19,6 +20,7 @@ app.use(express.json());
 
 // PUBLIC ROUTES (NO AUTH)
 app.use("/api/auth", authRoutes);
+app.use("/api", healthRoutes);
 
 // AUTH MIDDLEWARE
 app.use(requireAuth);
