@@ -4,9 +4,15 @@ import { Request, Response, NextFunction } from "express";
 import { jwtService } from "../services/jwt.service";
 import { findUserById, mapAuthenticated } from "../services/user.service";
 
-export async function requireAuth(req: Request, res: Response, next: NextFunction) {
-  // Allow unauthenticated access to auth routes
-  if (req.path.startsWith("/api/auth")) {
+export async function requireAuth(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  const publicPrefixes = ["/api/auth", "/api/health"];
+  const requestPath = req.originalUrl || req.path;
+
+  if (publicPrefixes.some((prefix) => requestPath.startsWith(prefix))) {
     return next();
   }
 
