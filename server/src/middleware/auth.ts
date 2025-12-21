@@ -11,8 +11,9 @@ export async function requireAuth(
 ) {
   const publicPrefixes = ["/api/auth", "/api/health"];
   const requestPath = req.originalUrl || req.path;
+  const isRouteLevelMiddleware = Boolean(req.baseUrl);
 
-  if (publicPrefixes.some((prefix) => requestPath.startsWith(prefix))) {
+  if (!isRouteLevelMiddleware && publicPrefixes.some((prefix) => requestPath.startsWith(prefix))) {
     return next();
   }
 
