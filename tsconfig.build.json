@@ -8,15 +8,14 @@
     "strict": true,
     "esModuleInterop": false,
     "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": true,
-    "sourceMap": false,
-    "declaration": false
+    "skipLibCheck": true
   },
-  "include": ["server/src/**/*.ts"],
+  "include": [
+    "server/src/**/*.ts"
+  ],
   "exclude": [
-    "**/*.test.ts",
-    "**/*.spec.ts",
     "**/__tests__/**",
-    "**/__mocks__/**"
+    "**/*.test.ts",
+    "**/*.spec.ts"
   ]
 }
