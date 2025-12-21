@@ -6,9 +6,7 @@ const twilioClient_1 = require("./twilioClient");
 function authHealthCheck() {
     const issues = [];
     if (!config_1.authConfig.ACCESS_TOKEN_SECRET)
-        issues.push("ACCESS_TOKEN_SECRET missing");
-    if (!config_1.config.JWT_SECRET)
-        issues.push("JWT_SECRET missing");
+        issues.push("JWT secret missing");
     const twilioKeysProvided = [
         config_1.config.TWILIO_ACCOUNT_SID,
         config_1.config.TWILIO_AUTH_TOKEN,

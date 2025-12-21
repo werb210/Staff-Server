@@ -15,7 +15,9 @@ exports.users = (0, pg_core_1.pgTable)("users", {
     status: (0, exports.userStatusEnum)("status").default("active").notNull(),
     is_active: (0, pg_core_1.boolean)("is_active").notNull().default(true),
     phone: (0, pg_core_1.text)("phone"),
+    phone_verified: (0, pg_core_1.boolean)("phone_verified").notNull().default(false),
     company_id: (0, pg_core_1.uuid)("company_id").references(() => companies_1.companies.id, { onDelete: "set null" }),
     created_at: (0, pg_core_1.timestamp)("created_at", { withTimezone: true }).defaultNow().notNull(),
     updated_at: (0, pg_core_1.timestamp)("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    last_login_at: (0, pg_core_1.timestamp)("last_login_at", { withTimezone: true }),
 });

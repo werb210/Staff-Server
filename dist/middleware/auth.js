@@ -6,7 +6,8 @@ const user_service_1 = require("../services/user.service");
 async function requireAuth(req, res, next) {
     const publicPrefixes = ["/api/auth", "/api/health"];
     const requestPath = req.originalUrl || req.path;
-    if (publicPrefixes.some((prefix) => requestPath.startsWith(prefix))) {
+    const isRouteLevelMiddleware = Boolean(req.baseUrl);
+    if (!isRouteLevelMiddleware && publicPrefixes.some((prefix) => requestPath.startsWith(prefix))) {
         return next();
     }
     const headerName = process.env.TOKEN_HEADER_NAME || "authorization";

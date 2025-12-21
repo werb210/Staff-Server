@@ -7,11 +7,13 @@ const router = Router();
 router.use(requireAuth);
 
 router.get("/", (_req, res) => {
-  res.json({ items: [] });
+  const events: unknown[] = [];
+  res.json({ items: Array.isArray(events) ? events : [] });
 });
 
 router.get("/view-week", (_req, res) => {
-  res.json({ items: [] });
+  const events: unknown[] = [];
+  res.json({ items: Array.isArray(events) ? events : [] });
 });
 
 export default router;

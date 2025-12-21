@@ -1,11 +1,15 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.authController = void 0;
+exports.authController = exports.me = void 0;
 const zod_1 = require("zod");
 const auth_validators_1 = require("./auth.validators");
 const errors_1 = require("../errors");
 const authService_1 = require("../services/authService");
 const jwt_1 = require("../utils/jwt");
+const me = async (req, res) => {
+    return res.status(200).json(req.user ?? null);
+};
+exports.me = me;
 exports.authController = {
     async login(req, res, next) {
         try {
@@ -41,6 +45,6 @@ exports.authController = {
         if (!req.user) {
             return res.status(401).json({ error: "Authentication required" });
         }
-        return res.json({ user: req.user });
+        return res.json(req.user ?? null);
     },
 };

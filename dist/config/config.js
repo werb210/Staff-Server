@@ -37,7 +37,8 @@ const baseSchema = zod_1.z.object({
  */
 const authSchema = zod_1.z.object({
     TOKEN_TRANSPORT: zod_1.z.literal("header"),
-    ACCESS_TOKEN_SECRET: zod_1.z.string().min(32, "ACCESS_TOKEN_SECRET must be at least 32 chars"),
+    // Optional for backwards compatibility; falls back to JWT_SECRET
+    ACCESS_TOKEN_SECRET: zod_1.z.string().min(32, "ACCESS_TOKEN_SECRET must be at least 32 chars").optional(),
     ACCESS_TOKEN_EXPIRES_IN: zod_1.z.string().optional(), // seconds
 });
 /**
@@ -127,9 +128,10 @@ exports.config = {
     TWILIO_PHONE_NUMBER_BF: parsedTwilio.TWILIO_PHONE_NUMBER_BF,
     TWILIO_PHONE_NUMBER_SLF: parsedTwilio.TWILIO_PHONE_NUMBER_SLF,
 };
+const accessTokenSecret = parsedAuth.ACCESS_TOKEN_SECRET ?? parsedBase.JWT_SECRET;
 exports.authConfig = {
     TOKEN_TRANSPORT: parsedAuth.TOKEN_TRANSPORT,
-    ACCESS_TOKEN_SECRET: parsedAuth.ACCESS_TOKEN_SECRET,
+    ACCESS_TOKEN_SECRET: accessTokenSecret,
     // default: 15m access (seconds)
     ACCESS_TOKEN_EXPIRES_IN: asInt(parsedAuth.ACCESS_TOKEN_EXPIRES_IN, 60 * 15),
 };
