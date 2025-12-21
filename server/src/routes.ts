@@ -1,4 +1,4 @@
-import { Express, Request, Response } from "express";
+import { Express, Request, Response, Router } from "express";
 
 import authRoutes from "./auth/auth.routes";
 import bankingRoutes from "./banking/banking.routes";
@@ -16,35 +16,32 @@ import tasksRoutes from "./tasks/tasks.routes";
 import pipelineRoutes from "./api/pipeline";
 import { requireAuth } from "./middleware/auth";
 
+const apiRouter = Router();
+
+apiRouter.use("/banking", bankingRoutes);
+apiRouter.use("/communications", communicationsRoutes);
+apiRouter.use("/_int", internalRoutes);
+apiRouter.get("/_int/health", (_req: Request, res: Response) => {
+  res.status(200).json({ status: "ok" });
+});
+apiRouter.use("/notifications", notificationsRoutes);
+apiRouter.use("/public", publicRoutes);
+apiRouter.use("/users", userRoutes);
+apiRouter.use("/applications", applicationsRoutes);
+apiRouter.use("/events", eventsRoutes);
+apiRouter.use("/ocr", ocrRoutes);
+apiRouter.use("/tasks", tasksRoutes);
+apiRouter.use("/pipeline", pipelineRoutes);
+apiRouter.use("/", healthRoutes);
+
+apiRouter.get("/", (_req: Request, res: Response) => {
+  res.status(200).send("OK");
+});
+
 export function registerRoutes(app: Express) {
-  // Public endpoints
   app.use("/api/auth", authRoutes);
-  app.get("/api/_int/health", (_req: Request, res: Response) => {
-    res.status(200).json({ status: "ok" });
-  });
-
-  // Everything beyond this point requires Bearer authentication
   app.use(requireAuth);
-
-  // Core namespaces
-  app.use("/api/banking", bankingRoutes);
-  app.use("/api/communications", communicationsRoutes);
-  app.use("/api/_int", internalRoutes);
-  app.use("/api/notifications", notificationsRoutes);
-  app.use("/api/public", publicRoutes);
-  app.use("/api/users", userRoutes);
-
-  // Business routes required by portal
-  app.use("/api/applications", applicationsRoutes);
-  app.use("/api/events", eventsRoutes);
-  app.use("/api/ocr", ocrRoutes);
-  app.use("/api/tasks", tasksRoutes);
-  app.use("/api/pipeline", pipelineRoutes);
-
-  // Health + root
-  app.use("/api", healthRoutes);
-
-  app.get("/api", (_req: Request, res: Response) => {
-    res.status(200).send("OK");
-  });
+  app.use("/api", apiRouter);
 }
+
+export default apiRouter;
