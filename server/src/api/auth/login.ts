@@ -1,16 +1,17 @@
 import { Request, Response } from "express";
-import bcrypt from "bcryptjs";
-import { db } from "../../db";
-import { users } from "../../db/schema";
+import { db } from "../../db/index.js";
+import { users } from "../../db/schema.js";
 import { eq } from "drizzle-orm";
-import { signJwt } from "../../services/jwt.service";
+
+import { signAccessToken } from "../../services/jwt.service.js";
+import { comparePassword } from "../../services/password.service.js";
 
 export async function login(req: Request, res: Response) {
   try {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({ error: "Email and password required" });
+      return res.status(400).json({ error: "Email and password are required" });
     }
 
     const normalizedEmail = email.toLowerCase().trim();
@@ -19,23 +20,19 @@ export async function login(req: Request, res: Response) {
       where: eq(users.email, normalizedEmail),
     });
 
-    if (!user) {
+    if (!user || !user.passwordHash) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    const passwordValid = await bcrypt.compare(
-      password,
-      user.passwordHash
-    );
+    const passwordValid = await comparePassword(password, user.passwordHash);
 
     if (!passwordValid) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    const token = signJwt({
+    const token = signAccessToken({
       userId: user.id,
       role: user.role,
-      email: user.email,
     });
 
     return res.json({
