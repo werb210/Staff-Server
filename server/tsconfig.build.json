@@ -1,16 +1,29 @@
+// FILE: server/tsconfig.build.json
 {
+  "extends": "./tsconfig.json",
   "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
     "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "outDir": "dist",
-    "rootDir": "server/src",
-    "strict": true,
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "sourceMap": true,
+    "declaration": false,
+    "noEmitOnError": true
   },
+  "include": [
+    "src/**/*.ts"
+  ],
   "exclude": [
+    "**/*.test.ts",
+    "**/*.spec.ts",
     "**/__tests__/**",
-    "**/*.test.ts"
+    "testUtils/**",
+    "scripts/**",
+    "simulation/**",
+    "vitest.config.ts",
+    "drizzle.config.ts",
+    "node_modules",
+    "dist"
   ]
 }
