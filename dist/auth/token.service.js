@@ -1,4 +1,4 @@
-import { jwtService } from "../services/jwt.service";
+import { jwtService } from "../services/jwt.service.js";
 function buildPayload(user) {
     return {
         userId: user.id,

@@ -4,7 +4,7 @@ import { verifyDatabaseConnection } from "../db";
 import { listRegisteredRoutes } from "../routes/listRoutes";
 import { db } from "../db";
 import { users } from "../db/schema";
-import { passwordService } from "../services/password.service";
+import { passwordService } from "../services/password.service.js";
 const router = Router();
 /**
  * GET /api/internal/health

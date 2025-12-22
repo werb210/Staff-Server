@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { OTP_ENABLED } from "../services/otpToggle";
+import { OTP_ENABLED } from "../services/otpToggle.js";
 const passwordComplexity = z
     .string()
     .min(8, "Password must be at least 8 characters")

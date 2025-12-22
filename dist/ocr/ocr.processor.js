@@ -1,4 +1,4 @@
-import { getFile } from "../services/blobService";
+import { getFile } from "../services/blobService.js";
 class MockProvider {
     async extract(buffer) {
         return buffer.toString("utf-8");

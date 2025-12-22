@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { assertDatabaseConnection, verifyDatabaseConnection } from "../db";
-import { authHealthCheck } from "../services/health.service";
+import { authHealthCheck } from "../services/health.service.js";
 const router = Router();
 router.get("/health", (_req, res) => {
     res.json({ status: "ok" });
