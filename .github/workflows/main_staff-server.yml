@@ -5,10 +5,6 @@ on:
     branches:
       - main
 
-permissions:
-  id-token: write
-  contents: read
-
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -39,8 +35,19 @@ jobs:
           cd server
           npm run build
 
+      - name: Prepare deployment artifact
+        run: |
+          cd server
+          rm -rf dist-deploy
+          mkdir -p dist-deploy
+          cp -r dist dist-deploy/
+          cp package.json package-lock.json dist-deploy/
+          cp -r node_modules dist-deploy/node_modules
+          rm -rf dist
+          mv dist-deploy dist
+
       - name: Deploy to Azure App Service
-        uses: azure/webapps-deploy@v3
+        uses: azure/webapps-deploy@v2
         with:
           app-name: boreal-staff-server
-          package: server
+          package: server/dist
