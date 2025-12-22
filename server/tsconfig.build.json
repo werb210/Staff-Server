@@ -1,5 +1,4 @@
 {
-  "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "../dist",
     "rootDir": "../src",
@@ -8,11 +7,13 @@
     "moduleResolution": "node",
 
     "target": "ES2020",
+    "lib": ["ES2020"],
+
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
 
-    "declaration": false,
+    "strict": false,
     "sourceMap": false
   },
   "include": ["../src/**/*.ts"],
