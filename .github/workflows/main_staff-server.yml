@@ -1,4 +1,4 @@
-name: Build and Deploy Staff Server
+name: Build and Deploy Staff-Server to Azure
 
 on:
   push:
@@ -13,26 +13,37 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Use Node 20
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
 
-      - name: Install dependencies (FULL, NOT PROD-ONLY)
-        run: npm ci
+      # 🔑 THIS IS THE CRITICAL FIX
+      # We MUST install runtime deps so pg exists at runtime
+      - name: Install dependencies (runtime + dev)
+        run: npm install
 
       - name: Build TypeScript
         run: npm run build
 
-      - name: Archive build output
+      # Ensure dist + node_modules are packaged
+      - name: Prepare deployment artifact
         run: |
-          mkdir -p deploy
-          cp -r dist package.json package-lock.json deploy/
+          mkdir deploy
+          cp -R dist deploy/dist
+          cp -R node_modules deploy/node_modules
+          cp package.json deploy/package.json
+          cp package-lock.json deploy/package-lock.json
+
+      - name: Zip artifact
+        run: |
+          cd deploy
+          zip -r ../app.zip .
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
           app-name: boreal-staff-server
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: deploy
+          package: app.zip
