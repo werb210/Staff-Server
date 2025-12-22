@@ -1,42 +1,21 @@
 import express from "express";
 import cors from "cors";
+import dotenv from "dotenv";
+import authRouter from "./api/auth/index.js";
 
-import { requireAuth } from "./middleware/auth.js";
-import authRoutes from "./routes/auth.js";
-import apiRoutes from "./routes/index.js";
-import healthRoutes from "./routes/health.js";
+dotenv.config();
 
 const app = express();
-
-app.use(
-  cors({
-    origin: "https://staff.boreal.financial",
-    credentials: true
-  })
-);
-
-app.options(
-  "*",
-  cors({
-    origin: "https://staff.boreal.financial",
-    credentials: true
-  })
-);
-
 app.use(express.json());
+app.use(cors({ origin: true, credentials: true }));
 
-// PUBLIC ROUTES (NO AUTH)
-app.use("/api/auth", authRoutes);
-app.use("/api/health", healthRoutes);
+app.use("/api/auth", authRouter);
 
-// AUTH MIDDLEWARE
-app.use(requireAuth);
+app.get("/_health", (_req, res) => {
+  res.status(200).json({ ok: true });
+});
 
-// PROTECTED ROUTES
-app.use("/api", apiRoutes);
-
-const port = Number(process.env.PORT) || 8080;
-
+const port = Number(process.env.PORT ?? 3000);
 app.listen(port, () => {
-  console.log(`Staff Server running on port ${port}`);
+  console.log(`Staff-Server running on port ${port}`);
 });
