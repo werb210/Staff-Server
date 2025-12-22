@@ -1,23 +1,22 @@
-import { jwtService } from "../auth/token.service.js";
+import type { Request, Response, NextFunction } from "express";
+import { jwtService } from "../services/jwt.service.js";
 
-export function requireAuth(req, res, next) {
+export function requireAuth(req: Request, res: Response, next: NextFunction) {
   try {
     const authHeader = req.headers.authorization;
-
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({ error: "Missing or invalid authorization header" });
+    if (!authHeader) {
+      return res.status(401).json({ error: "Missing Authorization header" });
     }
 
-    const token = authHeader.slice("Bearer ".length);
-    const decoded = jwtService.verifyAccessToken(token);
+    const token = authHeader.startsWith("Bearer ")
+      ? authHeader.slice(7)
+      : authHeader;
 
-    if (!decoded) {
-      return res.status(401).json({ error: "Invalid or expired token" });
-    }
+    const payload = jwtService.verify(token);
+    (req as any).user = payload;
 
-    req.user = decoded;
     next();
-  } catch {
-    return res.status(401).json({ error: "Unauthorized" });
+  } catch (err) {
+    return res.status(401).json({ error: "Invalid or expired token" });
   }
 }
