@@ -1,43 +1,24 @@
 import { jwtService } from "../services/jwt.service.js";
-import { findUserById, mapAuthenticated } from "../services/user.service.js";
-export async function requireAuth(req, res, next) {
-    const publicRoutes = [
-        { path: "/api/auth/login", methods: ["POST", "OPTIONS"] },
-        { path: "/api/auth/refresh", methods: ["POST", "OPTIONS"] },
-    ];
-    const requestPath = req.originalUrl || req.path;
-    const isRouteLevelMiddleware = Boolean(req.baseUrl);
-    const isPublicRoute = !isRouteLevelMiddleware &&
-        publicRoutes.some(({ path, methods }) => methods.includes(req.method) &&
-            (requestPath === path || requestPath.startsWith(`${path}?`)));
-    if (isPublicRoute) {
-        return next();
+
+export function requireAuth(req, res, next) {
+  try {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Missing or invalid authorization header" });
     }
-    const headerName = process.env.TOKEN_HEADER_NAME || "authorization";
-    const authHeader = req.headers[headerName];
-    if (!authHeader) {
-        return res.status(401).json({ error: "Missing Authorization header" });
+
+    const token = authHeader.substring("Bearer ".length);
+
+    const decoded = jwtService.verifyAccessToken(token);
+
+    if (!decoded) {
+      return res.status(401).json({ error: "Invalid or expired token" });
     }
-    const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
-    if (!bearerMatch) {
-        return res.status(401).json({ error: "Authorization header must use Bearer scheme" });
-    }
-    const accessToken = bearerMatch[1]?.trim();
-    if (!accessToken) {
-        return res.status(401).json({ error: "Missing Bearer token" });
-    }
-    try {
-        const payload = jwtService.verifyAccessToken(accessToken);
-        const userRecord = await findUserById(payload.userId);
-        const user = mapAuthenticated(userRecord);
-        if (!user) {
-            return res.status(401).json({ error: "User not found" });
-        }
-        req.user = user;
-        next();
-    }
-    catch (err) {
-        return res.status(401).json({ error: "Invalid or expired token" });
-    }
+
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
 }
-export default requireAuth;
