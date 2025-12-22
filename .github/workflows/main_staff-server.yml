@@ -1,15 +1,16 @@
-name: Staff Server CI / CD
+name: Staff Server CI/CD
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repo
         uses: actions/checkout@v4
 
       - name: Setup Node
@@ -18,28 +19,15 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Install dependencies (PROD ONLY)
-        run: npm ci --omit=dev
+      - name: Install dependencies
+        run: npm ci
 
       - name: Build TypeScript
         run: npm run build
 
-      - name: Prepare deploy package
-        run: |
-          rm -rf deploy
-          mkdir deploy
-          cp -r dist deploy/
-          cp -r node_modules deploy/
-          cp package.json package-lock.json deploy/
-
-      - name: Zip deploy package
-        run: |
-          cd deploy
-          zip -r ../deploy.zip .
-
-      - name: Deploy to Azure App Service
+      - name: Deploy source to Azure
         uses: azure/webapps-deploy@v3
         with:
           app-name: boreal-staff-server
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: deploy.zip
+          package: .
