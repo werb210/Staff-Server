@@ -39,8 +39,20 @@ jobs:
           cd server
           npm run build
 
+      - name: Prepare deployment artifact
+        run: |
+          cd server
+          rm -rf dist-deploy
+          mkdir -p dist-deploy/dist
+          cp -R dist/* dist-deploy/dist/
+          cp package.json package-lock.json dist-deploy/
+          cp -R node_modules dist-deploy/node_modules
+          rm -rf dist
+          mv dist-deploy dist
+
       - name: Deploy to Azure App Service
         uses: azure/webapps-deploy@v3
         with:
           app-name: boreal-staff-server
-          package: server
+          package: server/dist
+          startup-command: "node dist/index.js"

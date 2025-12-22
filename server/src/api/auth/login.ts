@@ -1,13 +1,11 @@
-import type { NextFunction, Request, Response } from "express";
+import type { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
-import { db } from "../../db"; // adjust if your db import differs
+import { db } from "../../db/client.js";
+import { users } from "../../db/schema/users.js";
+import { eq } from "drizzle-orm";
 
-export async function login(
-  req: Request,
-  res: Response,
-  _next: NextFunction
-) {
+export async function login(req: Request, res: Response) {
   try {
     const { email, password } = req.body as {
       email?: string;
@@ -15,44 +13,34 @@ export async function login(
     };
 
     if (!email || !password) {
-      console.error("LOGIN_FAIL: missing credentials", { emailProvided: !!email });
       return res.status(400).json({ error: "Missing credentials" });
     }
 
-    // 🔹 FETCH REAL USER
-    const user = await db.users.findFirst({
-      where: { email }
+    const user = await db.query.users.findFirst({
+      where: eq(users.email, email),
     });
 
-    if (!user) {
-      console.error("LOGIN_FAIL: user not found", { email });
+    if (!user || !user.password_hash) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    // 🔹 CORRECT PASSWORD CHECK
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) {
-      console.error("LOGIN_FAIL: invalid password", { email });
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
     const secret = process.env.JWT_SECRET;
     if (!secret) {
-      console.error("LOGIN_FAIL: JWT_SECRET missing");
-      return res.status(500).json({ error: "Server misconfigured" });
+      return res.status(500).json({ error: "JWT_SECRET missing" });
     }
 
     const token = jwt.sign(
-      {
-        sub: user.id,
-        email: user.email,
-        role: user.role
-      },
+      { sub: user.id, role: user.role },
       secret,
       { expiresIn: "1h" }
     );
 
-    return res.status(200).json({ accessToken: token });
+    return res.json({ accessToken: token });
   } catch (err) {
     console.error("LOGIN_FATAL", err);
     return res.status(500).json({ error: "Login failed" });

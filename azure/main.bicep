@@ -10,6 +10,17 @@ param containerImage string
 @description('Port exposed by the container image.')
 param containerPort int = 8080
 
+@description('Database connection string for the application.')
+@secure()
+param databaseUrl string
+
+@description('JWT secret used for signing access tokens.')
+@secure()
+param jwtSecret string
+
+@description('Node environment to run the API in.')
+param nodeEnv string = 'production'
+
 @description('SKU for the Azure Container Registry.')
 @allowed(['Basic', 'Standard', 'Premium'])
 param acrSku string = 'Standard'
@@ -90,6 +101,7 @@ resource webApp 'Microsoft.Web/sites@2022-09-01' = {
     ftpsState: 'Disabled'
     siteConfig: {
       linuxFxVersion: 'DOCKER|${acr.properties.loginServer}/${containerImage}'
+      appCommandLine: 'node dist/index.js'
       acrUseManagedIdentityCreds: true
       acrUserManagedIdentityID: managedIdentity.id
       healthCheckPath: '/api/_int/live'
@@ -105,6 +117,18 @@ resource webApp 'Microsoft.Web/sites@2022-09-01' = {
         {
           name: 'PORT'
           value: string(containerPort)
+        }
+        {
+          name: 'DATABASE_URL'
+          value: databaseUrl
+        }
+        {
+          name: 'JWT_SECRET'
+          value: jwtSecret
+        }
+        {
+          name: 'NODE_ENV'
+          value: nodeEnv
         }
         {
           name: 'APPINSIGHTS_INSTRUMENTATIONKEY'
