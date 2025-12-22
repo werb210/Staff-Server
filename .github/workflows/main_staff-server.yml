@@ -2,37 +2,37 @@ name: Staff Server CI / CD
 
 on:
   push:
-    branches: [ "main" ]
-  workflow_dispatch:
+    branches: [ main ]
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Use Node 20
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: "npm"
+          cache: npm
 
-      # ✅ THIS IS THE FIX — runtime deps are installed
-      - name: Install dependencies (production)
-        run: npm ci --omit=dev
+      - name: Install dependencies (INCLUDING DEV)
+        run: |
+          npm ci
 
       - name: Build TypeScript
-        run: npm run build
-
-      - name: Zip artifact for Azure
         run: |
-          zip -r release.zip dist node_modules package.json package-lock.json
+          npm run build
+
+      - name: Archive production build
+        run: |
+          zip -r deploy.zip dist package.json package-lock.json node_modules
 
       - name: Deploy to Azure App Service
-        uses: azure/webapps-deploy@v2
+        uses: azure/webapps-deploy@v3
         with:
           app-name: boreal-staff-server
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: release.zip
+          package: deploy.zip
