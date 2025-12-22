@@ -1,13 +1,10 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "noEmit": true,
-    "types": ["vitest/globals", "node"],
+    "types": ["jest", "node"],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "target": "ES2022"
+    "noEmit": true
   },
-  "include": [
-    "server/src/__tests__/**/*.ts"
-  ]
+  "include": ["server/src/__tests__/**/*.ts"]
 }
