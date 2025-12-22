@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
+import { db } from "../../db"; // adjust if your db import differs
 
 export async function login(
   req: Request,
@@ -18,13 +19,18 @@ export async function login(
       return res.status(400).json({ error: "Missing credentials" });
     }
 
-    const user = {
-      id: "debug-user",
-      email: "admin@example.com",
-      passwordHash: await bcrypt.hash("password123", 10)
-    };
+    // 🔹 FETCH REAL USER
+    const user = await db.users.findFirst({
+      where: { email }
+    });
 
-    const valid = await bcrypt.compare(password, user.passwordHash);
+    if (!user) {
+      console.error("LOGIN_FAIL: user not found", { email });
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    // 🔹 CORRECT PASSWORD CHECK
+    const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) {
       console.error("LOGIN_FAIL: invalid password", { email });
       return res.status(401).json({ error: "Invalid credentials" });
@@ -32,12 +38,16 @@ export async function login(
 
     const secret = process.env.JWT_SECRET;
     if (!secret) {
-      console.error("LOGIN_FAIL: JWT_SECRET missing in environment");
+      console.error("LOGIN_FAIL: JWT_SECRET missing");
       return res.status(500).json({ error: "Server misconfigured" });
     }
 
     const token = jwt.sign(
-      { sub: user.id, email: user.email },
+      {
+        sub: user.id,
+        email: user.email,
+        role: user.role
+      },
       secret,
       { expiresIn: "1h" }
     );
