@@ -2,12 +2,17 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "dist",
+    "rootDir": "server/src",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "target": "ES2022",
-    "rootDir": "server/src",
+    "sourceMap": true,
+    "declaration": false,
     "noEmitOnError": true
   },
+  "include": [
+    "server/src/**/*.ts"
+  ],
   "exclude": [
     "**/__tests__/**",
     "**/*.test.ts",
