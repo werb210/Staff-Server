@@ -8,7 +8,7 @@ export class PasswordService {
     return bcrypt.hash(password, PASSWORD_SALT_ROUNDS);
   }
 
-  static async verifyPassword(
+  static async comparePassword(
     password: string,
     hash: string
   ): Promise<boolean> {
@@ -19,10 +19,7 @@ export class PasswordService {
     return bcrypt.hash(token, TOKEN_SALT_ROUNDS);
   }
 
-  static async verifyToken(
-    token: string,
-    hash: string
-  ): Promise<boolean> {
+  static async verifyToken(token: string, hash: string): Promise<boolean> {
     return bcrypt.compare(token, hash);
   }
 }
