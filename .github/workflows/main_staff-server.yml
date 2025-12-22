@@ -5,6 +5,10 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+  id-token: write   # REQUIRED for Azure OIDC
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -28,26 +32,15 @@ jobs:
       - name: Install dependencies
         run: |
           cd server
-          npm ci
+          npm install
 
       - name: Build server
         run: |
           cd server
           npm run build
 
-      - name: Prepare deployment artifact
-        run: |
-          cd server
-          rm -rf dist-deploy
-          mkdir -p dist-deploy
-          cp -r dist dist-deploy/
-          cp package.json package-lock.json dist-deploy/
-          cp -r node_modules dist-deploy/node_modules
-          rm -rf dist
-          mv dist-deploy dist
-
       - name: Deploy to Azure App Service
-        uses: azure/webapps-deploy@v2
+        uses: azure/webapps-deploy@v3
         with:
           app-name: boreal-staff-server
-          package: server/dist
+          package: server
