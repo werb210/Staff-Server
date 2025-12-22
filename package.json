@@ -9,9 +9,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/index.js",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "typecheck:tests": "tsc -p tsconfig.test.json --noEmit"
+    "typecheck:tests": "tsc -p tsconfig.test.json",
+    "test": "vitest run"
   },
   "dependencies": {
     "cors": "^2.8.5",
