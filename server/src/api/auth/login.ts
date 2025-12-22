@@ -1,8 +1,12 @@
-import type { Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 
-export async function login(req: Request, res: Response) {
+export async function login(
+  req: Request,
+  res: Response,
+  _next: NextFunction
+) {
   try {
     const { email, password } = req.body as {
       email?: string;

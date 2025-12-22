@@ -12,7 +12,7 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "strict": true,
-    "noResolve": true
+    "types": ["node"]
   },
   "include": ["server/src/**/*.ts"],
   "exclude": [

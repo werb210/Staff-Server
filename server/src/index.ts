@@ -1,4 +1,4 @@
-import express from "express";
+import express, { type NextFunction, type Request, type Response } from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import authRouter from "./api/auth/index.js";
@@ -11,7 +11,7 @@ app.use(cors({ origin: true, credentials: true }));
 
 app.use("/api/auth", authRouter);
 
-app.get("/_health", (_req, res) => {
+app.get("/_health", (_req: Request, res: Response, _next: NextFunction) => {
   res.status(200).json({ ok: true });
 });
 
