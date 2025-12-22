@@ -4,7 +4,7 @@ import { randomUUID } from "crypto";
 import { db } from "../db";
 import { applications, documentIntegrityEvents, documentVersions, documents, } from "../db/schema";
 import { requireAuth } from "../middleware/requireAuth";
-import { buildDocumentBlobKey, generateReadSas, generateUploadSas, headBlob } from "../services/blobService";
+import { buildDocumentBlobKey, generateReadSas, generateUploadSas, headBlob } from "../services/blobService.js";
 import { DocumentCompleteSchema, DocumentCreateSchema, DocumentValidateSchema } from "../documents/documents.validators";
 import { OcrService } from "../ocr/ocr.service";
 import { BankingService } from "../banking/banking.service";

@@ -1,5 +1,5 @@
-import { jwtService } from "../services/jwt.service";
-import { findUserById, mapAuthenticated } from "../services/user.service";
+import { jwtService } from "../services/jwt.service.js";
+import { findUserById, mapAuthenticated } from "../services/user.service.js";
 export async function requireAuth(req, res, next) {
     const publicRoutes = [
         { path: "/api/auth/login", methods: ["POST", "OPTIONS"] },

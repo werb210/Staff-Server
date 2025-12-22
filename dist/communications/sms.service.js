@@ -4,7 +4,7 @@ import { config } from "../config/config";
 import { DrizzleApplicationsRepository } from "../applications/applications.repository";
 import { TimelineService } from "../applications/timeline.service";
 import { eq, asc, and } from "drizzle-orm";
-import { hasTwilioMessaging, twilioClient } from "../services/twilioClient";
+import { hasTwilioMessaging, twilioClient } from "../services/twilioClient.js";
 export class SmsService {
     database;
     twilioClient;

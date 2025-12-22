@@ -4,7 +4,7 @@ import { db } from "../db";
 import { users } from "../db/schema";
 import { requireAuth } from "../middleware/requireAuth";
 import { requireRole } from "../middleware/requireRole";
-import { passwordService } from "../services/password.service";
+import { passwordService } from "../services/password.service.js";
 const router = Router();
 router.use(requireAuth);
 router.use(requireRole("Admin"));

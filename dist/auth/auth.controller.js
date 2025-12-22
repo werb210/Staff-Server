@@ -1,6 +1,6 @@
 import { loginSchema } from "./auth.validators";
 import { BadRequest } from "../errors";
-import { verifyUserCredentials } from "../services/authService";
+import { verifyUserCredentials } from "../services/authService.js";
 import { generateAccessToken } from "../utils/jwt";
 export const me = async (req, res) => {
     if (!req.user) {

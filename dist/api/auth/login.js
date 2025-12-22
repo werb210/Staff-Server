@@ -1,4 +1,4 @@
-import { verifyUserCredentials } from "../../services/authService";
+import { verifyUserCredentials } from "../../services/authService.js";
 import { generateAccessToken } from "../../utils/jwt";
 export async function login(req, res) {
     const { email, password } = req.body;
