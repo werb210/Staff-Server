@@ -1,36 +1,24 @@
-name: Staff Server CI / CD
+- name: Install dependencies
+  run: npm ci
 
-on:
-  push:
-    branches: [ main ]
+- name: Build TypeScript
+  run: npm run build
 
-jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
+- name: Prepare deploy folder
+  run: |
+    rm -rf deploy
+    mkdir deploy
+    cp -r dist deploy/
+    cp package.json package-lock.json deploy/
 
-    steps:
-      - uses: actions/checkout@v4
+- name: Zip deploy folder
+  run: |
+    cd deploy
+    zip -r ../deploy.zip .
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install deps (build only)
-        run: npm ci
-
-      - name: Build TypeScript
-        run: npm run build
-
-      # 🔴 DO NOT ZIP node_modules
-      - name: Package app
-        run: |
-          zip -r deploy.zip dist package.json package-lock.json
-
-      - name: Deploy to Azure
-        uses: azure/webapps-deploy@v3
-        with:
-          app-name: boreal-staff-server
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: deploy.zip
+- name: Deploy to Azure App Service
+  uses: azure/webapps-deploy@v3
+  with:
+    app-name: boreal-staff-server
+    publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+    package: deploy.zip
