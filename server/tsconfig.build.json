@@ -2,17 +2,19 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "../dist",
-    "rootDir": "./src",
-    "module": "CommonJS",
+    "rootDir": "../src",
+
+    "module": "commonjs",
     "moduleResolution": "node",
+
     "target": "ES2020",
-    "declaration": false,
-    "sourceMap": false,
     "esModuleInterop": true,
     "resolveJsonModule": true,
-    "strict": false,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+
+    "declaration": false,
+    "sourceMap": false
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["../src/**/*.ts"],
+  "exclude": ["../node_modules", "../tests"]
 }
