@@ -1,9 +1,9 @@
 import type { Request, Response } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import { db } from "../../db/client";
-import { users } from "../../db/schema/users";
-import { eq } from "drizzle-orm";
+import { db } from "../../db/client.js";
+import { users } from "../../db/schema/users.js";
+import { eq, type InferSelectModel } from "drizzle-orm";
 
 export async function login(req: Request, res: Response) {
   try {
@@ -21,13 +21,13 @@ export async function login(req: Request, res: Response) {
       .from(users)
       .where(eq(users.email, email))
       .limit(1)
-      .then(r => r[0]);
+      .then((rows: InferSelectModel<typeof users>[]) => rows[0]);
 
-    if (!user || !user.password_hash) {
+    if (!user || !user.passwordHash) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    const valid = await bcrypt.compare(password, user.password_hash);
+    const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
