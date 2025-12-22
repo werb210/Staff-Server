@@ -9,8 +9,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -18,17 +17,18 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Install deps (CI only)
+      - name: Install deps (build only)
         run: npm ci
 
       - name: Build TypeScript
         run: npm run build
 
-      - name: Create deploy package (NO node_modules)
+      # 🔴 DO NOT ZIP node_modules
+      - name: Package app
         run: |
           zip -r deploy.zip dist package.json package-lock.json
 
-      - name: Deploy to Azure App Service
+      - name: Deploy to Azure
         uses: azure/webapps-deploy@v3
         with:
           app-name: boreal-staff-server
