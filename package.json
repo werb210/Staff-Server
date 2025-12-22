@@ -9,20 +9,22 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/index.js",
-    "typecheck:tests": "tsc -p tsconfig.test.json",
-    "test": "vitest run"
+    "test": "jest --runInBand",
+    "typecheck:tests": "tsc -p tsconfig.test.json --noEmit"
   },
   "dependencies": {
-    "cors": "^2.8.5",
     "express": "^4.21.2",
+    "cors": "^2.8.5",
     "jsonwebtoken": "^9.0.2"
   },
   "devDependencies": {
-    "@types/cors": "^2.8.17",
-    "@types/express": "^4.17.21",
-    "@types/jsonwebtoken": "^9.0.6",
-    "@types/node": "^20.11.30",
     "typescript": "^5.4.5",
-    "vitest": "^1.6.0"
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.1",
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.11.30",
+    "@types/express": "^4.17.21",
+    "@types/cors": "^2.8.17",
+    "@types/jsonwebtoken": "^9.0.6"
   }
 }
