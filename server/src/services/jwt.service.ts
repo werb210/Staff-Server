@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
 
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
-const JWT_EXPIRES_IN = "1h";
+const JWT_EXPIRES_IN = "1d";
 
 export interface JwtPayload {
   userId: string;
@@ -10,7 +10,9 @@ export interface JwtPayload {
 
 export class JwtService {
   static sign(payload: JwtPayload): string {
-    return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+    return jwt.sign(payload, JWT_SECRET, {
+      expiresIn: JWT_EXPIRES_IN,
+    });
   }
 
   static verify(token: string): JwtPayload {
