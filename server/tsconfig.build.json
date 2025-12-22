@@ -1,11 +1,17 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "rootDir": "../src",
-    "outDir": "../dist",
+    "outDir": "./dist",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "ES2022",
     "noEmit": false,
     "sourceMap": false
   },
-  "include": ["../src/**/*.ts"],
-  "exclude": ["../src/tests/**", "**/*.spec.ts"]
+  "exclude": [
+    "src/__tests__/**",
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "src/api/client.ts"
+  ]
 }
