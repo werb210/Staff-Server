@@ -1,13 +1,11 @@
-import type { NextFunction, Request, Response } from "express";
+import type { Request, Response } from "express";
+import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import bcrypt from "bcryptjs";
-import { db } from "../../db"; // adjust if your db import differs
+import { db } from "../../db/client";
+import { users } from "../../db/schema/users";
+import { eq } from "drizzle-orm";
 
-export async function login(
-  req: Request,
-  res: Response,
-  _next: NextFunction
-) {
+export async function login(req: Request, res: Response) {
   try {
     const { email, password } = req.body as {
       email?: string;
@@ -15,46 +13,39 @@ export async function login(
     };
 
     if (!email || !password) {
-      console.error("LOGIN_FAIL: missing credentials", { emailProvided: !!email });
       return res.status(400).json({ error: "Missing credentials" });
     }
 
-    // 🔹 FETCH REAL USER
-    const user = await db.users.findFirst({
-      where: { email }
-    });
+    const user = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1)
+      .then(r => r[0]);
 
-    if (!user) {
-      console.error("LOGIN_FAIL: user not found", { email });
+    if (!user || !user.password_hash) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    // 🔹 CORRECT PASSWORD CHECK
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) {
-      console.error("LOGIN_FAIL: invalid password", { email });
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
     const secret = process.env.JWT_SECRET;
     if (!secret) {
-      console.error("LOGIN_FAIL: JWT_SECRET missing");
-      return res.status(500).json({ error: "Server misconfigured" });
+      throw new Error("JWT_SECRET missing");
     }
 
     const token = jwt.sign(
-      {
-        sub: user.id,
-        email: user.email,
-        role: user.role
-      },
+      { sub: user.id, email: user.email, role: user.role },
       secret,
       { expiresIn: "1h" }
     );
 
-    return res.status(200).json({ accessToken: token });
+    return res.json({ accessToken: token });
   } catch (err) {
-    console.error("LOGIN_FATAL", err);
+    console.error("LOGIN_ERROR", err);
     return res.status(500).json({ error: "Login failed" });
   }
 }
