@@ -18,17 +18,15 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Install dependencies (INCLUDING DEV)
-        run: |
-          npm ci
+      - name: Install deps (CI only)
+        run: npm ci
 
       - name: Build TypeScript
-        run: |
-          npm run build
+        run: npm run build
 
-      - name: Archive production build
+      - name: Create deploy package (NO node_modules)
         run: |
-          zip -r deploy.zip dist package.json package-lock.json node_modules
+          zip -r deploy.zip dist package.json package-lock.json
 
       - name: Deploy to Azure App Service
         uses: azure/webapps-deploy@v3
