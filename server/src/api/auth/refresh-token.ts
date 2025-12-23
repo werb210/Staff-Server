@@ -13,5 +13,5 @@ export function refreshToken(req: Request, res: Response) {
     email: user.email,
   });
 
-  return res.json({ token });
+  res.json({ token });
 }
