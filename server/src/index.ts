@@ -1,37 +1,45 @@
 import express from "express";
 import cors from "cors";
-import cookieParser from "cookie-parser";
-import dotenv from "dotenv";
+import morgan from "morgan";
 
-import authRouter from "./api/auth/index.js";
-import usersRouter from "./api/users/index.js";
-import crmRouter from "./api/crm/index.js";
-import intRouter from "./api/_int/index.js";
-
-dotenv.config();
+import authRouter from "./api/auth";
+import usersRouter from "./api/users";
+import crmRouter from "./api/crm";
+import intRouter from "./api/_int";
 
 const app = express();
 
-app.use(cors({
-  origin: "https://staff.boreal.financial",
-  credentials: true,
-}));
+/* core middleware */
 app.use(express.json());
-app.use(cookieParser());
+app.use(express.urlencoded({ extended: true }));
+app.use(morgan("dev"));
 
-/* ROUTE MOUNTS — THIS WAS MISSING */
+app.use(
+  cors({
+    origin: [
+      "https://staff.boreal.financial",
+      "https://server.boreal.financial",
+    ],
+    credentials: true,
+  })
+);
+
+/* ROUTE MOUNTS — THIS WAS THE BREAK */
 app.use("/api/auth", authRouter);
 app.use("/api/users", usersRouter);
 app.use("/api/crm", crmRouter);
 app.use("/api/_int", intRouter);
 
-/* HARD FAIL IF SERVER IS RUNNING WRONG FILE */
-if (!process.env.PORT) {
-  console.error("PORT not set — Azure runtime misconfigured");
-}
+/* hard 404 so Azure doesn’t fake success */
+app.use((req, res) => {
+  res.status(404).json({
+    error: "Route not found",
+    path: req.path,
+  });
+});
 
-const PORT = Number(process.env.PORT) || 8080;
+const port = Number(process.env.PORT) || 8080;
 
-app.listen(PORT, () => {
-  console.log(`Staff-Server running on port ${PORT}`);
+app.listen(port, () => {
+  console.log(`Staff-Server running on port ${port}`);
 });
