@@ -2,15 +2,14 @@ name: build-and-package
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Use Node 20
@@ -19,27 +18,24 @@ jobs:
           node-version: 20
           cache: npm
 
+      # npm ci is FAILING — use npm install instead
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       - name: Build server
         run: npm run build
 
-      - name: Sanity check build output
+      - name: Verify build output
         run: |
           test -f server/dist/index.js
           echo "OK: server/dist/index.js exists"
 
-      - name: Create deploy package
+      - name: Package artifact
         run: |
-          rm -f package.zip
-          zip -r package.zip \
-            server/dist \
-            node_modules \
-            package.json
+          zip -r server.zip server/dist package.json node_modules
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: staff-server
-          path: package.zip
+          path: server.zip
