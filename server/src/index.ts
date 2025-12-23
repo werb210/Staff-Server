@@ -3,7 +3,9 @@ import cors from "cors";
 import dotenv from "dotenv";
 
 import intRoutes from "./api/_int/index.js";
+import authRoutes from "./routes/auth.routes.js";
 import crmRoutes from "./routes/crm.routes.js";
+import userRoutes from "./routes/users.routes.js";
 
 dotenv.config();
 
@@ -13,7 +15,9 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 
 app.use("/api/_int", intRoutes);
+app.use("/api/auth", authRoutes);
 app.use("/api/crm", crmRoutes);
+app.use("/api/users", userRoutes);
 
 app.get("/", (_req, res) => {
   res.json({ status: "staff-server running" });
