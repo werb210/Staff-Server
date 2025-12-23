@@ -1,29 +1,27 @@
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
-
-import intRoutes from "./api/_int/index.js";
-import authRoutes from "./routes/auth.routes.js";
-import crmRoutes from "./routes/crm.routes.js";
-import userRoutes from "./routes/users.routes.js";
-
-dotenv.config();
 
 const app = express();
+const PORT = Number(process.env.PORT) || 8080;
 
-app.use(cors({ origin: true, credentials: true }));
+app.use(cors());
 app.use(express.json());
 
-app.use("/api/_int", intRoutes);
-app.use("/api/auth", authRoutes);
-app.use("/api/crm", crmRoutes);
-app.use("/api/users", userRoutes);
-
-app.get("/", (_req, res) => {
-  res.json({ status: "staff-server running" });
+/* ROOT HEALTH CHECK — REQUIRED BY AZURE */
+app.get("/health", (_req, res) => {
+  res.status(200).json({ status: "ok" });
 });
 
-const port = process.env.PORT || 5000;
-app.listen(port, () => {
-  console.log(`🚀 Staff Server running on port ${port}`);
+/* INTERNAL HEALTH */
+app.get("/api/_int/health", (_req, res) => {
+  res.status(200).json({ status: "ok" });
+});
+
+/* ROUTE REGISTRATION — NO CONDITIONS */
+import apiRouter from "./api";
+app.use("/api", apiRouter);
+
+/* START SERVER — MUST BE LAST */
+app.listen(PORT, () => {
+  console.log(`Staff-Server running on port ${PORT}`);
 });
