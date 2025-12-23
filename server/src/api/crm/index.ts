@@ -2,12 +2,14 @@ import { Router } from "express";
 
 const router = Router();
 
-router.get("/contacts", (_req, res) => {
-  res.json({ contacts: [] });
-});
+/**
+ * CRM ROOT
+ * This exists to satisfy the server entry import and
+ * prevent TypeScript / CI failure.
+ */
 
-router.post("/contacts", (_req, res) => {
-  res.status(201).json({ created: true });
+router.get("/", (_req, res) => {
+  res.json({ crm: "ok" });
 });
 
 export default router;
