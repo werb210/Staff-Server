@@ -1,75 +1,45 @@
 import express from "express";
-import http from "http";
+import cors from "cors";
 
+// ---- App ----
 const app = express();
 
-/**
- * Trust proxy is REQUIRED on Azure App Service
- */
-app.set("trust proxy", true);
-
-/**
- * Core middleware
- */
+// ---- Middleware ----
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(
+  cors({
+    origin: true,
+    credentials: true,
+  })
+);
 
-/**
- * HARD-WIRED INTERNAL ROUTES
- * These were missing at runtime — proven by grep + curl.
- * No external route imports. No indirection.
- */
+// ---- Root ----
 app.get("/", (_req, res) => {
-  res.status(200).send("OK");
+  res.status(200).json({ status: "ok" });
 });
 
+// ---- Internal health ----
 app.get("/_int/health", (_req, res) => {
-  res.status(200).json({
-    status: "ok",
-    service: "staff-server",
-    ts: new Date().toISOString(),
-  });
+  res.status(200).json({ ok: true, uptime: process.uptime() });
 });
 
+// ---- Internal routes debug ----
 app.get("/_int/routes", (_req, res) => {
   const routes: string[] = [];
   app._router.stack.forEach((layer: any) => {
     if (layer.route?.path) {
-      routes.push(layer.route.path);
+      const methods = Object.keys(layer.route.methods)
+        .map((m) => m.toUpperCase())
+        .join(",");
+      routes.push(`${methods} ${layer.route.path}`);
     }
   });
   res.status(200).json({ routes });
 });
 
-/**
- * FINAL 404 — must be last
- */
-app.use((_req, res) => {
-  res.status(404).send("Not Found");
-});
-
-/**
- * SERVER BOOT
- * Explicit bind required for Azure
- */
-const PORT = Number(process.env.PORT) || 8080;
-
-const server = http.createServer(app);
-
-server.listen(PORT, "0.0.0.0", () => {
-  console.log(`Staff-Server running on port ${PORT}`);
-});
-
-/**
- * HARD FAIL VISIBILITY
- * Prevent silent restarts
- */
-process.on("unhandledRejection", (err) => {
-  console.error("UNHANDLED REJECTION", err);
-  process.exit(1);
-});
-
-process.on("uncaughtException", (err) => {
-  console.error("UNCAUGHT EXCEPTION", err);
-  process.exit(1);
+// ---- Port & Listen (bind ONCE) ----
+const PORT = Number(process.env.PORT || 8080);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Staff-Server listening on ${PORT}`);
 });
