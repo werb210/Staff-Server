@@ -1,6 +1,6 @@
-import jwt from "jsonwebtoken";
+import jwt, { SignOptions } from "jsonwebtoken";
 
-const JWT_SECRET = process.env.JWT_SECRET!;
+const JWT_SECRET = process.env.JWT_SECRET as string;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN ?? "15m";
 
 export interface AccessTokenPayload {
@@ -9,9 +9,11 @@ export interface AccessTokenPayload {
 }
 
 export function signAccessToken(payload: AccessTokenPayload): string {
-  return jwt.sign(payload, JWT_SECRET, {
+  const options: SignOptions = {
     expiresIn: JWT_EXPIRES_IN
-  });
+  };
+
+  return jwt.sign(payload, JWT_SECRET, options);
 }
 
 export function verifyAccessToken(token: string): AccessTokenPayload {
