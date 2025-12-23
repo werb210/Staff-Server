@@ -3,13 +3,8 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
 
-import { login } from "./api/auth/login.js";
-import { register } from "./api/auth/register.js";
-import { verifySms } from "./api/auth/verify-sms.js";
-import { refreshToken } from "./api/auth/refresh-token.js";
-import { listUsers } from "./api/users/users.js";
-import { getUserById } from "./api/users/user-by-id.js";
-
+import authRouter from "./api/auth/index.js";
+import usersRouter from "./api/users/index.js";
 import crmRouter from "./api/crm/index.js";
 import intRouter from "./api/_int/index.js";
 
@@ -17,25 +12,25 @@ dotenv.config();
 
 const app = express();
 
-app.use(cors({ origin: true, credentials: true }));
+app.use(cors({
+  origin: "https://staff.boreal.financial",
+  credentials: true,
+}));
 app.use(express.json());
 app.use(cookieParser());
 
-/* AUTH */
-app.post("/api/auth/login", login);
-app.post("/api/auth/register", register);
-app.post("/api/auth/verify-sms", verifySms);
-app.post("/api/auth/refresh-token", refreshToken);
-
-/* USERS */
-app.get("/api/users", listUsers);
-app.get("/api/users/:id", getUserById);
-
-/* INTERNAL + CRM */
-app.use("/api/_int", intRouter);
+/* ROUTE MOUNTS — THIS WAS MISSING */
+app.use("/api/auth", authRouter);
+app.use("/api/users", usersRouter);
 app.use("/api/crm", crmRouter);
+app.use("/api/_int", intRouter);
 
-const PORT = process.env.PORT || 8080;
+/* HARD FAIL IF SERVER IS RUNNING WRONG FILE */
+if (!process.env.PORT) {
+  console.error("PORT not set — Azure runtime misconfigured");
+}
+
+const PORT = Number(process.env.PORT) || 8080;
 
 app.listen(PORT, () => {
   console.log(`Staff-Server running on port ${PORT}`);
