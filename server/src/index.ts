@@ -1,24 +1,27 @@
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
+import bodyParser from "body-parser";
 
-// NOTE: NodeNext + ESM REQUIRES .js EXTENSIONS
-import { registerInternalRoutes } from "./routes/_int.js";
+// IMPORTANT: no morgan (not installed in CI)
+import intRoutes from "./routes/_int";
 
 const app = express();
 
-// Middleware
+app.use(helmet());
 app.use(cors());
-app.use(express.json());
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
 
-// Internal routes
-registerInternalRoutes(app);
+// ---- INTERNAL ROUTES ----
+app.use("/api/_int", intRoutes);
 
-// Root guard (prevents Azure health probes from erroring)
+// ---- ROOT ----
 app.get("/", (_req, res) => {
-  res.status(200).send("OK");
+  res.status(200).json({ status: "ok" });
 });
 
-// Port (Azure injects PORT)
+// ---- START ----
 const PORT = process.env.PORT ? Number(process.env.PORT) : 8080;
 
 app.listen(PORT, "0.0.0.0", () => {
