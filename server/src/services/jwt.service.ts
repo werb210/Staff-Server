@@ -1,7 +1,10 @@
 import jwt, { SignOptions } from "jsonwebtoken";
 
 const JWT_SECRET = process.env.JWT_SECRET as string;
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN ?? "15m";
+
+// force correct type for jsonwebtoken v9
+const JWT_EXPIRES_IN: SignOptions["expiresIn"] =
+  (process.env.JWT_EXPIRES_IN as SignOptions["expiresIn"]) ?? "15m";
 
 export interface AccessTokenPayload {
   userId: string;
