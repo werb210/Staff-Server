@@ -1,43 +1,75 @@
 import express from "express";
-import cors from "cors";
+import http from "http";
 
 const app = express();
 
-/* --------------------
-   Middleware
--------------------- */
-app.use(cors());
-app.use(express.json());
+/**
+ * Trust proxy is REQUIRED on Azure App Service
+ */
+app.set("trust proxy", true);
 
-/* --------------------
-   Internal health routes
-   (INLINE — no external imports)
--------------------- */
-app.get("/api/_int/health", (_req, res) => {
-  res.json({ status: "healthy" });
+/**
+ * Core middleware
+ */
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+/**
+ * HARD-WIRED INTERNAL ROUTES
+ * These were missing at runtime — proven by grep + curl.
+ * No external route imports. No indirection.
+ */
+app.get("/", (_req, res) => {
+  res.status(200).send("OK");
 });
 
-app.get("/api/_int/routes", (_req, res) => {
-  res.json({
-    routes: [
-      "/api/_int/health",
-      "/api/_int/routes"
-    ]
+app.get("/_int/health", (_req, res) => {
+  res.status(200).json({
+    status: "ok",
+    service: "staff-server",
+    ts: new Date().toISOString(),
   });
 });
 
-/* --------------------
-   Root (optional but safe)
--------------------- */
-app.get("/", (_req, res) => {
-  res.send("Staff Server running");
+app.get("/_int/routes", (_req, res) => {
+  const routes: string[] = [];
+  app._router.stack.forEach((layer: any) => {
+    if (layer.route?.path) {
+      routes.push(layer.route.path);
+    }
+  });
+  res.status(200).json({ routes });
 });
 
-/* --------------------
-   Server start
--------------------- */
+/**
+ * FINAL 404 — must be last
+ */
+app.use((_req, res) => {
+  res.status(404).send("Not Found");
+});
+
+/**
+ * SERVER BOOT
+ * Explicit bind required for Azure
+ */
 const PORT = Number(process.env.PORT) || 8080;
 
-app.listen(PORT, () => {
+const server = http.createServer(app);
+
+server.listen(PORT, "0.0.0.0", () => {
   console.log(`Staff-Server running on port ${PORT}`);
+});
+
+/**
+ * HARD FAIL VISIBILITY
+ * Prevent silent restarts
+ */
+process.on("unhandledRejection", (err) => {
+  console.error("UNHANDLED REJECTION", err);
+  process.exit(1);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("UNCAUGHT EXCEPTION", err);
+  process.exit(1);
 });
