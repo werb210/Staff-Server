@@ -1,3 +1,11 @@
 #!/bin/bash
+set -e
+
+echo "Installing dependencies..."
+npm install --omit=dev
+
+echo "Building server..."
 npm run build
-node server/dist/index.js
+
+echo "Starting server..."
+node dist/index.js
