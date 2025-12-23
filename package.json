@@ -12,7 +12,8 @@
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.11.5",
-    "twilio": "^4.20.0"
+    "twilio": "^4.20.0",
+    "drizzle-orm": "^0.30.10"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
