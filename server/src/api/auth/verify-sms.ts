@@ -1,43 +1,15 @@
 import { Request, Response } from "express";
-import { db } from "../../db";
-import { signJwt } from "../../services/jwt.service";
+import { checkVerificationCode } from "../../services/twilio.service.js";
 
-export async function verifySms(req: Request, res: Response) {
-  const { email, code } = req.body;
+export async function verifySms(req: Request, res: Response): Promise<void> {
+  const { phone, code } = req.body;
 
-  const user = await db.users.findFirst({
-    where: { email: email.toLowerCase() },
-  });
+  const approved = await checkVerificationCode(phone, code);
 
-  if (!user || !user.sms_2fa_code || !user.sms_2fa_expires) {
-    return res.status(401).json({ error: "Invalid verification attempt" });
+  if (!approved) {
+    res.status(400).json({ error: "Invalid verification code" });
+    return;
   }
 
-  if (new Date() > user.sms_2fa_expires) {
-    return res.status(401).json({ error: "Code expired" });
-  }
-
-  if (user.sms_2fa_code !== code) {
-    return res.status(401).json({ error: "Invalid code" });
-  }
-
-  // clear 2FA temp fields
-  await db.users.update({
-    where: { id: user.id },
-    data: {
-      sms_2fa_code: null,
-      sms_2fa_expires: null,
-    },
-  });
-
-  const token = signJwt({ userId: user.id });
-
-  return res.json({
-    token,
-    user: {
-      id: user.id,
-      email: user.email,
-      role: user.role,
-    },
-  });
+  res.json({ success: true });
 }
