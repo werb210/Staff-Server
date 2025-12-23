@@ -11,50 +11,44 @@ import { refreshToken } from "./api/auth/refresh-token.js";
 import { listUsers } from "./api/users/users.js";
 import { getUserById } from "./api/users/user-by-id.js";
 
+import internalRouter from "./api/_int/index.js";
+
 dotenv.config();
 
 const app = express();
 
-app.use(cors({
-  origin: [
-    "https://staff.boreal.financial",
-    "http://localhost:5173"
-  ],
-  credentials: true,
-}));
+app.use(
+  cors({
+    origin: [
+      "https://staff.boreal.financial",
+      "http://localhost:5173"
+    ],
+    credentials: true
+  })
+);
 
 app.use(express.json());
 app.use(cookieParser());
 
-/**
- * AUTH
- */
+/* AUTH */
 app.post("/api/auth/login", login);
 app.post("/api/auth/register", register);
 app.post("/api/auth/verify-sms", verifySms);
 app.post("/api/auth/refresh-token", refreshToken);
 
-/**
- * USERS
- */
+/* USERS */
 app.get("/api/users", listUsers);
 app.get("/api/users/:id", getUserById);
 
-/**
- * TEMP INTERNAL HEALTH (INLINE — NO ROUTER)
- */
-app.get("/api/_int/health", (_req, res) => {
-  res.json({ status: "ok" });
-});
+/* INTERNAL HEALTH */
+app.use("/api/_int", internalRouter);
 
-/**
- * FALLBACK
- */
+/* FALLBACK */
 app.use((req, res) => {
   res.status(404).json({
     error: "Route not found",
     method: req.method,
-    path: req.path,
+    path: req.path
   });
 });
 
