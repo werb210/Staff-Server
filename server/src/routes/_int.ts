@@ -1,17 +1,15 @@
 import { Router } from "express";
 
-export const intRouter = Router();
+const router = Router();
 
-intRouter.get("/health", (_req, res) => {
+router.get("/health", (_req, res) => {
+  res.status(200).json({ status: "ok" });
+});
+
+router.get("/routes", (_req, res) => {
   res.json({
-    status: "ok",
-    uptime: process.uptime(),
-    ts: new Date().toISOString(),
+    routes: ["GET /_int/health", "GET /_int/routes"]
   });
 });
 
-intRouter.get("/routes", (_req, res) => {
-  res.json({
-    mounted: ["/_int/health", "/_int/routes"],
-  });
-});
+export default router;
