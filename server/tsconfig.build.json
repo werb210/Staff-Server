@@ -1,17 +1,11 @@
 {
-  "extends": "./tsconfig.json",
   "compilerOptions": {
-    "outDir": "./dist",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "target": "ES2022",
-    "noEmit": false,
-    "sourceMap": false
+    "outDir": "server/dist",
+    "rootDir": "server/src",
+    "module": "commonjs",
+    "target": "es2022",
+    "esModuleInterop": true,
+    "strict": true
   },
-  "exclude": [
-    "src/__tests__/**",
-    "**/*.test.ts",
-    "**/*.spec.ts",
-    "src/api/client.ts"
-  ]
+  "include": ["server/src"]
 }
