@@ -1,8 +1,2 @@
-import { Router } from "express";
-import { createUser } from "./users.js";
-
-const router = Router();
-
-router.post("/", createUser);
-
-export default router;
+export { listUsers } from "./users.js";
+export { getUserById } from "./user-by-id.js";
