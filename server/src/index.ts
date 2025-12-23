@@ -1,45 +1,47 @@
 import express from "express";
 import cors from "cors";
-import morgan from "morgan";
+import cookieParser from "cookie-parser";
 
-import authRouter from "./api/auth";
-import usersRouter from "./api/users";
-import crmRouter from "./api/crm";
-import intRouter from "./api/_int";
+// NOTE:
+// - NO morgan (it is not installed)
+// - ALL relative imports include .js
+// - CRM is NOT mounted until it actually exists
+
+import authRouter from "./api/auth/index.js";
+import usersRouter from "./api/users/index.js";
+import internalRouter from "./api/_int/index.js";
 
 const app = express();
 
-/* core middleware */
+/* =====================
+   MIDDLEWARE
+===================== */
+app.use(cors({
+  origin: true,
+  credentials: true
+}));
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(morgan("dev"));
+app.use(cookieParser());
 
-app.use(
-  cors({
-    origin: [
-      "https://staff.boreal.financial",
-      "https://server.boreal.financial",
-    ],
-    credentials: true,
-  })
-);
-
-/* ROUTE MOUNTS — THIS WAS THE BREAK */
+/* =====================
+   ROUTES
+===================== */
 app.use("/api/auth", authRouter);
 app.use("/api/users", usersRouter);
-app.use("/api/crm", crmRouter);
-app.use("/api/_int", intRouter);
+app.use("/api/_int", internalRouter);
 
-/* hard 404 so Azure doesn’t fake success */
-app.use((req, res) => {
-  res.status(404).json({
-    error: "Route not found",
-    path: req.path,
-  });
+/* =====================
+   ROOT (FOR AZURE)
+===================== */
+app.get("/", (_req, res) => {
+  res.json({ status: "staff-server running" });
 });
 
-const port = Number(process.env.PORT) || 8080;
+/* =====================
+   START
+===================== */
+const PORT = Number(process.env.PORT) || 8080;
 
-app.listen(port, () => {
-  console.log(`Staff-Server running on port ${port}`);
+app.listen(PORT, () => {
+  console.log(`Staff-Server running on port ${PORT}`);
 });
