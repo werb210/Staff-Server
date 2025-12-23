@@ -1,15 +1,14 @@
 import { Request, Response } from "express";
-import { checkVerificationCode } from "../../services/twilio.service.js";
+import { checkVerificationCode } from "../../services/twilio.service";
 
-export async function verifySms(req: Request, res: Response): Promise<void> {
+export async function verifySms(req: Request, res: Response) {
   const { phone, code } = req.body;
 
-  const approved = await checkVerificationCode(phone, code);
+  const result = await checkVerificationCode(phone, code);
 
-  if (!approved) {
-    res.status(400).json({ error: "Invalid verification code" });
-    return;
+  if (result.status !== "approved") {
+    return res.status(401).json({ error: "Invalid code" });
   }
 
-  res.json({ success: true });
+  res.json({ ok: true });
 }
