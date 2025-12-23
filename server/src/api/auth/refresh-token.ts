@@ -1,12 +1,25 @@
 import { Request, Response } from "express";
 import { signAccessToken } from "../../services/jwt.service.js";
 
-export async function refreshToken(req: Request, res: Response): Promise<void> {
-  const user = req.user as { id: string; email: string };
+interface AuthenticatedRequest extends Request {
+  user?: {
+    id: string;
+    email: string;
+  };
+}
+
+export async function refreshToken(
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> {
+  if (!req.user) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
 
   const token = signAccessToken({
-    userId: user.id,
-    email: user.email
+    userId: req.user.id,
+    email: req.user.email
   });
 
   res.json({ token });
