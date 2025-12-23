@@ -1,21 +1,30 @@
-import twilio from "twilio";
+import Twilio from "twilio";
 
 const {
   TWILIO_ACCOUNT_SID,
   TWILIO_AUTH_TOKEN,
-  TWILIO_FROM,
+  TWILIO_VERIFY_SERVICE_SID
 } = process.env;
 
-if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_FROM) {
-  throw new Error("Twilio env vars missing");
+if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_VERIFY_SERVICE_SID) {
+  throw new Error("Twilio environment variables are not fully defined");
 }
 
-const client = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+const client = Twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
 
-export async function sendSmsCode(to: string, code: string) {
-  await client.messages.create({
-    from: TWILIO_FROM,
-    to,
-    body: `Your Boreal verification code is: ${code}`,
-  });
+export async function sendVerificationCode(phone: string): Promise<void> {
+  await client.verify.v2
+    .services(TWILIO_VERIFY_SERVICE_SID)
+    .verifications.create({ to: phone, channel: "sms" });
+}
+
+export async function checkVerificationCode(
+  phone: string,
+  code: string
+): Promise<boolean> {
+  const result = await client.verify.v2
+    .services(TWILIO_VERIFY_SERVICE_SID)
+    .verificationChecks.create({ to: phone, code });
+
+  return result.status === "approved";
 }
