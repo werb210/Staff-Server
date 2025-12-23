@@ -1,13 +1,9 @@
-import jwt, { JwtPayload, SignOptions } from "jsonwebtoken";
+import jwt, { SignOptions } from "jsonwebtoken";
 
-const JWT_SECRET = process.env.JWT_SECRET;
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN ?? "15m";
+const JWT_SECRET = process.env.JWT_SECRET as string;
+const JWT_EXPIRES_IN = (process.env.JWT_EXPIRES_IN ?? "15m") as string;
 
-if (!JWT_SECRET) {
-  throw new Error("JWT_SECRET is not defined");
-}
-
-export interface AccessTokenPayload extends JwtPayload {
+export interface AccessTokenPayload {
   userId: string;
   email: string;
 }
@@ -23,5 +19,5 @@ export function signAccessToken(
 }
 
 export function verifyAccessToken(token: string): AccessTokenPayload {
-  return jwt.verify(token, JWT_SECRET) as AccessTokenPayload;
+  return jwt.verify(token, JWT_SECRET) as unknown as AccessTokenPayload;
 }
