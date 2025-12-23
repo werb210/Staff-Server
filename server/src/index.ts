@@ -1,29 +1,43 @@
 import express from "express";
 import cors from "cors";
-import helmet from "helmet";
-import bodyParser from "body-parser";
-
-// IMPORTANT: no morgan (not installed in CI)
-import intRoutes from "./routes/_int";
 
 const app = express();
 
-app.use(helmet());
+/* --------------------
+   Middleware
+-------------------- */
 app.use(cors());
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.json());
 
-// ---- INTERNAL ROUTES ----
-app.use("/api/_int", intRoutes);
-
-// ---- ROOT ----
-app.get("/", (_req, res) => {
-  res.status(200).json({ status: "ok" });
+/* --------------------
+   Internal health routes
+   (INLINE — no external imports)
+-------------------- */
+app.get("/api/_int/health", (_req, res) => {
+  res.json({ status: "healthy" });
 });
 
-// ---- START ----
-const PORT = process.env.PORT ? Number(process.env.PORT) : 8080;
+app.get("/api/_int/routes", (_req, res) => {
+  res.json({
+    routes: [
+      "/api/_int/health",
+      "/api/_int/routes"
+    ]
+  });
+});
 
-app.listen(PORT, "0.0.0.0", () => {
+/* --------------------
+   Root (optional but safe)
+-------------------- */
+app.get("/", (_req, res) => {
+  res.send("Staff Server running");
+});
+
+/* --------------------
+   Server start
+-------------------- */
+const PORT = Number(process.env.PORT) || 8080;
+
+app.listen(PORT, () => {
   console.log(`Staff-Server running on port ${PORT}`);
 });
