@@ -17,7 +17,8 @@ router.get("/db", async (_req, res) => {
   try {
     await pool.query("select 1");
     res.json({ db: "ok" });
-  } catch {
+  } catch (error) {
+    console.error("Database connectivity check failed", error);
     res.status(500).json({ db: "error" });
   }
 });
