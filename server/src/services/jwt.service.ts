@@ -1,21 +1,15 @@
 import jwt from "jsonwebtoken";
 
-const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
-const JWT_EXPIRES_IN = "1d";
+const { JWT_SECRET } = process.env;
 
-export interface JwtPayload {
-  userId: string;
-  email: string;
+if (!JWT_SECRET) {
+  throw new Error("JWT_SECRET missing");
 }
 
-export class JwtService {
-  static sign(payload: JwtPayload): string {
-    return jwt.sign(payload, JWT_SECRET, {
-      expiresIn: JWT_EXPIRES_IN,
-    });
-  }
+export function signJwt(payload: object, expiresIn = "1h") {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn });
+}
 
-  static verify(token: string): JwtPayload {
-    return jwt.verify(token, JWT_SECRET) as JwtPayload;
-  }
+export function verifyJwt<T>(token: string): T {
+  return jwt.verify(token, JWT_SECRET) as T;
 }
