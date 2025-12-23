@@ -3,24 +3,32 @@ import { pool } from "../../db/pool.js";
 
 const router = Router();
 
-/* HEALTH */
+/**
+ * GET /api/_int/health
+ */
 router.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
-/* DB CHECK */
+/**
+ * GET /api/_int/db
+ */
 router.get("/db", async (_req, res) => {
   try {
     await pool.query("select 1");
     res.json({ db: "ok" });
-  } catch (err) {
+  } catch {
     res.status(500).json({ db: "error" });
   }
 });
 
-/* ROUTES */
+/**
+ * GET /api/_int/routes
+ * (Hard-coded list so you can see what SHOULD exist)
+ */
 router.get("/routes", (_req, res) => {
   res.json([
+    "GET  /",
     "POST /api/auth/login",
     "POST /api/auth/register",
     "POST /api/auth/verify-sms",
@@ -29,7 +37,9 @@ router.get("/routes", (_req, res) => {
     "GET  /api/users/:id",
     "GET  /api/_int/health",
     "GET  /api/_int/db",
-    "GET  /api/_int/routes"
+    "GET  /api/_int/routes",
+    "GET  /api/crm",
+    "GET  /api/crm/health"
   ]);
 });
 
