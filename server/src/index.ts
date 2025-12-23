@@ -1,45 +1,66 @@
 import express from "express";
 import cors from "cors";
+import http from "http";
 
-// ---- App ----
 const app = express();
 
-// ---- Middleware ----
+/* --------------------
+   Core middleware
+--------------------- */
+app.use(cors({
+  origin: true,
+  credentials: true,
+}));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(
-  cors({
-    origin: true,
-    credentials: true,
-  })
-);
 
-// ---- Root ----
+/* --------------------
+   REQUIRED HEALTH ROUTES
+   (Azure depends on these)
+--------------------- */
+
+// Root health (Azure default probe)
 app.get("/", (_req, res) => {
-  res.status(200).json({ status: "ok" });
+  res.status(200).json({
+    status: "ok",
+    service: "staff-server",
+  });
 });
 
-// ---- Internal health ----
+// Internal health
 app.get("/_int/health", (_req, res) => {
-  res.status(200).json({ ok: true, uptime: process.uptime() });
+  res.status(200).json({
+    status: "ok",
+    uptime: process.uptime(),
+  });
 });
 
-// ---- Internal routes debug ----
+// Internal route list
 app.get("/_int/routes", (_req, res) => {
   const routes: string[] = [];
+
   app._router.stack.forEach((layer: any) => {
     if (layer.route?.path) {
       const methods = Object.keys(layer.route.methods)
-        .map((m) => m.toUpperCase())
+        .map(m => m.toUpperCase())
         .join(",");
       routes.push(`${methods} ${layer.route.path}`);
     }
   });
+
   res.status(200).json({ routes });
 });
 
-// ---- Port & Listen (bind ONCE) ----
+/* --------------------
+   START SERVER
+--------------------- */
+
 const PORT = Number(process.env.PORT || 8080);
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Staff-Server listening on ${PORT}`);
+const HOST = "0.0.0.0";
+
+const server = http.createServer(app);
+
+server.listen(PORT, HOST, () => {
+  console.log(`Staff-Server running on ${HOST}:${PORT}`);
 });
