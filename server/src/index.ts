@@ -1,44 +1,26 @@
 import express from "express";
 import cors from "cors";
-import morgan from "morgan";
 
-import internalRouter from "./routes/_int";
+// NOTE: NodeNext + ESM REQUIRES .js EXTENSIONS
+import { registerInternalRoutes } from "./routes/_int.js";
 
 const app = express();
 
-/**
- * Core middleware
- */
+// Middleware
 app.use(cors());
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true }));
-app.use(morgan("dev"));
+app.use(express.json());
 
-/**
- * INTERNAL ROUTES
- * MUST be mounted BEFORE any catch-all
- */
-app.use("/api/_int", internalRouter);
+// Internal routes
+registerInternalRoutes(app);
 
-/**
- * Root sanity check
- */
+// Root guard (prevents Azure health probes from erroring)
 app.get("/", (_req, res) => {
-  res.json({ status: "ok", service: "staff-server" });
+  res.status(200).send("OK");
 });
 
-/**
- * Final 404 handler (LAST)
- */
-app.use((_req, res) => {
-  res.status(404).json({ error: "Route not found" });
-});
+// Port (Azure injects PORT)
+const PORT = process.env.PORT ? Number(process.env.PORT) : 8080;
 
-/**
- * Server boot
- */
-const port = Number(process.env.PORT) || 8080;
-
-app.listen(port, () => {
-  console.log(`Staff-Server running on port ${port}`);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Staff-Server running on port ${PORT}`);
 });
