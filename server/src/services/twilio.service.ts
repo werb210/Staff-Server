@@ -1,20 +1,14 @@
 import Twilio from "twilio";
 
-const {
-  TWILIO_ACCOUNT_SID,
-  TWILIO_AUTH_TOKEN,
-  TWILIO_VERIFY_SERVICE_SID
-} = process.env;
+const accountSid = process.env.TWILIO_ACCOUNT_SID as string;
+const authToken = process.env.TWILIO_AUTH_TOKEN as string;
+const verifySid = process.env.TWILIO_VERIFY_SERVICE_SID as string;
 
-if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_VERIFY_SERVICE_SID) {
-  throw new Error("Twilio environment variables are not fully defined");
-}
-
-const client = Twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+const client = Twilio(accountSid, authToken);
 
 export async function sendVerificationCode(phone: string): Promise<void> {
   await client.verify.v2
-    .services(TWILIO_VERIFY_SERVICE_SID)
+    .services(verifySid)
     .verifications.create({ to: phone, channel: "sms" });
 }
 
@@ -23,7 +17,7 @@ export async function checkVerificationCode(
   code: string
 ): Promise<boolean> {
   const result = await client.verify.v2
-    .services(TWILIO_VERIFY_SERVICE_SID)
+    .services(verifySid)
     .verificationChecks.create({ to: phone, code });
 
   return result.status === "approved";
