@@ -3,18 +3,15 @@ import { Router } from "express";
 export const intRouter = Router();
 
 intRouter.get("/health", (_req, res) => {
-  res.status(200).json({
+  res.json({
     status: "ok",
     uptime: process.uptime(),
-    timestamp: new Date().toISOString(),
+    ts: new Date().toISOString(),
   });
 });
 
 intRouter.get("/routes", (_req, res) => {
-  res.status(200).json({
-    routes: [
-      "/_int/health",
-      "/_int/routes",
-    ],
+  res.json({
+    mounted: ["/_int/health", "/_int/routes"],
   });
 });
