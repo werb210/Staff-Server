@@ -2,40 +2,28 @@ name: build-and-package
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Use Node 20
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
+          node-version: "20"
+          cache: "npm"
 
-      # npm ci is FAILING — use npm install instead
-      - name: Install dependencies
-        run: npm install
+      - name: Install dependencies (CI-safe)
+        run: npm ci
 
-      - name: Build server
+      - name: Build
         run: npm run build
 
-      - name: Verify build output
+      - name: Sanity check build output exists
         run: |
           test -f server/dist/index.js
           echo "OK: server/dist/index.js exists"
-
-      - name: Package artifact
-        run: |
-          zip -r server.zip server/dist package.json node_modules
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: staff-server
-          path: server.zip
