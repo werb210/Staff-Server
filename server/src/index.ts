@@ -1,35 +1,44 @@
 import express from "express";
-import http from "http";
+import cors from "cors";
+import morgan from "morgan";
+
+import internalRouter from "./routes/_int";
 
 const app = express();
 
-// ---- middleware
-app.use(express.json());
+/**
+ * Core middleware
+ */
+app.use(cors());
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true }));
+app.use(morgan("dev"));
 
-// ---- root
+/**
+ * INTERNAL ROUTES
+ * MUST be mounted BEFORE any catch-all
+ */
+app.use("/api/_int", internalRouter);
+
+/**
+ * Root sanity check
+ */
 app.get("/", (_req, res) => {
-  res.status(200).json({ ok: true, service: "staff-server" });
+  res.json({ status: "ok", service: "staff-server" });
 });
 
-// ---- internal health
-app.get("/api/_int/health", (_req, res) => {
-  res.status(200).json({ status: "healthy" });
+/**
+ * Final 404 handler (LAST)
+ */
+app.use((_req, res) => {
+  res.status(404).json({ error: "Route not found" });
 });
 
-app.get("/api/_int/routes", (_req, res) => {
-  const routes = app._router.stack
-    .filter((r: any) => r.route)
-    .map((r: any) => ({
-      method: Object.keys(r.route.methods)[0].toUpperCase(),
-      path: r.route.path
-    }));
-  res.status(200).json(routes);
-});
+/**
+ * Server boot
+ */
+const port = Number(process.env.PORT) || 8080;
 
-// ---- server
-const PORT = Number(process.env.PORT) || 8080;
-
-const server = http.createServer(app);
-server.listen(PORT, "0.0.0.0", () => {
-  console.log(`Staff-Server running on port ${PORT}`);
+app.listen(port, () => {
+  console.log(`Staff-Server running on port ${port}`);
 });
