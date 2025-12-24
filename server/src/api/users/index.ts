@@ -1,3 +1,9 @@
-import { createUser } from "./users.js";
+import { Router } from "express";
 
-export { createUser };
+const router = Router();
+
+router.post("/", (_req, res) => {
+  res.json({ created: true });
+});
+
+export default router;
