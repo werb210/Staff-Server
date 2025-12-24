@@ -1,9 +1,10 @@
-import type { Request, Response } from "express";
+import { Router, Request, Response } from "express";
 
-export function createUser(req: Request, res: Response) {
-  res.json({ ok: true });
-}
+const router = Router();
 
-export default {
-  createUser
-};
+router.post("/", async (req: Request, res: Response) => {
+  // existing create user logic stays here
+  res.status(201).json({ created: true });
+});
+
+export default router;
