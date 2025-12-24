@@ -7,7 +7,7 @@ router.get("/health", (_req, res) => {
 });
 
 router.get("/routes", (_req, res) => {
-  res.json({ internal: true });
+  res.json(["/api/_int/health", "/api/_int/routes"]);
 });
 
 export default router;
