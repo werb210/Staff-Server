@@ -1,12 +1,12 @@
 import { Request, Response } from "express";
-import userService from "../../services/user.service";
-import { signAccessToken } from "../../services/jwt.service";
+import { signAccessToken } from "../../services/jwt.service.js";
+import { getUserByEmail } from "../../services/user.service.js";
 
 export async function login(req: Request, res: Response) {
   const { email, password } = req.body;
 
-  const user = await userService.authenticate(email, password);
-  if (!user) {
+  const user = await getUserByEmail(email);
+  if (!user || !(await user.verifyPassword(password))) {
     return res.status(401).json({ error: "Invalid credentials" });
   }
 
