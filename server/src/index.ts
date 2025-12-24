@@ -12,5 +12,5 @@ app.use("/api/_int", intRoutes);
 const port = process.env.PORT || 5000;
 
 app.listen(port, () => {
-  console.log(`Server listening on port ${port}`);
+  console.log(`Staff server running on port ${port}`);
 });
