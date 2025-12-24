@@ -1,21 +1,13 @@
-// server/src/api/auth/refresh-token.ts
-
 import { Request, Response } from "express";
-import { signAccessToken, verifyAccessToken } from "../../services/jwt.service.js";
+import { signAccessToken } from "../../services/jwt.service";
 
 export function refreshToken(req: Request, res: Response) {
-  const auth = req.headers.authorization;
-  if (!auth?.startsWith("Bearer ")) {
-    return res.status(401).json({ error: "Missing token" });
-  }
+  const user = req.user as { id: string; email: string };
 
-  const token = auth.slice(7);
-  const payload = verifyAccessToken(token);
-
-  const accessToken = signAccessToken({
-    sub: payload.sub,
-    email: payload.email,
+  const token = signAccessToken({
+    sub: user.id,
+    email: user.email,
   });
 
-  res.json({ accessToken });
+  res.json({ accessToken: token });
 }
