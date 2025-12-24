@@ -6,7 +6,7 @@ if (!JWT_SECRET) {
 }
 
 export interface AccessTokenPayload {
-  userId: string;
+  sub: string;
   email: string;
 }
 
@@ -15,5 +15,5 @@ export function signAccessToken(payload: AccessTokenPayload): string {
 }
 
 export function verifyAccessToken(token: string): AccessTokenPayload {
-  return jwt.verify(token, JWT_SECRET) as unknown as AccessTokenPayload;
+  return jwt.verify(token, JWT_SECRET) as AccessTokenPayload;
 }
