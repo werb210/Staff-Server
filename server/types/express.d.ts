@@ -1,16 +1,13 @@
-/**
- * Custom Express type declarations for Boreal Staff-Server
- * Extends Request with authenticated user information.
- */
-
-import { AuthenticatedUser } from "../src/auth/auth.types";
+import "express";
 
 declare global {
   namespace Express {
-    type UserAuth = AuthenticatedUser;
-
     interface Request {
-      user?: UserAuth;
+      user?: {
+        id: string;
+        email?: string;
+        role?: string;
+      };
     }
   }
 }
