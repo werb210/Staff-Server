@@ -3,12 +3,12 @@ import { signAccessToken } from "../../services/jwt.service.js";
 
 export function refreshToken(req: Request, res: Response) {
   if (!req.user) {
-    return res.status(401).json({ error: "Unauthorized" });
+    return res.status(401).json({ error: "unauthorized" });
   }
 
-  const { id, email } = req.user;
+  const token = signAccessToken({
+    sub: req.user.id
+  });
 
-  const token = signAccessToken({ id, email });
-
-  return res.json({ token });
+  res.json({ token });
 }
