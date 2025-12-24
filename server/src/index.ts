@@ -1,12 +1,17 @@
 import express from "express";
-import authRoutes from "./routes/auth.routes";
-import healthRoutes from "./routes/_int";
+import apiRouter from "./api/index.js";
 
 const app = express();
 
 app.use(express.json());
 
-app.use("/api/auth", authRoutes);
-app.use("/_int", healthRoutes);
+app.use("/api", apiRouter);
 
-export default app;
+app.get("/api/_int/health", (_req, res) => {
+  res.json({ status: "ok" });
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
