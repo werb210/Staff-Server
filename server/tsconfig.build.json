@@ -1,9 +1,22 @@
 {
+  "extends": "./tsconfig.json",
   "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "outDir": "dist",
-    "rootDir": "src",
-    "target": "ES2022"
-  }
+    "declaration": false,
+    "sourceMap": false,
+    "noEmitOnError": true
+  },
+  "include": [
+    "./src/**/*.ts",
+    "./drizzle.config.ts",
+    "./vitest.config.ts",
+    "./simulation/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }
