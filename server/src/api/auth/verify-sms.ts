@@ -4,11 +4,11 @@ import { checkVerificationCode } from "../../services/twilio.service.js";
 export async function verifySms(req: Request, res: Response) {
   const { to, code } = req.body;
 
-  if (!to || !code) {
-    return res.status(400).json({ error: "Missing parameters" });
-  }
-
   const result = await checkVerificationCode(to, code);
 
-  res.json({ result });
+  if (result.status !== "approved") {
+    return res.status(401).json({ error: "Invalid code" });
+  }
+
+  res.json({ success: true });
 }
