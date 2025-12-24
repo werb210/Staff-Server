@@ -2,16 +2,13 @@
   "name": "staff-server",
   "version": "1.0.0",
   "private": true,
-  "type": "module",
+  "type": "commonjs",
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "start": "node dist/index.js"
+    "build": "tsc -p server/tsconfig.build.json",
+    "start": "node server/dist/index.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.19.2"
-  },
-  "devDependencies": {
-    "typescript": "^5.4.5"
   }
 }
