@@ -1,21 +1,19 @@
-// server/src/api/auth/login.ts
-
 import { Request, Response } from "express";
-import { signAccessToken } from "../../services/jwt.service.js";
-import { getUserByEmailAndPassword } from "../../services/user.service.js";
+import userService from "../../services/user.service";
+import { signAccessToken } from "../../services/jwt.service";
 
 export async function login(req: Request, res: Response) {
   const { email, password } = req.body;
 
-  const user = await getUserByEmailAndPassword(email, password);
+  const user = await userService.authenticate(email, password);
   if (!user) {
     return res.status(401).json({ error: "Invalid credentials" });
   }
 
-  const accessToken = signAccessToken({
+  const token = signAccessToken({
     sub: user.id,
     email: user.email,
   });
 
-  res.json({ accessToken });
+  res.json({ accessToken: token });
 }
