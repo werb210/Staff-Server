@@ -1,10 +1,9 @@
-import { Router, Request, Response } from "express";
+import { Router, type Request, type Response } from "express";
 
 const router = Router();
 
-router.post("/", async (req: Request, res: Response) => {
-  // existing create user logic stays here
-  res.status(201).json({ created: true });
+router.post("/", (req: Request, res: Response) => {
+  res.json({ ok: true });
 });
 
 export default router;
