@@ -3,20 +3,11 @@ import { Router } from "express";
 const router = Router();
 
 router.get("/health", (_req, res) => {
-  res.status(200).json({
-    status: "ok",
-    uptime: process.uptime(),
-    timestamp: Date.now(),
-  });
+  res.status(200).json({ ok: true });
 });
 
-router.get("/routes", (_req, res) => {
-  res.status(200).json({
-    routes: [
-      "/_int/health",
-      "/_int/routes",
-    ],
-  });
+router.get("/build", (_req, res) => {
+  res.status(200).json({ build: "ok" });
 });
 
 export default router;
