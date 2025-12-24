@@ -1,13 +1,15 @@
 {
-  "extends": "./tsconfig.json",
   "compilerOptions": {
+    "target": "ES2020",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
     "outDir": "dist",
     "rootDir": "src",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "target": "ES2022",
-    "noEmitOnError": true
+    "strict": false,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["src/simulation", "src/drizzle.config.ts", "src/vitest.config.ts"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
 }
