@@ -6,10 +6,9 @@ export function refreshToken(req: Request, res: Response) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
-  const token = signAccessToken({
-    userId: req.user.id,
-    email: req.user.email
-  });
+  const { id, email } = req.user;
 
-  res.json({ accessToken: token });
+  const token = signAccessToken({ id, email });
+
+  return res.json({ token });
 }
