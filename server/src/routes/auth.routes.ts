@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { login } from "../api/auth/login.js";
-import { refreshToken } from "../api/auth/refresh-token.js";
+import { login } from "../api/auth/login";
+import { refreshToken } from "../api/auth/refresh-token";
 
 const router = Router();
 
