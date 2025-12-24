@@ -1,27 +1,21 @@
+// server/src/api/auth/refresh-token.ts
+
 import { Request, Response } from "express";
-import jwt from "jsonwebtoken";
+import { signAccessToken, verifyAccessToken } from "../../services/jwt.service.js";
 
-interface AccessTokenPayload {
-  sub: string;
-}
-
-export default function refreshToken(req: Request, res: Response) {
-  const token = req.cookies?.refresh_token;
-
-  if (!token) {
-    return res.status(401).json({ error: "No refresh token" });
+export function refreshToken(req: Request, res: Response) {
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Missing token" });
   }
 
-  const decoded = jwt.verify(
-    token,
-    process.env.JWT_REFRESH_SECRET!
-  ) as AccessTokenPayload;
+  const token = auth.slice(7);
+  const payload = verifyAccessToken(token);
 
-  const accessToken = jwt.sign(
-    { sub: decoded.sub },
-    process.env.JWT_ACCESS_SECRET!,
-    { expiresIn: "15m" }
-  );
+  const accessToken = signAccessToken({
+    sub: payload.sub,
+    email: payload.email,
+  });
 
   res.json({ accessToken });
 }
