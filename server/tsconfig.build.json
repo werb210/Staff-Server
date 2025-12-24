@@ -1,19 +1,16 @@
 {
+  "extends": "./tsconfig.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "ES2022",
-    "moduleResolution": "node16",
-    "rootDir": "src",
     "outDir": "dist",
-    "strict": true,
+    "rootDir": "src",
+    "module": "Node16",
+    "moduleResolution": "Node16",
+    "target": "ES2022",
     "esModuleInterop": true,
-    "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "types": ["node"]
+    "strict": true,
+    "skipLibCheck": true
   },
-  "include": [
-    "server/src/**/*.ts",
-    "server/src/types/**/*.d.ts"
-  ],
-  "exclude": ["server/dist"]
+  "include": ["src/**/*.ts", "src/types/**/*.d.ts"],
+  "exclude": ["dist"]
 }
