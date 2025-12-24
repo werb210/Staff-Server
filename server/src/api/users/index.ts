@@ -1,9 +1,8 @@
-import { Router, type Request, type Response } from "express";
+import { Router } from "express";
 
 const router = Router();
 
-router.post("/", (req: Request, res: Response) => {
-  res.json({ ok: true });
-});
+// routes here
+// router.post("/", ...)
 
 export default router;
