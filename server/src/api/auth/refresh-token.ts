@@ -1,13 +1,12 @@
-iimport { Request, Response } from "express";
-import { signAccessToken } from "../../services/jwt.service.js";
+import { Request, Response } from "express";
 
-export function refreshToken(req: Request, res: Response) {
-  const { sub, email } = req.body;
-
-  if (!sub || !email) {
-    return res.status(400).json({ error: "Invalid refresh payload" });
+export async function refreshToken(req: Request, res: Response) {
+  if (!req.user) {
+    return res.status(401).json({ error: "Unauthorized" });
   }
 
-  const token = signAccessToken({ sub, email });
-  res.json({ accessToken: token });
+  return res.json({
+    success: true,
+    userId: req.user.id
+  });
 }
