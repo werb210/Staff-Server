@@ -1,9 +1,9 @@
-import { Router } from "express";
+import type { Request, Response } from "express";
 
-const router = Router();
+export function createUser(req: Request, res: Response) {
+  res.json({ ok: true });
+}
 
-router.post("/", (_req, res) => {
-  res.json({ created: true });
-});
-
-export default router;
+export default {
+  createUser
+};
