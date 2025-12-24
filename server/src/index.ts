@@ -9,7 +9,7 @@ app.use(express.json());
 app.use("/api", api);
 app.use("/api/_int", intRoutes);
 
-const port = process.env.PORT || 5000;
+const port = process.env.PORT ? Number(process.env.PORT) : 5000;
 
 app.listen(port, () => {
   console.log(`Staff server running on port ${port}`);
