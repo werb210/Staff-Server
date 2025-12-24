@@ -1,33 +1,21 @@
-import { Request, Response } from "express";
-import { verifyPassword } from "../../services/password.service.js";
-import { signAccessToken } from "../../services/jwt.service.js";
-import { pool } from "../../db/pool.js";
+// server/src/api/auth/login.ts
 
-export async function login(req: Request, res: Response): Promise<void> {
+import { Request, Response } from "express";
+import { signAccessToken } from "../../services/jwt.service.js";
+import { getUserByEmailAndPassword } from "../../services/user.service.js";
+
+export async function login(req: Request, res: Response) {
   const { email, password } = req.body;
 
-  const { rows } = await pool.query(
-    "SELECT id, email, password_hash FROM users WHERE email = $1",
-    [email]
-  );
-
-  if (rows.length === 0) {
-    res.status(401).json({ error: "Invalid credentials" });
-    return;
+  const user = await getUserByEmailAndPassword(email, password);
+  if (!user) {
+    return res.status(401).json({ error: "Invalid credentials" });
   }
 
-  const user = rows[0];
-
-  const valid = await verifyPassword(password, user.password_hash);
-  if (!valid) {
-    res.status(401).json({ error: "Invalid credentials" });
-    return;
-  }
-
-  const token = signAccessToken({
-    userId: user.id,
-    email: user.email
+  const accessToken = signAccessToken({
+    sub: user.id,
+    email: user.email,
   });
 
-  res.json({ token });
+  res.json({ accessToken });
 }
