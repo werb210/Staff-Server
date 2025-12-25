@@ -1,7 +1,6 @@
 // FILE: server/src/index.ts
 
 import express from "express";
-import http from "http";
 import apiRouter from "./api/index.js";
 
 const app = express();
@@ -19,7 +18,7 @@ app.get("/", (_req, res) => {
 });
 
 app.get("/api/_int/health", (_req, res) => {
-  res.status(200).json({ status: "healthy" });
+  res.status(200).json({ status: "ok" });
 });
 
 // --- middleware AFTER probes ---
@@ -39,9 +38,7 @@ process.on("unhandledRejection", (reason) => {
 const PORT = Number(process.env.PORT) || 8080;
 const HOST = "0.0.0.0";
 
-const server = http.createServer(app);
-
-server.listen(PORT, HOST, () => {
+app.listen(PORT, HOST, () => {
   console.log(`Staff-Server running on ${HOST}:${PORT}`);
 });
 
