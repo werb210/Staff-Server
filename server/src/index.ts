@@ -11,12 +11,10 @@ const logFatalError = (label: string, error: unknown): void => {
 
 process.on("uncaughtException", (error) => {
   logFatalError("Uncaught exception", error);
-  process.exit(1);
 });
 
 process.on("unhandledRejection", (reason) => {
   logFatalError("Unhandled rejection", reason);
-  process.exit(1);
 });
 
 type ExpressLayer = {
@@ -78,46 +76,45 @@ const getRegisteredRoutes = (app: express.Express): string[] => {
 
 const app = express();
 
-app.get("/healthz", (_req, res) => {
+app.get("/", (_req, res) => {
+  res.status(200).type("text/plain").send("ok");
+});
+
+app.get("/api/_int/health", (_req, res) => {
   res.status(200).json({ status: "ok" });
 });
 
-try {
-  const PORT = Number(process.env.PORT ?? 8080);
-  console.log("Startup diagnostics:", {
-    NODE_ENV: process.env.NODE_ENV ?? "unknown",
-    PORT,
-    WEBSITES_PORT: process.env.WEBSITES_PORT ?? "unknown",
-    env: {
-      JWT_SECRET: Boolean(process.env.JWT_SECRET),
-      DATABASE_URL: Boolean(process.env.DATABASE_URL),
-      PGHOST: Boolean(process.env.PGHOST),
-      PGPORT: Boolean(process.env.PGPORT),
-      PGUSER: Boolean(process.env.PGUSER),
-      PGPASSWORD: Boolean(process.env.PGPASSWORD),
-      PGDATABASE: Boolean(process.env.PGDATABASE),
-      TWILIO_ACCOUNT_SID: Boolean(process.env.TWILIO_ACCOUNT_SID),
-      TWILIO_AUTH_TOKEN: Boolean(process.env.TWILIO_AUTH_TOKEN),
-      TWILIO_VERIFY_SERVICE_SID: Boolean(process.env.TWILIO_VERIFY_SERVICE_SID),
-    },
-  });
-  console.log("Startup: beginning route mount");
+const rawPort = Number(process.env.PORT);
+const PORT = Number.isFinite(rawPort) && rawPort > 0 ? rawPort : 8080;
 
-  app.use(express.json());
-  const internalRouter = express.Router();
-  internalRouter.get("/health", (_req, res) => {
-    res.status(200).json({ status: "ok" });
-  });
-  internalRouter.get("/routes", (_req, res) => {
-    res.status(200).json(getRegisteredRoutes(app));
-  });
-  app.use("/api/_int", internalRouter);
-  app.use("/api", apiRouter);
+console.log("Startup diagnostics:", {
+  NODE_ENV: process.env.NODE_ENV ?? "unknown",
+  PORT,
+  WEBSITES_PORT: process.env.WEBSITES_PORT ?? "unknown",
+  env: {
+    JWT_SECRET: Boolean(process.env.JWT_SECRET),
+    DATABASE_URL: Boolean(process.env.DATABASE_URL),
+    PGHOST: Boolean(process.env.PGHOST),
+    PGPORT: Boolean(process.env.PGPORT),
+    PGUSER: Boolean(process.env.PGUSER),
+    PGPASSWORD: Boolean(process.env.PGPASSWORD),
+    PGDATABASE: Boolean(process.env.PGDATABASE),
+    TWILIO_ACCOUNT_SID: Boolean(process.env.TWILIO_ACCOUNT_SID),
+    TWILIO_AUTH_TOKEN: Boolean(process.env.TWILIO_AUTH_TOKEN),
+    TWILIO_VERIFY_SERVICE_SID: Boolean(process.env.TWILIO_VERIFY_SERVICE_SID),
+  },
+});
+console.log("Startup: beginning route mount");
 
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-    console.log("Registered routes:\n" + getRegisteredRoutes(app).join("\n"));
-  });
-} catch (error) {
-  console.error("Startup error:", error);
-}
+app.use(express.json());
+const internalRouter = express.Router();
+internalRouter.get("/routes", (_req, res) => {
+  res.status(200).json(getRegisteredRoutes(app));
+});
+app.use("/api/_int", internalRouter);
+app.use("/api", apiRouter);
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log("Registered routes:\n" + getRegisteredRoutes(app).join("\n"));
+});
