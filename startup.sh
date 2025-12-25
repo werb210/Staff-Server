@@ -8,4 +8,4 @@ echo "Building server..."
 npm run build
 
 echo "Starting server..."
-node dist/index.js
+node server/dist/server.js
