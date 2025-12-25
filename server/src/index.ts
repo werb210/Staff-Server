@@ -60,12 +60,19 @@ const logRegisteredRoutes = (app: express.Express): void => {
 
 const app = express();
 
-app.use(express.json());
-
-app.use("/api", apiRouter);
-
-const PORT = Number(process.env.PORT ?? 8080);
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  logRegisteredRoutes(app);
+app.get("/healthz", (_req, res) => {
+  res.status(200).json({ status: "ok" });
 });
+
+try {
+  app.use(express.json());
+  app.use("/api", apiRouter);
+
+  const PORT = Number(process.env.PORT ?? 8080);
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+    logRegisteredRoutes(app);
+  });
+} catch (error) {
+  console.error("Startup error:", error);
+}
