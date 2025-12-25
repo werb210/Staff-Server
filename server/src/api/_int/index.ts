@@ -1,6 +1,4 @@
 import { Router } from "express";
-import { pool } from "../../db/pool.js";
-
 const router = Router();
 
 /**
@@ -11,10 +9,18 @@ router.get("/health", (_req, res) => {
 });
 
 /**
+ * GET /api/_int/live
+ */
+router.get("/live", (_req, res) => {
+  res.json({ status: "ok" });
+});
+
+/**
  * GET /api/_int/db
  */
 router.get("/db", async (_req, res) => {
   try {
+    const { pool } = await import("../../db/pool.js");
     await pool.query("select 1");
     res.json({ db: "ok" });
   } catch (error) {
@@ -37,6 +43,7 @@ router.get("/routes", (_req, res) => {
     "GET  /api/users",
     "GET  /api/users/:id",
     "GET  /api/_int/health",
+    "GET  /api/_int/live",
     "GET  /api/_int/db",
     "GET  /api/_int/routes",
     "GET  /api/crm",
