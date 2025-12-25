@@ -2,8 +2,11 @@
 
 import express from "express";
 import apiRouter from "./api/index.js";
+import internalRoutes from "./routes/internal";
 
 const app = express();
+
+app.use("/api/_int", internalRoutes);
 
 /**
  * HARD GUARANTEES FOR AZURE APP SERVICE
@@ -15,10 +18,6 @@ const app = express();
 
 app.get("/", (_req, res) => {
   res.status(200).send("OK");
-});
-
-app.get("/api/_int/health", (_req, res) => {
-  res.status(200).json({ status: "ok" });
 });
 
 // --- middleware AFTER probes ---
