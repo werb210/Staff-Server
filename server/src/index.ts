@@ -28,4 +28,11 @@ process.on("unhandledRejection", (reason) => {
   console.error("Unhandled rejection:", reason);
 });
 
+const PORT = Number(process.env.PORT) || 8080;
+const HOST = "0.0.0.0";
+
+app.listen(PORT, HOST, () => {
+  console.log(`Staff-Server running on ${HOST}:${PORT}`);
+});
+
 export default app;

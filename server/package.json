@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "start": "node dist/server.js"
+    "start": "node dist/index.js"
   },
   "dependencies": {
     "express": "^4.19.2",
