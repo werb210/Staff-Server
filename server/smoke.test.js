@@ -18,8 +18,8 @@
  *  - server listens on PORT (default 8080)
  */
 
-const http = require("http");
-const assert = require("assert");
+import http from "http";
+import assert from "assert";
 
 const BASE_URL = process.env.BASE_URL || "http://localhost:8080";
 const STAFF_ORIGIN = "https://staff.boreal.financial";
