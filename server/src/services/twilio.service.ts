@@ -1,4 +1,5 @@
 import Twilio from "twilio";
+import { requireEnv } from "../env.js";
 
 const {
   TWILIO_ACCOUNT_SID,
@@ -11,23 +12,32 @@ export const twilioConfigured =
   !!TWILIO_AUTH_TOKEN &&
   !!TWILIO_VERIFY_SERVICE_SID;
 
-if (!twilioConfigured) {
-  throw new Error("Twilio environment variables are missing");
+let client: ReturnType<typeof Twilio> | null = null;
+
+function getTwilioClient() {
+  if (client) {
+    return client;
+  }
+
+  const accountSid = requireEnv("TWILIO_ACCOUNT_SID");
+  const authToken = requireEnv("TWILIO_AUTH_TOKEN");
+  client = Twilio(accountSid, authToken);
+
+  return client;
 }
 
-const client = Twilio(
-  TWILIO_ACCOUNT_SID as string,
-  TWILIO_AUTH_TOKEN as string
-);
+function getVerifyServiceSid(): string {
+  return requireEnv("TWILIO_VERIFY_SERVICE_SID");
+}
 
 export function sendVerificationCode(to: string) {
-  return client.verify.v2
-    .services(TWILIO_VERIFY_SERVICE_SID as string)
+  return getTwilioClient()
+    .verify.v2.services(getVerifyServiceSid())
     .verifications.create({ to, channel: "sms" });
 }
 
 export function checkVerificationCode(to: string, code: string) {
-  return client.verify.v2
-    .services(TWILIO_VERIFY_SERVICE_SID as string)
+  return getTwilioClient()
+    .verify.v2.services(getVerifyServiceSid())
     .verificationChecks.create({ to, code });
 }
