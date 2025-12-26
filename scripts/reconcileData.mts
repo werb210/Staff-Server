@@ -1,16 +1,16 @@
 import 'dotenv/config';
 import { eq, sql } from 'drizzle-orm';
-import { db } from '../server/server/src/db/db.js';
-import { applications } from '../server/server/src/db/schema/applications.js';
-import { pipelineEvents } from '../server/server/src/db/schema/pipeline.js';
-import { documents } from '../server/server/src/db/schema/documents.js';
-import { documentVersions } from '../server/server/src/db/schema/documentVersions.js';
-import { ocrResults } from '../server/server/src/db/schema/ocr.js';
-import { bankingAnalysis } from '../server/server/src/db/schema/banking.js';
-import { users } from '../server/server/src/db/schema/users.js';
-import { signatures } from '../server/server/src/db/schema/signatures.js';
-import { messages } from '../server/server/src/db/schema/messages.js';
-import { auditLogs } from '../server/server/src/db/schema/audit.js';
+import { db } from '../server/src/db/db.js';
+import { applications } from '../server/src/db/schema/applications.js';
+import { pipelineEvents } from '../server/src/db/schema/pipeline.js';
+import { documents } from '../server/src/db/schema/documents.js';
+import { documentVersions } from '../server/src/db/schema/documentVersions.js';
+import { ocrResults } from '../server/src/db/schema/ocr.js';
+import { bankingAnalysis } from '../server/src/db/schema/banking.js';
+import { users } from '../server/src/db/schema/users.js';
+import { signatures } from '../server/src/db/schema/signatures.js';
+import { messages } from '../server/src/db/schema/messages.js';
+import { auditLogs } from '../server/src/db/schema/audit.js';
 
 const now = () => new Date();
 

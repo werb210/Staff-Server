@@ -7,8 +7,8 @@
     "moduleResolution": "NodeNext"
   },
   "include": [
-    "server/server/src/**/*.ts",
-    "server/server/src/__tests__/**/*.ts"
+    "server/src/**/*.ts",
+    "server/src/__tests__/**/*.ts"
   ],
   "exclude": [
     "dist",

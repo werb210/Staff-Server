@@ -14,16 +14,16 @@
  *  - Logs audit event
  */
 
-import { db } from "../server/server/src/db/db.js";
+import { db } from "../src/db/db.js";
 import { randomUUID } from "crypto";
-import { getContainer } from "../server/server/src/utils/blob.js";
-import ocrService from "../server/server/src/services/ocrService.js";
-import bankingService from "../server/server/src/services/bankingService.js";
-import productsService from "../server/server/src/services/productsService.js";
-import pipelineService from "../server/server/src/services/pipelineService.js";
-import notificationsService from "../server/server/src/services/notificationsService.js";
-import auditService from "../server/server/src/services/auditService.js";
-import documentService from "../server/server/src/services/documentsService.js";
+import { getContainer } from "../src/utils/blob.js";
+import ocrService from "../src/services/ocrService.js";
+import bankingService from "../src/services/bankingService.js";
+import productsService from "../src/services/productsService.js";
+import pipelineService from "../src/services/pipelineService.js";
+import notificationsService from "../src/services/notificationsService.js";
+import auditService from "../src/services/auditService.js";
+import documentService from "../src/services/documentsService.js";
 
 async function run() {
   console.log("→ Starting simulation...");
