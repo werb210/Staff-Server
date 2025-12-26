@@ -16,4 +16,4 @@ RUN npm run build
 
 ENV PORT=8080
 EXPOSE 8080
-CMD ["node", "server/dist/index.js"]
+CMD ["npm", "run", "start"]
