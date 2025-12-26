@@ -4,17 +4,13 @@ import internalRoutes from "./routes/internal.js";
 
 const app = express();
 
-app.get("/api/_int/health", (_req, res) => {
-  res.status(200).json({ status: "ok" });
-});
-
-/*
- * Azure hard requirements:
- * - Root must return 200
- * - Health check must be fast, unconditional, and before middleware
- */
+// Azure unconditional probes (MUST be first)
 app.get("/", (_req, res) => {
   res.status(200).send("OK");
+});
+
+app.get("/api/_int/health", (_req, res) => {
+  res.status(200).json({ status: "ok" });
 });
 
 app.use("/api/_int", internalRoutes);
