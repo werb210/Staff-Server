@@ -31,10 +31,7 @@ jobs:
           node dist/index.js &
           pid=$!
           sleep 3
-          if ! kill -0 $pid; then
-            echo "Server exited early"
-            exit 1
-          fi
+          kill -0 $pid
           kill $pid
 
       - name: Zip deployment
