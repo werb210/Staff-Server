@@ -74,9 +74,9 @@ Additional development toggles:
 
 ## Development Notes
 
-- Utility helpers can be added to `server/src/utils`.
-- Service-layer logic can be implemented within `server/src/services`.
-- The `server/src/utils/index.ts` file is intentionally empty and ready for future exports.
+- Utility helpers can be added to `server/server/src/utils`.
+- Service-layer logic can be implemented within `server/server/src/services`.
+- The `server/server/src/utils/index.ts` file is intentionally empty and ready for future exports.
 
 ## Production deployment on Azure
 
@@ -110,7 +110,7 @@ The repository now includes Azure-first assets for deploying the containerized A
 ### Runtime expectations
 
 - The container honors `WEBSITES_PORT` (preferred on Azure) and `PORT` environment variables; defaults to `8080` locally.
-- The internal health probe is served at `/api/internal/health` (mounted from `server/src/routes/internal/index.ts`).
+- The internal health probe is served at `/api/internal/health` (mounted from `server/server/src/routes/internal/index.ts`).
 - The runtime Docker image runs as the non-root `node` user and includes an internal health check for local and container orchestrators.
 
  

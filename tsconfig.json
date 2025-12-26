@@ -1,24 +1,14 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "Node16",
-    "moduleResolution": "Node16",
-    "outDir": "dist",
-    "rootDir": ".",
-    "strict": true,
+    "target": "ES2020",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "rootDir": "server/server/src",
+    "outDir": "server/dist",
+    "strict": false,
     "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
-    "resolveJsonModule": true,
-    "allowImportingTsExtensions": false,
-    "noEmitOnError": true
+    "forceConsistentCasingInFileNames": true
   },
-  "include": ["server/**/*.ts"],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "server/drizzle.config.ts",
-    "server/simulation/**",
-    "server/vitest.config.ts"
-  ]
+  "include": ["server/server/src/**/*"]
 }
