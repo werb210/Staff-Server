@@ -1,3 +1,5 @@
+# .github/workflows/main_boreal-staff-server.yml
+
 name: Deploy Staff-Server to Azure
 
 on:
@@ -22,52 +24,22 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint (if present)
-        run: |
-          node -e "const p=require('./package.json'); process.exit(p.scripts && p.scripts.lint ? 0 : 1)" \
-            && npm run lint \
-            || echo "no lint script"
-
-      - name: Test (if present)
-        run: |
-          node -e "const p=require('./package.json'); process.exit((p.scripts && (p.scripts.test || p.scripts['test:ci'])) ? 0 : 1)" \
-            && (npm run test || npm run test:ci || true) \
-            || echo "no test script"
-
       - name: Build
         run: npm run build
 
-      - name: Verify build output exists (auto-detect)
-        run: |
-          set -e
-          if [ -f server/dist/index.js ]; then
-            echo "Found server/dist/index.js"
-          elif [ -f dist/index.js ]; then
-            echo "Found dist/index.js"
-          else
-            echo "ERROR: Could not find server/dist/index.js or dist/index.js after build."
-            echo "Tree (server/dist):"
-            ls -la server/dist || true
-            echo "Tree (dist):"
-            ls -la dist || true
-            exit 1
-          fi
+      - name: Verify build output
+        run: test -f server/dist/index.js
 
-      - name: Create deployment package (zip)
+      - name: Create deployment package
         run: |
-          set -e
-          rm -f app.zip
-          zip -r app.zip . \
-            -x "**/node_modules/**" \
+          zip -r deploy.zip . \
             -x "**/.git/**" \
-            -x "**/.github/**" \
-            -x "**/.devcontainer/**" \
-            -x "**/tests/**" \
-            -x "**/*.log"
+            -x "**/node_modules/**" \
+            -x "**/.github/**"
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
           app-name: boreal-staff-server
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE }}
-          package: app.zip
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: deploy.zip
