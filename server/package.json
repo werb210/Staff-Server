@@ -1,6 +1,7 @@
 {
   "name": "staff-server",
   "private": true,
+  "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js"
