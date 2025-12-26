@@ -24,6 +24,4 @@ jobs:
         run: npm run build
 
       - name: Sanity check build output exists
-        run: |
-          test -f server/dist/index.js
-          echo "OK: server/dist/index.js exists"
+        run: test -f dist/server/src/index.js
