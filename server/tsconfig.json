@@ -3,25 +3,12 @@
     "target": "ES2022",
     "module": "CommonJS",
     "moduleResolution": "node",
+    "outDir": "dist",
+    "rootDir": "src",
     "strict": false,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": true,
-    "baseUrl": ".",
-    "paths": {
-      "@/*": [
-        "server/src/*"
-      ]
-    },
-    "outDir": "dist",
-    "rootDir": "server/src",
-    "noImplicitAny": false
+    "skipLibCheck": true
   },
-  "include": [
-    "server/src/**/*.ts"
-  ],
-  "exclude": [
-    "dist",
-    "node_modules"
-  ]
+  "include": ["src"]
 }
