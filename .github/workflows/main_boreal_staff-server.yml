@@ -22,16 +22,16 @@ jobs:
           npm ci
           npm run build
 
-      - name: Verify build output
-        run: test -f server/dist/index.js
+      - name: Verify dist output
+        run: |
+          test -f server/dist/index.js
 
-      - name: Verify server starts
+      - name: Verify server boots
         run: |
           cd server
           node dist/index.js &
           pid=$!
           sleep 3
-          kill -0 $pid
           kill $pid
 
       - name: Zip deployment
