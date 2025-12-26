@@ -1,4 +1,12 @@
 import express from "express";
+import { requireEnv } from "./env.js";
+
+function validateRequiredEnv() {
+  requireEnv("DATABASE_URL");
+  requireEnv("JWT_SECRET");
+}
+
+validateRequiredEnv();
 
 const app = express();
 
