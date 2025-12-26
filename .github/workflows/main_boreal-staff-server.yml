@@ -17,8 +17,10 @@ jobs:
           node-version: 20
           cache: npm
 
-      - run: npm ci
-      - run: npm run build
+      - run: |
+          cd server
+          npm ci
+          npm run build
 
       - name: Verify build output
         run: test -f server/dist/index.js
