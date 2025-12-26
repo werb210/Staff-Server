@@ -17,22 +17,15 @@ jobs:
           node-version: 20
           cache: npm
 
-      - run: |
+      - name: Build and verify runtime
+        run: |
           cd server
           npm ci
           npm run build
-
-      - name: Verify dist output
-        run: |
-          cd server
           test -f dist/index.js
-
-      - name: Verify server boots
-        run: |
-          cd server
-          node dist/index.js &
+          PORT=8080 node dist/index.js &
           PID=$!
-          sleep 3
+          sleep 5
           kill -0 $PID
           kill $PID
 
