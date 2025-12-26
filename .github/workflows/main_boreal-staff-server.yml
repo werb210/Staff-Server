@@ -25,6 +25,18 @@ jobs:
       - name: Verify build output
         run: test -f server/dist/index.js
 
+      - name: Verify server starts
+        run: |
+          cd server
+          node dist/index.js &
+          pid=$!
+          sleep 3
+          if ! kill -0 $pid; then
+            echo "Server exited early"
+            exit 1
+          fi
+          kill $pid
+
       - name: Zip deployment
         run: |
           zip -r app.zip server/dist server/package.json server/node_modules
