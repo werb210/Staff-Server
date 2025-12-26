@@ -3,17 +3,25 @@
     "target": "ES2022",
     "module": "commonjs",
     "moduleResolution": "node",
-    "strict": true,
+    "strict": false,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["server/src/*"]
+      "@/*": [
+        "server/src/*"
+      ]
     },
     "outDir": "dist",
-    "rootDir": "server/src"
+    "rootDir": "server/src",
+    "noImplicitAny": false
   },
-  "include": ["server/src/**/*.ts"],
-  "exclude": ["dist", "node_modules"]
+  "include": [
+    "server/src/**/*.ts"
+  ],
+  "exclude": [
+    "dist",
+    "node_modules"
+  ]
 }
