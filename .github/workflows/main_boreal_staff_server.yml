@@ -24,15 +24,17 @@ jobs:
 
       - name: Verify dist output
         run: |
-          test -f server/dist/index.js
+          cd server
+          test -f dist/index.js
 
       - name: Verify server boots
         run: |
           cd server
           node dist/index.js &
-          pid=$!
+          PID=$!
           sleep 3
-          kill $pid
+          kill -0 $PID
+          kill $PID
 
       - name: Zip deployment
         run: |
