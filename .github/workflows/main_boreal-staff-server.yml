@@ -25,7 +25,7 @@ jobs:
 
       - name: Zip deployment
         run: |
-          zip -r app.zip server/dist package.json package-lock.json node_modules
+          zip -r app.zip server/dist server/package.json server/node_modules
 
       - name: Azure Login
         uses: azure/login@v2
