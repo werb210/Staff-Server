@@ -4,7 +4,7 @@ These settings mirror the environment Azure App Service uses when running the pr
 
 ## Runtime
 - **Stack:** Node.js 20 LTS
-- **Start command:** `npm start`
+- **Start command:** `npm run start`
 - **Working directory:** `/home/site/wwwroot`
 - `server/package.json` declares `"main": "dist/index.js"` and a start script of `node dist/index.js`.
 
@@ -27,6 +27,6 @@ Set these App Settings in Azure:
 
 ## Smoke test (Azure-equivalent)
 1. Set production-like environment variables (including database URL, JWT/Access/Refresh secrets, Azure Blob keys, and Twilio credentials or placeholders that satisfy validation).
-2. Run the build: `npm --prefix server run build`.
-3. Start the server: `NODE_ENV=production PORT=8080 node server/dist/index.js`.
+2. Run the build: `npm run build`.
+3. Start the server: `NODE_ENV=production PORT=8080 npm run start`.
 4. Verify health: `curl -f http://localhost:8080/api/_int/health` and `curl -f http://localhost:8080/api/_int/routes`.
