@@ -23,10 +23,16 @@ jobs:
           npm ci
           npm run build
           test -f dist/index.js
+          node -e "import('./dist/index.js')"
           PORT=8080 node dist/index.js &
           PID=$!
           sleep 5
-          kill -0 $PID
+          kill -0 $PID || exit 1
+          kill $PID
+          npm start &
+          PID=$!
+          sleep 5
+          kill -0 $PID || exit 1
           kill $PID
 
       - name: Zip deployment
