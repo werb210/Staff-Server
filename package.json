@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "start": "node dist/server/src/index.js"
+    "build": "tsc -p server/tsconfig.json",
+    "start": "node server/dist/index.js"
   },
   "dependencies": {
     "bcrypt": "^5.1.0",
