@@ -22,14 +22,16 @@ app.get("/api/_int/live", (_req: Request, res: Response) => {
   res.status(200).send("ok");
 });
 
-const isMain =
-  typeof process.argv[1] === "string" &&
-  import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
-
-if (isMain) {
-  app.listen(port, host, () => {
-    console.log(`Staff-Server running on port ${port}`);
-  });
-}
+/**
+ * IMPORTANT:
+ * Azure App Service does NOT execute Node the same way as local Node.
+ * The previous ESM isMain guard prevented app.listen() from running,
+ * causing the process to exit immediately and Azure to return 504s.
+ *
+ * This server MUST always listen.
+ */
+app.listen(port, host, () => {
+  console.log(`Staff-Server running on port ${port}`);
+});
 
 export default app;
