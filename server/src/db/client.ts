@@ -1,5 +1,3 @@
-// server/src/db/client.ts
-
 import { Pool } from 'pg';
 import * as schema from './schema';
 
@@ -10,9 +8,6 @@ const pool = new Pool({
     : undefined,
 });
 
-export const db = {
-  pool,
-  schema,
-};
-
-export default db;
+export const client = pool;
+export default client;
+export { schema };
