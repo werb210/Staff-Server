@@ -1,5 +1,5 @@
-import { client } from "./client";
+import client from "./client";
 
 export async function initDb() {
-  await client.connect();
+  await client.query("select 1");
 }
