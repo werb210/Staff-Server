@@ -12,9 +12,10 @@ RUN npm ci --prefix server
 
 COPY . .
 
-# 🔴 FORCE correct TS build (this is the bug)
-RUN npx tsc -p server/tsconfig.json
+# 🔴 THIS IS THE FIX
+RUN npm run --prefix server build
 
+ENV PORT=8080
 EXPOSE 8080
 
 CMD ["node", "server/dist/index.js"]
