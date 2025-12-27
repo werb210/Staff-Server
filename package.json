@@ -5,7 +5,7 @@
     "server"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p server/tsconfig.json",
     "start": "node server/dist/index.js"
   },
   "dependencies": {
