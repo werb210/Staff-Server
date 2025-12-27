@@ -1,10 +1,15 @@
-import client from './client';
+// server/src/db/init.ts
+
+import client from './client.js';
 
 export async function initDb() {
-  if (!client._connected) {
+  const c: any = client as any;
+
+  if (!c.__connected) {
     await client.connect();
-    (client as any)._connected = true;
+    c.__connected = true;
   }
 }
 
 export { client };
+export default client;
