@@ -1,10 +1,18 @@
-import { Client } from 'pg';
+// server/src/db/client.ts
 
-const client = new Client({
+import { Pool } from 'pg';
+import * as schema from './schema';
+
+const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.PGSSL === 'false'
-    ? false
-    : { rejectUnauthorized: false },
+  ssl: process.env.DATABASE_SSL === 'true'
+    ? { rejectUnauthorized: false }
+    : undefined,
 });
 
-export default client;
+export const db = {
+  pool,
+  schema,
+};
+
+export default db;
