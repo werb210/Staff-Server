@@ -2,13 +2,11 @@ name: Deploy Staff Server to Azure App Service
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
@@ -19,7 +17,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: server
-        run: npm install
+        run: npm ci
 
       - name: Build
         working-directory: server
