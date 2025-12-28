@@ -11,12 +11,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Use Node 20
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: "20"
 
-      - name: Install dependencies (full)
+      - name: Install dependencies
         working-directory: server
         run: npm ci
 
@@ -35,7 +34,7 @@ jobs:
           cp server/package.json deploy/package.json
           cp -r server/node_modules deploy/node_modules
 
-      - name: Deploy to Azure Web App (ZIP)
+      - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
           app-name: boreal-staff-server
