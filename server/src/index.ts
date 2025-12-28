@@ -2,34 +2,22 @@ import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 
-import intRoutes from "./routes/_int.routes";
-
-console.log("BOOT: index.ts loaded");
-
 const app = express();
 
-/* ---------------- middleware ---------------- */
 app.use(cors({ origin: true, credentials: true }));
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
 app.use(cookieParser());
 
-/* ---------------- routes ---------------- */
-app.use("/api/_int", intRoutes);
-
-/* ---------------- root ---------------- */
-app.get("/", (_req, res) => {
-  res.json({
-    service: "staff-server",
-    status: "running",
-  });
+app.get("/api/_int/health", (_req, res) => {
+  res.status(200).json({ ok: true });
 });
 
-/* ---------------- server ---------------- */
-const PORT = Number(process.env.PORT) || 8080;
+app.get("/api/_int/live", (_req, res) => {
+  res.status(200).json({ live: true });
+});
 
-console.log("BOOT: about to listen on port", PORT);
+const port = Number(process.env.PORT || 3000);
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`BOOT: staff server listening on ${PORT}`);
+app.listen(port, "0.0.0.0", () => {
+  console.log(`Staff-Server listening on port ${port}`);
 });
