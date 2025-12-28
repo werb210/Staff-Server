@@ -1,23 +1,20 @@
 import express from "express";
 import cors from "cors";
-import cookieParser from "cookie-parser";
 
 const app = express();
-
-app.use(cors({ origin: true, credentials: true }));
+app.use(cors());
 app.use(express.json());
-app.use(cookieParser());
+
+const PORT = Number(process.env.PORT || 3000);
 
 app.get("/api/_int/health", (_req, res) => {
-  res.status(200).json({ ok: true });
+  res.status(200).send("ok");
 });
 
 app.get("/api/_int/live", (_req, res) => {
-  res.status(200).json({ live: true });
+  res.status(200).send("live");
 });
 
-const port = Number(process.env.PORT || 3000);
-
-app.listen(port, "0.0.0.0", () => {
-  console.log(`Staff-Server listening on port ${port}`);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server listening on ${PORT}`);
 });
