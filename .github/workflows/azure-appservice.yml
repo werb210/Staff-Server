@@ -15,36 +15,30 @@ jobs:
           node-version: "20"
 
       - name: Install deps
-        working-directory: server
         run: npm ci
 
       - name: Build TypeScript
-        working-directory: server
         run: npm run build
 
       - name: Prepare runtime package
         run: |
+          rm -rf deploy
           mkdir -p deploy
-          cp -r server/dist deploy/dist
-          cp -r server/node_modules deploy/node_modules
-          cp server/package.json deploy/package.json
 
-      - name: Enforce runtime completeness
-        working-directory: server
-        run: |
-          test -f dist/index.js
-          test -d node_modules/express
-          node -e "require('express')"
+          cp -R server/dist deploy/dist
+          cp server/package.json deploy/
+          cp -R node_modules deploy/node_modules
+
+          test -f deploy/dist/index.js
+          test -d deploy/node_modules/express
 
       - name: Package runtime
         run: |
           cd deploy && zip -r ../server.zip .
 
       - name: Runtime smoke test (MANDATORY)
-        working-directory: server
         run: |
-          NODE_ENV=production PORT=5050 node dist/index.js &
-          PID=$!
+          NODE_ENV=production PORT=5050 node deploy/dist/index.js & PID=$!
           sleep 5
           curl -f http://localhost:5050 || (kill $PID && exit 1)
           kill $PID
