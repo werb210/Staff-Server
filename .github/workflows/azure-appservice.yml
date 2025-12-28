@@ -22,18 +22,32 @@ jobs:
         working-directory: server
         run: npm run build
 
-      - name: Verify build outputs
-        run: |
-          test -d server/node_modules/express || exit 1
-          test -f server/dist/index.js || exit 1
-
-      - name: Package runtime
+      - name: Prepare runtime package
         run: |
           mkdir -p deploy
           cp -r server/dist deploy/dist
           cp -r server/node_modules deploy/node_modules
           cp server/package.json deploy/package.json
+
+      - name: Enforce runtime completeness
+        working-directory: server
+        run: |
+          test -f dist/index.js
+          test -d node_modules/express
+          node -e "require('express')"
+
+      - name: Package runtime
+        run: |
           cd deploy && zip -r ../server.zip .
+
+      - name: Runtime smoke test (MANDATORY)
+        working-directory: server
+        run: |
+          NODE_ENV=production PORT=5050 node dist/index.js &
+          PID=$!
+          sleep 5
+          curl -f http://localhost:5050 || (kill $PID && exit 1)
+          kill $PID
 
       - name: Configure app settings
         uses: azure/appservice-settings@v1
