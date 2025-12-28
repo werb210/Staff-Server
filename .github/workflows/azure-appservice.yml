@@ -1,0 +1,32 @@
+name: Deploy Staff Server to Azure
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Use Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install & build
+        working-directory: server
+        run: |
+          npm install
+          npm run build
+
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: boreal-staff-server
+          publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE }}
+          package: server
