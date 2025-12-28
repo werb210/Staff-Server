@@ -6,26 +6,35 @@ import intRoutes from "./routes/_int.routes";
 
 const app = express();
 
-/* ----------------------------- middleware ----------------------------- */
+/* ================= middleware ================= */
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-/* ------------------------------- routes -------------------------------- */
+/* ================= routes ================= */
 app.use("/api/_int", intRoutes);
 
-/* -------------------------------- root -------------------------------- */
+/* ================= root ================= */
 app.get("/", (_req, res) => {
-  res.json({
+  res.status(200).json({
     service: "staff-server",
     status: "running",
   });
 });
 
-/* ------------------------------- server -------------------------------- */
-const PORT = Number(process.env.PORT) || 3000;
+/* ================= server ================= */
+const PORT = Number(process.env.PORT) || 8080;
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Staff server listening on port ${PORT}`);
+  console.log(`[BOOT] Staff server listening on ${PORT}`);
+});
+
+/* ================= hard guarantees ================= */
+process.on("uncaughtException", (err) => {
+  console.error("[FATAL] uncaughtException", err);
+});
+
+process.on("unhandledRejection", (err) => {
+  console.error("[FATAL] unhandledRejection", err);
 });
