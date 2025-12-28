@@ -12,18 +12,18 @@ These settings mirror the environment Azure App Service uses when running the pr
 Set these App Settings in Azure:
 - `NODE_ENV=production`
 - `PORT=8080`
-- `SCM_DO_BUILD_DURING_DEPLOYMENT=false` (disable Oryx/remote builds; deploy prebuilt `dist/`)
+- `SCM_DO_BUILD_DURING_DEPLOYMENT=true` (enable Oryx/remote builds)
 - `JWT_SECRET=<strong secret value>`
 - `OTP_ENABLED=false` (set to `true` only when Twilio Verify is fully configured)
 - Provide required secrets (database, JWT, token secrets, Azure Blob credentials, Twilio keys) with production values.
 
 ## Dependencies
 - Runtime dependencies must be present before Azure starts `npm start`.
-- `twilio@^5.10.7` is required at runtime; keep it in `server/package.json` dependencies so installs pull it in.
+- Keep all runtime libraries (Express, PG, etc.) in `server/package.json` dependencies so Oryx installs them during deployment.
 
 ## Deployment/build tips
 - Build artifacts are produced in `server/dist` via `npm run build`.
-- Deploy the prebuilt ZIP artifact (including `dist/`) from CI; Azure should not run `tsc`.
+- Deploy the source ZIP or folder (including `server/package.json` and `server/tsconfig.json`); Azure/Oryx runs `npm install` and `npm run build` during deployment.
 - `server/oryx-manifest.toml` pins Node 20 and the start command for the App Service runtime.
 
 ## Smoke test (Azure-equivalent)
