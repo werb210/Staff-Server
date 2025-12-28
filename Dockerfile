@@ -3,13 +3,15 @@ FROM node:20-alpine
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci
+COPY server/package*.json ./server/
 
-COPY server ./server
+RUN npm ci --ignore-scripts
+RUN npm ci --prefix server
 
-# build SERVER workspace output → server/dist
+COPY . .
+
 RUN npm run build
 
 EXPOSE 3000
 
-CMD ["node", "server/dist/index.js"]
+CMD ["node", "dist/index.js"]
