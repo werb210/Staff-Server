@@ -1,7 +1,0 @@
-[oryx]
-platform = "nodejs"
-platform_version = "20"
-app_name = "staff-server"
-app_directory = "."
-output_path = "dist"
-run_command = "npm start"
