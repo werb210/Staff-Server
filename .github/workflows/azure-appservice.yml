@@ -29,9 +29,10 @@ jobs:
         run: npm prune --omit=dev
 
       - name: Create deployment zip
+        working-directory: server
         run: |
-          cd server
-          zip -r ../server.zip .
+          test -d node_modules
+          zip -r ../server.zip dist node_modules package.json
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
