@@ -10,19 +10,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Use Node 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Install dependencies
-        working-directory: server
-        run: npm ci
-
-      - name: Build
-        working-directory: server
-        run: npm run build
-
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
