@@ -16,7 +16,12 @@ jobs:
 
       - name: Install deps
         working-directory: server
-        run: npm install
+        run: npm ci
+
+      - name: Verify deps
+        run: |
+          test -d server/node_modules || exit 1
+          test -d server/node_modules/express || exit 1
 
       - name: Build
         working-directory: server
@@ -32,7 +37,20 @@ jobs:
           cp -r server/dist deploy/dist
           cp -r server/node_modules deploy/node_modules
           cp server/package.json deploy/package.json
+          cp server/package-lock.json deploy/package-lock.json
+          mkdir -p deploy/server
+          cp -r server/dist deploy/server/dist
+          cp -r server/node_modules deploy/server/node_modules
+          cp server/package.json deploy/server/package.json
+          cp server/package-lock.json deploy/server/package-lock.json
           cd deploy && zip -r ../server.zip .
+
+      - name: Verify artifact
+        run: |
+          test -f deploy/server/package.json || exit 1
+          test -f deploy/server/package-lock.json || exit 1
+          test -d deploy/server/node_modules/express || exit 1
+          test -d deploy/server/dist || exit 1
 
       - name: Deploy to Azure
         uses: azure/webapps-deploy@v3
