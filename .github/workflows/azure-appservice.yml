@@ -18,31 +18,46 @@ jobs:
         working-directory: server
         run: npm ci
 
-      - name: Verify deps
-        run: |
-          test -d server/node_modules || exit 1
-          test -d server/node_modules/express || exit 1
-
-      - name: Build
+      - name: Build TypeScript
         working-directory: server
         run: npm run build
 
+      - name: Verify build outputs
+        run: |
+          test -d server/node_modules/express || exit 1
+          test -f server/dist/index.js || exit 1
+
       - name: Package runtime
         run: |
-          mkdir deploy
+          mkdir -p deploy
           cp -r server/dist deploy/dist
           cp -r server/node_modules deploy/node_modules
           cp server/package.json deploy/package.json
           cd deploy && zip -r ../server.zip .
 
-      - name: Verify artifact
-        run: |
-          test -f deploy/package.json || exit 1
-          test -d deploy/node_modules/express || exit 1
-          test -d deploy/dist || exit 1
+      - name: Configure app settings
+        uses: azure/appservice-settings@v1
+        with:
+          app-name: boreal-staff-server
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE }}
+          app-settings-json: |
+            [
+              {
+                "name": "SCM_DO_BUILD_DURING_DEPLOYMENT",
+                "value": "false",
+                "slotSetting": false
+              },
+              {
+                "name": "WEBSITE_RUN_FROM_PACKAGE",
+                "value": "1",
+                "slotSetting": false
+              }
+            ]
 
       - name: Deploy to Azure
         uses: azure/webapps-deploy@v3
         with:
           app-name: boreal-staff-server
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE }}
           package: server.zip
+          startup-command: "node dist/index.js"
