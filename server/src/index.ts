@@ -4,37 +4,32 @@ import cookieParser from "cookie-parser";
 
 import intRoutes from "./routes/_int.routes";
 
+console.log("BOOT: index.ts loaded");
+
 const app = express();
 
-/* ================= middleware ================= */
+/* ---------------- middleware ---------------- */
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-/* ================= routes ================= */
+/* ---------------- routes ---------------- */
 app.use("/api/_int", intRoutes);
 
-/* ================= root ================= */
+/* ---------------- root ---------------- */
 app.get("/", (_req, res) => {
-  res.status(200).json({
+  res.json({
     service: "staff-server",
     status: "running",
   });
 });
 
-/* ================= server ================= */
+/* ---------------- server ---------------- */
 const PORT = Number(process.env.PORT) || 8080;
 
+console.log("BOOT: about to listen on port", PORT);
+
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`[BOOT] Staff server listening on ${PORT}`);
-});
-
-/* ================= hard guarantees ================= */
-process.on("uncaughtException", (err) => {
-  console.error("[FATAL] uncaughtException", err);
-});
-
-process.on("unhandledRejection", (err) => {
-  console.error("[FATAL] unhandledRejection", err);
+  console.log(`BOOT: staff server listening on ${PORT}`);
 });
