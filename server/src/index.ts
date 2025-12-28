@@ -2,6 +2,7 @@ import express from "express";
 
 const app = express();
 
+app.get("/", (_req, res) => res.status(200).send("ok"));
 app.get("/api/_int/health", (_req, res) => res.status(200).send("ok"));
 app.get("/api/_int/live", (_req, res) => res.status(200).send("live"));
 
