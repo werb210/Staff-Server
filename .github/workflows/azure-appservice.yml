@@ -2,41 +2,40 @@ name: Deploy Staff Server to Azure App Service
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
-      - name: Use Node 20
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: "20"
 
-      - name: Install dependencies
+      - name: Install deps
         working-directory: server
-        run: npm ci
+        run: npm install
 
-      - name: Build TypeScript
+      - name: Build
         working-directory: server
         run: npm run build
 
-      - name: Prune dev dependencies
+      - name: Prune dev deps
         working-directory: server
         run: npm prune --omit=dev
 
-      - name: Create deployment zip
-        working-directory: server
+      - name: Package runtime
         run: |
-          test -d node_modules
-          zip -r ../server.zip dist node_modules package.json
+          mkdir deploy
+          cp -r server/dist deploy/dist
+          cp -r server/node_modules deploy/node_modules
+          cp server/package.json deploy/package.json
+          cd deploy && zip -r ../server.zip .
 
-      - name: Deploy to Azure Web App
+      - name: Deploy to Azure
         uses: azure/webapps-deploy@v3
         with:
           app-name: boreal-staff-server
-          publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE }}
           package: server.zip
