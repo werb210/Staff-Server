@@ -17,31 +17,29 @@ jobs:
       - name: Install deps
         run: npm ci
 
-      - name: Build TypeScript
-        run: npm run build
+      - name: Build server workspace
+        run: npm --workspace server run build
 
-      - name: Prepare runtime package
+      - name: Package runtime and run smoke test (MANDATORY)
         run: |
-          rm -rf deploy
-          mkdir -p deploy
+          rm -rf deploy server.zip
+          mkdir -p deploy/server
 
-          cp -R server/dist deploy/dist
-          cp server/package.json deploy/
+          cp -R server/dist deploy/server/dist
+          cp server/package.json deploy/server/package.json
           cp -R node_modules deploy/node_modules
 
-          test -f deploy/dist/index.js
-          test -d deploy/node_modules/express
+          test -f deploy/server/dist/index.js
+          node -e "require('express'); require('pg')"
 
-      - name: Package runtime
-        run: |
-          cd deploy && zip -r ../server.zip .
-
-      - name: Runtime smoke test (MANDATORY)
-        run: |
-          NODE_ENV=production PORT=5050 node deploy/dist/index.js & PID=$!
-          sleep 5
-          curl -f http://localhost:5050 || (kill $PID && exit 1)
+          # MANDATORY runtime smoke test (must fail CI if server doesn't boot)
+          NODE_ENV=production PORT=5050 node deploy/server/dist/index.js & PID=$!
+          sleep 6
+          curl -fsS http://localhost:5050/api/_int/health || (kill $PID && exit 1)
           kill $PID
+
+          cd deploy
+          zip -r ../server.zip .
 
       - name: Configure app settings
         uses: azure/appservice-settings@v1
@@ -68,4 +66,4 @@ jobs:
           app-name: boreal-staff-server
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE }}
           package: server.zip
-          startup-command: "node dist/index.js"
+          startup-command: "node server/dist/index.js"
