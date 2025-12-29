@@ -4,50 +4,62 @@ import http from "http";
 const app = express();
 
 /**
- * REQUIRED FOR AZURE
- */
-const PORT = Number(process.env.PORT) || 8080;
-const HOST = "0.0.0.0";
-
-/**
+ * -------------------------
  * BASIC MIDDLEWARE
+ * -------------------------
  */
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 /**
- * HEALTH CHECK — REQUIRED
- * Azure expects HTTP 200
+ * -------------------------
+ * HEALTH CHECK (AZURE)
+ * -------------------------
+ * Azure App Service probes this path
+ * Must return 200 quickly
  */
 app.get("/health", (_req, res) => {
+  console.log("Health check OK");
   res.status(200).send("OK");
 });
 
 /**
- * ROOT (OPTIONAL BUT SAFE)
+ * -------------------------
+ * ROOT (OPTIONAL BUT USEFUL)
+ * -------------------------
  */
 app.get("/", (_req, res) => {
   res.status(200).send("Staff Server running");
 });
 
 /**
- * START SERVER
+ * -------------------------
+ * PORT BINDING (AZURE)
+ * -------------------------
+ * Azure injects PORT
+ * Do NOT hardcode
  */
+const port = process.env.PORT
+  ? Number(process.env.PORT)
+  : 8080;
+
 const server = http.createServer(app);
 
-server.listen(PORT, HOST, () => {
-  console.log(`Staff-Server running on port ${PORT}`);
+server.listen(port, "0.0.0.0", () => {
+  console.log(`Staff-Server running on port ${port}`);
 });
 
 /**
- * FAIL FAST ON CRASH
+ * -------------------------
+ * HARD FAIL ON SILENT ERRORS
+ * -------------------------
  */
-process.on("unhandledRejection", (err) => {
-  console.error("UNHANDLED REJECTION", err);
+process.on("uncaughtException", (err) => {
+  console.error("UNCAUGHT EXCEPTION:", err);
   process.exit(1);
 });
 
-process.on("uncaughtException", (err) => {
-  console.error("UNCAUGHT EXCEPTION", err);
+process.on("unhandledRejection", (reason) => {
+  console.error("UNHANDLED REJECTION:", reason);
   process.exit(1);
 });
