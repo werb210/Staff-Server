@@ -20,11 +20,8 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Smoke test
-        run: |
-          NODE_ENV=production PORT=5050 node dist/index.js &
-          sleep 5
-          curl -f http://localhost:5050/api/_int/health
+      - name: Smoke test (MANDATORY)
+        run: npm run smoke
 
       - name: Deploy to Azure
         uses: azure/webapps-deploy@v3
