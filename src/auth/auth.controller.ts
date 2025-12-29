@@ -20,11 +20,7 @@ function hashRefreshToken(token: string): string {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
 
-function setAuthCookies(
-  res: Response,
-  accessToken: string,
-  refreshToken: string
-) {
+function setAuthCookies(res: Response, accessToken: string, refreshToken: string) {
   const isProduction = process.env.NODE_ENV === "production";
 
   res.cookie("access_token", accessToken, {
@@ -47,17 +43,18 @@ function clearAuthCookies(res: Response) {
   res.clearCookie("refresh_token");
 }
 
-/* -------------------- controllers -------------------- */
-
-export async function status(_req: Request, res: Response) {
+/* -------------------- REQUIRED HEALTH -------------------- */
+/**
+ * MUST exist or frontend + curl checks fail
+ */
+export function status(_req: Request, res: Response) {
   return res.status(200).json({ ok: true });
 }
 
+/* -------------------- auth -------------------- */
+
 export async function login(req: AuthenticatedRequest, res: Response) {
-  const { email, password } = req.body as {
-    email?: string;
-    password?: string;
-  };
+  const { email, password } = req.body ?? {};
 
   if (!email || !password) {
     return res.status(401).json({ message: "Invalid credentials" });
@@ -68,27 +65,15 @@ export async function login(req: AuthenticatedRequest, res: Response) {
     return res.status(401).json({ message: "Invalid credentials" });
   }
 
-  const passwordMatches = await comparePassword(
-    password,
-    user.passwordHash
-  );
+  const passwordMatches = await comparePassword(password, user.passwordHash);
   if (!passwordMatches) {
     return res.status(401).json({ message: "Invalid credentials" });
   }
 
-  const accessToken = signAccessToken({
-    userId: user.id,
-    email: user.email,
-  });
-  const refreshToken = signRefreshToken({
-    userId: user.id,
-    email: user.email,
-  });
+  const accessToken = signAccessToken({ userId: user.id, email: user.email });
+  const refreshToken = signRefreshToken({ userId: user.id, email: user.email });
 
-  await setUserRefreshTokenHash(
-    user.id,
-    hashRefreshToken(refreshToken)
-  );
+  await setUserRefreshTokenHash(user.id, hashRefreshToken(refreshToken));
   setAuthCookies(res, accessToken, refreshToken);
 
   return res.json({
@@ -100,8 +85,8 @@ export async function login(req: AuthenticatedRequest, res: Response) {
 
 export async function logout(req: AuthenticatedRequest, res: Response) {
   const refreshToken =
-    (req.cookies?.refresh_token as string | undefined) ??
-    (req.body?.refreshToken as string | undefined);
+    req.cookies?.refresh_token ??
+    req.body?.refreshToken;
 
   if (refreshToken) {
     try {
@@ -118,8 +103,8 @@ export async function logout(req: AuthenticatedRequest, res: Response) {
 
 export async function refresh(req: AuthenticatedRequest, res: Response) {
   const refreshToken =
-    (req.cookies?.refresh_token as string | undefined) ??
-    (req.body?.refreshToken as string | undefined);
+    req.cookies?.refresh_token ??
+    req.body?.refreshToken;
 
   if (!refreshToken) {
     return res.status(401).json({ message: "Missing refresh token" });
@@ -147,23 +132,17 @@ export async function refresh(req: AuthenticatedRequest, res: Response) {
     return res.status(401).json({ message: "Invalid refresh token" });
   }
 
-  const newAccessToken = signAccessToken({
-    userId: user.id,
-    email: user.email,
-  });
+  const accessToken = signAccessToken({ userId: user.id, email: user.email });
   const newRefreshToken = signRefreshToken({
     userId: user.id,
     email: user.email,
   });
 
-  await setUserRefreshTokenHash(
-    user.id,
-    hashRefreshToken(newRefreshToken)
-  );
-  setAuthCookies(res, newAccessToken, newRefreshToken);
+  await setUserRefreshTokenHash(user.id, hashRefreshToken(newRefreshToken));
+  setAuthCookies(res, accessToken, newRefreshToken);
 
   return res.json({
-    token: newAccessToken,
+    token: accessToken,
     refreshToken: newRefreshToken,
   });
 }
