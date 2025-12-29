@@ -15,26 +15,32 @@ jobs:
         with:
           node-version: "20"
 
+      # Install ALL deps so TypeScript build passes
       - name: Install dependencies
         run: npm ci
 
+      # Build TypeScript → dist/
       - name: Build
         run: npm run build
 
+      # Smoke test AFTER build
       - name: Smoke test
         run: npm run smoke
 
-      # 🔑 THIS IS THE IMPORTANT FIX
-      # We ship node_modules so Azure does NOT run npm install at startup
+      # Remove dev deps, keep prod only
+      - name: Prune dev dependencies
+        run: npm prune --omit=dev
+
+      # Prepare deploy package INCLUDING node_modules
       - name: Prepare deployment package
         run: |
           rm -rf deploy
-          mkdir -p deploy
-          npm prune --omit=dev
+          mkdir deploy
           cp -R dist deploy/dist
           cp -R node_modules deploy/node_modules
-          cp package.json package-lock.json deploy/
+          cp package.json deploy/
 
+      # Deploy ZIP to Azure
       - name: Deploy to Azure App Service
         uses: azure/webapps-deploy@v3
         with:
