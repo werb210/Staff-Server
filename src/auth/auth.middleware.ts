@@ -11,9 +11,7 @@ export interface AuthenticatedRequest extends Request {
 function extractAccessToken(req: Request): string | null {
   const authHeader = req.headers.authorization;
   if (authHeader) {
-    return authHeader.startsWith("Bearer ")
-      ? authHeader.slice(7)
-      : authHeader;
+    return authHeader.startsWith("Bearer ") ? authHeader.slice(7) : authHeader;
   }
 
   const cookieToken = req.cookies?.access_token as string | undefined;
@@ -33,7 +31,7 @@ export function authenticateRequest(
   try {
     const payload = verifyAccessToken(token);
     req.user = { id: payload.userId, email: payload.email };
-  } catch (error) {
+  } catch {
     req.user = undefined;
   }
 

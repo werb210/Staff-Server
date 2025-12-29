@@ -17,7 +17,10 @@ const accessExpiresIn = (process.env.JWT_ACCESS_EXPIRES_IN ??
 const refreshExpiresIn = (process.env.JWT_REFRESH_EXPIRES_IN ??
   "30d") as jwt.SignOptions["expiresIn"];
 
-function isJwtTokenPayload(decoded: unknown, expectedType: "access" | "refresh"): decoded is JwtTokenPayload {
+function isJwtTokenPayload(
+  decoded: unknown,
+  expectedType: "access" | "refresh",
+): decoded is JwtTokenPayload {
   if (typeof decoded !== "object" || decoded === null) {
     return false;
   }
@@ -31,19 +34,15 @@ function isJwtTokenPayload(decoded: unknown, expectedType: "access" | "refresh")
 }
 
 export function signAccessToken(payload: JwtUserPayload): string {
-  return jwt.sign(
-    { ...payload, type: "access" },
-    accessSecret,
-    { expiresIn: accessExpiresIn },
-  );
+  return jwt.sign({ ...payload, type: "access" }, accessSecret, {
+    expiresIn: accessExpiresIn,
+  });
 }
 
 export function signRefreshToken(payload: JwtUserPayload): string {
-  return jwt.sign(
-    { ...payload, type: "refresh" },
-    refreshSecret,
-    { expiresIn: refreshExpiresIn },
-  );
+  return jwt.sign({ ...payload, type: "refresh" }, refreshSecret, {
+    expiresIn: refreshExpiresIn,
+  });
 }
 
 export function verifyAccessToken(token: string): JwtUserPayload {

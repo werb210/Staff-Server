@@ -20,27 +20,34 @@ function hashRefreshToken(token: string): string {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
 
-function setAuthCookies(res: Response, accessToken: string, refreshToken: string) {
+function getCookieOptions() {
   const isProduction = process.env.NODE_ENV === "production";
-
-  res.cookie("access_token", accessToken, {
+  return {
     httpOnly: true,
     secure: isProduction,
-    sameSite: "lax",
+    sameSite: (isProduction ? "none" : "lax") as const,
+    path: "/",
+  };
+}
+
+function setAuthCookies(res: Response, accessToken: string, refreshToken: string) {
+  const baseOptions = getCookieOptions();
+
+  res.cookie("access_token", accessToken, {
+    ...baseOptions,
     maxAge: 15 * 60 * 1000,
   });
 
   res.cookie("refresh_token", refreshToken, {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: "lax",
+    ...baseOptions,
     maxAge: 30 * 24 * 60 * 60 * 1000,
   });
 }
 
 function clearAuthCookies(res: Response) {
-  res.clearCookie("access_token");
-  res.clearCookie("refresh_token");
+  const baseOptions = getCookieOptions();
+  res.clearCookie("access_token", baseOptions);
+  res.clearCookie("refresh_token", baseOptions);
 }
 
 /* -------------------- REQUIRED HEALTH -------------------- */
@@ -84,9 +91,7 @@ export async function login(req: AuthenticatedRequest, res: Response) {
 }
 
 export async function logout(req: AuthenticatedRequest, res: Response) {
-  const refreshToken =
-    req.cookies?.refresh_token ??
-    req.body?.refreshToken;
+  const refreshToken = req.cookies?.refresh_token ?? req.body?.refreshToken;
 
   if (refreshToken) {
     try {
@@ -102,9 +107,7 @@ export async function logout(req: AuthenticatedRequest, res: Response) {
 }
 
 export async function refresh(req: AuthenticatedRequest, res: Response) {
-  const refreshToken =
-    req.cookies?.refresh_token ??
-    req.body?.refreshToken;
+  const refreshToken = req.cookies?.refresh_token ?? req.body?.refreshToken;
 
   if (!refreshToken) {
     return res.status(401).json({ message: "Missing refresh token" });
@@ -126,7 +129,7 @@ export async function refresh(req: AuthenticatedRequest, res: Response) {
   if (
     !crypto.timingSafeEqual(
       Buffer.from(user.refreshTokenHash),
-      Buffer.from(incomingHash)
+      Buffer.from(incomingHash),
     )
   ) {
     return res.status(401).json({ message: "Invalid refresh token" });
