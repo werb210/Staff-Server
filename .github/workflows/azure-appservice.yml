@@ -15,33 +15,29 @@ jobs:
         with:
           node-version: "20"
 
-      # Install ALL deps (including dev) – required for TypeScript build
       - name: Install dependencies
         run: npm ci
 
-      # Compile TypeScript -> dist/
       - name: Build
         run: npm run build
 
-      # Optional but enforced by you
       - name: Smoke test
         run: npm run smoke
 
-      # Package EVERYTHING Azure needs – no installs at runtime
+      # 🔑 THIS IS THE IMPORTANT FIX
+      # We ship node_modules so Azure does NOT run npm install at startup
       - name: Prepare deployment package
         run: |
           rm -rf deploy
-          mkdir deploy
+          mkdir -p deploy
+          npm prune --omit=dev
           cp -R dist deploy/dist
           cp -R node_modules deploy/node_modules
-          cp package.json deploy/package.json
-          cp package-lock.json deploy/package-lock.json
+          cp package.json package-lock.json deploy/
 
-      # Deploy exactly what we built
       - name: Deploy to Azure App Service
         uses: azure/webapps-deploy@v3
         with:
           app-name: boreal-staff-server
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
           package: deploy
-          startup-command: "node dist/index.js"
