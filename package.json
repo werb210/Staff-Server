@@ -1,14 +1,30 @@
 {
   "name": "staff-server",
+  "version": "1.0.0",
   "private": true,
+  "type": "commonjs",
+  "main": "dist/index.js",
   "engines": {
     "node": ">=20"
   },
-  "workspaces": [
-    "server"
-  ],
   "scripts": {
-    "build": "npm --workspace server run build",
-    "start": "npm --workspace server run start"
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "cors": "^2.8.5",
+    "cookie-parser": "^1.4.6",
+    "dotenv": "^16.4.5",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.11.5",
+    "twilio": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.11.30",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/pg": "^8.10.2",
+    "typescript": "^5.4.5"
   }
 }
