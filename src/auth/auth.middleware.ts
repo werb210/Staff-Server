@@ -9,11 +9,6 @@ export interface AuthenticatedRequest extends Request {
 }
 
 function extractAccessToken(req: Request): string | null {
-  const authHeader = req.headers.authorization;
-  if (authHeader) {
-    return authHeader.startsWith("Bearer ") ? authHeader.slice(7) : authHeader;
-  }
-
   const cookieToken = req.cookies?.access_token as string | undefined;
   return cookieToken ?? null;
 }
