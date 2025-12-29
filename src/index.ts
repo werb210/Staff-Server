@@ -28,13 +28,18 @@ app.get("/health", (_req, res) => {
 
 /* -------------------- API ROUTES -------------------- */
 /**
- * THIS IS THE IMPORTANT LINE
  * Frontend expects /api/auth/*
  */
 app.use("/api/auth", authRoutes);
 
-/* -------------------- Start -------------------- */
-const PORT = Number(process.env.PORT) || 8080;
-app.listen(PORT, () => {
-  console.log(`Staff-Server running on port ${PORT}`);
+/* -------------------- START SERVER (AZURE SAFE) -------------------- */
+const PORT = Number(process.env.PORT);
+
+if (!PORT) {
+  console.error("PORT is not defined. Azure will not route traffic.");
+  process.exit(1);
+}
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Staff-Server listening on port ${PORT}`);
 });
