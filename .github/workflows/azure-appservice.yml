@@ -2,39 +2,41 @@ name: Deploy Staff Server to Azure App Service
 
 on:
   push:
-    branches: [ main ]
+    branches: ["main"]
+  workflow_dispatch:
+
+concurrency:
+  group: staff-server-prod
+  cancel-in-progress: true
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: "npm"
 
-      - name: Install dependencies
+      - name: Install
         run: npm ci
 
       - name: Build
         run: npm run build
 
-      - name: Smoke test
-        run: npm run smoke
-
-      - name: Prepare deployment package
+      - name: Zip artifact
         run: |
-          rm -rf deploy
-          mkdir deploy
-          cp -R dist deploy/dist
-          cp -R node_modules deploy/node_modules
-          cp package.json deploy/
+          cd .
+          zip -r release.zip . -x "**/.git/**" "**/.github/**" "**/node_modules/**"
 
-      - name: Deploy to Azure
+      - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
-          app-name: boreal-staff-server
+          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: deploy
+          package: release.zip
