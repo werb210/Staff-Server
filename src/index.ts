@@ -1,35 +1,46 @@
-import express from "express";
-import http from "http";
+import express from 'express';
+import cors from 'cors';
+import cookieParser from 'cookie-parser';
 
 const app = express();
 
-/**
- * HEALTH CHECK — MUST BE FIRST
- * Azure probes this endpoint
- */
-app.get("/health", (_req, res) => {
-  console.log("Health check OK");
-  res.status(200).send("OK");
+/* ---------- CORE MIDDLEWARE ---------- */
+app.use(cors({
+  origin: true,
+  credentials: true,
+}));
+app.use(express.json());
+app.use(cookieParser());
+
+/* ---------- HEALTH (AZURE) ---------- */
+app.get('/health', (_req, res) => {
+  res.status(200).send('OK');
 });
 
-/**
- * BASIC MIDDLEWARE
- */
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+/* ---------- AUTH (RESTORED) ---------- */
+app.get('/api/auth/status', (_req, res) => {
+  res.status(200).json({
+    authenticated: false,
+    message: 'Auth route alive',
+  });
+});
 
-/**
- * EXISTING ROUTES GO BELOW
- * (leave everything else unchanged)
- */
+/* ---------- ROOT (PREVENT CANNOT GET /) ---------- */
+app.get('/', (_req, res) => {
+  res.status(200).send('Staff Server Online');
+});
 
-/**
- * SERVER START
- */
+/* ---------- HARD FAIL PROTECTION ---------- */
+process.on('unhandledRejection', (err) => {
+  console.error('UNHANDLED REJECTION:', err);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT EXCEPTION:', err);
+});
+
+/* ---------- START ---------- */
 const PORT = Number(process.env.PORT) || 8080;
-
-const server = http.createServer(app);
-
-server.listen(PORT, () => {
+app.listen(PORT, () => {
   console.log(`Staff-Server running on port ${PORT}`);
 });
