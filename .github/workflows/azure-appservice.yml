@@ -2,45 +2,46 @@ name: Deploy Staff Server to Azure App Service
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: "20"
 
-      - name: Install dependencies (production)
-        run: |
-          npm ci --omit=dev
+      # Install ALL deps (including dev) – required for TypeScript build
+      - name: Install dependencies
+        run: npm ci
 
+      # Compile TypeScript -> dist/
       - name: Build
-        run: |
-          npm run build
+        run: npm run build
 
-      - name: Smoke test (MANDATORY)
-        run: |
-          npm run smoke
+      # Optional but enforced by you
+      - name: Smoke test
+        run: npm run smoke
 
+      # Package EVERYTHING Azure needs – no installs at runtime
       - name: Prepare deployment package
         run: |
           rm -rf deploy
-          mkdir -p deploy
+          mkdir deploy
           cp -R dist deploy/dist
           cp -R node_modules deploy/node_modules
           cp package.json deploy/package.json
+          cp package-lock.json deploy/package-lock.json
 
+      # Deploy exactly what we built
       - name: Deploy to Azure App Service
         uses: azure/webapps-deploy@v3
         with:
           app-name: boreal-staff-server
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
           package: deploy
+          startup-command: "node dist/index.js"
