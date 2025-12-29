@@ -13,6 +13,7 @@
     "smoke": "NODE_ENV=production PORT=5050 node dist/index.js & PID=$!; sleep 5; curl -fsS http://localhost:5050/ >/dev/null || (kill $PID && exit 1); kill $PID"
   },
   "dependencies": {
+    "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
@@ -22,6 +23,7 @@
     "twilio": "^5.1.0"
   },
   "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/express": "^4.17.21",
