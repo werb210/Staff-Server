@@ -1,13 +1,18 @@
 import { Router } from "express";
-import { login, logout, me, refresh, status } from "./auth.controller";
-import { requireAuth } from "./auth.middleware";
+import {
+  login,
+  logout,
+  refresh,
+  me,
+  status,
+} from "./auth.controller";
 
 const router = Router();
 
-router.get("/status", status);
 router.post("/login", login);
 router.post("/logout", logout);
 router.post("/refresh", refresh);
-router.get("/me", requireAuth, me);
+router.get("/me", me);
+router.get("/status", status);
 
 export default router;
