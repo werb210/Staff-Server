@@ -1,0 +1,142 @@
+import type { Response } from "express";
+import crypto from "crypto";
+import {
+  clearUserRefreshTokenHash,
+  getUserByEmail,
+  getUserById,
+  setUserRefreshTokenHash,
+} from "../services/user.service";
+import type { AuthenticatedRequest } from "./auth.middleware";
+import { comparePassword } from "./password";
+import {
+  signAccessToken,
+  signRefreshToken,
+  verifyRefreshToken,
+} from "./jwt";
+
+function hashRefreshToken(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+function setAuthCookies(res: Response, accessToken: string, refreshToken: string) {
+  const isProduction = process.env.NODE_ENV === "production";
+
+  res.cookie("access_token", accessToken, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: "lax",
+    maxAge: 15 * 60 * 1000,
+  });
+
+  res.cookie("refresh_token", refreshToken, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: "lax",
+    maxAge: 30 * 24 * 60 * 60 * 1000,
+  });
+}
+
+function clearAuthCookies(res: Response) {
+  res.clearCookie("access_token");
+  res.clearCookie("refresh_token");
+}
+
+export async function login(req: AuthenticatedRequest, res: Response) {
+  const { email, password } = req.body as {
+    email?: string;
+    password?: string;
+  };
+
+  if (!email || !password) {
+    return res.status(401).json({ message: "Invalid credentials" });
+  }
+
+  const user = await getUserByEmail(email);
+  if (!user) {
+    return res.status(401).json({ message: "Invalid credentials" });
+  }
+
+  const passwordMatches = await comparePassword(password, user.passwordHash);
+  if (!passwordMatches) {
+    return res.status(401).json({ message: "Invalid credentials" });
+  }
+
+  const accessToken = signAccessToken({ userId: user.id, email: user.email });
+  const refreshToken = signRefreshToken({ userId: user.id, email: user.email });
+
+  await setUserRefreshTokenHash(user.id, hashRefreshToken(refreshToken));
+  setAuthCookies(res, accessToken, refreshToken);
+
+  return res.json({
+    token: accessToken,
+    refreshToken,
+    user: { id: user.id, email: user.email },
+  });
+}
+
+export async function logout(req: AuthenticatedRequest, res: Response) {
+  const refreshToken =
+    (req.cookies?.refresh_token as string | undefined) ??
+    (req.body?.refreshToken as string | undefined);
+
+  if (refreshToken) {
+    try {
+      const payload = verifyRefreshToken(refreshToken);
+      await clearUserRefreshTokenHash(payload.userId);
+    } catch (error) {
+      // Ignore invalid refresh token on logout.
+    }
+  }
+
+  clearAuthCookies(res);
+  return res.status(204).send();
+}
+
+export async function refresh(req: AuthenticatedRequest, res: Response) {
+  const refreshToken =
+    (req.cookies?.refresh_token as string | undefined) ??
+    (req.body?.refreshToken as string | undefined);
+
+  if (!refreshToken) {
+    return res.status(401).json({ message: "Missing refresh token" });
+  }
+
+  let payload;
+  try {
+    payload = verifyRefreshToken(refreshToken);
+  } catch (error) {
+    return res.status(401).json({ message: "Invalid refresh token" });
+  }
+
+  const user = await getUserById(payload.userId);
+  if (!user || !user.refreshTokenHash) {
+    return res.status(401).json({ message: "Invalid refresh token" });
+  }
+
+  const incomingHash = hashRefreshToken(refreshToken);
+  if (!crypto.timingSafeEqual(Buffer.from(user.refreshTokenHash), Buffer.from(incomingHash))) {
+    return res.status(401).json({ message: "Invalid refresh token" });
+  }
+
+  const accessToken = signAccessToken({ userId: user.id, email: user.email });
+  const newRefreshToken = signRefreshToken({
+    userId: user.id,
+    email: user.email,
+  });
+
+  await setUserRefreshTokenHash(user.id, hashRefreshToken(newRefreshToken));
+  setAuthCookies(res, accessToken, newRefreshToken);
+
+  return res.json({
+    token: accessToken,
+    refreshToken: newRefreshToken,
+  });
+}
+
+export async function me(req: AuthenticatedRequest, res: Response) {
+  if (!req.user) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  return res.json({ user: req.user });
+}
