@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import { jwtService } from "../services/jwt.service.js";
+import { verifyJwt } from "../services/jwt.service.js";
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
   try {
@@ -12,7 +12,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
       ? authHeader.slice(7)
       : authHeader;
 
-    const payload = jwtService.verify(token);
+    const payload = verifyJwt(token);
     (req as any).user = payload;
 
     next();

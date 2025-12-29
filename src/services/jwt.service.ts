@@ -8,11 +8,12 @@ const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
   throw new Error("JWT_SECRET is not set");
 }
+const jwtSecret = JWT_SECRET;
 
 const JWT_EXPIRES_IN = "7d";
 
 export function signJwt(payload: AccessTokenPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+  return jwt.sign(payload, jwtSecret, { expiresIn: JWT_EXPIRES_IN });
 }
 
 function isAccessTokenPayload(
@@ -27,7 +28,7 @@ function isAccessTokenPayload(
 }
 
 export function verifyJwt(token: string): AccessTokenPayload {
-  const decoded = jwt.verify(token, JWT_SECRET);
+  const decoded = jwt.verify(token, jwtSecret);
 
   if (!isAccessTokenPayload(decoded)) {
     throw new Error("Invalid token payload");
