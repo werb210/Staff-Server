@@ -17,53 +17,19 @@ jobs:
       - name: Install deps
         run: npm ci
 
-      - name: Build server workspace
-        run: npm --workspace server run build
+      - name: Build
+        run: npm run build
 
-      - name: Package runtime and run smoke test (MANDATORY)
+      - name: Smoke test
         run: |
-          rm -rf deploy server.zip
-          mkdir -p deploy/server
-
-          cp -R server/dist deploy/server/dist
-          cp server/package.json deploy/server/package.json
-          cp -R node_modules deploy/node_modules
-
-          test -f deploy/server/dist/index.js
-          node -e "require('express'); require('pg')"
-
-          # MANDATORY runtime smoke test (must fail CI if server doesn't boot)
-          NODE_ENV=production PORT=5050 node deploy/server/dist/index.js & PID=$!
-          sleep 6
-          curl -fsS http://localhost:5050/api/_int/health || (kill $PID && exit 1)
-          kill $PID
-
-          cd deploy
-          zip -r ../server.zip .
-
-      - name: Configure app settings
-        uses: azure/appservice-settings@v1
-        with:
-          app-name: boreal-staff-server
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE }}
-          app-settings-json: |
-            [
-              {
-                "name": "SCM_DO_BUILD_DURING_DEPLOYMENT",
-                "value": "false",
-                "slotSetting": false
-              },
-              {
-                "name": "WEBSITE_RUN_FROM_PACKAGE",
-                "value": "1",
-                "slotSetting": false
-              }
-            ]
+          NODE_ENV=production PORT=5050 node dist/index.js &
+          sleep 5
+          curl -f http://localhost:5050/api/_int/health
 
       - name: Deploy to Azure
         uses: azure/webapps-deploy@v3
         with:
           app-name: boreal-staff-server
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE }}
-          package: server.zip
-          startup-command: "node server/dist/index.js"
+          package: .
+          startup-command: "node dist/index.js"

@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import { verifyJwt } from "../services/jwt.service.js";
+import { verifyJwt } from "../services/jwt.service";
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
   try {

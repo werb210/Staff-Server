@@ -1,7 +1,0 @@
-- How to check App Service logs  
-- How to check Deployment Center logs  
-- How to check Postgres logs  
-- How to check Blob Storage logs  
-- How to diagnose failed uploads  
-- How to diagnose failed API calls  
-- How to diagnose permission issues  
