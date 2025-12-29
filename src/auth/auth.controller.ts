@@ -1,20 +1,40 @@
 import type { Request, Response } from "express";
 import crypto from "crypto";
-import {
-  clearUserRefreshTokenHash,
-  getUserByEmail,
-  getUserById,
-  setUserRefreshTokenHash,
-} from "../services/user.service";
+
 import type { AuthenticatedRequest } from "./auth.middleware";
-import { comparePassword } from "./password";
 import {
   signAccessToken,
   signRefreshToken,
   verifyRefreshToken,
 } from "./jwt";
+import { comparePassword, hashPasswordSync } from "./password";
 
-/* -------------------- helpers -------------------- */
+interface UserRecord {
+  id: string;
+  email: string;
+  passwordHash: string;
+  refreshTokenHash?: string | null;
+}
+
+const defaultEmail = process.env.DEFAULT_AUTH_EMAIL ?? "staff@example.com";
+const defaultPassword = process.env.DEFAULT_AUTH_PASSWORD ?? "password123";
+
+const userStore: UserRecord[] = [
+  {
+    id: crypto.randomUUID(),
+    email: defaultEmail,
+    passwordHash: hashPasswordSync(defaultPassword),
+    refreshTokenHash: null,
+  },
+];
+
+function getUserByEmail(email: string): UserRecord | undefined {
+  return userStore.find((user) => user.email.toLowerCase() === email.toLowerCase());
+}
+
+function getUserById(userId: string): UserRecord | undefined {
+  return userStore.find((user) => user.id === userId);
+}
 
 function hashRefreshToken(token: string): string {
   return crypto.createHash("sha256").update(token).digest("hex");
@@ -22,10 +42,11 @@ function hashRefreshToken(token: string): string {
 
 function getCookieOptions() {
   const isProduction = process.env.NODE_ENV === "production";
+  const sameSite: "lax" | "none" = isProduction ? "none" : "lax";
   return {
     httpOnly: true,
     secure: isProduction,
-    sameSite: (isProduction ? "none" : "lax") as const,
+    sameSite,
     path: "/",
   };
 }
@@ -50,15 +71,9 @@ function clearAuthCookies(res: Response) {
   res.clearCookie("refresh_token", baseOptions);
 }
 
-/* -------------------- REQUIRED HEALTH -------------------- */
-/**
- * MUST exist or frontend + curl checks fail
- */
 export function status(_req: Request, res: Response) {
   return res.status(200).json({ ok: true });
 }
-
-/* -------------------- auth -------------------- */
 
 export async function login(req: AuthenticatedRequest, res: Response) {
   const { email, password } = req.body ?? {};
@@ -67,20 +82,20 @@ export async function login(req: AuthenticatedRequest, res: Response) {
     return res.status(401).json({ message: "Invalid credentials" });
   }
 
-  const user = await getUserByEmail(email);
+  const user = getUserByEmail(String(email));
   if (!user) {
     return res.status(401).json({ message: "Invalid credentials" });
   }
 
-  const passwordMatches = await comparePassword(password, user.passwordHash);
-  if (!passwordMatches) {
+  const matches = await comparePassword(String(password), user.passwordHash);
+  if (!matches) {
     return res.status(401).json({ message: "Invalid credentials" });
   }
 
   const accessToken = signAccessToken({ userId: user.id, email: user.email });
   const refreshToken = signRefreshToken({ userId: user.id, email: user.email });
 
-  await setUserRefreshTokenHash(user.id, hashRefreshToken(refreshToken));
+  user.refreshTokenHash = hashRefreshToken(refreshToken);
   setAuthCookies(res, accessToken, refreshToken);
 
   return res.json({
@@ -91,14 +106,17 @@ export async function login(req: AuthenticatedRequest, res: Response) {
 }
 
 export async function logout(req: AuthenticatedRequest, res: Response) {
-  const refreshToken = req.cookies?.refresh_token ?? req.body?.refreshToken;
+  const refreshToken = req.cookies?.refresh_token as string | undefined;
 
   if (refreshToken) {
     try {
       const payload = verifyRefreshToken(refreshToken);
-      await clearUserRefreshTokenHash(payload.userId);
+      const user = getUserById(payload.userId);
+      if (user) {
+        user.refreshTokenHash = null;
+      }
     } catch {
-      // ignore
+      // ignore invalid refresh token
     }
   }
 
@@ -107,7 +125,7 @@ export async function logout(req: AuthenticatedRequest, res: Response) {
 }
 
 export async function refresh(req: AuthenticatedRequest, res: Response) {
-  const refreshToken = req.cookies?.refresh_token ?? req.body?.refreshToken;
+  const refreshToken = req.cookies?.refresh_token as string | undefined;
 
   if (!refreshToken) {
     return res.status(401).json({ message: "Missing refresh token" });
@@ -120,7 +138,7 @@ export async function refresh(req: AuthenticatedRequest, res: Response) {
     return res.status(401).json({ message: "Invalid refresh token" });
   }
 
-  const user = await getUserById(payload.userId);
+  const user = getUserById(payload.userId);
   if (!user || !user.refreshTokenHash) {
     return res.status(401).json({ message: "Invalid refresh token" });
   }
@@ -141,7 +159,7 @@ export async function refresh(req: AuthenticatedRequest, res: Response) {
     email: user.email,
   });
 
-  await setUserRefreshTokenHash(user.id, hashRefreshToken(newRefreshToken));
+  user.refreshTokenHash = hashRefreshToken(newRefreshToken);
   setAuthCookies(res, accessToken, newRefreshToken);
 
   return res.json({
@@ -155,5 +173,10 @@ export async function me(req: AuthenticatedRequest, res: Response) {
     return res.status(401).json({ message: "Unauthorized" });
   }
 
-  return res.json({ user: req.user });
+  const user = getUserById(req.user.id);
+  if (!user) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  return res.json({ user: { id: user.id, email: user.email } });
 }
