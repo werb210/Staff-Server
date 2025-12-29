@@ -23,10 +23,17 @@ jobs:
       - name: Smoke test (MANDATORY)
         run: npm run smoke
 
+      - name: Prepare deployment package
+        run: |
+          rm -rf deploy
+          mkdir -p deploy
+          cp -R dist deploy/dist
+          cp package.json package-lock.json deploy/
+
       - name: Deploy to Azure
         uses: azure/webapps-deploy@v3
         with:
           app-name: boreal-staff-server
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE }}
-          package: .
-          startup-command: "node dist/index.js"
+          package: deploy
+          startup-command: "npm install --omit=dev && node dist/index.js"
