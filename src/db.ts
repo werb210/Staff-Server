@@ -1,18 +1,22 @@
 import { Pool } from "pg";
 
-const connectionString = process.env.DATABASE_URL;
-if (!connectionString) {
-  throw new Error("DATABASE_URL_MISSING");
+if (!process.env.DATABASE_URL) {
+  throw new Error("missing_env_DATABASE_URL");
 }
 
 export const pool = new Pool({
-  connectionString,
-  ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+  connectionString: process.env.DATABASE_URL,
 });
 
-export async function assertDb() {
-  const res = await pool.query("select 1");
-  if (!res) {
-    throw new Error("DB_UNAVAILABLE");
-  }
+export async function assertDb(): Promise<void> {
+  await pool.query(`create extension if not exists pgcrypto`);
+
+  await pool.query(`
+    create table if not exists users (
+      id uuid primary key default gen_random_uuid(),
+      email text unique not null,
+      password_hash text not null,
+      created_at timestamptz default now()
+    )
+  `);
 }
