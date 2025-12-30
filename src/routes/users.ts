@@ -1,9 +1,10 @@
 import { Router } from "express";
+import { requireAuth } from "../middleware/auth";
 
 const router = Router();
 
-router.get("/", (_req, res) => {
-  res.json([]);
+router.get("/", requireAuth, (_req, res) => {
+  res.json({ status: "ok" });
 });
 
 export default router;
