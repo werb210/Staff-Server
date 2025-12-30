@@ -2,7 +2,7 @@ import "dotenv/config";
 import express, { type NextFunction, type Request, type Response } from "express";
 import http from "http";
 import { assertDb } from "./db";
-import apiRouter from "./routes/api";
+import { registerRoutes } from "./routes";
 
 const requiredEnv = ["DATABASE_URL", "JWT_SECRET"] as const;
 for (const name of requiredEnv) {
@@ -37,7 +37,7 @@ app.get("/", (_req: Request, res: Response) => {
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
-app.use("/api", apiRouter);
+registerRoutes(app);
 
 app.use((_req: Request, res: Response) => {
   res.status(404).json({ error: "not_found" });
