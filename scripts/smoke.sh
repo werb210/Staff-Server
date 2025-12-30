@@ -7,48 +7,32 @@ AUTH_EMAIL="${AUTH_EMAIL:-smoke@example.com}"
 AUTH_PASSWORD="${AUTH_PASSWORD:-smoke-password}"
 DATABASE_URL="${DATABASE_URL:-}"
 
-# CRITICAL: export so the Node heredoc can read them
 export AUTH_EMAIL
 export AUTH_PASSWORD
 export DATABASE_URL
 
-if [[ -z "${DATABASE_URL}" ]]; then
-  echo "DATABASE_URL is empty"
-  exit 1
-fi
+[[ -z "$DATABASE_URL" ]] && { echo "DATABASE_URL is empty"; exit 1; }
+[[ -z "$AUTH_EMAIL" ]] && { echo "AUTH_EMAIL is empty"; exit 1; }
+[[ -z "$AUTH_PASSWORD" ]] && { echo "AUTH_PASSWORD is empty"; exit 1; }
 
-if [[ -z "${AUTH_EMAIL}" ]]; then
-  echo "AUTH_EMAIL is empty"
-  exit 1
-fi
-
-if [[ -z "${AUTH_PASSWORD}" ]]; then
-  echo "AUTH_PASSWORD is empty"
-  exit 1
-fi
-
-# Health must always pass
+# Health check
 curl -fsS "$BASE/health" | grep -q "ok"
 
-# Ensure user exists in DB (table is bootstrapped by assertDb(), but we upsert anyway)
+# Ensure user exists
 node <<'NODE'
 const { Client } = require("pg");
 const bcrypt = require("bcrypt");
 
 (async () => {
-  const cs = process.env.DATABASE_URL;
-  if (!cs) throw new Error("missing DATABASE_URL");
+  const { DATABASE_URL, AUTH_EMAIL, AUTH_PASSWORD } = process.env;
+  if (!DATABASE_URL || !AUTH_EMAIL || !AUTH_PASSWORD) {
+    throw new Error("Missing env");
+  }
 
-  const email = process.env.AUTH_EMAIL;
-  const password = process.env.AUTH_PASSWORD;
-
-  if (!email) throw new Error("missing AUTH_EMAIL");
-  if (!password) throw new Error("missing AUTH_PASSWORD");
-
-  const client = new Client({ connectionString: cs });
+  const client = new Client({ connectionString: DATABASE_URL });
   await client.connect();
 
-  const hash = await bcrypt.hash(String(password), 10);
+  const hash = await bcrypt.hash(String(AUTH_PASSWORD), 10);
 
   await client.query(`
     create extension if not exists "pgcrypto";
@@ -69,27 +53,33 @@ const bcrypt = require("bcrypt");
         set password_hash = excluded.password_hash,
             updated_at = now()
     `,
-    [email, hash]
+    [AUTH_EMAIL, hash]
   );
 
   await client.end();
 })();
 NODE
 
-# Login and verify token works
-LOGIN_JSON=$(curl -sS -X POST "$BASE/api/auth/login" \
+# Login
+LOGIN_JSON="$(curl -sS -X POST "$BASE/api/auth/login" \
   -H "Content-Type: application/json" \
-  -d "{\"email\":\"$AUTH_EMAIL\",\"password\":\"$AUTH_PASSWORD\"}")
+  -d "{\"email\":\"$AUTH_EMAIL\",\"password\":\"$AUTH_PASSWORD\"}")"
 
-echo "$LOGIN_JSON" | grep -q "\"token\""
+echo "$LOGIN_JSON" | grep -q '"token"'
 
-TOKEN=$(node -e "const r=$LOGIN_JSON; console.log(JSON.parse(r).token || '')")
-if [[ -z "$TOKEN" ]]; then
-  echo "No token returned from /api/auth/login"
-  exit 1
-fi
+# Extract token SAFELY
+TOKEN="$(echo "$LOGIN_JSON" | node -e '
+let d="";
+process.stdin.on("data", c => d+=c);
+process.stdin.on("end", () => {
+  const j = JSON.parse(d);
+  console.log(j.token || "");
+});
+')"
 
-# Protected route should return 200
+[[ -z "$TOKEN" ]] && { echo "No token returned"; exit 1; }
+
+# Authenticated route
 curl -sS -o /dev/null -w "%{http_code}" \
   -H "Authorization: Bearer $TOKEN" \
   "$BASE/api/users" | grep -q 200
