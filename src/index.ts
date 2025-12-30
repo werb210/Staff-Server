@@ -1,36 +1,40 @@
 import express from "express";
-import http from "http";
 
 const app = express();
 
-/* ========= HARD HEALTH ROUTES (FIRST) ========= */
+/**
+ * ABSOLUTE FAST PATHS
+ * - No DB
+ * - No async
+ * - No middleware
+ * - No dependencies
+ */
+
 app.get("/", (_req, res) => {
-  res.status(200).send("OK");
+  res.status(200).type("text/plain").send("ok");
 });
 
 app.get("/health", (_req, res) => {
-  res.status(200).json({ status: "ok" });
+  res.status(200).json({ alive: true });
 });
 
 app.get("/api/_int/health", (_req, res) => {
-  res.status(200).json({ status: "ok" });
+  res.status(200).json({ ok: true });
 });
 
-/* ========= SERVER START (NO DB GATING) ========= */
-const PORT = process.env.PORT || 8080;
+/**
+ * HARD FAIL-SAFE
+ * If anything else hits the server, still respond fast
+ */
+app.use((_req, res) => {
+  res.status(404).json({ error: "not_found" });
+});
 
-const server = http.createServer(app);
-server.listen(PORT, () => {
+/**
+ * START SERVER — NOTHING BEFORE THIS
+ */
+const PORT = Number(process.env.PORT) || 8080;
+
+app.listen(PORT, () => {
   console.log(`SERVER LISTENING on ${PORT}`);
 });
-
-/* ========= EVERYTHING ELSE LOADS AFTER ========= */
-(async () => {
-  try {
-    // import AFTER server is live
-    await import("./bootstrap"); // db, routes, auth, middleware
-    console.log("BOOTSTRAP COMPLETE");
-  } catch (err) {
-    console.error("BOOTSTRAP FAILED", err);
-  }
-})();
