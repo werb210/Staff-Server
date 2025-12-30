@@ -3,14 +3,24 @@ import { Router } from "express";
 const router = Router();
 
 /**
- * Deterministic auth sanity endpoint.
- * If auth wiring breaks, this breaks loudly.
+ * POST /api/auth/login
  */
-router.get("/status", (_req, res) => {
-  res.json({
-    auth: "ok",
-    cookies: Boolean(_req.headers.cookie),
-  });
+router.post("/login", (_req, res) => {
+  res.status(501).json({ error: "not implemented" });
+});
+
+/**
+ * POST /api/auth/logout
+ */
+router.post("/logout", (_req, res) => {
+  res.status(501).json({ error: "not implemented" });
+});
+
+/**
+ * GET /api/auth/me
+ */
+router.get("/me", (_req, res) => {
+  res.status(501).json({ error: "not implemented" });
 });
 
 export default router;
