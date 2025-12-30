@@ -9,6 +9,20 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: staff
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d staff"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout repository
@@ -25,6 +39,21 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Start server (background)
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/staff
+          JWT_SECRET: smoke-test-secret
+        run: |
+          npm run build
+          node dist/index.js &
+          sleep 5
+
+      - name: Smoke tests
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/staff
+          JWT_SECRET: smoke-test-secret
+        run: ./scripts/smoke.sh
 
       - name: Azure Login
         uses: azure/login@v1

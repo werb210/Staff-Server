@@ -1,6 +1,25 @@
+import "dotenv/config";
 import express, { type NextFunction, type Request, type Response } from "express";
 import http from "http";
+import { assertDb } from "./db";
 import apiRouter from "./routes/api";
+
+const requiredEnv = ["DATABASE_URL", "JWT_SECRET"] as const;
+for (const name of requiredEnv) {
+  if (!process.env[name]) {
+    throw new Error(`missing_env_${name}`);
+  }
+}
+
+void (async () => {
+  try {
+    await assertDb();
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error(error);
+    process.exit(1);
+  }
+})();
 
 const app = express();
 
