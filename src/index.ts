@@ -1,30 +1,35 @@
 import express from "express";
-import http from "http";
 
 const app = express();
 
-// ─────────────────────────────────────────────────────────────
-// GUARANTEED FAST ROUTES (NO DB, NO ASYNC)
-// ─────────────────────────────────────────────────────────────
+/**
+ * GUARANTEED FAST ROOT
+ * No DB
+ * No async
+ */
 app.get("/", (_req, res) => {
-  res.status(200).type("text/plain").send("OK");
+  res.status(200).send("OK");
 });
 
+/**
+ * PUBLIC HEALTH
+ */
 app.get("/health", (_req, res) => {
   res.status(200).json({ status: "ok" });
 });
 
+/**
+ * INTERNAL HEALTH (Azure Health Check)
+ */
 app.get("/api/_int/health", (_req, res) => {
   res.status(200).json({ status: "ok" });
 });
 
-// ─────────────────────────────────────────────────────────────
-// SERVER BOOT
-// ─────────────────────────────────────────────────────────────
-const PORT = Number(process.env.PORT || 8080);
+/**
+ * PORT — Azure compliant
+ */
+const PORT = Number(process.env.PORT) || 8080;
 
-const server = http.createServer(app);
-
-server.listen(PORT, "0.0.0.0", () => {
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`SERVER LISTENING on ${PORT}`);
 });
