@@ -5,37 +5,45 @@ const app = express();
 
 /**
  * ============================================================
- * HARD GUARANTEED FAST HEALTH ENDPOINTS
- * MUST BE FIRST — NO MIDDLEWARE BEFORE THESE
+ * GUARANTEED FAST PATHS (NO DB, NO ASYNC, NO MIDDLEWARE)
  * ============================================================
+ * These MUST be first. Azure Health Check depends on it.
  */
 
-// Root (Azure + curl sanity)
+// Root (Azure warmup, browser checks)
 app.get("/", (_req, res) => {
   res.status(200).type("text/plain").send("OK");
 });
 
-// Simple public health
+// Public health
 app.get("/health", (_req, res) => {
-  res.status(200).type("text/plain").send("OK");
+  res.status(200).json({ status: "ok" });
 });
 
-// Azure Health Check (configured path)
+// Azure internal health probe
 app.get("/api/_int/health", (_req, res) => {
-  res.status(200).type("text/plain").send("OK");
+  res.status(200).json({ status: "ok" });
 });
 
 /**
  * ============================================================
- * EVERYTHING BELOW CAN FAIL — HEALTH WILL STILL PASS
+ * NORMAL APP STARTS BELOW
  * ============================================================
  */
 
+// DO NOT block health routes with JSON/body parsing
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Example placeholder for future routes
-// app.use("/api", apiRouter);
+// ---- import the rest of your app AFTER health ----
+// Example:
+// import { registerApi } from "./api";
+// registerApi(app);
+
+// Catch-all (never intercept health)
+app.use((_req, res) => {
+  res.status(404).json({ error: "Not Found" });
+});
 
 const PORT = Number(process.env.PORT) || 8080;
 
@@ -43,5 +51,4 @@ const server = http.createServer(app);
 
 server.listen(PORT, () => {
   console.log(`SERVER LISTENING on ${PORT}`);
-  console.log("BOOTSTRAP COMPLETE");
 });
