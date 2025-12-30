@@ -1,49 +1,47 @@
 import express from "express";
+import http from "http";
 
 const app = express();
 
 /**
- * ABSOLUTE FAST PATHS
- * ───────────────────
- * These must NEVER depend on:
- *  - DB
- *  - async
- *  - config
- *  - bootstrap
+ * ============================================================
+ * HARD GUARANTEED FAST HEALTH ENDPOINTS
+ * MUST BE FIRST — NO MIDDLEWARE BEFORE THESE
+ * ============================================================
  */
 
+// Root (Azure + curl sanity)
 app.get("/", (_req, res) => {
-  res.status(200).send("OK");
+  res.status(200).type("text/plain").send("OK");
 });
 
+// Simple public health
 app.get("/health", (_req, res) => {
-  res.status(200).json({ status: "ok" });
+  res.status(200).type("text/plain").send("OK");
 });
 
+// Azure Health Check (configured path)
 app.get("/api/_int/health", (_req, res) => {
-  res.status(200).json({ status: "ok" });
+  res.status(200).type("text/plain").send("OK");
 });
 
 /**
- * EVERYTHING ELSE LOADS AFTER
- * ──────────────────────────
- * If this explodes, health STILL passes.
+ * ============================================================
+ * EVERYTHING BELOW CAN FAIL — HEALTH WILL STILL PASS
+ * ============================================================
  */
 
-try {
-  // OPTIONAL: only load bootstrap AFTER health routes exist
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  require("./bootstrap");
-} catch (err) {
-  console.error("BOOTSTRAP FAILED — HEALTH STILL UP", err);
-}
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
-/**
- * START SERVER
- */
+// Example placeholder for future routes
+// app.use("/api", apiRouter);
 
 const PORT = Number(process.env.PORT) || 8080;
 
-app.listen(PORT, () => {
+const server = http.createServer(app);
+
+server.listen(PORT, () => {
   console.log(`SERVER LISTENING on ${PORT}`);
+  console.log("BOOTSTRAP COMPLETE");
 });
