@@ -1,15 +1,15 @@
 import { Router } from "express";
 
-import healthRouter from "./health";
-import systemRouter from "./system";
-import authRouter from "./auth";
-import usersRouter from "./users";
+import auth from "./auth";
+import users from "./users";
+import system from "./system";
+import health from "./health";
 
 const router = Router();
 
-router.use("/health", healthRouter);
-router.use("/system", systemRouter);
-router.use("/auth", authRouter);
-router.use("/users", usersRouter);
+router.use("/auth", auth);
+router.use("/users", users);
+router.use("/system", system);
+router.use("/health", health);
 
 export default router;
