@@ -10,27 +10,37 @@ export interface AuthenticatedRequest extends Request {
 
 function extractAccessToken(req: Request): string | null {
   const cookieToken = req.cookies?.access_token as string | undefined;
-  return cookieToken ?? null;
+  if (cookieToken) {
+    return cookieToken;
+  }
+
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    return null;
+  }
+
+  return authHeader.startsWith("Bearer ")
+    ? authHeader.slice(7).trim()
+    : authHeader.trim();
 }
 
 export function authenticateRequest(
   req: AuthenticatedRequest,
-  _res: Response,
+  res: Response,
   next: NextFunction,
 ) {
   const token = extractAccessToken(req);
   if (!token) {
-    return next();
+    return res.status(401).json({ error: "Unauthorized" });
   }
 
   try {
     const payload = verifyAccessToken(token);
     req.user = { id: payload.userId, email: payload.email };
+    return next();
   } catch {
-    req.user = undefined;
+    return res.status(401).json({ error: "Unauthorized" });
   }
-
-  return next();
 }
 
 export function requireAuth(
@@ -38,9 +48,5 @@ export function requireAuth(
   res: Response,
   next: NextFunction,
 ) {
-  if (!req.user) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-
-  return next();
+  return authenticateRequest(req, res, next);
 }

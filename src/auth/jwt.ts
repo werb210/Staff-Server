@@ -9,13 +9,28 @@ interface JwtTokenPayload extends JwtUserPayload {
   type: "access" | "refresh";
 }
 
-const accessSecret = process.env.JWT_SECRET ?? "dev-secret";
-const refreshSecret = process.env.JWT_REFRESH_SECRET ?? "dev-refresh-secret";
-
 const accessExpiresIn = (process.env.JWT_ACCESS_EXPIRES_IN ??
   "15m") as jwt.SignOptions["expiresIn"];
 const refreshExpiresIn = (process.env.JWT_REFRESH_EXPIRES_IN ??
   "30d") as jwt.SignOptions["expiresIn"];
+
+function getAccessSecret(): string {
+  const secret = process.env.JWT_ACCESS_SECRET;
+  if (!secret) {
+    throw new Error("JWT_ACCESS_SECRET is required");
+  }
+
+  return secret;
+}
+
+function getRefreshSecret(): string {
+  const secret = process.env.JWT_REFRESH_SECRET;
+  if (!secret) {
+    throw new Error("JWT_REFRESH_SECRET is required");
+  }
+
+  return secret;
+}
 
 function isJwtTokenPayload(
   decoded: unknown,
@@ -34,19 +49,19 @@ function isJwtTokenPayload(
 }
 
 export function signAccessToken(payload: JwtUserPayload): string {
-  return jwt.sign({ ...payload, type: "access" }, accessSecret, {
+  return jwt.sign({ ...payload, type: "access" }, getAccessSecret(), {
     expiresIn: accessExpiresIn,
   });
 }
 
 export function signRefreshToken(payload: JwtUserPayload): string {
-  return jwt.sign({ ...payload, type: "refresh" }, refreshSecret, {
+  return jwt.sign({ ...payload, type: "refresh" }, getRefreshSecret(), {
     expiresIn: refreshExpiresIn,
   });
 }
 
 export function verifyAccessToken(token: string): JwtUserPayload {
-  const decoded = jwt.verify(token, accessSecret);
+  const decoded = jwt.verify(token, getAccessSecret());
   if (!isJwtTokenPayload(decoded, "access")) {
     throw new Error("Invalid access token");
   }
@@ -55,7 +70,7 @@ export function verifyAccessToken(token: string): JwtUserPayload {
 }
 
 export function verifyRefreshToken(token: string): JwtUserPayload {
-  const decoded = jwt.verify(token, refreshSecret);
+  const decoded = jwt.verify(token, getRefreshSecret());
   if (!isJwtTokenPayload(decoded, "refresh")) {
     throw new Error("Invalid refresh token");
   }
