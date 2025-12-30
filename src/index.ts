@@ -18,6 +18,10 @@ app.use(
   })
 );
 
+app.get("/", (_req, res) => {
+  res.status(200).json({ status: "ok" });
+});
+
 app.use("/api/auth", authRoutes);
 app.use("/api/_int", internalRoutes);
 
