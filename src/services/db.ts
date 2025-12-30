@@ -15,7 +15,7 @@ function shouldUseSsl() {
   );
 }
 
-export async function initDb() {
+export async function initDb(): Promise<void> {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
     throw new Error("DATABASE_URL is required to start the server");
@@ -37,14 +37,21 @@ export async function initDb() {
         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
       )
     `);
-    console.log("Database connection established");
   } catch (error) {
-    console.error("Failed to initialize database", error);
     pool = null;
     throw error;
   }
 }
 
-export function getPool(): Pool | null {
+export function getPool(): Pool {
+  if (!pool) {
+    throw new Error("Database has not been initialized");
+  }
+
   return pool;
+}
+
+export async function checkDbConnection(): Promise<void> {
+  const activePool = getPool();
+  await activePool.query("SELECT 1");
 }
