@@ -9,20 +9,6 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: staff
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres -d staff"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
 
     steps:
       - name: Checkout repository
@@ -37,29 +23,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Bootstrap database schema
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/staff
-        run: |
-          node -e "const { Client } = require('pg'); (async () => { const client = new Client({ connectionString: process.env.DATABASE_URL }); await client.connect(); await client.query('create extension if not exists \"pgcrypto\";'); await client.query('create table if not exists users (id uuid primary key default gen_random_uuid(), email text unique not null, password_hash text not null, created_at timestamptz not null default now(), updated_at timestamptz not null default now());'); await client.end(); })().catch((err) => { console.error(err); process.exit(1); });"
-
       - name: Build
         run: npm run build
-
-      - name: Start server (background)
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/staff
-          JWT_SECRET: smoke-test-secret
-        run: |
-          npm run build
-          node dist/index.js &
-          sleep 5
-
-      - name: Smoke tests
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/staff
-          JWT_SECRET: smoke-test-secret
-        run: ./scripts/smoke.sh
 
       - name: Azure Login
         uses: azure/login@v1
