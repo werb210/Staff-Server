@@ -1,59 +1,39 @@
 import "dotenv/config";
-import express, { type NextFunction, type Request, type Response } from "express";
+import express from "express";
 import http from "http";
-import { assertDb } from "./db";
+
+import { assertDb, ensureSchema } from "./db";
 import { registerRoutes } from "./routes";
 
-const app = express();
-
-// Azure/App Service friendly settings
-app.set("trust proxy", 1);
-app.disable("x-powered-by");
-
-// MUST exist and MUST be fast (Azure Health Probe hits this)
-app.get("/health", (_req: Request, res: Response) => {
-  res.status(200).type("text/plain").send("ok");
-});
-
-// Optional root sanity check
-app.get("/", (_req: Request, res: Response) => {
-  res.status(200).type("text/plain").send("ok");
-});
-
-// Body parsing AFTER health endpoints
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true }));
-
-// Attach DB only for API routes (health must not depend on DB)
-app.use("/api", async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    (req as any).db = await assertDb();
-    next();
-  } catch (err) {
-    // Keep service alive; API reports DB problem explicitly.
-    res.status(503).json({ error: "db_unavailable" });
+const requiredEnv = ["DATABASE_URL", "JWT_SECRET"] as const;
+for (const k of requiredEnv) {
+  if (!process.env[k]) {
+    throw new Error(`missing_env:${k}`);
   }
-});
+}
 
-// Register all app routes
-registerRoutes(app);
+async function bootstrap() {
+  await assertDb();
+  await ensureSchema();
 
-// 404
-app.use((_req: Request, res: Response) => {
-  res.status(404).json({ error: "not_found" });
-});
+  const app = express();
+  app.use(express.json());
 
-// Error handler
-app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
-  const message = err instanceof Error ? err.message : "unknown_error";
-  res.status(500).json({ error: "server_error", message });
-});
+  app.get("/health", (_req, res) => {
+    res.json({ ok: true });
+  });
 
-const port = Number(process.env.PORT || 8080);
-const server = http.createServer(app);
+  registerRoutes(app);
 
-// Do not block startup on DB; /api will return 503 until DB is reachable.
-server.listen(port, "0.0.0.0", () => {
-  // eslint-disable-next-line no-console
-  console.log(`🚀 Staff API running on port ${port}`);
+  const server = http.createServer(app);
+  const port = process.env.PORT || 8080;
+
+  server.listen(port, () => {
+    console.log(`server listening on ${port}`);
+  });
+}
+
+bootstrap().catch((err) => {
+  console.error("BOOTSTRAP_FATAL", err);
+  process.exit(1);
 });
