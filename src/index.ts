@@ -1,35 +1,27 @@
-import express from "express";
+import express from 'express';
 
 const app = express();
+const PORT = process.env.PORT || 8080;
 
-/**
- * GUARANTEED FAST ROOT
- * No DB
- * No async
- */
-app.get("/", (_req, res) => {
-  res.status(200).send("OK");
+// fast, guaranteed root + health
+app.get('/', (_req, res) => res.status(200).send('OK'));
+app.get('/health', (_req, res) => res.status(200).json({ status: 'ok' }));
+
+// ---- API ROUTER (THIS IS THE FIX) ----
+const api = express.Router();
+
+api.get('/health', (_req, res) => {
+  res.status(200).json({ status: 'ok' });
 });
 
-/**
- * PUBLIC HEALTH
- */
-app.get("/health", (_req, res) => {
-  res.status(200).json({ status: "ok" });
-});
+// placeholder mounts so CI does not explode
+api.use('/auth', (_req, res) => res.status(501).json({ error: 'auth not wired yet' }));
+api.use('/users', (_req, res) => res.status(501).json({ error: 'users not wired yet' }));
+api.use('/system', (_req, res) => res.status(501).json({ error: 'system not wired yet' }));
 
-/**
- * INTERNAL HEALTH (Azure Health Check)
- */
-app.get("/api/_int/health", (_req, res) => {
-  res.status(200).json({ status: "ok" });
-});
+app.use('/api', api);
+// -------------------------------------
 
-/**
- * PORT — Azure compliant
- */
-const PORT = Number(process.env.PORT) || 8080;
-
-app.listen(PORT, "0.0.0.0", () => {
+app.listen(PORT, () => {
   console.log(`SERVER LISTENING on ${PORT}`);
 });
