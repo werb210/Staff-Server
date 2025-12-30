@@ -1,20 +1,25 @@
 import { Pool } from "pg";
 
-if (!process.env.DATABASE_URL) {
-  throw new Error("FATAL: DATABASE_URL is not set");
+let pool: Pool | null = null;
+let dbReady = false;
+
+export async function initDb() {
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+  });
+
+  await pool.query("select 1");
+  dbReady = true;
 }
 
-export const db = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.PGSSL === "false" ? false : { rejectUnauthorized: false },
-});
-
-export async function initDb(): Promise<void> {
-  try {
-    await db.query("select 1");
-    console.log("[db] connection established");
-  } catch (err) {
-    console.error("[db] connection FAILED");
-    throw err;
+export function getDb(): Pool {
+  if (!pool) {
+    throw new Error("DB not initialized");
   }
+  return pool;
+}
+
+export function isDbReady(): boolean {
+  return dbReady;
 }
