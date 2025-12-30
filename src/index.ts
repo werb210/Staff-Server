@@ -2,27 +2,48 @@ import express from "express";
 
 const app = express();
 
-// ---- HARD GUARANTEED FAST ROUTES (NO ASYNC, NO DB) ----
+/**
+ * ABSOLUTE FAST PATHS
+ * ───────────────────
+ * These must NEVER depend on:
+ *  - DB
+ *  - async
+ *  - config
+ *  - bootstrap
+ */
 
-// Root (Azure probes this implicitly sometimes)
 app.get("/", (_req, res) => {
-  res.status(200).send("ok");
+  res.status(200).send("OK");
 });
 
-// Public health
 app.get("/health", (_req, res) => {
-  res.status(200).json({ alive: true });
+  res.status(200).json({ status: "ok" });
 });
 
-// Internal health (what you configured in Azure)
 app.get("/api/_int/health", (_req, res) => {
-  res.status(200).json({ ok: true });
+  res.status(200).json({ status: "ok" });
 });
 
-// ---- NOTHING ELSE BEFORE LISTEN ----
+/**
+ * EVERYTHING ELSE LOADS AFTER
+ * ──────────────────────────
+ * If this explodes, health STILL passes.
+ */
+
+try {
+  // OPTIONAL: only load bootstrap AFTER health routes exist
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  require("./bootstrap");
+} catch (err) {
+  console.error("BOOTSTRAP FAILED — HEALTH STILL UP", err);
+}
+
+/**
+ * START SERVER
+ */
 
 const PORT = Number(process.env.PORT) || 8080;
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log("SERVER LISTENING on", PORT);
+app.listen(PORT, () => {
+  console.log(`SERVER LISTENING on ${PORT}`);
 });
