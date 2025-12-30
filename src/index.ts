@@ -1,25 +1,38 @@
-import express from "express";
+import express, { type NextFunction, type Request, type Response } from "express";
+import http from "http";
 import apiRouter from "./routes/api";
 
 const app = express();
 
-app.use(express.json());
+app.set("trust proxy", 1);
+app.disable("x-powered-by");
 
-// root sanity check
-app.get("/", (_req, res) => {
-  res.send("OK");
+app.get("/health", (_req: Request, res: Response) => {
+  res.status(200).type("text/plain").send("ok");
 });
 
-// API ROUTES — THIS WAS THE MISSING PIECE
+app.get("/", (_req: Request, res: Response) => {
+  res.status(200).type("text/plain").send("ok");
+});
+
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true }));
+
 app.use("/api", apiRouter);
 
-// optional direct health (keep if you want)
-app.get("/health", (_req, res) => {
-  res.json({ status: "ok" });
+app.use((_req: Request, res: Response) => {
+  res.status(404).json({ error: "not_found" });
 });
 
-const PORT = Number(process.env.PORT) || 8080;
+app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  const message = err instanceof Error ? err.message : "unknown_error";
+  res.status(500).json({ error: "internal_error", message });
+});
 
-app.listen(PORT, () => {
-  console.log(`SERVER LISTENING on ${PORT}`);
+const port = Number(process.env.PORT || 8080);
+const server = http.createServer(app);
+
+server.listen(port, "0.0.0.0", () => {
+  // eslint-disable-next-line no-console
+  console.log(`SERVER LISTENING on ${port}`);
 });
