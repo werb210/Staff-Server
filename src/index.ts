@@ -2,7 +2,7 @@ import "dotenv/config";
 import express from "express";
 import http from "http";
 
-import { assertDb, ensureSchema } from "./db";
+import { assertDb } from "./db";
 import { registerRoutes } from "./routes";
 
 const requiredEnv = ["DATABASE_URL", "JWT_SECRET"] as const;
@@ -14,7 +14,6 @@ for (const k of requiredEnv) {
 
 async function bootstrap() {
   await assertDb();
-  await ensureSchema();
 
   const app = express();
   app.use(express.json());
