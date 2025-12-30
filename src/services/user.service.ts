@@ -1,5 +1,4 @@
-import { hashPassword } from "../auth/password";
-import { getPool } from "./db";
+import { db } from "./db";
 
 export interface UserRecord {
   id: string;
@@ -9,42 +8,10 @@ export interface UserRecord {
   createdAt: Date;
 }
 
-const memoryUsers = new Map<string, UserRecord>();
-let memoryInitialized = false;
-
-export async function initializeUserStore() {
-  if (memoryInitialized) {
-    return;
-  }
-
-  memoryInitialized = true;
-
-  if (getPool()) {
-    return;
-  }
-
-  const email = process.env.DEV_USER_EMAIL;
-  const password = process.env.DEV_USER_PASSWORD;
-
-  if (email && password) {
-    const passwordHash = await hashPassword(password);
-    memoryUsers.set(email, {
-      id: "dev-user",
-      email,
-      passwordHash,
-      refreshTokenHash: null,
-      createdAt: new Date(),
-    });
-  }
-}
-
-export async function getUserByEmail(email: string): Promise<UserRecord | null> {
-  const pool = getPool();
-  if (!pool) {
-    return memoryUsers.get(email) ?? null;
-  }
-
-  const result = await pool.query(
+export async function getUserByEmail(
+  email: string,
+): Promise<UserRecord | null> {
+  const result = await db.query(
     "SELECT id, email, password_hash, refresh_token_hash, created_at FROM users WHERE email = $1",
     [email],
   );
@@ -64,17 +31,7 @@ export async function getUserByEmail(email: string): Promise<UserRecord | null> 
 }
 
 export async function getUserById(id: string): Promise<UserRecord | null> {
-  const pool = getPool();
-  if (!pool) {
-    for (const user of memoryUsers.values()) {
-      if (user.id === id) {
-        return user;
-      }
-    }
-    return null;
-  }
-
-  const result = await pool.query(
+  const result = await db.query(
     "SELECT id, email, password_hash, refresh_token_hash, created_at FROM users WHERE id = $1",
     [id],
   );
@@ -97,34 +54,14 @@ export async function setUserRefreshTokenHash(
   userId: string,
   refreshTokenHash: string,
 ) {
-  const pool = getPool();
-  if (!pool) {
-    for (const user of memoryUsers.values()) {
-      if (user.id === userId) {
-        user.refreshTokenHash = refreshTokenHash;
-      }
-    }
-    return;
-  }
-
-  await pool.query("UPDATE users SET refresh_token_hash = $1 WHERE id = $2", [
+  await db.query("UPDATE users SET refresh_token_hash = $1 WHERE id = $2", [
     refreshTokenHash,
     userId,
   ]);
 }
 
 export async function clearUserRefreshTokenHash(userId: string) {
-  const pool = getPool();
-  if (!pool) {
-    for (const user of memoryUsers.values()) {
-      if (user.id === userId) {
-        user.refreshTokenHash = null;
-      }
-    }
-    return;
-  }
-
-  await pool.query("UPDATE users SET refresh_token_hash = NULL WHERE id = $1", [
+  await db.query("UPDATE users SET refresh_token_hash = NULL WHERE id = $1", [
     userId,
   ]);
 }
