@@ -1,113 +1,71 @@
-import "dotenv/config";
-
 import express from "express";
-import cookieParser from "cookie-parser";
 import cors from "cors";
-
+import cookieParser from "cookie-parser";
+import { initDb, isDbReady } from "./services/db";
 import authRoutes from "./auth/auth.routes";
-import { checkDbConnection, initDb } from "./services/db";
 
 const REQUIRED_ENV_VARS = [
   "DATABASE_URL",
   "JWT_ACCESS_SECRET",
   "JWT_REFRESH_SECRET",
-] as const;
+];
 
-type RequiredEnvVar = (typeof REQUIRED_ENV_VARS)[number];
-
-function validateEnv(): void {
-  const missing = REQUIRED_ENV_VARS.filter(
-    (key: RequiredEnvVar) => !process.env[key],
-  );
-
-  if (missing.length > 0) {
-    throw new Error(
-      `Missing required environment variables: ${missing.join(", ")}`,
-    );
+function validateEnv() {
+  const missing = REQUIRED_ENV_VARS.filter(v => !process.env[v]);
+  if (missing.length) {
+    console.error("FATAL: Missing env vars:", missing);
+    process.exit(1);
   }
 }
 
-function getCommitHash(): string {
-  return (
-    process.env.COMMIT_SHA ||
-    process.env.GIT_COMMIT ||
-    process.env.SOURCE_VERSION ||
-    "unknown"
-  );
-}
+async function bootstrap() {
+  validateEnv();
 
-async function buildApp() {
+  await initDb(); // throws on failure
+
   const app = express();
 
+  app.use(cors({ origin: true, credentials: true }));
   app.use(express.json());
   app.use(cookieParser());
 
-  app.use(
-    cors({
-      origin: [
-        "https://staff.boreal.financial",
-        "https://api.staff.boreal.financial",
-      ],
-      credentials: true,
-    }),
-  );
-
+  // ROOT
   app.get("/", (_req, res) => {
     res.status(200).json({ status: "ok" });
   });
 
+  // INTERNAL ROUTES
   app.get("/api/_int/health", (_req, res) => {
-    res.status(200).json({ status: "ok" });
+    res.status(200).json({ status: "alive" });
   });
 
-  app.get("/api/_int/ready", async (_req, res) => {
-    try {
-      await checkDbConnection();
-      return res.status(200).json({ status: "ready" });
-    } catch (error) {
-      return res.status(503).json({
-        status: "not_ready",
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
+  app.get("/api/_int/ready", (_req, res) => {
+    if (!isDbReady()) {
+      return res.status(503).json({ status: "db_not_ready" });
     }
+    res.status(200).json({ status: "ready" });
   });
 
+  // AUTH
   app.use("/api/auth", authRoutes);
 
-  return app;
-}
-
-async function startServer() {
-  validateEnv();
-  await initDb();
-
-  const app = await buildApp();
-  const PORT = process.env.PORT ? Number(process.env.PORT) : 8080;
-  const mountedRoutes = [
-    "GET /",
-    "GET /api/_int/health",
-    "GET /api/_int/ready",
-    "POST /api/auth/login",
-    "POST /api/auth/logout",
-    "POST /api/auth/refresh",
-    "GET /api/auth/me",
-    "GET /api/auth/status",
-  ];
+  const PORT = Number(process.env.PORT) || 8080;
 
   app.listen(PORT, () => {
-    const startupLog = {
-      commit: getCommitHash(),
-      node: process.version,
-      port: PORT,
-      routes: mountedRoutes,
-      db: "connected",
-    };
-
-    console.log(`[startup] ${JSON.stringify(startupLog)}`);
+    console.log("=== STAFF SERVER STARTED ===");
+    console.log("NODE:", process.version);
+    console.log("PORT:", PORT);
+    console.log("COMMIT:", process.env.GIT_COMMIT || "unknown");
+    console.log("ROUTES:");
+    console.log("  /");
+    console.log("  /api/_int/health");
+    console.log("  /api/_int/ready");
+    console.log("  /api/auth/*");
+    console.log("DB: CONNECTED");
   });
 }
 
-startServer().catch((error) => {
-  console.error("[fatal] Failed to start server", error);
+bootstrap().catch(err => {
+  console.error("FATAL STARTUP ERROR:", err);
   process.exit(1);
 });
