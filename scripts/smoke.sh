@@ -5,10 +5,22 @@ BASE="${BASE_URL:-http://localhost:8080}"
 
 AUTH_EMAIL="${AUTH_EMAIL:-smoke@example.com}"
 AUTH_PASSWORD="${AUTH_PASSWORD:-smoke-password}"
+DATABASE_URL="${DATABASE_URL:-}"
 
 # CRITICAL: export so the Node heredoc can read them
 export AUTH_EMAIL
 export AUTH_PASSWORD
+export DATABASE_URL
+
+if [[ -z "${DATABASE_URL}" ]]; then
+  echo "DATABASE_URL is empty"
+  exit 1
+fi
+
+if [[ -z "${AUTH_EMAIL}" ]]; then
+  echo "AUTH_EMAIL is empty"
+  exit 1
+fi
 
 if [[ -z "${AUTH_PASSWORD}" ]]; then
   echo "AUTH_PASSWORD is empty"
@@ -38,10 +50,21 @@ const bcrypt = require("bcrypt");
 
   const hash = await bcrypt.hash(String(password), 10);
 
+  await client.query(`
+    create extension if not exists "pgcrypto";
+    create table if not exists users (
+      id uuid primary key default gen_random_uuid(),
+      email text unique not null,
+      password_hash text not null,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    );
+  `);
+
   await client.query(
     `
-      insert into users (email, password_hash)
-      values ($1, $2)
+      insert into users (email, password_hash, updated_at)
+      values ($1, $2, now())
       on conflict (email) do update
         set password_hash = excluded.password_hash,
             updated_at = now()
