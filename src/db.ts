@@ -1,28 +1,39 @@
 import { Pool } from "pg";
 
-if (!process.env.DATABASE_URL) {
-  throw new Error("missing_env:DATABASE_URL");
+let pool: Pool | null = null;
+
+export function getPool(): Pool {
+  const url = process.env.DATABASE_URL;
+  if (!url) {
+    throw new Error("missing_env:DATABASE_URL");
+  }
+
+  if (!pool) {
+    pool = new Pool({ connectionString: url });
+  }
+
+  return pool;
 }
 
-export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
+export async function checkDbConnection(): Promise<boolean> {
+  const url = process.env.DATABASE_URL;
+  if (!url) {
+    return false;
+  }
 
-export async function assertDb() {
-  const client = await pool.connect();
+  if (!pool) {
+    pool = new Pool({ connectionString: url });
+  }
+
   try {
-    await client.query(`
-      create extension if not exists "pgcrypto";
-
-      create table if not exists users (
-        id uuid primary key default gen_random_uuid(),
-        email text unique not null,
-        password_hash text not null,
-        created_at timestamptz not null default now(),
-        updated_at timestamptz not null default now()
-      );
-    `);
-  } finally {
-    client.release();
+    const client = await pool.connect();
+    try {
+      await client.query("select 1");
+    } finally {
+      client.release();
+    }
+    return true;
+  } catch {
+    return false;
   }
 }

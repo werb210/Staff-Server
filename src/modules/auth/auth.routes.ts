@@ -9,7 +9,7 @@ import {
 const router = Router();
 
 router.post(
-  "/api/auth/login",
+  "/login",
   async (
     req: Request<unknown, AuthLoginResponse | AuthLoginErrorResponse, AuthLoginRequestBody>,
     res,

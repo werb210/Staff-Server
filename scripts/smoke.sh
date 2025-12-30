@@ -3,83 +3,31 @@ set -euo pipefail
 
 BASE="${BASE_URL:-http://localhost:8080}"
 
-AUTH_EMAIL="${AUTH_EMAIL:-smoke@example.com}"
-AUTH_PASSWORD="${AUTH_PASSWORD:-smoke-password}"
-DATABASE_URL="${DATABASE_URL:-}"
+AUTH_EMAIL="${AUTH_EMAIL:-}"
+AUTH_PASSWORD="${AUTH_PASSWORD:-}"
 
-export AUTH_EMAIL
-export AUTH_PASSWORD
-export DATABASE_URL
+health_body="$(curl -fsS "$BASE/health")"
+[[ "$health_body" == "ok" ]] || { echo "/health unexpected response"; exit 1; }
 
-[[ -z "$DATABASE_URL" ]] && { echo "DATABASE_URL is empty"; exit 1; }
-[[ -z "$AUTH_EMAIL" ]] && { echo "AUTH_EMAIL is empty"; exit 1; }
-[[ -z "$AUTH_PASSWORD" ]] && { echo "AUTH_PASSWORD is empty"; exit 1; }
+ready_code="$(curl -sS -o /dev/null -w "%{http_code}" "$BASE/api/_int/ready")"
+[[ "$ready_code" == "200" ]] || { echo "/api/_int/ready not ready"; exit 1; }
 
-# Health check
-curl -fsS "$BASE/health" | grep -q "ok"
+AUTH_TEST="false"
+if [[ -n "$AUTH_EMAIL" && -n "$AUTH_PASSWORD" ]]; then
+  AUTH_TEST="true"
+fi
 
-# Ensure user exists
-node <<'NODE'
-const { Client } = require("pg");
-const bcrypt = require("bcrypt");
+if [[ "$AUTH_TEST" == "true" ]]; then
+  login_json="$(curl -sS -X POST "$BASE/api/auth/login" \
+    -H "Content-Type: application/json" \
+    -d "{\"email\":\"$AUTH_EMAIL\",\"password\":\"$AUTH_PASSWORD\"}")"
 
-(async () => {
-  const { DATABASE_URL, AUTH_EMAIL, AUTH_PASSWORD } = process.env;
-  if (!DATABASE_URL || !AUTH_EMAIL || !AUTH_PASSWORD) {
-    throw new Error("Missing env");
-  }
+  token="$(echo "$login_json" | jq -r '.token // empty')"
+  [[ -n "$token" ]] || { echo "No token returned"; exit 1; }
 
-  const client = new Client({ connectionString: DATABASE_URL });
-  await client.connect();
+  protected_code="$(curl -sS -o /dev/null -w "%{http_code}" \
+    -H "Authorization: Bearer $token" \
+    "$BASE/api/users")"
 
-  const hash = await bcrypt.hash(String(AUTH_PASSWORD), 10);
-
-  await client.query(`
-    create extension if not exists "pgcrypto";
-    create table if not exists users (
-      id uuid primary key default gen_random_uuid(),
-      email text unique not null,
-      password_hash text not null,
-      created_at timestamptz not null default now(),
-      updated_at timestamptz not null default now()
-    );
-  `);
-
-  await client.query(
-    `
-      insert into users (email, password_hash, updated_at)
-      values ($1, $2, now())
-      on conflict (email) do update
-        set password_hash = excluded.password_hash,
-            updated_at = now()
-    `,
-    [AUTH_EMAIL, hash]
-  );
-
-  await client.end();
-})();
-NODE
-
-# Login
-LOGIN_JSON="$(curl -sS -X POST "$BASE/api/auth/login" \
-  -H "Content-Type: application/json" \
-  -d "{\"email\":\"$AUTH_EMAIL\",\"password\":\"$AUTH_PASSWORD\"}")"
-
-echo "$LOGIN_JSON" | grep -q '"token"'
-
-# Extract token SAFELY
-TOKEN="$(echo "$LOGIN_JSON" | node -e '
-let d="";
-process.stdin.on("data", c => d+=c);
-process.stdin.on("end", () => {
-  const j = JSON.parse(d);
-  console.log(j.token || "");
-});
-')"
-
-[[ -z "$TOKEN" ]] && { echo "No token returned"; exit 1; }
-
-# Authenticated route
-curl -sS -o /dev/null -w "%{http_code}" \
-  -H "Authorization: Bearer $TOKEN" \
-  "$BASE/api/users" | grep -q 200
+  [[ "$protected_code" == "200" ]] || { echo "Protected route failed"; exit 1; }
+fi

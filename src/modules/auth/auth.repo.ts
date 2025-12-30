@@ -1,7 +1,8 @@
-import { pool } from "../../db";
+import { getPool } from "../../db";
 import { type AuthUserRecord } from "./auth.types";
 
 export async function findAuthUserByEmail(email: string): Promise<AuthUserRecord | null> {
+  const pool = getPool();
   const result = await pool.query("select id, password_hash from users where email=$1", [
     email,
   ]);
