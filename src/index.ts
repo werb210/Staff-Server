@@ -1,82 +1,90 @@
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
-import { db } from "./services/db";
-import authRoutes from "./auth/auth.routes";
+import authRoutes from "./routes/auth.routes";
+import { initDb } from "./services/db";
 
-const REQUIRED_ENV_VARS = [
+/* ===========================
+   HARD ENV VALIDATION
+=========================== */
+
+const REQUIRED_ENV = [
   "DATABASE_URL",
   "JWT_ACCESS_SECRET",
   "JWT_REFRESH_SECRET",
 ];
 
-let envValidated = false;
-let dbReady = false;
-
-function validateEnv() {
-  const missing = REQUIRED_ENV_VARS.filter(v => !process.env[v]);
+function validateEnv(): void {
+  const missing = REQUIRED_ENV.filter((k) => !process.env[k]);
   if (missing.length) {
-    console.error("FATAL: Missing env vars:", missing);
+    console.error("FATAL: missing env vars:", missing);
     process.exit(1);
   }
-
-  envValidated = true;
 }
 
-async function initializeDb() {
-  try {
-    await db.query("SELECT 1");
-    dbReady = true;
-  } catch (err) {
-    console.error("DB CONNECTION FAILED");
-    throw err;
-  }
-}
+/* ===========================
+   BOOTSTRAP
+=========================== */
 
 async function bootstrap() {
   validateEnv();
-  await initializeDb();
+  await initDb();
 
   const app = express();
+  app.disable("x-powered-by");
 
   app.use(cors({ origin: true, credentials: true }));
   app.use(express.json());
   app.use(cookieParser());
 
+  /* ===========================
+     ROUTES (FLATTENED)
+  =========================== */
+
+  const routes: string[] = [];
+
   app.get("/", (_req, res) => {
-    res.status(200).json({ status: "ok" });
+    res.json({ status: "ok" });
   });
+  routes.push("GET /");
 
   app.get("/api/_int/health", (_req, res) => {
-    res.status(200).json({ status: "alive" });
+    res.json({ alive: true });
   });
+  routes.push("GET /api/_int/health");
 
   app.get("/api/_int/ready", (_req, res) => {
-    if (!envValidated || !dbReady) {
-      return res.status(503).json({ status: "not_ready" });
-    }
-    return res.status(200).json({ status: "ready" });
+    res.json({ ready: true });
   });
+  routes.push("GET /api/_int/ready");
 
   app.use("/api/auth", authRoutes);
+  routes.push("ALL /api/auth/*");
 
-  const PORT = Number(process.env.PORT) || 8080;
+  /* ===========================
+     START SERVER
+  =========================== */
 
-  app.listen(PORT, () => {
-    console.log("=== STAFF SERVER STARTED ===");
-    console.log("COMMIT:", process.env.GIT_COMMIT || "unknown");
-    console.log("NODE:", process.version);
-    console.log("PORT:", PORT);
-    console.log("ROUTES:");
-    console.log("  /");
-    console.log("  /api/_int/health");
-    console.log("  /api/_int/ready");
-    console.log("  /api/auth/*");
-    console.log("DB: CONNECTED");
+  const port = Number(process.env.PORT) || 8080;
+
+  app.listen(port, () => {
+    console.log("====================================");
+    console.log("Staff-Server booted");
+    console.log("commit:", process.env.COMMIT_SHA || "unknown");
+    console.log("node:", process.version);
+    console.log("port:", port);
+    console.log("mounted routes:");
+    routes.forEach((r) => console.log(" -", r));
+    console.log("====================================");
   });
 }
 
-bootstrap().catch(err => {
-  console.error("FATAL STARTUP ERROR:", err);
+/* ===========================
+   FAIL FAST
+=========================== */
+
+bootstrap().catch((err) => {
+  console.error("FATAL: bootstrap failed");
+  console.error(err);
   process.exit(1);
 });
