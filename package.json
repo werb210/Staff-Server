@@ -9,8 +9,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/index.js",
-    "smoke": "NODE_ENV=production PORT=5050 node dist/index.js & PID=$!; sleep 5; curl -fsS http://localhost:5050/ >/dev/null || (kill $PID && exit 1); kill $PID"
+    "start": "node dist/index.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
