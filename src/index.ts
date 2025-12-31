@@ -1,37 +1,35 @@
 import express from "express";
+import http from "http";
+
+import { healthRouter } from "./routes/health";
+import { internalRouter } from "./routes/internal";
+import { apiRouter } from "./routes/api";
 
 const app = express();
-const PORT = Number(process.env.PORT) || 8080;
 
-/**
- * HEALTH — MUST BE FIRST
- * - synchronous
- * - no DB
- * - no middleware
- * - always returns
- */
-app.get("/health", (_req, res) => {
-  res.status(200).type("text/plain").send("ok");
-});
-
-/**
- * OPTIONAL: internal health
- */
-app.get("/api/_int/health", (_req, res) => {
-  res.status(200).type("text/plain").send("ok");
-});
-
-/**
- * Middleware AFTER health
- */
 app.use(express.json());
 
-/**
- * Other routes AFTER middleware
- * app.use("/api/auth", authRouter);
- * app.use("/api", apiRouter);
- */
+// ROUTES — order matters
+app.use(healthRouter);          // /health
+app.use(internalRouter);        // /api/_int/*
+app.use("/api", apiRouter);     // /api/*
 
-app.listen(PORT, () => {
-  console.log(`Server listening on ${PORT}`);
+// ----- SERVER BOOTSTRAP (THIS WAS MISSING) -----
+
+const PORT = Number(process.env.PORT) || 8080;
+
+const server = http.createServer(app);
+
+server.listen(PORT, () => {
+  console.log(`Server listening on port ${PORT}`);
+});
+
+// ----- SAFETY -----
+process.on("unhandledRejection", (err) => {
+  console.error("UNHANDLED_REJECTION", err);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("UNCAUGHT_EXCEPTION", err);
+  process.exit(1);
 });
