@@ -1,37 +1,54 @@
 import express from "express";
-import { healthRouter } from "./routes/health";
-import { internalRouter } from "./routes/internal";
-import { apiRouter } from "./routes/api";
+import type { Request, Response } from "express";
+
+const PORT = Number(process.env.PORT) || 8080;
 
 const app = express();
 
-app.use(express.json());
+/* =========================
+   LIVENESS — MUST BE FIRST
+   ========================= */
 
-/**
- * ROOT — required for Azure App Service
- */
-app.get("/", (_req, res) => {
-  res.status(200).json({
-    status: "ok",
-    service: "staff-server",
-  });
+app.get("/health", (_req: Request, res: Response) => {
+  res.status(200).send("ok");
 });
 
-/**
- * Health + internal probes
- */
-app.use(healthRouter);
-app.use(internalRouter);
-
-/**
- * API
- */
-app.use("/api", apiRouter);
-
-const port = process.env.PORT || 8080;
-
-app.listen(port, () => {
-  console.log(`Server listening on ${port}`);
+app.get("/api/_int/health", (_req: Request, res: Response) => {
+  res.status(200).send("ok");
 });
 
-export default app;
+/* =========================
+   ROOT — MUST EXIST
+   ========================= */
+
+app.get("/", (_req: Request, res: Response) => {
+  res.status(200).json({ status: "ok", service: "staff-server" });
+});
+
+/* =========================
+   START LISTENING — NOW
+   ========================= */
+
+const server = app.listen(PORT, () => {
+  console.log(`Server listening on ${PORT}`);
+});
+
+/* =========================
+   SLOW / OPTIONAL INIT
+   ========================= */
+
+(async () => {
+  try {
+    // ⛔ DO NOT block startup
+    // DB, migrations, cron, queues, etc go here
+
+    // Example:
+    // await initDb();
+    // await initJobs();
+
+    console.log("Background initialization completed");
+  } catch (err) {
+    console.error("Background init failed", err);
+    // DO NOT exit process
+  }
+})();
