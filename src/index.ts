@@ -1,17 +1,37 @@
 import express from "express";
-import { healthRouter } from "./routes/health";
-import { internalRouter } from "./routes/internal";
-import { apiRouter } from "./routes/api";
-import { assertDb } from "./db";
 
 const app = express();
+const PORT = Number(process.env.PORT) || 8080;
 
+/**
+ * HEALTH — MUST BE FIRST
+ * - synchronous
+ * - no DB
+ * - no middleware
+ * - always returns
+ */
+app.get("/health", (_req, res) => {
+  res.status(200).type("text/plain").send("ok");
+});
+
+/**
+ * OPTIONAL: internal health
+ */
+app.get("/api/_int/health", (_req, res) => {
+  res.status(200).type("text/plain").send("ok");
+});
+
+/**
+ * Middleware AFTER health
+ */
 app.use(express.json());
 
-app.use(healthRouter);
-app.use(internalRouter);
-app.use("/api", apiRouter);
+/**
+ * Other routes AFTER middleware
+ * app.use("/api/auth", authRouter);
+ * app.use("/api", apiRouter);
+ */
 
-void assertDb();
-
-export default app;
+app.listen(PORT, () => {
+  console.log(`Server listening on ${PORT}`);
+});
