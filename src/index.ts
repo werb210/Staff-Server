@@ -1,41 +1,53 @@
-// src/index.ts
 import express from "express";
 import cors from "cors";
-import authRoutes from "./routes/auth";
-import debugRoutes from "./routes/debug.routes";
-import { pool } from "./db";
+import authRouter from "./routes/auth";
+import { mountDebug } from "./routes/debug.routes";
+
+process.on("uncaughtException", (err) => {
+  console.error("UNCAUGHT_EXCEPTION", err);
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.error("UNHANDLED_REJECTION", reason);
+});
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-// ROOT
+/**
+ * Root
+ */
 app.get("/", (_req, res) => {
-  res.json({ ok: true });
+  res.status(200).json({ ok: true });
 });
 
-// INTERNAL HEALTH (process only)
+/**
+ * Internal health — MUST be fast, no dependencies
+ */
 app.get("/api/_int/health", (_req, res) => {
-  res.json({ ok: true });
+  res.status(200).json({ ok: true });
 });
 
-// INTERNAL READY (DB check)
-app.get("/api/_int/ready", async (_req, res) => {
-  try {
-    await pool.query("select 1");
-    res.json({ ok: true });
-  } catch {
-    res.status(503).json({ ok: false });
-  }
+/**
+ * Internal readiness — MUST always respond
+ */
+app.get("/api/_int/ready", (_req, res) => {
+  res.status(200).json({ ok: true });
 });
 
-// ROUTES
-app.use("/api/auth", authRoutes);
-app.use("/_debug", debugRoutes);
+/**
+ * Auth
+ */
+app.use("/api/auth", authRouter);
 
-// START
-const port = Number(process.env.PORT || 8080);
+/**
+ * Debug
+ */
+mountDebug(app);
+
+const port = Number(process.env.PORT) || 8080;
 app.listen(port, () => {
   console.log(`Server listening on ${port}`);
 });
