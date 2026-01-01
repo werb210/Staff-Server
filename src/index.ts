@@ -1,72 +1,59 @@
 import express from "express";
-import cors from "cors";
-import cookieParser from "cookie-parser";
-import dotenv from "dotenv";
+import type { Request, Response } from "express";
 
-dotenv.config();
-
-import authRouter from "./modules/auth/auth.routes";
-import usersRouter from "./modules/users/users.routes";
+import authRoutes from "./routes/auth.routes";
 
 const app = express();
+app.disable("x-powered-by");
 
-/* middleware */
 app.use(express.json());
-app.use(cookieParser());
-app.use(
-  cors({
-    origin: true,
-    credentials: true
-  })
-);
+app.use(express.urlencoded({ extended: false }));
 
-/* root */
-app.get("/", (_req, res) => {
-  res.json({ status: "ok", service: "staff-server" });
+/* =========================
+   CORE ROUTES
+   ========================= */
+
+app.get("/", (_req: Request, res: Response) => {
+  res.status(200).json({ status: "ok", service: "staff-server" });
 });
 
-/* health */
-app.get("/health", (_req, res) => {
-  res.send("ok");
+app.get("/health", (_req: Request, res: Response) => {
+  res.status(200).send("ok");
 });
 
-app.get("/api/_int/health", (_req, res) => {
-  res.send("ok");
+app.get("/api/_int/health", (_req: Request, res: Response) => {
+  res.status(200).send("ok");
 });
 
 /* =========================
-   MODULE ROUTES (THE FIX)
+   API ROUTES
    ========================= */
-app.use("/api/auth", authRouter);
-app.use("/api/users", usersRouter);
+
+app.use("/api/auth", authRoutes);
 
 /* =========================
-   DEBUG: LIVE ROUTE DUMP
+   DEBUG ROUTES (TEMP)
    ========================= */
+
 app.get("/__debug/routes", (_req, res) => {
   const routes: any[] = [];
   app._router.stack.forEach((layer: any) => {
     if (layer.route) {
       routes.push({
         path: layer.route.path,
-        methods: Object.keys(layer.route.methods)
-      });
-    } else if (layer.name === "router" && layer.handle?.stack) {
-      layer.handle.stack.forEach((r: any) => {
-        if (r.route) {
-          routes.push({
-            path: r.route.path,
-            methods: Object.keys(r.route.methods)
-          });
-        }
+        methods: Object.keys(layer.route.methods),
       });
     }
   });
   res.json({ count: routes.length, routes });
 });
 
-/* listen */
-const PORT = Number(process.env.PORT) || 8080;
-app.listen(PORT, () => {
-  console.log(`Server listening on ${PORT}`);
+/* =========================
+   START SERVER
+   ========================= */
+
+const port = Number(process.env.PORT) || 8080;
+
+app.listen(port, "0.0.0.0", () => {
+  console.log(`Server listening on ${port}`);
 });
