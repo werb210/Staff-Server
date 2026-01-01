@@ -1,17 +1,57 @@
 import { Router } from "express";
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
+import { pool } from "../db";
 
 const router = Router();
 
-router.post("/login", (_req, res) => {
-  res.status(200).json({ ok: true });
+/**
+ * POST /api/auth/login
+ */
+router.post("/login", async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: "missing_fields" });
+  }
+
+  const result = await pool.query(
+    "SELECT id, password_hash FROM users WHERE email = $1",
+    [email]
+  );
+
+  if (result.rowCount === 0) {
+    return res.status(401).json({ error: "invalid_credentials" });
+  }
+
+  const valid = await bcrypt.compare(password, result.rows[0].password_hash);
+
+  if (!valid) {
+    return res.status(401).json({ error: "invalid_credentials" });
+  }
+
+  const token = jwt.sign(
+    { uid: result.rows[0].id },
+    process.env.JWT_SECRET as string,
+    { expiresIn: "1h" }
+  );
+
+  return res.json({ token });
 });
 
+/**
+ * POST /api/auth/logout
+ * (stateless JWT – client just discards token)
+ */
 router.post("/logout", (_req, res) => {
-  res.status(200).json({ ok: true });
+  return res.status(200).json({ status: "ok" });
 });
 
+/**
+ * POST /api/auth/refresh
+ */
 router.post("/refresh", (_req, res) => {
-  res.status(200).json({ ok: true });
+  return res.status(501).json({ error: "not_implemented" });
 });
 
 export default router;
