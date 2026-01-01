@@ -2,12 +2,12 @@ import { Pool } from "pg";
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+  max: 5,
+  idleTimeoutMillis: 5000,
+  connectionTimeoutMillis: 3000,
 });
 
-export async function assertDb(): Promise<void> {
-  try {
-    await pool.query("select 1");
-  } catch (error) {
-    console.warn("Database connectivity check failed.", error);
-  }
-}
+pool.on("error", (err) => {
+  console.error("PG_POOL_ERROR", err);
+});
