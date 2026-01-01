@@ -7,7 +7,12 @@ router.get("/routes", (_req, res) => {
 
   res.json({
     ok: true,
-    routes: stack ?? "stack not captured",
+    routes: Array.isArray(stack)
+      ? stack.map((l: any) => ({
+          path: l.route?.path,
+          methods: l.route?.methods,
+        }))
+      : [],
   });
 });
 
