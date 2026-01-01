@@ -4,34 +4,47 @@ import cors from "cors";
 import authRouter from "./routes/auth";
 import debugRouter from "./routes/debug.routes";
 
+process.on("uncaughtException", (err) => {
+  console.error("UNCAUGHT_EXCEPTION", err);
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.error("UNHANDLED_REJECTION", reason);
+});
+
 const app = express();
 
-/* ---------- Middleware ---------- */
 app.use(cors());
 app.use(express.json());
 
-/* ---------- Root ---------- */
+/**
+ * Root
+ */
 app.get("/", (_req, res) => {
-  res.status(200).json({ status: "ok" });
+  res.status(200).json({ ok: true });
 });
 
-/* ---------- Internal Health ---------- */
+/**
+ * Health
+ */
 app.get("/health", (_req, res) => {
-  res.status(200).send("ok");
+  res.status(200).json({ ok: true });
 });
 
 app.get("/api/_int/health", (_req, res) => {
-  res.status(200).send("ok");
+  res.status(200).json({ ok: true });
 });
 
-/* ---------- Debug ---------- */
+/**
+ * Routes
+ */
+app.use("/api/auth", authRouter);
 app.use("/__debug", debugRouter);
 
-/* ---------- Auth ---------- */
-app.use("/api/auth", authRouter);
-
-/* ---------- Startup ---------- */
-const port = Number(process.env.PORT) || 8080;
+/**
+ * Start
+ */
+const port = Number(process.env.PORT || 8080);
 
 app.listen(port, () => {
   console.log(`Server listening on ${port}`);
