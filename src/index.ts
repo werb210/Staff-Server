@@ -1,19 +1,19 @@
 import express from "express";
 import type { Request, Response } from "express";
 
-const PORT = Number(process.env.PORT) || 8080;
-
 const app = express();
-
-/* =========================
-   BASIC MIDDLEWARE
-   ========================= */
+app.disable("x-powered-by");
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
 /* =========================
-   LIVENESS (MUST BE FAST)
+   CORE ROUTES (EXISTING)
    ========================= */
+
+app.get("/", (_req: Request, res: Response) => {
+  res.status(200).json({ status: "ok", service: "staff-server" });
+});
 
 app.get("/health", (_req: Request, res: Response) => {
   res.status(200).send("ok");
@@ -24,66 +24,48 @@ app.get("/api/_int/health", (_req: Request, res: Response) => {
 });
 
 /* =========================
-   ROOT (MUST EXIST)
+   AUTH ROUTER (REQUIRED)
    ========================= */
 
-app.get("/", (_req: Request, res: Response) => {
-  res.status(200).json({
-    status: "ok",
-    service: "staff-server"
-  });
-});
+let authRouter;
+try {
+  authRouter = require("./routes/auth").default;
+} catch (err) {
+  console.error("❌ AUTH ROUTER FAILED TO LOAD");
+  console.error(err);
+  process.exit(1);
+}
+
+app.use("/api/auth", authRouter);
 
 /* =========================
-   ROUTE DUMP (TEMP DEBUG)
+   DEBUG ROUTE TABLE
    ========================= */
 
 app.get("/__debug/routes", (_req: Request, res: Response) => {
-  const routes: { path: string; methods: string[] }[] = [];
+  const routes: any[] = [];
 
-  const stack = (app as any)._router?.stack || [];
-  for (const layer of stack) {
+  app._router.stack.forEach((layer: any) => {
     if (layer.route && layer.route.path) {
-      const methods = Object.keys(layer.route.methods)
-        .filter(m => layer.route.methods[m])
-        .map(m => m.toUpperCase());
-      routes.push({ path: layer.route.path, methods });
-    } else if (layer.name === "router" && layer.handle?.stack) {
-      for (const r of layer.handle.stack) {
-        if (r.route && r.route.path) {
-          const methods = Object.keys(r.route.methods)
-            .filter(m => r.route.methods[m])
-            .map(m => m.toUpperCase());
-          routes.push({ path: r.route.path, methods });
-        }
-      }
+      routes.push({
+        path: layer.route.path,
+        methods: Object.keys(layer.route.methods).map(m => m.toUpperCase())
+      });
     }
-  }
+  });
 
-  res.status(200).json({
+  res.json({
     count: routes.length,
     routes
   });
 });
 
 /* =========================
-   START LISTENING IMMEDIATELY
+   START SERVER
    ========================= */
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server listening on ${PORT}`);
+const port = Number(process.env.PORT) || 8080;
+
+app.listen(port, "0.0.0.0", () => {
+  console.log(`Server listening on ${port}`);
 });
-
-/* =========================
-   BACKGROUND INIT (NON-BLOCKING)
-   ========================= */
-
-(async () => {
-  try {
-    // Intentionally empty for now.
-    // DB, auth, jobs, etc. must NOT block startup.
-    console.log("Background init completed");
-  } catch (err) {
-    console.error("Background init failed", err);
-  }
-})();
