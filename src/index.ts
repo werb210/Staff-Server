@@ -36,13 +36,18 @@ app.get("/api/_int/health", (_req, res) => {
 });
 
 /**
- * Routes
+ * App Routes
  */
 app.use("/api/auth", authRouter);
 app.use("/__debug", debugRouter);
 
 /**
- * Start
+ * Capture Express routing table for debug
+ */
+(global as any).__express_stack__ = app._router.stack;
+
+/**
+ * Start server
  */
 const port = Number(process.env.PORT || 8080);
 
