@@ -15,7 +15,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-/* ROOT */
+/**
+ * Root
+ */
 app.get("/", (_req, res) => {
   res.status(200).json({
     status: "ok",
@@ -23,26 +25,45 @@ app.get("/", (_req, res) => {
   });
 });
 
-/* HEALTH */
-app.get("/health", (_req, res) => res.status(200).send("ok"));
-app.get("/api/_int/health", (_req, res) => res.status(200).send("ok"));
+/**
+ * Health
+ */
+app.get("/health", (_req, res) => {
+  res.status(200).send("ok");
+});
 
-/* ROUTES */
+app.get("/api/_int/health", (_req, res) => {
+  res.status(200).send("ok");
+});
+
+/**
+ * Debug – route table
+ */
+app.get("/__debug/routes", (_req, res) => {
+  const routes: { path: string; methods: string[] }[] = [];
+
+  app._router.stack.forEach((layer: any) => {
+    if (layer.route) {
+      routes.push({
+        path: layer.route.path,
+        methods: Object.keys(layer.route.methods),
+      });
+    }
+  });
+
+  res.json({
+    count: routes.length,
+    routes,
+  });
+});
+
+/**
+ * Auth
+ */
 app.use("/api/auth", authRouter);
 
-/* ROUTE DUMP — REQUIRED FOR AUDIT */
-console.log("=== ROUTES DUMP ===");
-(app as any)._router.stack.forEach((layer: any) => {
-  if (layer.route) {
-    const methods = Object.keys(layer.route.methods).join(",").toUpperCase();
-    console.log(`${methods} ${layer.route.path}`);
-  }
-});
-console.log("===================");
-
-/* LISTEN */
 const port = Number(process.env.PORT) || 8080;
 
-app.listen(port, "0.0.0.0", () => {
+app.listen(port, () => {
   console.log(`Server listening on ${port}`);
 });
