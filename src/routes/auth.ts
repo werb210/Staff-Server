@@ -6,11 +6,14 @@ import { pool } from "../db";
 const router = Router();
 
 router.post("/login", async (req, res) => {
-  const { email, password } = req.body || {};
+  let { email, password } = req.body || {};
 
   if (!email || !password) {
     return res.status(400).json({ error: "missing_fields" });
   }
+
+  // 🔧 FIX: normalize email BEFORE query (no DB changes required)
+  email = String(email).trim().toLowerCase();
 
   let result;
   try {
@@ -27,26 +30,20 @@ router.post("/login", async (req, res) => {
     return res.status(401).json({ error: "invalid_credentials" });
   }
 
-  const valid = await bcrypt.compare(
-    password,
-    result.rows[0].password_hash
-  );
+  const { id, password_hash } = result.rows[0];
 
-  if (!valid) {
+  const ok = await bcrypt.compare(password, password_hash);
+  if (!ok) {
     return res.status(401).json({ error: "invalid_credentials" });
   }
 
   const token = jwt.sign(
-    { uid: result.rows[0].id },
+    { sub: id },
     process.env.JWT_SECRET as string,
-    { expiresIn: "1h" }
+    { expiresIn: "12h" }
   );
 
   return res.json({ token });
-});
-
-router.post("/logout", (_req, res) => {
-  res.json({ ok: true });
 });
 
 export default router;
