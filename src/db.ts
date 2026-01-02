@@ -1,45 +1,27 @@
-import pg from "pg";
+import pkg from "pg";
 
-const { Pool } = pg;
+const { Pool } = pkg;
 
-/**
- * HARD FAIL if DATABASE_URL is missing.
- * This is intentional and correct.
- */
 if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL is not set");
 }
 
-/**
- * SINGLE shared pool instance.
- * Must be exported by name — many modules depend on it.
- */
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
-    rejectUnauthorized: false, // REQUIRED for Azure PostgreSQL
+    rejectUnauthorized: false,
   },
-  max: 10,
-  idleTimeoutMillis: 30_000,
-  connectionTimeoutMillis: 5_000,
+  max: 5,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000,
 });
 
-/**
- * Warm the DB connection once after startup.
- * Failure must NOT crash the process.
- */
-export async function warmDb(): Promise<void> {
+export async function dbWarm(): Promise<void> {
+  const client = await pool.connect();
   try {
-    await pool.query("SELECT 1");
+    await client.query("select 1");
     console.log("DB warm OK");
-  } catch (err) {
-    console.error("DB warm FAILED", err);
+  } finally {
+    client.release();
   }
 }
-
-/**
- * Log pool-level errors without killing the app.
- */
-pool.on("error", (err) => {
-  console.error("PG_POOL_ERROR", err);
-});
