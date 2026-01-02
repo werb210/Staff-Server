@@ -6,11 +6,21 @@ import { pool } from "../db";
 const router = Router();
 
 router.post("/login", async (req, res) => {
-  const { email, password } = req.body ?? {};
+  const { email, password } = req.body || {};
 
   if (!email || !password) {
     return res.status(400).json({ error: "missing_fields" });
   }
+
+  let timeoutHit = false;
+
+  const timeout = setTimeout(() => {
+    timeoutHit = true;
+    if (!res.headersSent) {
+      console.error("AUTH_LOGIN_ERROR Error: timeout");
+      res.status(503).json({ error: "db_timeout" });
+    }
+  }, 5000);
 
   try {
     const result = await pool.query(
@@ -18,27 +28,33 @@ router.post("/login", async (req, res) => {
       [email]
     );
 
+    if (timeoutHit) return;
+
+    clearTimeout(timeout);
+
     if (result.rowCount === 0) {
       return res.status(401).json({ error: "invalid_credentials" });
     }
 
-    const { id, password_hash } = result.rows[0];
+    const valid = await bcrypt.compare(password, result.rows[0].password_hash);
 
-    const ok = await bcrypt.compare(password, password_hash);
-    if (!ok) {
+    if (!valid) {
       return res.status(401).json({ error: "invalid_credentials" });
     }
 
     const token = jwt.sign(
-      { userId: id },
+      { userId: result.rows[0].id },
       process.env.JWT_SECRET!,
-      { expiresIn: "12h" }
+      { expiresIn: "1h" }
     );
 
     return res.json({ token });
   } catch (err) {
-    console.error("AUTH_LOGIN_ERROR", err);
-    return res.status(503).json({ error: "db_unavailable" });
+    clearTimeout(timeout);
+    console.error("LOGIN_DB_ERROR", err);
+    if (!res.headersSent) {
+      return res.status(500).json({ error: "login_failed" });
+    }
   }
 });
 
