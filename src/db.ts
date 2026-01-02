@@ -16,16 +16,17 @@ if (!process.env.DATABASE_URL) {
  */
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
+  ssl: {
+    rejectUnauthorized: false, // REQUIRED for Azure PostgreSQL
+  },
   max: 10,
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 5_000,
 });
 
 /**
- * Optional warm helper.
- * DOES NOT crash the process if DB is briefly unavailable.
- * Prevents startup race on Azure.
+ * Warm the DB connection once after startup.
+ * Failure must NOT crash the process.
  */
 export async function warmDb(): Promise<void> {
   try {
