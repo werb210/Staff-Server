@@ -4,24 +4,18 @@ import { dbWarm } from "./db";
 const app = express();
 const port = process.env.PORT || 8080;
 
-/**
- * INTERNAL HEALTH
- * MUST NEVER TOUCH DB
- */
+/* Health = process alive ONLY (no DB) */
 app.get("/api/_int/health", (_req, res) => {
-  res.status(200).json({ ok: true, service: "staff-server" });
+  res.status(200).json({ ok: true });
 });
 
-/**
- * INTERNAL READY
- * DB CHECK HAPPENS HERE ONLY
- */
+/* Ready = DB reachable */
 app.get("/api/_int/ready", async (_req, res) => {
   try {
     await dbWarm();
     res.status(200).json({ ok: true });
-  } catch (err) {
-    console.error("READY FAILED", err);
+  } catch (e) {
+    console.error("READY FAILED", e);
     res.status(503).json({ ok: false });
   }
 });
@@ -30,14 +24,11 @@ app.listen(port, () => {
   console.log(`Server listening on ${port}`);
 });
 
-/**
- * WARM DB AFTER LISTEN
- * FAILURE MUST NOT CRASH PROCESS
- */
+/* Warm AFTER listen; never crash */
 setTimeout(async () => {
   try {
     await dbWarm();
-  } catch (err) {
-    console.error("DB warm FAILED", err);
+  } catch (e) {
+    console.error("DB warm FAILED", e);
   }
 }, 3000);
