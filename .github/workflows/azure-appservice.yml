@@ -23,8 +23,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build
+      - name: Build TypeScript
         run: npm run build
+
+      - name: Verify dist output (FAIL IF MISSING)
+        run: |
+          test -f dist/routes/auth.js
+          echo "dist build verified"
+
+      - name: Remove source files (Azure must NOT run src)
+        run: rm -rf src
 
       - name: Azure Login
         uses: azure/login@v1
