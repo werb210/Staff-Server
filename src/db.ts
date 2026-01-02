@@ -1,6 +1,5 @@
-import pkg from "pg";
-
-const { Pool } = pkg;
+/* CommonJS-safe pg import — NO package.json change required */
+const { Pool } = require("pg");
 
 if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL is not set");
@@ -8,9 +7,7 @@ if (!process.env.DATABASE_URL) {
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false,
-  },
+  ssl: { rejectUnauthorized: false },
   max: 5,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
