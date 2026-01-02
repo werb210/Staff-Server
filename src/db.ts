@@ -2,27 +2,50 @@ import pg from "pg";
 
 const { Pool } = pg;
 
-if (!process.env.DATABASE_URL) {
-  // Crash fast if env is missing (this is correct behavior)
-  throw new Error("DATABASE_URL is not set");
+/**
+ * We DO NOT create a Pool at import time.
+ * Azure health probes must never block on Postgres.
+ */
+
+let pool: pg.Pool | null = null;
+
+/**
+ * Lazily initialize the pool on first actual DB use.
+ */
+export function getPool(): pg.Pool {
+  if (pool) return pool;
+
+  if (!process.env.DATABASE_URL) {
+    throw new Error("DATABASE_URL is not set");
+  }
+
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+    max: 10,
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 5_000,
+  });
+
+  // Apply per-connection statement timeout (non-blocking)
+  pool.on("connect", (client) => {
+    client.query("SET statement_timeout TO 5000").catch(() => {});
+  });
+
+  // Log pool errors but NEVER crash the process
+  pool.on("error", (err) => {
+    console.error("PG_POOL_ERROR", err);
+  });
+
+  return pool;
 }
 
-// Azure Postgres needs SSL; rejectUnauthorized false is typical for managed PG
-export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-  max: 10,
-  idleTimeoutMillis: 30_000,
-  connectionTimeoutMillis: 5_000, // prevents “hang forever”
-});
-
-// Apply server-side statement timeout per connection (prevents long queries)
-pool.on("connect", (client) => {
-  // fire-and-forget; do not block connect event
-  client.query("SET statement_timeout TO 5000").catch(() => {});
-});
-
-// Optional: log pool errors (do not crash process)
-pool.on("error", (err) => {
-  console.error("PG_POOL_ERROR", err);
-});
+/**
+ * Optional helper for graceful shutdown
+ */
+export async function closePool(): Promise<void> {
+  if (pool) {
+    await pool.end().catch(() => {});
+    pool = null;
+  }
+}
