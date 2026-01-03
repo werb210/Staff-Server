@@ -1,13 +1,14 @@
-export const Roles = {
-  Admin: "admin",
-  Staff: "staff",
-} as const;
+export type Role = "admin" | "staff" | "user";
 
-export type Role = (typeof Roles)[keyof typeof Roles];
+export const ROLES = {
+  ADMIN: "admin" as Role,
+  STAFF: "staff" as Role,
+  USER: "user" as Role,
+};
 
-export const permissions = {
-  userAdmin: [Roles.Admin],
-  staffRoutes: [Roles.Staff],
-  auditRoutes: [Roles.Admin],
-  passwordReset: [Roles.Admin, Roles.Staff],
-} as const satisfies Record<string, readonly Role[]>;
+export const permissions: Record<string, Role[]> = {
+  userAdmin: [ROLES.ADMIN],
+  staffRoutes: [ROLES.STAFF],
+  auditRoutes: [ROLES.ADMIN],
+  passwordReset: [ROLES.ADMIN, ROLES.STAFF],
+};
