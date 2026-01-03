@@ -6,14 +6,12 @@ export interface AuthUser {
   password_hash: string;
 }
 
-export async function getUserByEmail(email: string): Promise<AuthUser | null> {
-  const res = await pool.query<AuthUser>(
-    `SELECT id, email, password_hash
-     FROM users
-     WHERE email = $1
-     LIMIT 1`,
-    [email.toLowerCase()]
+export async function findAuthUserByEmail(
+  email: string
+): Promise<AuthUser | null> {
+  const res = await pool.query(
+    "select id, email, password_hash from users where email = $1 limit 1",
+    [email]
   );
-
   return res.rows[0] ?? null;
 }

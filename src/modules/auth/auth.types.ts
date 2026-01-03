@@ -4,7 +4,8 @@ export interface AuthLoginRequestBody {
 }
 
 export interface AuthLoginResponse {
-  token: string;
+  id: string;
+  email: string;
 }
 
 export type AuthLoginError = "missing_fields" | "invalid_credentials";
