@@ -1,17 +1,15 @@
 import { Router } from "express";
-import { pool } from "../db";
+import { dbWarm } from "../db";
 
-export const internalRouter = Router();
+const router = Router();
 
-internalRouter.get("/api/_int/health", (_req, res) => {
-  res.status(200).type("text/plain").send("ok");
-});
-
-internalRouter.get("/api/_int/ready", async (_req, res) => {
+router.get("/ready", async (_req, res) => {
   try {
-    await pool.query("select 1");
-    res.status(200).type("text/plain").send("ok");
-  } catch {
-    res.status(503).type("text/plain").send("not ready");
+    await dbWarm();
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false });
   }
 });
+
+export default router;
