@@ -1,46 +1,22 @@
 import { Router } from "express";
-import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken";
-import { pool } from "../db";
+import { getUserByEmail } from "../modules/auth/auth.repo";
 
 const router = Router();
 
 router.post("/login", async (req, res) => {
-  const { email, password } = req.body || {};
+  const { email } = req.body;
 
-  if (!email || !password) {
-    return res.status(400).json({ error: "missing_fields" });
+  if (!email) {
+    return res.status(400).json({ error: "email required" });
   }
 
-  let result;
-  try {
-    result = await pool.query(
-      "SELECT id, password_hash FROM users WHERE email = $1 LIMIT 1",
-      [email]
-    );
-  } catch (err) {
-    console.error("LOGIN_DB_ERROR", err);
-    return res.status(503).json({ error: "db_unavailable" });
+  const user = await getUserByEmail(email);
+
+  if (!user) {
+    return res.status(401).json({ error: "invalid credentials" });
   }
 
-  if (result.rowCount === 0) {
-    return res.status(401).json({ error: "invalid_credentials" });
-  }
-
-  const { id, password_hash } = result.rows[0];
-
-  const ok = await bcrypt.compare(password, password_hash);
-  if (!ok) {
-    return res.status(401).json({ error: "invalid_credentials" });
-  }
-
-  const token = jwt.sign(
-    { userId: id },
-    process.env.JWT_SECRET!,
-    { expiresIn: "1d" }
-  );
-
-  return res.json({ token });
+  return res.json({ ok: true, user });
 });
 
 export default router;
