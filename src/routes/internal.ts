@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { checkDb } from "../db";
+import { assertSchema, checkDb } from "../db";
+import { assertEnv } from "../config";
 
 const router = Router();
 
@@ -9,10 +10,17 @@ router.get("/health", (_req, res) => {
 
 router.get("/ready", async (_req, res) => {
   try {
+    assertEnv();
     await checkDb();
+    await assertSchema();
     res.json({ ok: true });
   } catch {
-    res.status(503).json({ ok: false });
+    const requestId = res.locals.requestId ?? "unknown";
+    res.status(503).json({
+      error: "service_unavailable",
+      message: "Service not ready.",
+      requestId,
+    });
   }
 });
 
