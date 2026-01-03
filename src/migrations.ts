@@ -67,7 +67,13 @@ export async function runMigrations(): Promise<void> {
     const client = await pool.connect();
     try {
       await client.query("begin");
-      await client.query(sql);
+      const statements = sql
+        .split(";")
+        .map((statement) => statement.trim())
+        .filter(Boolean);
+      for (const statement of statements) {
+        await client.query(statement);
+      }
       await client.query(
         "insert into schema_migrations (id, applied_at) values ($1, now())",
         [file]
