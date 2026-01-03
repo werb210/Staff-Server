@@ -6,6 +6,8 @@ export const ROLES = {
 
 export type Role = (typeof ROLES)[keyof typeof ROLES];
 
+export const ALL_ROLES = Object.values(ROLES) as Role[];
+
 export const permissions: Record<string, Role[]> = {
   userAdmin: [ROLES.ADMIN],
   staffRoutes: [ROLES.STAFF],

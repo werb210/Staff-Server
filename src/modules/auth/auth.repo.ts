@@ -145,7 +145,9 @@ export async function storeRefreshToken(params: {
   expiresAt: Date;
 }): Promise<void> {
   await pool.query(
-    `delete from auth_refresh_tokens where user_id = $1`,
+    `update auth_refresh_tokens
+     set revoked_at = now()
+     where user_id = $1 and revoked_at is null`,
     [params.userId]
   );
   await pool.query(

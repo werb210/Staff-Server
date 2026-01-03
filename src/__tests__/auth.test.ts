@@ -1,18 +1,23 @@
 import request from "supertest";
-import { buildApp } from "../index";
+import express from "express";
+import { buildApp, initializeServer } from "../index";
 import { pool } from "../db";
 import { createUserAccount } from "../modules/auth/auth.service";
 import { setUserActive } from "../modules/auth/auth.repo";
+import { setUserStatus } from "../modules/users/users.service";
 import { resetLoginRateLimit } from "../middleware/rateLimit";
 import { ROLES } from "../auth/roles";
 import { runMigrations } from "../migrations";
+import fs from "fs";
+import path from "path";
+import { requireAuth, requireRole } from "../middleware/auth";
 
 const app = buildApp();
 
 async function resetDb(): Promise<void> {
   await pool.query("delete from auth_refresh_tokens");
   await pool.query("delete from password_resets");
-  await pool.query("delete from audit_logs");
+  await pool.query("delete from audit_events");
   await pool.query("delete from users");
 }
 
@@ -83,7 +88,11 @@ describe("auth", () => {
       password: "Password123!",
       role: ROLES.STAFF,
     });
-    await setUserActive(user.id, false);
+    await setUserStatus({
+      userId: user.id,
+      active: false,
+      actorId: user.id,
+    });
 
     const res = await request(app).post("/api/auth/login").send({
       email: "disabled@example.com",
@@ -187,6 +196,12 @@ describe("auth", () => {
     });
     expect(reuse.status).toBe(401);
     expect(reuse.body.code).toBe("invalid_token");
+
+    const reuseLatest = await request(app).post("/api/auth/refresh").send({
+      refreshToken: refresh.body.refreshToken,
+    });
+    expect(reuseLatest.status).toBe(401);
+    expect(reuseLatest.body.code).toBe("invalid_token");
   });
 
   it("rejects revoked refresh tokens", async () => {
@@ -233,6 +248,36 @@ describe("auth", () => {
         password: "Password123!",
         role: ROLES.STAFF,
       });
+
+    expect(res.status).toBe(403);
+    expect(res.body.code).toBe("forbidden");
+  });
+
+  it("denies access when roles are not declared", async () => {
+    await createUserAccount({
+      email: "default-deny@example.com",
+      password: "Password123!",
+      role: ROLES.STAFF,
+    });
+    const login = await request(app).post("/api/auth/login").send({
+      email: "default-deny@example.com",
+      password: "Password123!",
+    });
+
+    const protectedApp = express();
+    protectedApp.use(express.json());
+    protectedApp.get(
+      "/protected",
+      requireAuth,
+      requireRole([]),
+      (_req, res) => {
+        res.json({ ok: true });
+      }
+    );
+
+    const res = await request(protectedApp)
+      .get("/protected")
+      .set("Authorization", `Bearer ${login.body.accessToken}`);
 
     expect(res.status).toBe(403);
     expect(res.body.code).toBe("forbidden");
@@ -364,5 +409,70 @@ describe("auth", () => {
     });
     expect(reuse.status).toBe(401);
     expect(reuse.body.code).toBe("invalid_token");
+  });
+
+  it("invalidates sessions after global logout", async () => {
+    await createUserAccount({
+      email: "global@example.com",
+      password: "Password123!",
+      role: ROLES.STAFF,
+    });
+
+    const login = await request(app).post("/api/auth/login").send({
+      email: "global@example.com",
+      password: "Password123!",
+    });
+
+    const logoutAll = await request(app)
+      .post("/api/auth/logout-all")
+      .set("Authorization", `Bearer ${login.body.accessToken}`);
+    expect(logoutAll.status).toBe(200);
+
+    const refresh = await request(app).post("/api/auth/refresh").send({
+      refreshToken: login.body.refreshToken,
+    });
+    expect(refresh.status).toBe(401);
+    expect(refresh.body.code).toBe("invalid_token");
+
+    const me = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${login.body.accessToken}`);
+    expect(me.status).toBe(401);
+    expect(me.body.code).toBe("invalid_token");
+  });
+
+  it("blocks access for disabled users with existing tokens", async () => {
+    const user = await createUserAccount({
+      email: "disabled-access@example.com",
+      password: "Password123!",
+      role: ROLES.STAFF,
+    });
+
+    const login = await request(app).post("/api/auth/login").send({
+      email: "disabled-access@example.com",
+      password: "Password123!",
+    });
+
+    await setUserActive(user.id, false);
+
+    const me = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${login.body.accessToken}`);
+    expect(me.status).toBe(403);
+    expect(me.body.code).toBe("user_disabled");
+  });
+
+  it("fails startup when migrations are pending", async () => {
+    const migrationPath = path.join(
+      process.cwd(),
+      "migrations",
+      "999_pending_test.sql"
+    );
+    fs.writeFileSync(migrationPath, "select 1;");
+    try {
+      await expect(initializeServer()).rejects.toThrow("pending_migrations");
+    } finally {
+      fs.unlinkSync(migrationPath);
+    }
   });
 });
