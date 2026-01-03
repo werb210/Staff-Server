@@ -14,7 +14,11 @@ router.post("/login", async (req, res) => {
     const user = await loginUser(email, password);
     res.json({ user });
   } catch (err) {
-    res.status(401).json({ error: "invalid_credentials" });
+    if (err instanceof Error && err.message === "invalid_credentials") {
+      return res.status(401).json({ error: "invalid_credentials" });
+    }
+
+    res.status(500).json({ error: "server_error" });
   }
 });
 

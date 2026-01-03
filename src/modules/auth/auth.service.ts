@@ -1,4 +1,4 @@
-import bcrypt from "bcryptjs";
+import bcrypt from "bcrypt";
 import { findAuthUserByEmail } from "./auth.repo";
 
 export async function loginUser(
