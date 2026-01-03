@@ -11,8 +11,8 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ error: "missing_credentials" });
     }
 
-    const user = await loginUser(email, password);
-    res.json({ user });
+    const result = await loginUser(email, password);
+    res.json(result);
   } catch (err) {
     if (err instanceof Error && err.message === "invalid_credentials") {
       return res.status(401).json({ error: "invalid_credentials" });
