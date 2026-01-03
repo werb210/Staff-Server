@@ -9,6 +9,13 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    env:
+      NODE_ENV: test
+      DATABASE_URL: pg-mem
+      JWT_SECRET: ci-access-secret
+      JWT_REFRESH_SECRET: ci-refresh-secret
+      JWT_EXPIRES_IN: 1h
+      JWT_REFRESH_EXPIRES_IN: 1d
 
     steps:
       - name: Checkout repository
@@ -22,6 +29,17 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Validate required environment variables
+        run: |
+          test -n "$DATABASE_URL"
+          test -n "$JWT_SECRET"
+          test -n "$JWT_REFRESH_SECRET"
+          test -n "$NODE_ENV"
+          echo "env vars validated"
+
+      - name: Run tests
+        run: npm test
 
       - name: Build TypeScript
         run: npm run build

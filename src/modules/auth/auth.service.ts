@@ -8,19 +8,34 @@ import {
   findAuthUserById,
   findPasswordReset,
   findRefreshToken,
+  incrementTokenVersion,
   markPasswordResetUsed,
+  recordFailedLogin,
+  resetLoginFailures,
   revokeRefreshToken,
+  revokeRefreshTokensForUser,
   storeRefreshToken,
   updatePassword,
 } from "./auth.repo";
-import { getAccessTokenExpiresIn, getRefreshTokenExpiresIn } from "../../config";
+import {
+  getAccessTokenExpiresIn,
+  getLoginLockoutMinutes,
+  getLoginLockoutThreshold,
+  getRefreshTokenExpiresIn,
+} from "../../config";
 import { AppError } from "../../middleware/errors";
 import { recordAuditEvent } from "../audit/audit.service";
 import { pool } from "../../db";
+import { type Role } from "../../auth/roles";
 
-type TokenPayload = {
+type AccessTokenPayload = {
   userId: string;
-  role: string;
+  role: Role;
+  tokenVersion: number;
+};
+
+type RefreshTokenPayload = AccessTokenPayload & {
+  tokenId: string;
 };
 
 function hashToken(token: string): string {
@@ -36,7 +51,7 @@ function timingSafeTokenCompare(a: string, b: string): boolean {
   return timingSafeEqual(aBuf, bBuf);
 }
 
-function issueAccessToken(payload: TokenPayload): string {
+function issueAccessToken(payload: AccessTokenPayload): string {
   const secret = process.env.JWT_SECRET;
   if (!secret) {
     throw new AppError("auth_misconfigured", "Auth is not configured.", 503);
@@ -47,7 +62,7 @@ function issueAccessToken(payload: TokenPayload): string {
   return jwt.sign(payload, secret, options);
 }
 
-function issueRefreshToken(payload: TokenPayload): string {
+function issueRefreshToken(payload: AccessTokenPayload): string {
   const secret = process.env.JWT_REFRESH_SECRET;
   if (!secret) {
     throw new AppError("auth_misconfigured", "Auth is not configured.", 503);
@@ -55,7 +70,11 @@ function issueRefreshToken(payload: TokenPayload): string {
   const options: SignOptions = {
     expiresIn: getRefreshTokenExpiresIn() as SignOptions["expiresIn"],
   };
-  return jwt.sign(payload, secret, options);
+  const refreshPayload: RefreshTokenPayload = {
+    ...payload,
+    tokenId: randomBytes(16).toString("hex"),
+  };
+  return jwt.sign(refreshPayload, secret, options);
 }
 
 export async function loginUser(
@@ -63,7 +82,7 @@ export async function loginUser(
   password: string,
   ip?: string
 ): Promise<{
-  user: { id: string; email: string; role: string };
+  user: { id: string; email: string; role: Role };
   accessToken: string;
   refreshToken: string;
 }> {
@@ -93,9 +112,37 @@ export async function loginUser(
     throw new AppError("user_disabled", "User is disabled.", 403);
   }
 
+  const now = Date.now();
+  if (user.locked_until && user.locked_until.getTime() > now) {
+    await recordAuditEvent({
+      action: "login",
+      entity: "session",
+      entityId: user.id,
+      actorUserId: user.id,
+      ip,
+      success: false,
+    });
+    throw new AppError(
+      "account_locked",
+      "Account is locked. Try again later.",
+      423
+    );
+  }
+
+  if (user.locked_until && user.locked_until.getTime() <= now) {
+    await resetLoginFailures(user.id);
+  }
+
   const ok = await bcrypt.compare(password, user.password_hash);
 
   if (!ok) {
+    const lockoutThreshold = getLoginLockoutThreshold();
+    const lockoutMinutes = getLoginLockoutMinutes();
+    const shouldLock = user.failed_login_attempts + 1 >= lockoutThreshold;
+    const lockUntil = shouldLock
+      ? new Date(Date.now() + lockoutMinutes * 60 * 1000)
+      : null;
+    await recordFailedLogin(user.id, lockUntil);
     await recordAuditEvent({
       action: "login",
       entity: "session",
@@ -107,7 +154,13 @@ export async function loginUser(
     throw new AppError("invalid_credentials", "Invalid email or password.", 401);
   }
 
-  const payload = { userId: user.id, role: user.role };
+  await resetLoginFailures(user.id);
+
+  const payload = {
+    userId: user.id,
+    role: user.role,
+    tokenVersion: user.token_version,
+  };
   const accessToken = issueAccessToken(payload);
   const refreshToken = issueRefreshToken(payload);
   const tokenHash = hashToken(refreshToken);
@@ -152,18 +205,26 @@ export async function refreshSession(
     throw new AppError("auth_misconfigured", "Auth is not configured.", 503);
   }
 
-  const decoded = jwt.decode(refreshToken) as TokenPayload | null;
+  const decoded = jwt.decode(refreshToken) as RefreshTokenPayload | null;
   const actorUserId = decoded?.userId ?? null;
 
   try {
-    const payload = jwt.verify(refreshToken, secret) as TokenPayload;
-    if (!payload.userId || !payload.role) {
+    const payload = jwt.verify(refreshToken, secret) as RefreshTokenPayload;
+    if (
+      !payload.userId ||
+      !payload.role ||
+      typeof payload.tokenVersion !== "number" ||
+      !payload.tokenId
+    ) {
       throw new AppError("invalid_token", "Invalid refresh token.", 401);
     }
 
     const tokenHash = hashToken(refreshToken);
     const record = await findRefreshToken(tokenHash);
     if (!record || record.revoked_at) {
+      throw new AppError("invalid_token", "Invalid refresh token.", 401);
+    }
+    if (record.user_id !== payload.userId) {
       throw new AppError("invalid_token", "Invalid refresh token.", 401);
     }
     if (record.expires_at.getTime() < Date.now()) {
@@ -174,14 +235,19 @@ export async function refreshSession(
     if (!user || !user.active) {
       throw new AppError("invalid_token", "Invalid refresh token.", 401);
     }
+    if (user.token_version !== payload.tokenVersion) {
+      throw new AppError("invalid_token", "Invalid refresh token.", 401);
+    }
 
     const newAccessToken = issueAccessToken({
       userId: user.id,
       role: user.role,
+      tokenVersion: user.token_version,
     });
     const newRefreshToken = issueRefreshToken({
       userId: user.id,
       role: user.role,
+      tokenVersion: user.token_version,
     });
     const newHash = hashToken(newRefreshToken);
     const refreshExpires = new Date();
@@ -219,18 +285,23 @@ export async function refreshSession(
   }
 }
 
-export async function logoutUser(refreshToken: string): Promise<void> {
-  const tokenHash = hashToken(refreshToken);
+export async function logoutUser(params: {
+  userId: string;
+  refreshToken: string;
+}): Promise<void> {
+  const tokenHash = hashToken(params.refreshToken);
   await revokeRefreshToken(tokenHash);
+  await revokeRefreshTokensForUser(params.userId);
+  await incrementTokenVersion(params.userId);
 }
 
 export async function createUserAccount(params: {
   email: string;
   password: string;
-  role: string;
+  role: Role;
   actorUserId?: string | null;
   ip?: string;
-}): Promise<{ id: string; email: string; role: string }> {
+}): Promise<{ id: string; email: string; role: Role }> {
   const client = await pool.connect();
   try {
     await client.query("begin");
@@ -302,6 +373,8 @@ export async function changePassword(params: {
     await client.query("begin");
     const passwordHash = await bcrypt.hash(params.newPassword, 12);
     await updatePassword(params.userId, passwordHash, client);
+    await incrementTokenVersion(params.userId, client);
+    await revokeRefreshTokensForUser(params.userId, client);
     await client.query("commit");
     await recordAuditEvent({
       action: "password_change",
@@ -355,6 +428,8 @@ export async function confirmPasswordReset(params: {
 
   const passwordHash = await bcrypt.hash(params.newPassword, 12);
   await updatePassword(record.user_id, passwordHash);
+  await incrementTokenVersion(record.user_id);
+  await revokeRefreshTokensForUser(record.user_id);
   await markPasswordResetUsed(record.id);
   await recordAuditEvent({
     action: "password_change",

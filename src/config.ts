@@ -19,3 +19,13 @@ export function getAccessTokenExpiresIn(): string {
 export function getRefreshTokenExpiresIn(): string {
   return process.env.JWT_REFRESH_EXPIRES_IN ?? "30d";
 }
+
+export function getLoginLockoutThreshold(): number {
+  const value = Number(process.env.LOGIN_LOCKOUT_THRESHOLD ?? "5");
+  return Number.isNaN(value) || value < 1 ? 5 : value;
+}
+
+export function getLoginLockoutMinutes(): number {
+  const value = Number(process.env.LOGIN_LOCKOUT_MINUTES ?? "15");
+  return Number.isNaN(value) || value < 1 ? 15 : value;
+}

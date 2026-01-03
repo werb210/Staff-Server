@@ -73,6 +73,24 @@ export function refreshRateLimit(
   );
 }
 
+export function passwordResetRateLimit(
+  maxAttempts = 5,
+  windowMs = 60_000
+): (req: Request, res: Response, next: NextFunction) => void {
+  return createRateLimiter(
+    (req) => {
+      const ip = req.ip || "unknown";
+      const userId =
+        typeof req.body?.userId === "string" ? req.body.userId : "unknown";
+      const token =
+        typeof req.body?.token === "string" ? req.body.token : "unknown";
+      return `password_reset:${ip}:${userId}:${token}`;
+    },
+    maxAttempts,
+    windowMs
+  );
+}
+
 export function resetLoginRateLimit(): void {
   attemptsByKey.clear();
 }

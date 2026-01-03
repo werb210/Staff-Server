@@ -4,14 +4,17 @@ import authRoutes from "./routes/auth";
 import usersRoutes from "./routes/users";
 import staffRoutes from "./routes/staff";
 import { requestId } from "./middleware/requestId";
+import { requestLogger } from "./middleware/requestLogger";
 import { errorHandler, notFoundHandler } from "./middleware/errors";
 import { assertEnv } from "./config";
 import { assertSchema, checkDb } from "./db";
+import { assertNoPendingMigrations } from "./migrations";
 
 export function buildApp() {
   const app = express();
   app.use(express.json());
   app.use(requestId);
+  app.use(requestLogger);
 
   app.use("/api/_int", internalRoutes);
   app.use("/api/auth", authRoutes);
@@ -27,6 +30,7 @@ export function buildApp() {
 export async function initializeServer(): Promise<void> {
   assertEnv();
   await checkDb();
+  await assertNoPendingMigrations();
   await assertSchema();
 }
 
