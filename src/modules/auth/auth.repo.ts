@@ -1,5 +1,8 @@
 import { randomUUID } from "crypto";
 import { pool } from "../../db";
+import { type PoolClient } from "pg";
+
+type Queryable = Pick<PoolClient, "query">;
 
 export interface AuthUser {
   id: string;
@@ -38,8 +41,10 @@ export async function createUser(params: {
   email: string;
   passwordHash: string;
   role: string;
+  client?: Queryable;
 }): Promise<AuthUser> {
-  const res = await pool.query<AuthUser>(
+  const runner = params.client ?? pool;
+  const res = await runner.query<AuthUser>(
     `insert into users (id, email, password_hash, role, active, password_changed_at)
      values ($1, $2, $3, $4, true, now())
      returning id, email, password_hash, role, active`,
@@ -50,9 +55,11 @@ export async function createUser(params: {
 
 export async function setUserActive(
   userId: string,
-  active: boolean
+  active: boolean,
+  client?: Queryable
 ): Promise<void> {
-  await pool.query(
+  const runner = client ?? pool;
+  await runner.query(
     `update users set active = $1 where id = $2`,
     [active, userId]
   );
@@ -60,9 +67,11 @@ export async function setUserActive(
 
 export async function updatePassword(
   userId: string,
-  passwordHash: string
+  passwordHash: string,
+  client?: Queryable
 ): Promise<void> {
-  await pool.query(
+  const runner = client ?? pool;
+  await runner.query(
     `update users set password_hash = $1, password_changed_at = now()
      where id = $2`,
     [passwordHash, userId]
@@ -83,8 +92,9 @@ export async function storeRefreshToken(params: {
   expiresAt: Date;
 }): Promise<void> {
   await pool.query(
-    `insert into refresh_tokens (id, user_id, token_hash, expires_at, revoked_at)
-     values ($1, $2, $3, $4, null)`,
+    `insert into auth_refresh_tokens
+     (id, user_id, token_hash, expires_at, revoked_at, created_at)
+     values ($1, $2, $3, $4, null, now())`,
     [randomUUID(), params.userId, params.tokenHash, params.expiresAt]
   );
 }
@@ -94,7 +104,7 @@ export async function findRefreshToken(
 ): Promise<RefreshTokenRecord | null> {
   const res = await pool.query<RefreshTokenRecord>(
     `select id, user_id, token_hash, expires_at, revoked_at
-     from refresh_tokens
+     from auth_refresh_tokens
      where token_hash = $1
      limit 1`,
     [tokenHash]
@@ -104,7 +114,7 @@ export async function findRefreshToken(
 
 export async function revokeRefreshToken(tokenHash: string): Promise<void> {
   await pool.query(
-    `update refresh_tokens
+    `update auth_refresh_tokens
      set revoked_at = now()
      where token_hash = $1`,
     [tokenHash]

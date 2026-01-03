@@ -1,4 +1,9 @@
-const requiredEnv = ["DATABASE_URL", "JWT_SECRET", "JWT_REFRESH_SECRET"] as const;
+const requiredEnv = [
+  "DATABASE_URL",
+  "JWT_SECRET",
+  "JWT_REFRESH_SECRET",
+  "NODE_ENV",
+] as const;
 
 export function assertEnv(): void {
   const missing = requiredEnv.filter((key) => !process.env[key]);

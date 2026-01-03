@@ -19,12 +19,13 @@ async function createSchema(): Promise<void> {
     );
   `);
   await pool.query(`
-    create table if not exists refresh_tokens (
+    create table if not exists auth_refresh_tokens (
       id text primary key,
       user_id text not null,
       token_hash text not null,
       expires_at timestamp not null,
-      revoked_at timestamp null
+      revoked_at timestamp null,
+      created_at timestamp not null
     );
   `);
   await pool.query(`
@@ -39,18 +40,19 @@ async function createSchema(): Promise<void> {
   await pool.query(`
     create table if not exists audit_logs (
       id text primary key,
-      event text not null,
-      user_id text null,
+      actor_user_id text null,
+      action text not null,
+      entity text not null,
+      entity_id text null,
       ip text null,
-      user_agent text null,
-      metadata jsonb null,
+      success boolean not null,
       created_at timestamp not null
     );
   `);
 }
 
 async function resetDb(): Promise<void> {
-  await pool.query("delete from refresh_tokens");
+  await pool.query("delete from auth_refresh_tokens");
   await pool.query("delete from password_resets");
   await pool.query("delete from audit_logs");
   await pool.query("delete from users");
@@ -62,6 +64,7 @@ beforeAll(async () => {
   process.env.JWT_REFRESH_SECRET = "test-refresh-secret";
   process.env.JWT_EXPIRES_IN = "1h";
   process.env.JWT_REFRESH_EXPIRES_IN = "1d";
+  process.env.NODE_ENV = "test";
   await createSchema();
 });
 
@@ -110,7 +113,7 @@ describe("auth", () => {
     });
 
     expect(res.status).toBe(401);
-    expect(res.body.error).toBe("invalid_credentials");
+    expect(res.body.code).toBe("invalid_credentials");
     expect(res.body.requestId).toBeDefined();
   });
 
@@ -128,7 +131,7 @@ describe("auth", () => {
     });
 
     expect(res.status).toBe(403);
-    expect(res.body.error).toBe("user_disabled");
+    expect(res.body.code).toBe("user_disabled");
     expect(res.body.requestId).toBeDefined();
   });
 
@@ -184,7 +187,7 @@ describe("auth", () => {
       .set("Authorization", `Bearer ${adminToken}`);
 
     expect(adminRes.status).toBe(403);
-    expect(adminRes.body.error).toBe("forbidden");
+    expect(adminRes.body.code).toBe("forbidden");
   });
 
   it("fails readiness when required env missing", async () => {
@@ -194,8 +197,84 @@ describe("auth", () => {
     const res = await request(app).get("/api/_int/ready");
 
     expect(res.status).toBe(503);
-    expect(res.body.error).toBe("service_unavailable");
+    expect(res.body.code).toBe("service_unavailable");
 
     process.env.JWT_SECRET = original;
+  });
+
+  it("rotates refresh tokens", async () => {
+    await createUserAccount({
+      email: "rotate@example.com",
+      password: "Password123!",
+      role: "staff",
+    });
+    const login = await request(app).post("/api/auth/login").send({
+      email: "rotate@example.com",
+      password: "Password123!",
+    });
+
+    const refreshToken = login.body.refreshToken;
+    const refresh = await request(app).post("/api/auth/refresh").send({
+      refreshToken,
+    });
+
+    expect(refresh.status).toBe(200);
+    expect(refresh.body.refreshToken).toBeDefined();
+    expect(refresh.body.refreshToken).not.toBe(refreshToken);
+
+    const reuse = await request(app).post("/api/auth/refresh").send({
+      refreshToken,
+    });
+    expect(reuse.status).toBe(401);
+    expect(reuse.body.code).toBe("invalid_token");
+  });
+
+  it("rejects revoked refresh tokens", async () => {
+    await createUserAccount({
+      email: "logout@example.com",
+      password: "Password123!",
+      role: "staff",
+    });
+    const login = await request(app).post("/api/auth/login").send({
+      email: "logout@example.com",
+      password: "Password123!",
+    });
+
+    const refreshToken = login.body.refreshToken;
+    const logout = await request(app)
+      .post("/api/auth/logout")
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .send({ refreshToken });
+    expect(logout.status).toBe(200);
+
+    const refresh = await request(app).post("/api/auth/refresh").send({
+      refreshToken,
+    });
+    expect(refresh.status).toBe(401);
+    expect(refresh.body.code).toBe("invalid_token");
+  });
+
+  it("denies user admin access for staff", async () => {
+    await createUserAccount({
+      email: "staff-access@example.com",
+      password: "Password123!",
+      role: "staff",
+    });
+    const login = await request(app).post("/api/auth/login").send({
+      email: "staff-access@example.com",
+      password: "Password123!",
+    });
+
+    const res = await request(app)
+      .post("/api/users")
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .send({
+        email: "newuser@example.com",
+        password: "Password123!",
+        role: "staff",
+      });
+
+    expect(res.status).toBe(403);
+    expect(res.body.code).toBe("forbidden");
   });
 });

@@ -1,7 +1,8 @@
-import { Router, type Request } from "express";
+import { Router } from "express";
 import { AppError } from "../../middleware/errors";
-import { loginRateLimit } from "../../middleware/rateLimit";
+import { loginRateLimit, refreshRateLimit } from "../../middleware/rateLimit";
 import { requireAuth, requireRole } from "../../middleware/auth";
+import { permissions } from "../../auth/roles";
 import {
   confirmPasswordReset,
   loginUser,
@@ -12,11 +13,6 @@ import {
 } from "./auth.service";
 
 const router = Router();
-
-function getUserAgent(req: Request): string | undefined {
-  const header = req.headers["user-agent"];
-  return typeof header === "string" ? header : undefined;
-}
 
 router.post("/login", loginRateLimit(), async (req, res, next) => {
   try {
@@ -30,14 +26,14 @@ router.post("/login", loginRateLimit(), async (req, res, next) => {
       );
     }
 
-    const result = await loginUser(email, password, req.ip, getUserAgent(req));
+    const result = await loginUser(email, password, req.ip);
     res.json(result);
   } catch (err) {
     next(err);
   }
 });
 
-router.post("/refresh", async (req, res, next) => {
+router.post("/refresh", refreshRateLimit(), async (req, res, next) => {
   try {
     const { refreshToken } = req.body ?? {};
     if (!refreshToken) {
@@ -47,11 +43,7 @@ router.post("/refresh", async (req, res, next) => {
         400
       );
     }
-    const session = await refreshSession(
-      refreshToken,
-      req.ip,
-      getUserAgent(req)
-    );
+    const session = await refreshSession(refreshToken, req.ip);
     res.json(session);
   } catch (err) {
     next(err);
@@ -89,7 +81,7 @@ router.get("/me", requireAuth, async (req, res, next) => {
 router.post(
   "/password-reset/request",
   requireAuth,
-  requireRole(["admin", "staff"]),
+  requireRole(permissions.passwordReset),
   async (req, res, next) => {
     try {
       const { userId } = req.body ?? {};
@@ -99,7 +91,6 @@ router.post(
       const token = await requestPasswordReset({
         userId,
         ip: req.ip,
-        userAgent: getUserAgent(req),
       });
       res.json({ token });
     } catch (err) {
@@ -125,7 +116,6 @@ router.post(
         token,
         newPassword,
         ip: req.ip,
-        userAgent: getUserAgent(req),
       });
       res.json({ ok: true });
     } catch (err) {
@@ -152,7 +142,6 @@ router.post("/password-change", requireAuth, async (req, res, next) => {
       currentPassword,
       newPassword,
       ip: req.ip,
-      userAgent: getUserAgent(req),
     });
     res.json({ ok: true });
   } catch (err) {
