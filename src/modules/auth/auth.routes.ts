@@ -2,7 +2,7 @@ import { Router } from "express";
 import { AppError } from "../../middleware/errors";
 import { loginRateLimit, refreshRateLimit } from "../../middleware/rateLimit";
 import { requireAuth, requireRole } from "../../middleware/auth";
-import { permissions } from "../../auth/roles";
+import { ROLES } from "../../auth/roles";
 import {
   confirmPasswordReset,
   loginUser,
@@ -81,7 +81,7 @@ router.get("/me", requireAuth, async (req, res, next) => {
 router.post(
   "/password-reset/request",
   requireAuth,
-  requireRole(permissions.passwordReset),
+  requireRole([ROLES.ADMIN, ROLES.STAFF]),
   async (req, res, next) => {
     try {
       const { userId } = req.body ?? {};

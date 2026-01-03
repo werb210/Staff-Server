@@ -4,6 +4,7 @@ import { pool } from "../db";
 import { createUserAccount } from "../modules/auth/auth.service";
 import { setUserActive } from "../modules/auth/auth.repo";
 import { resetLoginRateLimit } from "../middleware/rateLimit";
+import { ROLES } from "../auth/roles";
 
 const app = buildApp();
 
@@ -82,7 +83,7 @@ describe("auth", () => {
     const user = await createUserAccount({
       email: "admin@example.com",
       password: "Password123!",
-      role: "admin",
+      role: ROLES.ADMIN,
     });
 
     const res = await request(app).post("/api/auth/login").send({
@@ -96,7 +97,7 @@ describe("auth", () => {
     expect(res.body.user).toEqual({
       id: user.id,
       email: "admin@example.com",
-      role: "admin",
+      role: ROLES.ADMIN,
     });
   });
 
@@ -104,7 +105,7 @@ describe("auth", () => {
     await createUserAccount({
       email: "staff@example.com",
       password: "Password123!",
-      role: "staff",
+      role: ROLES.STAFF,
     });
 
     const res = await request(app).post("/api/auth/login").send({
@@ -121,7 +122,7 @@ describe("auth", () => {
     const user = await createUserAccount({
       email: "disabled@example.com",
       password: "Password123!",
-      role: "staff",
+      role: ROLES.STAFF,
     });
     await setUserActive(user.id, false);
 
@@ -139,7 +140,7 @@ describe("auth", () => {
     await createUserAccount({
       email: "user@example.com",
       password: "Password123!",
-      role: "staff",
+      role: ROLES.STAFF,
     });
     const login = await request(app).post("/api/auth/login").send({
       email: "user@example.com",
@@ -153,14 +154,14 @@ describe("auth", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.user.userId).toBeDefined();
-    expect(res.body.user.role).toBe("staff");
+    expect(res.body.user.role).toBe(ROLES.STAFF);
   });
 
   it("enforces roles on staff route", async () => {
     await createUserAccount({
       email: "staffer@example.com",
       password: "Password123!",
-      role: "staff",
+      role: ROLES.STAFF,
     });
     const staffLogin = await request(app).post("/api/auth/login").send({
       email: "staffer@example.com",
@@ -175,7 +176,7 @@ describe("auth", () => {
     const admin = await createUserAccount({
       email: "admin2@example.com",
       password: "Password123!",
-      role: "admin",
+      role: ROLES.ADMIN,
     });
     const adminLogin = await request(app).post("/api/auth/login").send({
       email: admin.email,
@@ -187,7 +188,7 @@ describe("auth", () => {
       .set("Authorization", `Bearer ${adminToken}`);
 
     expect(adminRes.status).toBe(403);
-    expect(adminRes.body.code).toBe("forbidden");
+    expect(adminRes.body.error).toBe("forbidden");
   });
 
   it("fails readiness when required env missing", async () => {
@@ -206,7 +207,7 @@ describe("auth", () => {
     await createUserAccount({
       email: "rotate@example.com",
       password: "Password123!",
-      role: "staff",
+      role: ROLES.STAFF,
     });
     const login = await request(app).post("/api/auth/login").send({
       email: "rotate@example.com",
@@ -233,7 +234,7 @@ describe("auth", () => {
     await createUserAccount({
       email: "logout@example.com",
       password: "Password123!",
-      role: "staff",
+      role: ROLES.STAFF,
     });
     const login = await request(app).post("/api/auth/login").send({
       email: "logout@example.com",
@@ -258,7 +259,7 @@ describe("auth", () => {
     await createUserAccount({
       email: "staff-access@example.com",
       password: "Password123!",
-      role: "staff",
+      role: ROLES.STAFF,
     });
     const login = await request(app).post("/api/auth/login").send({
       email: "staff-access@example.com",
@@ -271,10 +272,10 @@ describe("auth", () => {
       .send({
         email: "newuser@example.com",
         password: "Password123!",
-        role: "staff",
+        role: ROLES.STAFF,
       });
 
     expect(res.status).toBe(403);
-    expect(res.body.code).toBe("forbidden");
+    expect(res.body.error).toBe("forbidden");
   });
 });

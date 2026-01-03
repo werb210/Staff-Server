@@ -5,12 +5,12 @@ import { type Role } from "../auth/roles";
 
 export type AuthenticatedUser = {
   userId: string;
-  role: string;
+  role: Role;
 };
 
 type TokenPayload = {
   userId: string;
-  role: string;
+  role: Role;
 };
 
 function parseBearer(req: Request): string | null {
@@ -54,17 +54,16 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction): v
   }
 }
 
-export function requireRole(roles: Role | Role[]) {
+export function requireRole(roles: Role | readonly Role[]) {
   const allowed = Array.isArray(roles) ? roles : [roles];
-  return (req: Request, _res: Response, next: NextFunction): void => {
-    if (!req.user) {
-      next(new AppError("missing_token", "Authorization token is required.", 401));
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const userRole = req.user?.role;
+
+    if (!userRole || !allowed.includes(userRole)) {
+      res.status(403).json({ error: "forbidden" });
       return;
     }
-    if (!allowed.includes(req.user.role)) {
-      next(new AppError("forbidden", "Insufficient role.", 403));
-      return;
-    }
+
     next();
   };
 }
