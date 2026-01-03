@@ -12,7 +12,3 @@ export const pool = new Pool({
 export async function checkDb(): Promise<void> {
   await pool.query("select 1");
 }
-
-export async function dbWarm(): Promise<void> {
-  await pool.query("select 1");
-}
