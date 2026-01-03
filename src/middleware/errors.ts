@@ -11,6 +11,10 @@ export class AppError extends Error {
   }
 }
 
+export function forbiddenError(): AppError {
+  return new AppError("forbidden", "Access denied.", 403);
+}
+
 export function errorHandler(
   err: Error,
   _req: Request,

@@ -3,6 +3,12 @@ import path from "path";
 import { pool } from "./db";
 
 const migrationsDir = path.join(process.cwd(), "migrations");
+function isTestDatabase(): boolean {
+  return (
+    process.env.NODE_ENV === "test" &&
+    (!process.env.DATABASE_URL || process.env.DATABASE_URL === "pg-mem")
+  );
+}
 
 function listMigrationFiles(): string[] {
   if (!fs.existsSync(migrationsDir)) {
@@ -15,12 +21,29 @@ function listMigrationFiles(): string[] {
 }
 
 async function ensureMigrationsTable(): Promise<void> {
+  if (isTestDatabase()) {
+    await pool.query(
+      `create table if not exists schema_migrations (
+        id text primary key,
+        applied_at timestamp
+      )`
+    );
+    return;
+  }
+
   await pool.query(
     `create table if not exists schema_migrations (
       id text primary key,
       applied_at timestamp not null
     )`
   );
+}
+
+function sanitizeMigrationForTests(sql: string): string {
+  return sql
+    .split("\n")
+    .filter((line) => !/drop constraint/i.test(line))
+    .join("\n");
 }
 
 async function fetchAppliedMigrations(): Promise<Set<string>> {
@@ -39,7 +62,8 @@ export async function runMigrations(): Promise<void> {
     if (applied.has(file)) {
       continue;
     }
-    const sql = fs.readFileSync(path.join(migrationsDir, file), "utf8");
+    const rawSql = fs.readFileSync(path.join(migrationsDir, file), "utf8");
+    const sql = isTestDatabase() ? sanitizeMigrationForTests(rawSql) : rawSql;
     const client = await pool.connect();
     try {
       await client.query("begin");

@@ -144,18 +144,35 @@ export async function storeRefreshToken(params: {
   tokenHash: string;
   expiresAt: Date;
 }): Promise<void> {
-  await pool.query(
-    `update auth_refresh_tokens
-     set revoked_at = now()
-     where user_id = $1 and revoked_at is null`,
-    [params.userId]
-  );
-  await pool.query(
-    `insert into auth_refresh_tokens
-     (id, user_id, token_hash, expires_at, revoked_at, created_at)
-     values ($1, $2, $3, $4, null, now())`,
-    [randomUUID(), params.userId, params.tokenHash, params.expiresAt]
-  );
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    await client.query(
+      `update auth_refresh_tokens
+       set revoked_at = now()
+       where user_id = $1 and revoked_at is null`,
+      [params.userId]
+    );
+    await client.query(
+      `insert into auth_refresh_tokens
+       (id, user_id, token_hash, expires_at, revoked_at, created_at)
+       values ($1, $2, $3, $4, null, now())
+       on conflict (id)
+       do update set
+         user_id = excluded.user_id,
+         token_hash = excluded.token_hash,
+         expires_at = excluded.expires_at,
+         revoked_at = null,
+         created_at = excluded.created_at`,
+      [params.userId, params.userId, params.tokenHash, params.expiresAt]
+    );
+    await client.query("commit");
+  } catch (err) {
+    await client.query("rollback");
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 export async function findRefreshToken(
@@ -179,7 +196,7 @@ export async function revokeRefreshToken(
   await runner.query(
     `update auth_refresh_tokens
      set revoked_at = now()
-     where token_hash = $1`,
+     where token_hash = $1 and revoked_at is null`,
     [tokenHash]
   );
 }
@@ -192,7 +209,7 @@ export async function revokeRefreshTokensForUser(
   await runner.query(
     `update auth_refresh_tokens
      set revoked_at = now()
-     where user_id = $1`,
+     where user_id = $1 and revoked_at is null`,
     [userId]
   );
 }

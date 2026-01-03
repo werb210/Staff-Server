@@ -287,7 +287,6 @@ export async function refreshSession(
       refreshExpires.getSeconds() + msToSeconds(getRefreshTokenExpiresIn())
     );
 
-    await revokeRefreshToken(tokenHash);
     await storeRefreshToken({
       userId: user.id,
       tokenHash: newHash,
