@@ -9,6 +9,10 @@ export const pool = new Pool({
   ssl: { rejectUnauthorized: false },
 });
 
+export async function dbWarm(): Promise<void> {
+  await pool.query("select 1");
+}
+
 export async function checkDb(): Promise<void> {
   await pool.query("select 1");
 }
