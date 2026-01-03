@@ -27,6 +27,12 @@ export function errorHandler(
     return;
   }
 
+  console.error("request_error", {
+    requestId,
+    message: err.message,
+    stack: err.stack,
+  });
+
   res.status(500).json({
     code: "server_error",
     message: "An unexpected error occurred.",

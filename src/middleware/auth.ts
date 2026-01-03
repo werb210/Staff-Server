@@ -2,15 +2,18 @@ import { type NextFunction, type Request, type Response } from "express";
 import jwt from "jsonwebtoken";
 import { AppError } from "./errors";
 import { type Role } from "../auth/roles";
+import { findAuthUserById } from "../modules/auth/auth.repo";
+import { recordAuditEvent } from "../modules/audit/audit.service";
 
 export type AuthenticatedUser = {
   userId: string;
   role: Role;
 };
 
-type TokenPayload = {
+type AccessTokenPayload = {
   userId: string;
   role: Role;
+  tokenVersion: number;
 };
 
 function parseBearer(req: Request): string | null {
@@ -25,7 +28,11 @@ function parseBearer(req: Request): string | null {
   return token;
 }
 
-export function requireAuth(req: Request, _res: Response, next: NextFunction): void {
+export function requireAuth(
+  req: Request,
+  _res: Response,
+  next: NextFunction
+): void {
   const token = parseBearer(req);
   if (!token) {
     next(new AppError("missing_token", "Authorization token is required.", 401));
@@ -39,28 +46,55 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction): v
   }
 
   try {
-    const payload = jwt.verify(token, secret) as TokenPayload;
-    if (!payload.userId || !payload.role) {
+    const payload = jwt.verify(token, secret) as AccessTokenPayload;
+    if (
+      !payload.userId ||
+      !payload.role ||
+      typeof payload.tokenVersion !== "number"
+    ) {
       next(new AppError("invalid_token", "Invalid access token.", 401));
       return;
     }
-    req.user = {
-      userId: payload.userId,
-      role: payload.role,
-    };
-    next();
+    findAuthUserById(payload.userId)
+      .then((user) => {
+        if (!user || !user.active) {
+          next(new AppError("user_disabled", "User is disabled.", 403));
+          return;
+        }
+        if (
+          user.token_version !== payload.tokenVersion ||
+          user.role !== payload.role
+        ) {
+          next(new AppError("invalid_token", "Invalid access token.", 401));
+          return;
+        }
+        req.user = {
+          userId: payload.userId,
+          role: payload.role,
+        };
+        next();
+      })
+      .catch((err) => next(err));
   } catch {
     next(new AppError("invalid_token", "Invalid access token.", 401));
   }
 }
 
-export function requireRole(roles: Role | readonly Role[]) {
-  const allowed = Array.isArray(roles) ? roles : [roles];
-  return (req: Request, res: Response, next: NextFunction): void => {
+export function requireRole(roles: readonly Role[]) {
+  const allowed = roles;
+  return (req: Request, _res: Response, next: NextFunction): void => {
     const userRole = req.user?.role;
 
     if (!userRole || !allowed.includes(userRole)) {
-      res.status(403).json({ error: "forbidden" });
+      void recordAuditEvent({
+        action: "access_denied",
+        entity: "route",
+        entityId: req.originalUrl,
+        actorUserId: req.user?.userId ?? null,
+        ip: req.ip,
+        success: false,
+      });
+      next(new AppError("forbidden", "Access denied.", 403));
       return;
     }
 

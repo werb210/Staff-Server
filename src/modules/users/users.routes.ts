@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { AppError } from "../../middleware/errors";
 import { createUserAccount } from "../auth/auth.service";
-import { setUserStatus } from "./users.service";
+import { changeUserRole, setUserStatus } from "./users.service";
+import { isRole } from "../../auth/roles";
 
 const router = Router();
 
@@ -15,6 +16,9 @@ router.post("/", async (req, res, next) => {
         400
       );
     }
+    if (typeof role !== "string" || !isRole(role)) {
+      throw new AppError("invalid_role", "Role is invalid.", 400);
+    }
     const user = await createUserAccount({
       email,
       password,
@@ -23,6 +27,28 @@ router.post("/", async (req, res, next) => {
       ip: req.ip,
     });
     res.status(201).json({ user });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/:id/role", async (req, res, next) => {
+  try {
+    const actorId = req.user?.userId;
+    if (!actorId) {
+      throw new AppError("missing_token", "Authorization token is required.", 401);
+    }
+    const { role } = req.body ?? {};
+    if (typeof role !== "string" || !isRole(role)) {
+      throw new AppError("invalid_role", "Role is invalid.", 400);
+    }
+    await changeUserRole({
+      userId: req.params.id,
+      role,
+      actorId,
+      ip: req.ip,
+    });
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }

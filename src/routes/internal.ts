@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { assertSchema, checkDb } from "../db";
 import { assertEnv } from "../config";
+import { assertNoPendingMigrations } from "../migrations";
 
 const router = Router();
 
@@ -12,6 +13,7 @@ router.get("/ready", async (_req, res) => {
   try {
     assertEnv();
     await checkDb();
+    await assertNoPendingMigrations();
     await assertSchema();
     res.json({ ok: true });
   } catch {

@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { pool } from "../../db";
 import { type PoolClient } from "pg";
+import { type Role } from "../../auth/roles";
 
 type Queryable = Pick<PoolClient, "query">;
 
@@ -8,15 +9,18 @@ export interface AuthUser {
   id: string;
   email: string;
   password_hash: string;
-  role: string;
+  role: Role;
   active: boolean;
+  failed_login_attempts: number;
+  locked_until: Date | null;
+  token_version: number;
 }
 
 export async function findAuthUserByEmail(
   email: string
 ): Promise<AuthUser | null> {
   const res = await pool.query<AuthUser>(
-    `select id, email, password_hash, role, active
+    `select id, email, password_hash, role, active, failed_login_attempts, locked_until, token_version
      from users
      where email = $1
      limit 1`,
@@ -28,7 +32,7 @@ export async function findAuthUserByEmail(
 
 export async function findAuthUserById(id: string): Promise<AuthUser | null> {
   const res = await pool.query<AuthUser>(
-    `select id, email, password_hash, role, active
+    `select id, email, password_hash, role, active, failed_login_attempts, locked_until, token_version
      from users
      where id = $1
      limit 1`,
@@ -40,14 +44,14 @@ export async function findAuthUserById(id: string): Promise<AuthUser | null> {
 export async function createUser(params: {
   email: string;
   passwordHash: string;
-  role: string;
+  role: Role;
   client?: Queryable;
 }): Promise<AuthUser> {
   const runner = params.client ?? pool;
   const res = await runner.query<AuthUser>(
     `insert into users (id, email, password_hash, role, active, password_changed_at)
      values ($1, $2, $3, $4, true, now())
-     returning id, email, password_hash, role, active`,
+     returning id, email, password_hash, role, active, failed_login_attempts, locked_until, token_version`,
     [randomUUID(), params.email, params.passwordHash, params.role]
   );
   return res.rows[0];
@@ -78,6 +82,55 @@ export async function updatePassword(
   );
 }
 
+export async function updateUserRole(
+  userId: string,
+  role: Role,
+  client?: Queryable
+): Promise<void> {
+  const runner = client ?? pool;
+  await runner.query(`update users set role = $1 where id = $2`, [
+    role,
+    userId,
+  ]);
+}
+
+export async function incrementTokenVersion(
+  userId: string,
+  client?: Queryable
+): Promise<void> {
+  const runner = client ?? pool;
+  await runner.query(
+    `update users set token_version = token_version + 1 where id = $1`,
+    [userId]
+  );
+}
+
+export async function resetLoginFailures(
+  userId: string,
+  client?: Queryable
+): Promise<void> {
+  const runner = client ?? pool;
+  await runner.query(
+    `update users set failed_login_attempts = 0, locked_until = null where id = $1`,
+    [userId]
+  );
+}
+
+export async function recordFailedLogin(
+  userId: string,
+  lockUntil: Date | null,
+  client?: Queryable
+): Promise<void> {
+  const runner = client ?? pool;
+  await runner.query(
+    `update users
+     set failed_login_attempts = failed_login_attempts + 1,
+         locked_until = $2
+     where id = $1`,
+    [userId, lockUntil]
+  );
+}
+
 export type RefreshTokenRecord = {
   id: string;
   user_id: string;
@@ -91,6 +144,10 @@ export async function storeRefreshToken(params: {
   tokenHash: string;
   expiresAt: Date;
 }): Promise<void> {
+  await pool.query(
+    `delete from auth_refresh_tokens where user_id = $1`,
+    [params.userId]
+  );
   await pool.query(
     `insert into auth_refresh_tokens
      (id, user_id, token_hash, expires_at, revoked_at, created_at)
@@ -112,12 +169,29 @@ export async function findRefreshToken(
   return res.rows[0] ?? null;
 }
 
-export async function revokeRefreshToken(tokenHash: string): Promise<void> {
-  await pool.query(
+export async function revokeRefreshToken(
+  tokenHash: string,
+  client?: Queryable
+): Promise<void> {
+  const runner = client ?? pool;
+  await runner.query(
     `update auth_refresh_tokens
      set revoked_at = now()
      where token_hash = $1`,
     [tokenHash]
+  );
+}
+
+export async function revokeRefreshTokensForUser(
+  userId: string,
+  client?: Queryable
+): Promise<void> {
+  const runner = client ?? pool;
+  await runner.query(
+    `update auth_refresh_tokens
+     set revoked_at = now()
+     where user_id = $1`,
+    [userId]
   );
 }
 

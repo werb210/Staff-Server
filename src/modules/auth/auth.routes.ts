@@ -1,6 +1,10 @@
 import { Router } from "express";
 import { AppError } from "../../middleware/errors";
-import { loginRateLimit, refreshRateLimit } from "../../middleware/rateLimit";
+import {
+  loginRateLimit,
+  passwordResetRateLimit,
+  refreshRateLimit,
+} from "../../middleware/rateLimit";
 import { requireAuth, requireRole } from "../../middleware/auth";
 import { ROLES } from "../../auth/roles";
 import {
@@ -60,7 +64,10 @@ router.post("/logout", requireAuth, async (req, res, next) => {
         400
       );
     }
-    await logoutUser(refreshToken);
+    if (!req.user) {
+      throw new AppError("missing_token", "Authorization token is required.", 401);
+    }
+    await logoutUser({ userId: req.user.userId, refreshToken });
     res.json({ ok: true });
   } catch (err) {
     next(err);
@@ -82,6 +89,7 @@ router.post(
   "/password-reset/request",
   requireAuth,
   requireRole([ROLES.ADMIN, ROLES.STAFF]),
+  passwordResetRateLimit(),
   async (req, res, next) => {
     try {
       const { userId } = req.body ?? {};
@@ -102,6 +110,7 @@ router.post(
 router.post(
   "/password-reset/confirm",
   requireAuth,
+  passwordResetRateLimit(),
   async (req, res, next) => {
     try {
       const { token, newPassword } = req.body ?? {};

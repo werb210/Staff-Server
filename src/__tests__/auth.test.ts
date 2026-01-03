@@ -5,52 +5,9 @@ import { createUserAccount } from "../modules/auth/auth.service";
 import { setUserActive } from "../modules/auth/auth.repo";
 import { resetLoginRateLimit } from "../middleware/rateLimit";
 import { ROLES } from "../auth/roles";
+import { runMigrations } from "../migrations";
 
 const app = buildApp();
-
-async function createSchema(): Promise<void> {
-  await pool.query(`
-    create table if not exists users (
-      id text primary key,
-      email text unique not null,
-      password_hash text not null,
-      role text not null,
-      active boolean not null,
-      password_changed_at timestamp not null
-    );
-  `);
-  await pool.query(`
-    create table if not exists auth_refresh_tokens (
-      id text primary key,
-      user_id text not null,
-      token_hash text not null,
-      expires_at timestamp not null,
-      revoked_at timestamp null,
-      created_at timestamp not null
-    );
-  `);
-  await pool.query(`
-    create table if not exists password_resets (
-      id text primary key,
-      user_id text not null,
-      token_hash text not null,
-      expires_at timestamp not null,
-      used_at timestamp null
-    );
-  `);
-  await pool.query(`
-    create table if not exists audit_logs (
-      id text primary key,
-      actor_user_id text null,
-      action text not null,
-      entity text not null,
-      entity_id text null,
-      ip text null,
-      success boolean not null,
-      created_at timestamp not null
-    );
-  `);
-}
 
 async function resetDb(): Promise<void> {
   await pool.query("delete from auth_refresh_tokens");
@@ -65,8 +22,10 @@ beforeAll(async () => {
   process.env.JWT_REFRESH_SECRET = "test-refresh-secret";
   process.env.JWT_EXPIRES_IN = "1h";
   process.env.JWT_REFRESH_EXPIRES_IN = "1d";
+  process.env.LOGIN_LOCKOUT_THRESHOLD = "2";
+  process.env.LOGIN_LOCKOUT_MINUTES = "10";
   process.env.NODE_ENV = "test";
-  await createSchema();
+  await runMigrations();
 });
 
 beforeEach(async () => {
@@ -188,7 +147,7 @@ describe("auth", () => {
       .set("Authorization", `Bearer ${adminToken}`);
 
     expect(adminRes.status).toBe(403);
-    expect(adminRes.body.error).toBe("forbidden");
+    expect(adminRes.body.code).toBe("forbidden");
   });
 
   it("fails readiness when required env missing", async () => {
@@ -276,6 +235,134 @@ describe("auth", () => {
       });
 
     expect(res.status).toBe(403);
-    expect(res.body.error).toBe("forbidden");
+    expect(res.body.code).toBe("forbidden");
+  });
+
+  it("locks account after repeated failures", async () => {
+    await createUserAccount({
+      email: "locked@example.com",
+      password: "Password123!",
+      role: ROLES.STAFF,
+    });
+
+    const first = await request(app).post("/api/auth/login").send({
+      email: "locked@example.com",
+      password: "BadPassword!",
+    });
+    expect(first.status).toBe(401);
+
+    const second = await request(app).post("/api/auth/login").send({
+      email: "locked@example.com",
+      password: "BadPassword!",
+    });
+    expect(second.status).toBe(401);
+
+    const locked = await request(app).post("/api/auth/login").send({
+      email: "locked@example.com",
+      password: "Password123!",
+    });
+    expect(locked.status).toBe(423);
+    expect(locked.body.code).toBe("account_locked");
+  });
+
+  it("invalidates tokens after password change", async () => {
+    await createUserAccount({
+      email: "change@example.com",
+      password: "Password123!",
+      role: ROLES.STAFF,
+    });
+
+    const login = await request(app).post("/api/auth/login").send({
+      email: "change@example.com",
+      password: "Password123!",
+    });
+
+    const change = await request(app)
+      .post("/api/auth/password-change")
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .send({ currentPassword: "Password123!", newPassword: "NewPassword123!" });
+    expect(change.status).toBe(200);
+
+    const refresh = await request(app).post("/api/auth/refresh").send({
+      refreshToken: login.body.refreshToken,
+    });
+    expect(refresh.status).toBe(401);
+    expect(refresh.body.code).toBe("invalid_token");
+
+    const me = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${login.body.accessToken}`);
+    expect(me.status).toBe(401);
+    expect(me.body.code).toBe("invalid_token");
+  });
+
+  it("invalidates tokens after role change", async () => {
+    const admin = await createUserAccount({
+      email: "role-admin@example.com",
+      password: "Password123!",
+      role: ROLES.ADMIN,
+    });
+    const staff = await createUserAccount({
+      email: "role-staff@example.com",
+      password: "Password123!",
+      role: ROLES.STAFF,
+    });
+
+    const adminLogin = await request(app).post("/api/auth/login").send({
+      email: admin.email,
+      password: "Password123!",
+    });
+    const staffLogin = await request(app).post("/api/auth/login").send({
+      email: staff.email,
+      password: "Password123!",
+    });
+
+    const roleChange = await request(app)
+      .post(`/api/users/${staff.id}/role`)
+      .set("Authorization", `Bearer ${adminLogin.body.accessToken}`)
+      .send({ role: ROLES.ADMIN });
+    expect(roleChange.status).toBe(200);
+
+    const refresh = await request(app).post("/api/auth/refresh").send({
+      refreshToken: staffLogin.body.refreshToken,
+    });
+    expect(refresh.status).toBe(401);
+    expect(refresh.body.code).toBe("invalid_token");
+
+    const me = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${staffLogin.body.accessToken}`);
+    expect(me.status).toBe(401);
+    expect(me.body.code).toBe("invalid_token");
+  });
+
+  it("revokes tokens after refresh and logout", async () => {
+    await createUserAccount({
+      email: "cycle@example.com",
+      password: "Password123!",
+      role: ROLES.STAFF,
+    });
+
+    const login = await request(app).post("/api/auth/login").send({
+      email: "cycle@example.com",
+      password: "Password123!",
+    });
+
+    const refreshed = await request(app).post("/api/auth/refresh").send({
+      refreshToken: login.body.refreshToken,
+    });
+    expect(refreshed.status).toBe(200);
+
+    const logout = await request(app)
+      .post("/api/auth/logout")
+      .set("Authorization", `Bearer ${refreshed.body.accessToken}`)
+      .send({ refreshToken: refreshed.body.refreshToken });
+    expect(logout.status).toBe(200);
+
+    const reuse = await request(app).post("/api/auth/refresh").send({
+      refreshToken: refreshed.body.refreshToken,
+    });
+    expect(reuse.status).toBe(401);
+    expect(reuse.body.code).toBe("invalid_token");
   });
 });

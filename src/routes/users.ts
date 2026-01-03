@@ -6,7 +6,7 @@ import { ROLES } from "../auth/roles";
 const router = Router();
 
 router.use(requireAuth);
-router.use(requireRole(ROLES.ADMIN));
+router.use(requireRole([ROLES.ADMIN]));
 router.use("/", usersRoutes);
 
 export default router;
