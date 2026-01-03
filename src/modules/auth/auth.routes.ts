@@ -14,13 +14,19 @@ router.post(
     req: Request<unknown, AuthLoginResponse | AuthLoginErrorResponse, AuthLoginRequestBody>,
     res,
   ) => {
-    const result = await loginUser(req.body);
+    const { email, password } = req.body;
 
-    if (!result.ok) {
-      return res.status(result.status).json({ error: result.error });
+    if (!email || !password) {
+      return res.status(400).json({ error: "missing_fields" });
     }
 
-    return res.json({ token: result.token });
+    const user = await loginUser(email, password);
+
+    if (!user) {
+      return res.status(401).json({ error: "invalid_credentials" });
+    }
+
+    return res.json({ id: user.id, email: user.email });
   },
 );
 
