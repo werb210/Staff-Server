@@ -1,6 +1,6 @@
 import { type NextFunction, type Request, type Response } from "express";
 import jwt from "jsonwebtoken";
-import { AppError } from "./errors";
+import { AppError, forbiddenError } from "./errors";
 import { type Role } from "../auth/roles";
 import { findAuthUserById } from "../modules/auth/auth.repo";
 import { recordAuditEvent } from "../modules/audit/audit.service";
@@ -91,7 +91,7 @@ export function requireRole(roles: readonly Role[]) {
         userAgent: req.get("user-agent"),
         success: false,
       });
-      next(new AppError("forbidden", "Access denied.", 403));
+      next(forbiddenError());
       return;
     }
     const userRole = req.user?.role;
@@ -104,7 +104,7 @@ export function requireRole(roles: readonly Role[]) {
         userAgent: req.get("user-agent"),
         success: false,
       });
-      next(new AppError("forbidden", "Access denied.", 403));
+      next(forbiddenError());
       return;
     }
 
