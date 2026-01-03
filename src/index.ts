@@ -8,7 +8,7 @@ import { requestLogger } from "./middleware/requestLogger";
 import { errorHandler, notFoundHandler } from "./middleware/errors";
 import { assertEnv } from "./config";
 import { assertSchema, checkDb } from "./db";
-import { assertNoPendingMigrations } from "./migrations";
+import { assertNoPendingMigrations, runMigrations } from "./migrations";
 
 export function buildApp() {
   const app = express();
@@ -30,6 +30,9 @@ export function buildApp() {
 export async function initializeServer(): Promise<void> {
   assertEnv();
   await checkDb();
+  if (process.env.RUN_MIGRATIONS_ON_STARTUP === "true") {
+    await runMigrations();
+  }
   await assertNoPendingMigrations();
   await assertSchema();
 }

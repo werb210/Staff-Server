@@ -44,6 +44,9 @@ jobs:
       - name: Build TypeScript
         run: npm run build
 
+      - name: Validate migrations
+        run: npm run migrate:check
+
       - name: Verify dist output (FAIL IF MISSING)
         run: |
           test -f dist/routes/auth.js

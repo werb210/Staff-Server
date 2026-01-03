@@ -50,14 +50,13 @@ const requiredColumns: RequiredColumn[] = [
   { table: "password_resets", column: "token_hash" },
   { table: "password_resets", column: "expires_at" },
   { table: "password_resets", column: "used_at" },
-  { table: "audit_logs", column: "id" },
-  { table: "audit_logs", column: "actor_user_id" },
-  { table: "audit_logs", column: "action" },
-  { table: "audit_logs", column: "entity" },
-  { table: "audit_logs", column: "entity_id" },
-  { table: "audit_logs", column: "ip" },
-  { table: "audit_logs", column: "success" },
-  { table: "audit_logs", column: "created_at" },
+  { table: "audit_events", column: "id" },
+  { table: "audit_events", column: "user_id" },
+  { table: "audit_events", column: "action" },
+  { table: "audit_events", column: "ip" },
+  { table: "audit_events", column: "user_agent" },
+  { table: "audit_events", column: "success" },
+  { table: "audit_events", column: "created_at" },
 ];
 
 export async function assertSchema(): Promise<void> {

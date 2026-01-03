@@ -83,15 +83,25 @@ export function requireAuth(
 export function requireRole(roles: readonly Role[]) {
   const allowed = roles;
   return (req: Request, _res: Response, next: NextFunction): void => {
+    if (!allowed || allowed.length === 0) {
+      void recordAuditEvent({
+        action: "access_denied",
+        userId: req.user?.userId ?? null,
+        ip: req.ip,
+        userAgent: req.get("user-agent"),
+        success: false,
+      });
+      next(new AppError("forbidden", "Access denied.", 403));
+      return;
+    }
     const userRole = req.user?.role;
 
     if (!userRole || !allowed.includes(userRole)) {
       void recordAuditEvent({
         action: "access_denied",
-        entity: "route",
-        entityId: req.originalUrl,
-        actorUserId: req.user?.userId ?? null,
+        userId: req.user?.userId ?? null,
         ip: req.ip,
+        userAgent: req.get("user-agent"),
         success: false,
       });
       next(new AppError("forbidden", "Access denied.", 403));

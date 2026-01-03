@@ -25,6 +25,7 @@ router.post("/", async (req, res, next) => {
       role,
       actorUserId: req.user?.userId ?? null,
       ip: req.ip,
+      userAgent: req.get("user-agent"),
     });
     res.status(201).json({ user });
   } catch (err) {
@@ -47,6 +48,7 @@ router.post("/:id/role", async (req, res, next) => {
       role,
       actorId,
       ip: req.ip,
+      userAgent: req.get("user-agent"),
     });
     res.json({ ok: true });
   } catch (err) {
@@ -65,6 +67,7 @@ router.post("/:id/disable", async (req, res, next) => {
       active: false,
       actorId,
       ip: req.ip,
+      userAgent: req.get("user-agent"),
     });
     res.json({ ok: true });
   } catch (err) {
@@ -83,6 +86,7 @@ router.post("/:id/enable", async (req, res, next) => {
       active: true,
       actorId,
       ip: req.ip,
+      userAgent: req.get("user-agent"),
     });
     res.json({ ok: true });
   } catch (err) {

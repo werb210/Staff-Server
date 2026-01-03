@@ -51,6 +51,22 @@ function timingSafeTokenCompare(a: string, b: string): boolean {
   return timingSafeEqual(aBuf, bBuf);
 }
 
+async function handleRefreshReuse(
+  userId: string,
+  ip?: string,
+  userAgent?: string
+): Promise<void> {
+  await revokeRefreshTokensForUser(userId);
+  await incrementTokenVersion(userId);
+  await recordAuditEvent({
+    action: "token_reuse",
+    userId,
+    ip,
+    userAgent,
+    success: false,
+  });
+}
+
 function issueAccessToken(payload: AccessTokenPayload): string {
   const secret = process.env.JWT_SECRET;
   if (!secret) {
@@ -80,7 +96,8 @@ function issueRefreshToken(payload: AccessTokenPayload): string {
 export async function loginUser(
   email: string,
   password: string,
-  ip?: string
+  ip?: string,
+  userAgent?: string
 ): Promise<{
   user: { id: string; email: string; role: Role };
   accessToken: string;
@@ -91,10 +108,9 @@ export async function loginUser(
   if (!user || !user.password_hash || !user.role || !user.email) {
     await recordAuditEvent({
       action: "login",
-      entity: "session",
-      entityId: user?.id ?? null,
-      actorUserId: user?.id ?? null,
+      userId: user?.id ?? null,
       ip,
+      userAgent,
       success: false,
     });
     throw new AppError("invalid_credentials", "Invalid email or password.", 401);
@@ -103,10 +119,9 @@ export async function loginUser(
   if (!user.active) {
     await recordAuditEvent({
       action: "login",
-      entity: "session",
-      entityId: user.id,
-      actorUserId: user.id,
+      userId: user.id,
       ip,
+      userAgent,
       success: false,
     });
     throw new AppError("user_disabled", "User is disabled.", 403);
@@ -116,10 +131,9 @@ export async function loginUser(
   if (user.locked_until && user.locked_until.getTime() > now) {
     await recordAuditEvent({
       action: "login",
-      entity: "session",
-      entityId: user.id,
-      actorUserId: user.id,
+      userId: user.id,
       ip,
+      userAgent,
       success: false,
     });
     throw new AppError(
@@ -138,17 +152,29 @@ export async function loginUser(
   if (!ok) {
     const lockoutThreshold = getLoginLockoutThreshold();
     const lockoutMinutes = getLoginLockoutMinutes();
-    const shouldLock = user.failed_login_attempts + 1 >= lockoutThreshold;
+    const nextFailures = user.failed_login_attempts + 1;
+    const shouldLock = nextFailures >= lockoutThreshold;
+    const lockMultiplier = shouldLock
+      ? Math.max(1, Math.ceil(nextFailures / lockoutThreshold))
+      : 0;
     const lockUntil = shouldLock
-      ? new Date(Date.now() + lockoutMinutes * 60 * 1000)
+      ? new Date(Date.now() + lockoutMinutes * lockMultiplier * 60 * 1000)
       : null;
     await recordFailedLogin(user.id, lockUntil);
+    if (shouldLock) {
+      await recordAuditEvent({
+        action: "account_lockout",
+        userId: user.id,
+        ip,
+        userAgent,
+        success: true,
+      });
+    }
     await recordAuditEvent({
       action: "login",
-      entity: "session",
-      entityId: user.id,
-      actorUserId: user.id,
+      userId: user.id,
       ip,
+      userAgent,
       success: false,
     });
     throw new AppError("invalid_credentials", "Invalid email or password.", 401);
@@ -178,10 +204,9 @@ export async function loginUser(
 
   await recordAuditEvent({
     action: "login",
-    entity: "session",
-    entityId: user.id,
-    actorUserId: user.id,
+    userId: user.id,
     ip,
+    userAgent,
     success: true,
   });
 
@@ -198,7 +223,8 @@ export async function loginUser(
 
 export async function refreshSession(
   refreshToken: string,
-  ip?: string
+  ip?: string,
+  userAgent?: string
 ): Promise<{ accessToken: string; refreshToken: string }> {
   const secret = process.env.JWT_REFRESH_SECRET;
   if (!secret) {
@@ -221,10 +247,16 @@ export async function refreshSession(
 
     const tokenHash = hashToken(refreshToken);
     const record = await findRefreshToken(tokenHash);
-    if (!record || record.revoked_at) {
+    if (!record) {
+      await handleRefreshReuse(payload.userId, ip, userAgent);
+      throw new AppError("invalid_token", "Invalid refresh token.", 401);
+    }
+    if (record.revoked_at) {
+      await handleRefreshReuse(record.user_id, ip, userAgent);
       throw new AppError("invalid_token", "Invalid refresh token.", 401);
     }
     if (record.user_id !== payload.userId) {
+      await handleRefreshReuse(payload.userId, ip, userAgent);
       throw new AppError("invalid_token", "Invalid refresh token.", 401);
     }
     if (record.expires_at.getTime() < Date.now()) {
@@ -264,10 +296,9 @@ export async function refreshSession(
 
     await recordAuditEvent({
       action: "token_refresh",
-      entity: "session",
-      entityId: user.id,
-      actorUserId: user.id,
+      userId: user.id,
       ip,
+      userAgent,
       success: true,
     });
 
@@ -275,10 +306,9 @@ export async function refreshSession(
   } catch (err) {
     await recordAuditEvent({
       action: "token_refresh",
-      entity: "session",
-      entityId: actorUserId,
-      actorUserId,
+      userId: actorUserId,
       ip,
+      userAgent,
       success: false,
     });
     throw err;
@@ -288,11 +318,34 @@ export async function refreshSession(
 export async function logoutUser(params: {
   userId: string;
   refreshToken: string;
+  ip?: string;
+  userAgent?: string;
 }): Promise<void> {
   const tokenHash = hashToken(params.refreshToken);
   await revokeRefreshToken(tokenHash);
+  await recordAuditEvent({
+    action: "logout",
+    userId: params.userId,
+    ip: params.ip,
+    userAgent: params.userAgent,
+    success: true,
+  });
+}
+
+export async function logoutAll(params: {
+  userId: string;
+  ip?: string;
+  userAgent?: string;
+}): Promise<void> {
   await revokeRefreshTokensForUser(params.userId);
   await incrementTokenVersion(params.userId);
+  await recordAuditEvent({
+    action: "logout_all",
+    userId: params.userId,
+    ip: params.ip,
+    userAgent: params.userAgent,
+    success: true,
+  });
 }
 
 export async function createUserAccount(params: {
@@ -301,6 +354,7 @@ export async function createUserAccount(params: {
   role: Role;
   actorUserId?: string | null;
   ip?: string;
+  userAgent?: string;
 }): Promise<{ id: string; email: string; role: Role }> {
   const client = await pool.connect();
   try {
@@ -315,10 +369,9 @@ export async function createUserAccount(params: {
     await client.query("commit");
     await recordAuditEvent({
       action: "user_create",
-      entity: "user",
-      entityId: user.id,
-      actorUserId: params.actorUserId ?? null,
+      userId: params.actorUserId ?? null,
       ip: params.ip,
+      userAgent: params.userAgent,
       success: true,
     });
     return { id: user.id, email: user.email, role: user.role };
@@ -326,10 +379,9 @@ export async function createUserAccount(params: {
     await client.query("rollback");
     await recordAuditEvent({
       action: "user_create",
-      entity: "user",
-      entityId: null,
-      actorUserId: params.actorUserId ?? null,
+      userId: params.actorUserId ?? null,
       ip: params.ip,
+      userAgent: params.userAgent,
       success: false,
     });
     throw err;
@@ -343,15 +395,15 @@ export async function changePassword(params: {
   currentPassword: string;
   newPassword: string;
   ip?: string;
+  userAgent?: string;
 }): Promise<void> {
   const user = await findAuthUserById(params.userId);
   if (!user || !user.password_hash) {
     await recordAuditEvent({
       action: "password_change",
-      entity: "user",
-      entityId: params.userId,
-      actorUserId: params.userId,
+      userId: params.userId,
       ip: params.ip,
+      userAgent: params.userAgent,
       success: false,
     });
     throw new AppError("invalid_credentials", "Invalid credentials.", 401);
@@ -360,10 +412,9 @@ export async function changePassword(params: {
   if (!ok) {
     await recordAuditEvent({
       action: "password_change",
-      entity: "user",
-      entityId: params.userId,
-      actorUserId: params.userId,
+      userId: params.userId,
       ip: params.ip,
+      userAgent: params.userAgent,
       success: false,
     });
     throw new AppError("invalid_credentials", "Invalid credentials.", 401);
@@ -378,20 +429,18 @@ export async function changePassword(params: {
     await client.query("commit");
     await recordAuditEvent({
       action: "password_change",
-      entity: "user",
-      entityId: params.userId,
-      actorUserId: params.userId,
+      userId: params.userId,
       ip: params.ip,
+      userAgent: params.userAgent,
       success: true,
     });
   } catch (err) {
     await client.query("rollback");
     await recordAuditEvent({
       action: "password_change",
-      entity: "user",
-      entityId: params.userId,
-      actorUserId: params.userId,
+      userId: params.userId,
       ip: params.ip,
+      userAgent: params.userAgent,
       success: false,
     });
     throw err;
@@ -403,11 +452,19 @@ export async function changePassword(params: {
 export async function requestPasswordReset(params: {
   userId: string;
   ip?: string;
+  userAgent?: string;
 }): Promise<string> {
   const token = randomBytes(32).toString("hex");
   const tokenHash = hashToken(token);
   const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
   await createPasswordReset({ userId: params.userId, tokenHash, expiresAt });
+  await recordAuditEvent({
+    action: "password_reset_request",
+    userId: params.userId,
+    ip: params.ip,
+    userAgent: params.userAgent,
+    success: true,
+  });
   return token;
 }
 
@@ -415,14 +472,29 @@ export async function confirmPasswordReset(params: {
   token: string;
   newPassword: string;
   ip?: string;
+  userAgent?: string;
 }): Promise<void> {
   const tokenHash = hashToken(params.token);
   const record = await findPasswordReset(tokenHash);
   if (!record || record.used_at || record.expires_at.getTime() < Date.now()) {
+    await recordAuditEvent({
+      action: "password_reset",
+      userId: record?.user_id ?? null,
+      ip: params.ip,
+      userAgent: params.userAgent,
+      success: false,
+    });
     throw new AppError("invalid_token", "Invalid reset token.", 401);
   }
 
   if (!timingSafeTokenCompare(record.token_hash, tokenHash)) {
+    await recordAuditEvent({
+      action: "password_reset",
+      userId: record.user_id,
+      ip: params.ip,
+      userAgent: params.userAgent,
+      success: false,
+    });
     throw new AppError("invalid_token", "Invalid reset token.", 401);
   }
 
@@ -432,11 +504,10 @@ export async function confirmPasswordReset(params: {
   await revokeRefreshTokensForUser(record.user_id);
   await markPasswordResetUsed(record.id);
   await recordAuditEvent({
-    action: "password_change",
-    entity: "user",
-    entityId: record.user_id,
-    actorUserId: record.user_id,
+    action: "password_reset",
+    userId: record.user_id,
     ip: params.ip,
+    userAgent: params.userAgent,
     success: true,
   });
 }
