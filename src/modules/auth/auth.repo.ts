@@ -1,13 +1,19 @@
 import { pool } from "../../db";
 
-export async function findAuthUserByEmail(email: string) {
-  const res = await pool.query(
-    `
-    select *
-    from auth_users
-    where email = $1
-    limit 1
-    `,
+export interface AuthUser {
+  id: string;
+  email: string;
+  password_hash: string;
+}
+
+export async function getUserByEmail(
+  email: string
+): Promise<AuthUser | null> {
+  const res = await pool.query<AuthUser>(
+    `select id, email, password_hash
+     from users
+     where email = $1
+     limit 1`,
     [email]
   );
 
