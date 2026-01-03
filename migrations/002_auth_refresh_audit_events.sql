@@ -10,6 +10,3 @@ create table if not exists audit_events (
 
 alter table auth_refresh_tokens
   drop constraint if exists auth_refresh_tokens_user_id_key;
-
-create index auth_refresh_tokens_user_id_idx
-  on auth_refresh_tokens (user_id);
