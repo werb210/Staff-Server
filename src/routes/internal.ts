@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { checkDb } from "../db";
+import { pool } from "../db";
 
 const router = Router();
 
@@ -9,10 +9,10 @@ router.get("/health", (_req, res) => {
 
 router.get("/ready", async (_req, res) => {
   try {
-    await checkDb();
+    await pool.query("select 1");
     res.json({ ok: true });
   } catch {
-    res.status(500).json({ ok: false });
+    res.status(503).json({ ok: false });
   }
 });
 
