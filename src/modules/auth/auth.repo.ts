@@ -1,21 +1,31 @@
 import { pool } from "../../db";
+import type { AuthUserRecord } from "./auth.types";
 
-export interface AuthUser {
-  id: string;
-  email: string;
-  password_hash: string;
-}
+/**
+ * Auth user lookup used by the login flow.
+ * NOTE: This function MUST exist because auth.service imports it.
+ */
+export async function findAuthUserByEmail(email: string): Promise<AuthUserRecord | null> {
+  const e = email.trim().toLowerCase();
 
-export async function getUserByEmail(
-  email: string
-): Promise<AuthUser | null> {
-  const res = await pool.query<AuthUser>(
-    `select id, email, password_hash
-     from users
-     where email = $1
-     limit 1`,
-    [email]
+  const result = await pool.query(
+    `
+    SELECT
+      id::text as "id",
+      password_hash as "passwordHash"
+    FROM users
+    WHERE lower(email) = $1
+    LIMIT 1
+    `,
+    [e],
   );
 
-  return res.rows[0] ?? null;
+  return (result.rows[0] as AuthUserRecord | undefined) ?? null;
+}
+
+/**
+ * Backwards-compatible alias (older code imports getUserByEmail).
+ */
+export async function getUserByEmail(email: string): Promise<AuthUserRecord | null> {
+  return findAuthUserByEmail(email);
 }
