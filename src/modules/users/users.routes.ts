@@ -1,14 +1,9 @@
-import { Router, type Request } from "express";
+import { Router } from "express";
 import { AppError } from "../../middleware/errors";
 import { createUserAccount } from "../auth/auth.service";
 import { setUserStatus } from "./users.service";
 
 const router = Router();
-
-function getUserAgent(req: Request): string | undefined {
-  const header = req.headers["user-agent"];
-  return typeof header === "string" ? header : undefined;
-}
 
 router.post("/", async (req, res, next) => {
   try {
@@ -20,7 +15,13 @@ router.post("/", async (req, res, next) => {
         400
       );
     }
-    const user = await createUserAccount({ email, password, role });
+    const user = await createUserAccount({
+      email,
+      password,
+      role,
+      actorUserId: req.user?.userId ?? null,
+      ip: req.ip,
+    });
     res.status(201).json({ user });
   } catch (err) {
     next(err);
@@ -38,7 +39,6 @@ router.post("/:id/disable", async (req, res, next) => {
       active: false,
       actorId,
       ip: req.ip,
-      userAgent: getUserAgent(req),
     });
     res.json({ ok: true });
   } catch (err) {
@@ -57,7 +57,6 @@ router.post("/:id/enable", async (req, res, next) => {
       active: true,
       actorId,
       ip: req.ip,
-      userAgent: getUserAgent(req),
     });
     res.json({ ok: true });
   } catch (err) {

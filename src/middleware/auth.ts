@@ -1,6 +1,7 @@
 import { type NextFunction, type Request, type Response } from "express";
 import jwt from "jsonwebtoken";
 import { AppError } from "./errors";
+import { type Role } from "../auth/roles";
 
 export type AuthenticatedUser = {
   userId: string;
@@ -53,7 +54,7 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction): v
   }
 }
 
-export function requireRole(roles: string | string[]) {
+export function requireRole(roles: Role | Role[]) {
   const allowed = Array.isArray(roles) ? roles : [roles];
   return (req: Request, _res: Response, next: NextFunction): void => {
     if (!req.user) {

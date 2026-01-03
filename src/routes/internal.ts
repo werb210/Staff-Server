@@ -17,7 +17,7 @@ router.get("/ready", async (_req, res) => {
   } catch {
     const requestId = res.locals.requestId ?? "unknown";
     res.status(503).json({
-      error: "service_unavailable",
+      code: "service_unavailable",
       message: "Service not ready.",
       requestId,
     });

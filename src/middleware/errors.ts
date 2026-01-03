@@ -20,7 +20,7 @@ export function errorHandler(
   const requestId = res.locals.requestId ?? "unknown";
   if (err instanceof AppError) {
     res.status(err.status).json({
-      error: err.code,
+      code: err.code,
       message: err.message,
       requestId,
     });
@@ -28,7 +28,7 @@ export function errorHandler(
   }
 
   res.status(500).json({
-    error: "server_error",
+    code: "server_error",
     message: "An unexpected error occurred.",
     requestId,
   });
@@ -37,7 +37,7 @@ export function errorHandler(
 export function notFoundHandler(_req: Request, res: Response): void {
   const requestId = res.locals.requestId ?? "unknown";
   res.status(404).json({
-    error: "not_found",
+    code: "not_found",
     message: "Route not found.",
     requestId,
   });

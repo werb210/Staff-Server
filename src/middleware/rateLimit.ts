@@ -1,4 +1,5 @@
 import { type NextFunction, type Request, type Response } from "express";
+import jwt from "jsonwebtoken";
 import { AppError } from "./errors";
 
 type RateLimitEntry = {
@@ -6,31 +7,72 @@ type RateLimitEntry = {
   resetAt: number;
 };
 
-const attemptsByIp = new Map<string, RateLimitEntry>();
+const attemptsByKey = new Map<string, RateLimitEntry>();
 
-export function loginRateLimit(
-  maxAttempts = 5,
+type KeyBuilder = (req: Request) => string;
+
+function createRateLimiter(
+  keyBuilder: KeyBuilder,
+  maxAttempts = 10,
   windowMs = 60_000
 ): (req: Request, res: Response, next: NextFunction) => void {
   return (req: Request, _res: Response, next: NextFunction): void => {
-    const ip = req.ip || "unknown";
+    const key = keyBuilder(req);
     const now = Date.now();
-    const entry = attemptsByIp.get(ip);
+    const entry = attemptsByKey.get(key);
     if (!entry || entry.resetAt < now) {
-      attemptsByIp.set(ip, { count: 1, resetAt: now + windowMs });
+      attemptsByKey.set(key, { count: 1, resetAt: now + windowMs });
       next();
       return;
     }
 
     entry.count += 1;
     if (entry.count > maxAttempts) {
-      next(new AppError("rate_limited", "Too many login attempts.", 429));
+      next(new AppError("rate_limited", "Too many attempts.", 429));
       return;
     }
     next();
   };
 }
 
+export function loginRateLimit(
+  maxAttempts = 10,
+  windowMs = 60_000
+): (req: Request, res: Response, next: NextFunction) => void {
+  return createRateLimiter(
+    (req) => {
+      const ip = req.ip || "unknown";
+      const email =
+        typeof req.body?.email === "string"
+          ? req.body.email.toLowerCase()
+          : "unknown";
+      return `login:${ip}:${email}`;
+    },
+    maxAttempts,
+    windowMs
+  );
+}
+
+type RefreshPayload = { userId?: string };
+
+export function refreshRateLimit(
+  maxAttempts = 10,
+  windowMs = 60_000
+): (req: Request, res: Response, next: NextFunction) => void {
+  return createRateLimiter(
+    (req) => {
+      const ip = req.ip || "unknown";
+      const token =
+        typeof req.body?.refreshToken === "string" ? req.body.refreshToken : "";
+      const decoded = token ? (jwt.decode(token) as RefreshPayload | null) : null;
+      const userId = decoded?.userId ?? "unknown";
+      return `refresh:${ip}:${userId}`;
+    },
+    maxAttempts,
+    windowMs
+  );
+}
+
 export function resetLoginRateLimit(): void {
-  attemptsByIp.clear();
+  attemptsByKey.clear();
 }
