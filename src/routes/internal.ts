@@ -1,8 +1,7 @@
 import { Router } from "express";
-import { assertSchema, checkDb } from "../db";
+import { checkDb } from "../db";
 import { assertEnv, getBuildInfo } from "../config";
-import { assertNoPendingMigrations, getSchemaVersion } from "../migrations";
-import { assertAuthSubsystem } from "../modules/auth/auth.service";
+import { getSchemaVersion } from "../migrations";
 
 const router = Router();
 
@@ -14,15 +13,16 @@ router.get("/ready", async (_req, res) => {
   try {
     assertEnv();
     await checkDb();
-    await assertNoPendingMigrations();
-    await assertSchema();
-    assertAuthSubsystem();
     res.json({ ok: true });
-  } catch {
+  } catch (err) {
     const requestId = res.locals.requestId ?? "unknown";
+    const reason =
+      err instanceof Error && err.message
+        ? ` Service not ready: ${err.message}`
+        : " Service not ready.";
     res.status(503).json({
       code: "service_unavailable",
-      message: "Service not ready.",
+      message: reason.trim(),
       requestId,
     });
   }

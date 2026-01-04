@@ -12,6 +12,8 @@ import {
   getPasswordResetRateLimitWindowMs,
   getRefreshRateLimitMax,
   getRefreshRateLimitWindowMs,
+  getAdminRateLimitMax,
+  getAdminRateLimitWindowMs,
 } from "../config";
 
 type RateLimitEntry = {
@@ -137,6 +139,21 @@ export function lenderSubmissionRateLimit(
           ? req.body.applicationId
           : "unknown";
       return `lender_submission:${ip}:${userId}:${applicationId}`;
+    },
+    maxAttempts,
+    windowMs
+  );
+}
+
+export function adminRateLimit(
+  maxAttempts = getAdminRateLimitMax(),
+  windowMs = getAdminRateLimitWindowMs()
+): (req: Request, res: Response, next: NextFunction) => void {
+  return createRateLimiter(
+    (req) => {
+      const ip = req.ip || "unknown";
+      const userId = req.user?.userId ?? "unknown";
+      return `admin:${ip}:${userId}`;
     },
     maxAttempts,
     windowMs

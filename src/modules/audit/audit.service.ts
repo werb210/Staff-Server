@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { type PoolClient } from "pg";
 import { pool } from "../../db";
+import { getRequestId } from "../../middleware/requestContext";
 
 type Queryable = Pick<PoolClient, "query">;
 
@@ -10,16 +11,18 @@ export type AuditParams = {
   action: string;
   ip?: string | null;
   userAgent?: string | null;
+  requestId?: string | null;
   success: boolean;
   client?: Queryable;
 };
 
 export async function recordAuditEvent(params: AuditParams): Promise<void> {
   const runner = params.client ?? pool;
+  const requestId = params.requestId ?? getRequestId() ?? null;
   await runner.query(
     `insert into audit_events
-     (id, actor_user_id, target_user_id, action, ip, user_agent, success, created_at)
-     values ($1, $2, $3, $4, $5, $6, $7, now())`,
+     (id, actor_user_id, target_user_id, action, ip, user_agent, request_id, success, created_at)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, now())`,
     [
       randomUUID(),
       params.actorUserId,
@@ -27,6 +30,7 @@ export async function recordAuditEvent(params: AuditParams): Promise<void> {
       params.action,
       params.ip ?? null,
       params.userAgent ?? null,
+      requestId,
       params.success,
     ]
   );

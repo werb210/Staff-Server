@@ -57,6 +57,7 @@ const requiredColumns: RequiredColumn[] = [
   { table: "audit_events", column: "action" },
   { table: "audit_events", column: "ip" },
   { table: "audit_events", column: "user_agent" },
+  { table: "audit_events", column: "request_id" },
   { table: "audit_events", column: "success" },
   { table: "audit_events", column: "created_at" },
   { table: "applications", column: "id" },
