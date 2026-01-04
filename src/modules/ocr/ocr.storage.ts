@@ -8,6 +8,23 @@ export type OcrStorage = {
   getBuffer: (input: OcrStorageInput) => Promise<Buffer>;
 };
 
+const AZURE_BLOB_HOST_SUFFIXES = [
+  ".blob.core.windows.net",
+  ".blob.core.usgovcloudapi.net",
+  ".blob.core.chinacloudapi.cn",
+  ".blob.core.cloudapi.de",
+];
+
+export class OcrStorageValidationError extends Error {
+  readonly url: string;
+
+  constructor(url: string) {
+    super("invalid_ocr_storage_url");
+    this.name = "OcrStorageValidationError";
+    this.url = url;
+  }
+}
+
 function parseDataUrl(content: string): Buffer | null {
   if (!content.startsWith("data:")) {
     return null;
@@ -18,6 +35,20 @@ function parseDataUrl(content: string): Buffer | null {
   }
   const base64 = content.slice(splitIndex + 1);
   return Buffer.from(base64, "base64");
+}
+
+function isAllowedAzureBlobUrl(value: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== "https:") {
+    return false;
+  }
+  const hostname = parsed.hostname.toLowerCase();
+  return AZURE_BLOB_HOST_SUFFIXES.some((suffix) => hostname.endsWith(suffix));
 }
 
 async function downloadAzureBlobFromUrl(url: string): Promise<Buffer> {
@@ -49,10 +80,16 @@ export function createOcrStorage(): OcrStorage {
         return dataUrlBuffer;
       }
       if (input.content.startsWith("https://")) {
+        if (!isAllowedAzureBlobUrl(input.content)) {
+          throw new OcrStorageValidationError(input.content);
+        }
         return downloadAzureBlobFromUrl(input.content);
       }
       if (input.content.startsWith("azure://")) {
         return downloadAzureBlobFromPath(input.content);
+      }
+      if (input.content.startsWith("http://")) {
+        throw new OcrStorageValidationError(input.content);
       }
       return Buffer.from(input.content, "base64");
     },

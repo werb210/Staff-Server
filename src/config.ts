@@ -278,6 +278,14 @@ export function getOcrPollIntervalMs(): number {
   return parseIntervalMs(process.env.OCR_POLL_INTERVAL_MS, 10_000);
 }
 
+export function getOcrLockTimeoutMinutes(): number {
+  const value = Number(process.env.OCR_LOCK_TIMEOUT_MINUTES ?? "10");
+  if (Number.isNaN(value) || value <= 0) {
+    return 10;
+  }
+  return value;
+}
+
 export function getOpenAiApiKey(): string | null {
   return process.env.OPENAI_API_KEY ?? null;
 }

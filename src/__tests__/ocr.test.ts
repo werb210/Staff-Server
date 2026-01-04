@@ -96,6 +96,32 @@ describe("ocr jobs", () => {
     expect(secondLock).toHaveLength(0);
   });
 
+  it("reclaims OCR jobs with expired locks", async () => {
+    const { documentId, applicationId } = await seedDocument();
+
+    const job = await createOcrJob({
+      documentId,
+      applicationId,
+      maxAttempts: 2,
+    });
+
+    const [locked] = await lockOcrJobs({ limit: 1, lockedBy: "worker-1" });
+    expect(locked?.id).toBe(job.id);
+
+    const expired = new Date(Date.now() - 20 * 60 * 1000);
+    await pool.query(
+      `update ocr_jobs
+       set locked_at = $2
+       where id = $1`,
+      [job.id, expired]
+    );
+
+    const reclaimed = await lockOcrJobs({ limit: 1, lockedBy: "worker-2" });
+    expect(reclaimed).toHaveLength(1);
+    expect(reclaimed[0].id).toBe(job.id);
+    expect(reclaimed[0].locked_by).toBe("worker-2");
+  });
+
   it("bounds retries with exponential backoff", async () => {
     const { documentId, applicationId } = await seedDocument();
     const job = await createOcrJob({

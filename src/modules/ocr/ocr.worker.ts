@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { getOcrEnabled, getOcrPollIntervalMs, getOcrWorkerConcurrency } from "../../config";
 import { isKillSwitchEnabled } from "../ops/ops.service";
-import { lockOcrJobs } from "./ocr.repo";
+import { clearExpiredOcrLocks, lockOcrJobs } from "./ocr.repo";
 import { processOcrJob } from "./ocr.service";
 
 export function startOcrWorker(): { stop: () => void } {
@@ -41,6 +41,8 @@ export function startOcrWorker(): { stop: () => void } {
   const timer = setInterval(() => {
     tick().catch(() => undefined);
   }, pollInterval);
+
+  clearExpiredOcrLocks().catch(() => undefined);
 
   tick().catch(() => undefined);
 

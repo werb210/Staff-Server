@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { pool } from "../../db";
 import { type PoolClient } from "pg";
+import { getOcrLockTimeoutMinutes } from "../../config";
 import { type OcrJobRecord, type OcrJobStatus, type OcrResultRecord } from "./ocr.types";
 
 export type Queryable = Pick<PoolClient, "query">;
@@ -31,15 +32,20 @@ export async function lockOcrJobs(params: {
   client?: Queryable;
 }): Promise<OcrJobRecord[]> {
   const runner = params.client ?? pool;
+  const lockTimeoutMinutes = getOcrLockTimeoutMinutes();
+  const lockCutoff = new Date(Date.now() - lockTimeoutMinutes * 60 * 1000);
   if (process.env.NODE_ENV === "test" || process.env.DATABASE_URL === "pg-mem") {
     const ids = await runner.query<{ id: string }>(
       `select id
        from ocr_jobs
-       where status in ('queued', 'failed')
-         and locked_at is null
+       where (
+         (status in ('queued', 'failed') and (next_attempt_at is null or next_attempt_at <= now()::timestamp))
+         or status = 'processing'
+       )
+         and (locked_at is null or locked_at <= $2)
        order by created_at asc
        limit $1`,
-      [params.limit]
+      [params.limit, lockCutoff]
     );
     if (ids.rows.length === 0) {
       return [];
@@ -53,9 +59,10 @@ export async function lockOcrJobs(params: {
              locked_by = $2,
              updated_at = now()::timestamp
          where id = $1
+           and (locked_at is null or locked_at <= $3)
          returning id, document_id, application_id, status, attempt_count, max_attempts,
                    next_attempt_at, locked_at, locked_by, last_error, created_at, updated_at`,
-        [row.id, params.lockedBy]
+        [row.id, params.lockedBy, lockCutoff]
       );
       if (res.rows[0]) {
         locked.push(res.rows[0]);
@@ -67,9 +74,11 @@ export async function lockOcrJobs(params: {
     `with candidates as (
        select id
        from ocr_jobs
-       where status in ('queued', 'failed')
-         and (next_attempt_at is null or next_attempt_at <= now()::timestamp)
-         and locked_at is null
+       where (
+         (status in ('queued', 'failed') and (next_attempt_at is null or next_attempt_at <= now()::timestamp))
+         or status = 'processing'
+       )
+         and (locked_at is null or locked_at <= now() - ($3 * interval '1 minute'))
        order by created_at asc
        limit $1
        for update skip locked
@@ -82,9 +91,25 @@ export async function lockOcrJobs(params: {
      where id in (select id from candidates)
      returning id, document_id, application_id, status, attempt_count, max_attempts,
                next_attempt_at, locked_at, locked_by, last_error, created_at, updated_at`,
-    [params.limit, params.lockedBy]
+    [params.limit, params.lockedBy, lockTimeoutMinutes]
   );
   return res.rows;
+}
+
+export async function clearExpiredOcrLocks(params?: { client?: Queryable }): Promise<number> {
+  const runner = params?.client ?? pool;
+  const lockTimeoutMinutes = getOcrLockTimeoutMinutes();
+  const res = await runner.query<{ count: string }>(
+    `update ocr_jobs
+     set locked_at = null,
+         locked_by = null,
+         updated_at = now()
+     where locked_at is not null
+       and locked_at <= now() - ($1 * interval '1 minute')
+     returning id`,
+    [lockTimeoutMinutes]
+  );
+  return res.rows.length;
 }
 
 export async function markOcrJobSuccess(params: {
