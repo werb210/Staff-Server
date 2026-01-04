@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { checkDb } from "../db";
+import { assertSchema, checkDb } from "../db";
 import { assertEnv, getBuildInfo } from "../config";
-import { getSchemaVersion } from "../migrations";
+import { getPendingMigrations, getSchemaVersion } from "../migrations";
 import { listKillSwitches } from "../modules/ops/ops.service";
 import { listActiveReplayJobs } from "../modules/ops/replay.service";
 import { listRecentExports } from "../modules/exports/export.service";
@@ -16,6 +16,11 @@ router.get("/ready", async (_req, res) => {
   try {
     assertEnv();
     await checkDb();
+    const pending = await getPendingMigrations();
+    if (pending.length > 0) {
+      throw new Error(`pending_migrations:${pending.join(",")}`);
+    }
+    await assertSchema();
     res.json({ ok: true });
   } catch (err) {
     const requestId = res.locals.requestId ?? "unknown";

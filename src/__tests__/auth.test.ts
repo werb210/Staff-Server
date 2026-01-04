@@ -739,7 +739,10 @@ describe("auth", () => {
     );
     fs.writeFileSync(migrationPath, "select 1;");
     try {
-      await expect(initializeServer()).rejects.toThrow("pending_migrations");
+      await expect(initializeServer()).resolves.toBeUndefined();
+      const res = await request(app).get("/api/_int/ready");
+      expect(res.status).toBe(503);
+      expect(res.body.message).toContain("pending_migrations");
     } finally {
       fs.unlinkSync(migrationPath);
     }

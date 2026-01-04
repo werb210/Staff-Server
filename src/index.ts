@@ -15,9 +15,15 @@ import { requestLogger } from "./middleware/requestLogger";
 import { errorHandler, notFoundHandler } from "./middleware/errors";
 import { assertEnv } from "./config";
 import { assertSchema, checkDb, pool } from "./db";
-import { assertNoPendingMigrations, runMigrations } from "./migrations";
+import { getPendingMigrations, runMigrations } from "./migrations";
 import { startReportingJobs } from "./modules/reporting/reporting.jobs";
 import { startOcrWorker } from "./modules/ocr/ocr.worker";
+import {
+  setConfigLoaded,
+  setDbConnected,
+  setMigrationsState,
+  setSchemaReady,
+} from "./startupState";
 
 export function buildApp() {
   const app = express();
@@ -44,13 +50,83 @@ export function buildApp() {
 }
 
 export async function initializeServer(): Promise<void> {
-  assertEnv();
-  await checkDb();
-  if (process.env.RUN_MIGRATIONS_ON_STARTUP === "true") {
-    await runMigrations();
+  let configReady = false;
+  try {
+    assertEnv();
+    configReady = true;
+    console.info("config_loaded");
+  } catch (error) {
+    console.warn("config_invalid", {
+      error: error instanceof Error ? error.message : "unknown_error",
+    });
+  } finally {
+    setConfigLoaded(configReady);
   }
-  await assertNoPendingMigrations();
-  await assertSchema();
+
+  const maxAttemptsRaw = Number(process.env.DB_CONNECT_RETRIES ?? "5");
+  const delayMsRaw = Number(process.env.DB_CONNECT_RETRY_DELAY_MS ?? "2000");
+  const maxAttempts =
+    Number.isFinite(maxAttemptsRaw) && maxAttemptsRaw > 0
+      ? Math.floor(maxAttemptsRaw)
+      : 5;
+  const delayMs =
+    Number.isFinite(delayMsRaw) && delayMsRaw > 0
+      ? Math.floor(delayMsRaw)
+      : 2000;
+  let connected = false;
+  let lastError: unknown = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      await checkDb();
+      connected = true;
+      break;
+    } catch (error) {
+      lastError = error;
+      if (attempt < maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
+  }
+  setDbConnected(connected);
+  if (!connected) {
+    throw new Error(
+      `db_connection_failed:${lastError instanceof Error ? lastError.message : "unknown_error"}`
+    );
+  }
+  console.info("db_connected");
+
+  if (process.env.RUN_MIGRATIONS_ON_STARTUP === "true") {
+    try {
+      await runMigrations();
+    } catch (error) {
+      console.error("migrations_run_failed", {
+        error: error instanceof Error ? error.message : "unknown_error",
+      });
+    }
+  }
+
+  try {
+    const pending = await getPendingMigrations();
+    setMigrationsState(pending);
+    if (pending.length > 0) {
+      console.warn("pending_migrations", { pending });
+    }
+  } catch (error) {
+    setMigrationsState(["unknown"]);
+    console.error("migrations_check_failed", {
+      error: error instanceof Error ? error.message : "unknown_error",
+    });
+  }
+
+  try {
+    await assertSchema();
+    setSchemaReady(true);
+  } catch (error) {
+    setSchemaReady(false);
+    console.error("schema_check_failed", {
+      error: error instanceof Error ? error.message : "unknown_error",
+    });
+  }
 }
 
 async function start(): Promise<void> {
@@ -58,10 +134,30 @@ async function start(): Promise<void> {
   const app = buildApp();
   const port = process.env.PORT || 8080;
   const server = app.listen(port, () => {
-    console.log(`Server listening on ${port}`);
+    console.info("server_listening", { port });
   });
-  const jobs = startReportingJobs();
-  const ocrWorker = startOcrWorker();
+  server.on("error", (error) => {
+    console.error("server_bind_failed", {
+      error: error instanceof Error ? error.message : "unknown_error",
+    });
+    process.exit(1);
+  });
+  let jobs: ReturnType<typeof startReportingJobs> | null = null;
+  let ocrWorker: ReturnType<typeof startOcrWorker> | null = null;
+  try {
+    jobs = startReportingJobs();
+  } catch (error) {
+    console.error("reporting_jobs_start_failed", {
+      error: error instanceof Error ? error.message : "unknown_error",
+    });
+  }
+  try {
+    ocrWorker = startOcrWorker();
+  } catch (error) {
+    console.error("ocr_worker_start_failed", {
+      error: error instanceof Error ? error.message : "unknown_error",
+    });
+  }
 
   let shuttingDown = false;
   const shutdown = (signal: string) => {

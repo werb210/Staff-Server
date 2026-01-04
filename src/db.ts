@@ -1,10 +1,11 @@
 import { Pool } from "pg";
 
+export const isPgMem =
+  process.env.NODE_ENV === "test" &&
+  (!process.env.DATABASE_URL || process.env.DATABASE_URL === "pg-mem");
+
 function createPool(): Pool {
-  if (
-    process.env.NODE_ENV === "test" &&
-    (!process.env.DATABASE_URL || process.env.DATABASE_URL === "pg-mem")
-  ) {
+  if (isPgMem) {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { newDb } = require("pg-mem") as typeof import("pg-mem");
     const db = newDb({ autoCreateForeignKeyIndices: false });
