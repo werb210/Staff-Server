@@ -52,6 +52,12 @@ function timingSafeTokenCompare(a: string, b: string): boolean {
   return timingSafeEqual(aBuf, bBuf);
 }
 
+function isPasswordExpired(passwordChangedAt: Date): boolean {
+  const maxAgeDays = getPasswordMaxAgeDays();
+  const maxAgeMs = maxAgeDays * 24 * 60 * 60 * 1000;
+  return passwordChangedAt.getTime() < Date.now() - maxAgeMs;
+}
+
 async function handleRefreshReuse(
   userId: string,
   ip?: string,
@@ -59,6 +65,14 @@ async function handleRefreshReuse(
 ): Promise<void> {
   await revokeRefreshTokensForUser(userId);
   await incrementTokenVersion(userId);
+  await recordAuditEvent({
+    action: "token_revoke",
+    actorUserId: userId,
+    targetUserId: userId,
+    ip,
+    userAgent,
+    success: true,
+  });
   await recordAuditEvent({
     action: "token_reuse",
     actorUserId: userId,
@@ -204,9 +218,7 @@ export async function loginUser(
 
   await resetLoginFailures(user.id);
 
-  const maxAgeDays = getPasswordMaxAgeDays();
-  const maxAgeMs = maxAgeDays * 24 * 60 * 60 * 1000;
-  if (user.password_changed_at.getTime() < Date.now() - maxAgeMs) {
+  if (isPasswordExpired(user.password_changed_at)) {
     await recordAuditEvent({
       action: "login",
       actorUserId: user.id,
@@ -319,6 +331,14 @@ export async function refreshSession(
       if (!user || !user.active) {
         await client.query("commit");
         throw new AppError("invalid_token", "Invalid refresh token.", 401);
+      }
+      if (isPasswordExpired(user.password_changed_at)) {
+        await client.query("commit");
+        throw new AppError(
+          "password_expired",
+          "Password has expired. Reset your password.",
+          403
+        );
       }
       if (user.token_version !== payload.tokenVersion) {
         await client.query("commit");

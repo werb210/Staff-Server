@@ -138,6 +138,32 @@ describe("auth", () => {
     expect(res.body.code).toBe("password_expired");
   });
 
+  it("blocks refresh when password is expired", async () => {
+    const user = await createUserAccount({
+      email: "refresh-expired@example.com",
+      password: "Password123!",
+      role: ROLES.STAFF,
+    });
+
+    const login = await request(app).post("/api/auth/login").send({
+      email: "refresh-expired@example.com",
+      password: "Password123!",
+    });
+
+    const expiredDate = new Date(Date.now() - 45 * 24 * 60 * 60 * 1000);
+    await pool.query(`update users set password_changed_at = $1 where id = $2`, [
+      expiredDate,
+      user.id,
+    ]);
+
+    const refresh = await request(app).post("/api/auth/refresh").send({
+      refreshToken: login.body.refreshToken,
+    });
+
+    expect(refresh.status).toBe(403);
+    expect(refresh.body.code).toBe("password_expired");
+  });
+
   it("fails login when user disabled", async () => {
     const user = await createUserAccount({
       email: "disabled@example.com",
@@ -345,6 +371,31 @@ describe("auth", () => {
 
     expect(res.status).toBe(403);
     expect(res.body.code).toBe("forbidden");
+  });
+
+  it("allows admin user management", async () => {
+    await createUserAccount({
+      email: "admin-manage@example.com",
+      password: "Password123!",
+      role: ROLES.ADMIN,
+    });
+    const login = await request(app).post("/api/auth/login").send({
+      email: "admin-manage@example.com",
+      password: "Password123!",
+    });
+
+    const res = await request(app)
+      .post("/api/users")
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .send({
+        email: "managed@example.com",
+        password: "Password123!",
+        role: ROLES.STAFF,
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.user.email).toBe("managed@example.com");
+    expect(res.body.user.role).toBe(ROLES.STAFF);
   });
 
   it("rejects unauthorized role escalation attempts", async () => {
