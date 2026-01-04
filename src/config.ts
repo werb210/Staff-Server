@@ -45,44 +45,92 @@ function parseRateLimit(value: string | undefined, fallback: number): number {
   return parsed;
 }
 
+function rateLimitFallback(normal: number, test: number): number {
+  return process.env.NODE_ENV === "test" ? test : normal;
+}
+
 export function getLoginRateLimitMax(): number {
-  return parseRateLimit(process.env.LOGIN_RATE_LIMIT_MAX, 10);
+  return parseRateLimit(
+    process.env.LOGIN_RATE_LIMIT_MAX,
+    rateLimitFallback(10, 1000)
+  );
 }
 
 export function getLoginRateLimitWindowMs(): number {
-  return parseRateLimit(process.env.LOGIN_RATE_LIMIT_WINDOW_MS, 60_000);
+  return parseRateLimit(
+    process.env.LOGIN_RATE_LIMIT_WINDOW_MS,
+    rateLimitFallback(60_000, 60_000)
+  );
 }
 
 export function getRefreshRateLimitMax(): number {
-  return parseRateLimit(process.env.REFRESH_RATE_LIMIT_MAX, 10);
+  return parseRateLimit(
+    process.env.REFRESH_RATE_LIMIT_MAX,
+    rateLimitFallback(10, 1000)
+  );
 }
 
 export function getRefreshRateLimitWindowMs(): number {
-  return parseRateLimit(process.env.REFRESH_RATE_LIMIT_WINDOW_MS, 60_000);
+  return parseRateLimit(
+    process.env.REFRESH_RATE_LIMIT_WINDOW_MS,
+    rateLimitFallback(60_000, 60_000)
+  );
 }
 
 export function getPasswordResetRateLimitMax(): number {
-  return parseRateLimit(process.env.PASSWORD_RESET_RATE_LIMIT_MAX, 5);
+  return parseRateLimit(
+    process.env.PASSWORD_RESET_RATE_LIMIT_MAX,
+    rateLimitFallback(5, 500)
+  );
 }
 
 export function getPasswordResetRateLimitWindowMs(): number {
-  return parseRateLimit(process.env.PASSWORD_RESET_RATE_LIMIT_WINDOW_MS, 60_000);
+  return parseRateLimit(
+    process.env.PASSWORD_RESET_RATE_LIMIT_WINDOW_MS,
+    rateLimitFallback(60_000, 60_000)
+  );
 }
 
 export function getDocumentUploadRateLimitMax(): number {
-  return parseRateLimit(process.env.DOCUMENT_UPLOAD_RATE_LIMIT_MAX, 20);
+  return parseRateLimit(
+    process.env.DOCUMENT_UPLOAD_RATE_LIMIT_MAX,
+    rateLimitFallback(20, 2000)
+  );
 }
 
 export function getDocumentUploadRateLimitWindowMs(): number {
-  return parseRateLimit(process.env.DOCUMENT_UPLOAD_RATE_LIMIT_WINDOW_MS, 60_000);
+  return parseRateLimit(
+    process.env.DOCUMENT_UPLOAD_RATE_LIMIT_WINDOW_MS,
+    rateLimitFallback(60_000, 60_000)
+  );
 }
 
 export function getLenderSubmissionRateLimitMax(): number {
-  return parseRateLimit(process.env.LENDER_SUBMISSION_RATE_LIMIT_MAX, 10);
+  return parseRateLimit(
+    process.env.LENDER_SUBMISSION_RATE_LIMIT_MAX,
+    rateLimitFallback(10, 1000)
+  );
 }
 
 export function getLenderSubmissionRateLimitWindowMs(): number {
-  return parseRateLimit(process.env.LENDER_SUBMISSION_RATE_LIMIT_WINDOW_MS, 60_000);
+  return parseRateLimit(
+    process.env.LENDER_SUBMISSION_RATE_LIMIT_WINDOW_MS,
+    rateLimitFallback(60_000, 60_000)
+  );
+}
+
+export function getAdminRateLimitMax(): number {
+  return parseRateLimit(
+    process.env.ADMIN_RATE_LIMIT_MAX,
+    rateLimitFallback(120, 2000)
+  );
+}
+
+export function getAdminRateLimitWindowMs(): number {
+  return parseRateLimit(
+    process.env.ADMIN_RATE_LIMIT_WINDOW_MS,
+    rateLimitFallback(60_000, 60_000)
+  );
 }
 
 export function getBuildInfo(): { commitHash: string; buildTimestamp: string } {

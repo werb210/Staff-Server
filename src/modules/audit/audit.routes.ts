@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { AppError } from "../../middleware/errors";
 import { listAuditEvents } from "./audit.repo";
+import { recordAuditEvent } from "./audit.service";
 
 const router = Router();
 
@@ -30,6 +31,15 @@ router.get("/events", async (req, res, next) => {
       to: toDate,
       limit: parsedLimit,
       offset: parsedOffset,
+    });
+
+    await recordAuditEvent({
+      action: "audit_view",
+      actorUserId: req.user?.userId ?? null,
+      targetUserId: null,
+      ip: req.ip,
+      userAgent: req.get("user-agent"),
+      success: true,
     });
 
     res.json({ events, limit: parsedLimit, offset: parsedOffset });

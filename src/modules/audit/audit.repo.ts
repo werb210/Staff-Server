@@ -10,6 +10,7 @@ export type AuditEventRecord = {
   action: string;
   ip: string | null;
   user_agent: string | null;
+  request_id: string | null;
   success: boolean;
   created_at: Date;
 };
@@ -56,7 +57,7 @@ export async function listAuditEvents(params: {
   values.push(params.offset);
 
   const res = await runner.query<AuditEventRecord>(
-    `select id, actor_user_id, target_user_id, action, ip, user_agent, success, created_at
+    `select id, actor_user_id, target_user_id, action, ip, user_agent, request_id, success, created_at
      from audit_events
      ${where}
      order by created_at desc
