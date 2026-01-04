@@ -1,0 +1,231 @@
+import { randomUUID } from "crypto";
+import { pool } from "../../db";
+import { type PoolClient } from "pg";
+import { type OcrJobRecord, type OcrJobStatus, type OcrResultRecord } from "./ocr.types";
+
+export type Queryable = Pick<PoolClient, "query">;
+
+export async function createOcrJob(params: {
+  documentId: string;
+  applicationId: string;
+  maxAttempts: number;
+  client?: Queryable;
+}): Promise<OcrJobRecord> {
+  const runner = params.client ?? pool;
+  const res = await runner.query<OcrJobRecord>(
+    `insert into ocr_jobs
+     (id, document_id, application_id, status, attempt_count, max_attempts, next_attempt_at, created_at, updated_at)
+     values ($1, $2, $3, 'queued', 0, $4, now(), now(), now())
+     on conflict (document_id)
+     do update set updated_at = ocr_jobs.updated_at
+     returning id, document_id, application_id, status, attempt_count, max_attempts,
+               next_attempt_at, locked_at, locked_by, last_error, created_at, updated_at`,
+    [randomUUID(), params.documentId, params.applicationId, params.maxAttempts]
+  );
+  return res.rows[0];
+}
+
+export async function lockOcrJobs(params: {
+  limit: number;
+  lockedBy: string;
+  client?: Queryable;
+}): Promise<OcrJobRecord[]> {
+  const runner = params.client ?? pool;
+  if (process.env.NODE_ENV === "test" || process.env.DATABASE_URL === "pg-mem") {
+    const ids = await runner.query<{ id: string }>(
+      `select id
+       from ocr_jobs
+       where status in ('queued', 'failed')
+         and locked_at is null
+       order by created_at asc
+       limit $1`,
+      [params.limit]
+    );
+    if (ids.rows.length === 0) {
+      return [];
+    }
+    const locked: OcrJobRecord[] = [];
+    for (const row of ids.rows) {
+      const res = await runner.query<OcrJobRecord>(
+        `update ocr_jobs
+         set status = 'processing',
+             locked_at = now()::timestamp,
+             locked_by = $2,
+             updated_at = now()::timestamp
+         where id = $1
+         returning id, document_id, application_id, status, attempt_count, max_attempts,
+                   next_attempt_at, locked_at, locked_by, last_error, created_at, updated_at`,
+        [row.id, params.lockedBy]
+      );
+      if (res.rows[0]) {
+        locked.push(res.rows[0]);
+      }
+    }
+    return locked;
+  }
+  const res = await runner.query<OcrJobRecord>(
+    `with candidates as (
+       select id
+       from ocr_jobs
+       where status in ('queued', 'failed')
+         and (next_attempt_at is null or next_attempt_at <= now()::timestamp)
+         and locked_at is null
+       order by created_at asc
+       limit $1
+       for update skip locked
+     )
+     update ocr_jobs
+     set status = 'processing',
+         locked_at = now()::timestamp,
+         locked_by = $2,
+         updated_at = now()::timestamp
+     where id in (select id from candidates)
+     returning id, document_id, application_id, status, attempt_count, max_attempts,
+               next_attempt_at, locked_at, locked_by, last_error, created_at, updated_at`,
+    [params.limit, params.lockedBy]
+  );
+  return res.rows;
+}
+
+export async function markOcrJobSuccess(params: {
+  jobId: string;
+  documentId: string;
+  provider: string;
+  model: string;
+  extractedText: string;
+  extractedJson: unknown | null;
+  meta: unknown | null;
+  client?: PoolClient;
+}): Promise<void> {
+  const runner = params.client ?? (await pool.connect());
+  const release = params.client ? null : () => (runner as PoolClient).release();
+  await runner.query("begin");
+  try {
+    await runner.query(
+      `insert into ocr_results
+       (id, document_id, provider, model, extracted_text, extracted_json, meta, created_at, updated_at)
+       values ($1, $2, $3, $4, $5, $6, $7, now(), now())
+       on conflict (document_id)
+       do update set provider = excluded.provider,
+                     model = excluded.model,
+                     extracted_text = excluded.extracted_text,
+                     extracted_json = excluded.extracted_json,
+                     meta = excluded.meta,
+                     updated_at = excluded.updated_at`,
+      [
+        randomUUID(),
+        params.documentId,
+        params.provider,
+        params.model,
+        params.extractedText,
+        params.extractedJson,
+        params.meta,
+      ]
+    );
+    await runner.query(
+      `update ocr_jobs
+       set status = 'succeeded',
+           next_attempt_at = null,
+           locked_at = null,
+           locked_by = null,
+           last_error = null,
+           updated_at = now()
+       where id = $1`,
+      [params.jobId]
+    );
+    await runner.query("commit");
+  } catch (error) {
+    await runner.query("rollback");
+    throw error;
+  } finally {
+    release?.();
+  }
+}
+
+export async function markOcrJobFailure(params: {
+  jobId: string;
+  attemptCount: number;
+  status: OcrJobStatus;
+  lastError: string;
+  nextAttemptAt: Date | null;
+  maxAttempts: number;
+  client?: Queryable;
+}): Promise<OcrJobRecord | null> {
+  const runner = params.client ?? pool;
+  const res = await runner.query<OcrJobRecord>(
+    `update ocr_jobs
+     set attempt_count = $2,
+         status = $3,
+         next_attempt_at = $4,
+         max_attempts = $5::int,
+         locked_at = null,
+         locked_by = null,
+         last_error = $6,
+         updated_at = now()
+     where id = $1
+     returning id, document_id, application_id, status, attempt_count, max_attempts,
+               next_attempt_at, locked_at, locked_by, last_error, created_at, updated_at`,
+    [
+      params.jobId,
+      params.attemptCount,
+      params.status,
+      params.nextAttemptAt,
+      params.maxAttempts,
+      params.lastError,
+    ]
+  );
+  return res.rows[0] ?? null;
+}
+
+export async function resetOcrJob(params: {
+  jobId: string;
+  client?: Queryable;
+}): Promise<OcrJobRecord | null> {
+  const runner = params.client ?? pool;
+  const res = await runner.query<OcrJobRecord>(
+    `update ocr_jobs
+     set status = 'queued',
+         attempt_count = 0,
+         next_attempt_at = now(),
+         locked_at = null,
+         locked_by = null,
+         last_error = null,
+         updated_at = now()
+     where id = $1
+     returning id, document_id, application_id, status, attempt_count, max_attempts,
+               next_attempt_at, locked_at, locked_by, last_error, created_at, updated_at`,
+    [params.jobId]
+  );
+  return res.rows[0] ?? null;
+}
+
+export async function findOcrJobByDocumentId(
+  documentId: string,
+  client?: Queryable
+): Promise<OcrJobRecord | null> {
+  const runner = client ?? pool;
+  const res = await runner.query<OcrJobRecord>(
+    `select id, document_id, application_id, status, attempt_count, max_attempts,
+            next_attempt_at, locked_at, locked_by, last_error, created_at, updated_at
+     from ocr_jobs
+     where document_id = $1
+     limit 1`,
+    [documentId]
+  );
+  return res.rows[0] ?? null;
+}
+
+export async function findOcrResultByDocumentId(
+  documentId: string,
+  client?: Queryable
+): Promise<OcrResultRecord | null> {
+  const runner = client ?? pool;
+  const res = await runner.query<OcrResultRecord>(
+    `select id, document_id, provider, model, extracted_text, extracted_json, meta, created_at, updated_at
+     from ocr_results
+     where document_id = $1
+     limit 1`,
+    [documentId]
+  );
+  return res.rows[0] ?? null;
+}

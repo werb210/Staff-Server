@@ -241,3 +241,47 @@ export function getOpsKillSwitchExports(): boolean {
 export function getOpsKillSwitchLenderTransmission(): boolean {
   return parseBoolean(process.env.OPS_KILL_SWITCH_LENDER_TRANSMISSION, false);
 }
+
+export function getOpsKillSwitchOcr(): boolean {
+  return parseBoolean(process.env.OPS_KILL_SWITCH_OCR, false);
+}
+
+export function getOcrEnabled(): boolean {
+  return parseBoolean(process.env.OCR_ENABLED, true);
+}
+
+export function getOcrProvider(): string {
+  return process.env.OCR_PROVIDER ?? "openai";
+}
+
+export function getOcrTimeoutMs(): number {
+  return parseIntervalMs(process.env.OCR_TIMEOUT_MS, 30_000);
+}
+
+export function getOcrMaxAttempts(): number {
+  const value = Number(process.env.OCR_MAX_ATTEMPTS ?? "5");
+  if (Number.isNaN(value) || value < 1) {
+    return 5;
+  }
+  return value;
+}
+
+export function getOcrWorkerConcurrency(): number {
+  const value = Number(process.env.OCR_WORKER_CONCURRENCY ?? "4");
+  if (Number.isNaN(value) || value < 1) {
+    return 4;
+  }
+  return value;
+}
+
+export function getOcrPollIntervalMs(): number {
+  return parseIntervalMs(process.env.OCR_POLL_INTERVAL_MS, 10_000);
+}
+
+export function getOpenAiApiKey(): string | null {
+  return process.env.OPENAI_API_KEY ?? null;
+}
+
+export function getOpenAiOcrModel(): string {
+  return process.env.OPENAI_OCR_MODEL ?? "gpt-4o-mini";
+}

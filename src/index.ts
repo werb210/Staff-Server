@@ -17,6 +17,7 @@ import { assertEnv } from "./config";
 import { assertSchema, checkDb, pool } from "./db";
 import { assertNoPendingMigrations, runMigrations } from "./migrations";
 import { startReportingJobs } from "./modules/reporting/reporting.jobs";
+import { startOcrWorker } from "./modules/ocr/ocr.worker";
 
 export function buildApp() {
   const app = express();
@@ -60,6 +61,7 @@ async function start(): Promise<void> {
     console.log(`Server listening on ${port}`);
   });
   const jobs = startReportingJobs();
+  const ocrWorker = startOcrWorker();
 
   let shuttingDown = false;
   const shutdown = (signal: string) => {
@@ -75,6 +77,7 @@ async function start(): Promise<void> {
       }
       try {
         jobs?.stop();
+        ocrWorker?.stop();
         await pool.end();
         process.exit(0);
       } catch (error) {

@@ -151,6 +151,21 @@ export async function findDocumentByApplicationAndType(params: {
   return res.rows[0] ?? null;
 }
 
+export async function listDocumentsByApplicationId(
+  applicationId: string,
+  client?: Queryable
+): Promise<DocumentRecord[]> {
+  const runner = client ?? pool;
+  const res = await runner.query<DocumentRecord>(
+    `select id, application_id, owner_user_id, title, document_type, created_at
+     from documents
+     where application_id = $1
+     order by created_at asc`,
+    [applicationId]
+  );
+  return res.rows;
+}
+
 export async function getLatestDocumentVersion(
   documentId: string,
   client?: Queryable
