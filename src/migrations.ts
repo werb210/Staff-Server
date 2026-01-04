@@ -3,12 +3,6 @@ import path from "path";
 import { pool } from "./db";
 
 const migrationsDir = path.join(process.cwd(), "migrations");
-function isTestDatabase(): boolean {
-  return (
-    process.env.NODE_ENV === "test" &&
-    (!process.env.DATABASE_URL || process.env.DATABASE_URL === "pg-mem")
-  );
-}
 
 function listMigrationFiles(): string[] {
   if (!fs.existsSync(migrationsDir)) {
@@ -21,33 +15,116 @@ function listMigrationFiles(): string[] {
 }
 
 async function ensureMigrationsTable(): Promise<void> {
-  if (isTestDatabase()) {
-    await pool.query(
-      `create table if not exists schema_migrations (
-        id text,
-        applied_at timestamp
-      )`
-    );
-    return;
-  }
-
   await pool.query(
     `create table if not exists schema_migrations (
-      id text primary key,
-      applied_at timestamp not null
+      id text,
+      applied_at timestamp
     )`
   );
 }
 
 function splitSql(sql: string): string[] {
-  return sql
-    .split(";")
-    .map((statement) => statement.trim())
-    .filter(
-      (statement) =>
-        statement.length > 0 &&
-        !/^alter\s+table\s+\w+$/i.test(statement)
-    );
+  const statements: string[] = [];
+  let current = "";
+  let inSingleQuote = false;
+  let inDoubleQuote = false;
+  let inLineComment = false;
+  let inBlockComment = false;
+  let dollarQuoteTag: string | null = null;
+
+  for (let i = 0; i < sql.length; i += 1) {
+    const char = sql[i];
+    const nextChar = sql[i + 1];
+
+    if (inLineComment) {
+      current += char;
+      if (char === "\n") {
+        inLineComment = false;
+      }
+      continue;
+    }
+
+    if (inBlockComment) {
+      current += char;
+      if (char === "*" && nextChar === "/") {
+        current += nextChar;
+        i += 1;
+        inBlockComment = false;
+      }
+      continue;
+    }
+
+    if (dollarQuoteTag) {
+      current += char;
+      if (char === "$") {
+        const tagLength = dollarQuoteTag.length;
+        const possibleTag = sql.slice(i - tagLength + 1, i + 1);
+        if (possibleTag === dollarQuoteTag) {
+          dollarQuoteTag = null;
+        }
+      }
+      continue;
+    }
+
+    if (!inSingleQuote && !inDoubleQuote) {
+      if (char === "-" && nextChar === "-") {
+        current += char + nextChar;
+        i += 1;
+        inLineComment = true;
+        continue;
+      }
+      if (char === "/" && nextChar === "*") {
+        current += char + nextChar;
+        i += 1;
+        inBlockComment = true;
+        continue;
+      }
+      if (char === "$") {
+        const tagMatch = sql.slice(i).match(/^\$[a-zA-Z0-9_]*\$/);
+        if (tagMatch) {
+          dollarQuoteTag = tagMatch[0];
+          current += tagMatch[0];
+          i += tagMatch[0].length - 1;
+          continue;
+        }
+      }
+    }
+
+    if (char === "'" && !inDoubleQuote) {
+      current += char;
+      if (inSingleQuote && nextChar === "'") {
+        current += nextChar;
+        i += 1;
+      } else {
+        inSingleQuote = !inSingleQuote;
+      }
+      continue;
+    }
+
+    if (char === '"' && !inSingleQuote) {
+      current += char;
+      inDoubleQuote = !inDoubleQuote;
+      continue;
+    }
+
+    if (char === ";" && !inSingleQuote && !inDoubleQuote) {
+      const trimmed = current.trim();
+      if (trimmed.length > 0) {
+        statements.push(trimmed);
+      }
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  const trimmed = current.trim();
+  if (trimmed.length > 0) {
+    statements.push(trimmed);
+  }
+
+  return statements;
 }
 
 async function fetchAppliedMigrations(): Promise<Set<string>> {
@@ -61,7 +138,6 @@ export async function runMigrations(): Promise<void> {
   await ensureMigrationsTable();
   const migrationFiles = listMigrationFiles();
   const applied = await fetchAppliedMigrations();
-  const isTest = process.env.NODE_ENV === "test";
 
   for (const file of migrationFiles) {
     if (applied.has(file)) {
@@ -73,14 +149,6 @@ export async function runMigrations(): Promise<void> {
       await client.query("begin");
       const statements = splitSql(rawSql);
       for (const statement of statements) {
-        if (isTest) {
-          if (/^create\s+index/i.test(statement)) {
-            continue;
-          }
-          if (/^alter\s+table\s+/i.test(statement)) {
-            continue;
-          }
-        }
         await client.query(statement);
       }
       await client.query(
