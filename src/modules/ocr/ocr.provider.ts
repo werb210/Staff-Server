@@ -1,0 +1,133 @@
+import { getOcrTimeoutMs, getOpenAiApiKey, getOpenAiOcrModel } from "../../config";
+
+export type OcrExtractionResult = {
+  text: string;
+  json: unknown | null;
+  meta: unknown | null;
+  model: string;
+  provider: string;
+};
+
+export type OcrProvider = {
+  extract: (params: { buffer: Buffer; mimeType: string; fileName?: string }) => Promise<OcrExtractionResult>;
+};
+
+function extractOutputText(payload: Record<string, unknown>): string {
+  if (typeof payload.output_text === "string") {
+    return payload.output_text;
+  }
+  const output = payload.output;
+  if (!Array.isArray(output)) {
+    return "";
+  }
+  const chunks: string[] = [];
+  for (const item of output) {
+    if (!item || typeof item !== "object") {
+      continue;
+    }
+    const content = (item as { content?: unknown }).content;
+    if (!Array.isArray(content)) {
+      continue;
+    }
+    for (const entry of content) {
+      if (!entry || typeof entry !== "object") {
+        continue;
+      }
+      const type = (entry as { type?: string }).type;
+      const text = (entry as { text?: string }).text;
+      if (type === "output_text" && typeof text === "string") {
+        chunks.push(text);
+      }
+    }
+  }
+  return chunks.join("\n").trim();
+}
+
+function parseStructuredJson(text: string): unknown | null {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return null;
+  }
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
+    return null;
+  }
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return null;
+  }
+}
+
+export function createOpenAiOcrProvider(): OcrProvider {
+  return {
+    async extract(params) {
+      const apiKey = getOpenAiApiKey();
+      if (!apiKey) {
+        throw new Error("missing_openai_api_key");
+      }
+      const model = getOpenAiOcrModel();
+      const timeoutMs = getOcrTimeoutMs();
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const base64 = params.buffer.toString("base64");
+        const content: Array<Record<string, unknown>> = [
+          {
+            type: "input_text",
+            text: "Extract all readable text from this document. Return plain text only.",
+          },
+        ];
+
+        if (params.mimeType === "application/pdf") {
+          content.push({
+            type: "input_file",
+            filename: params.fileName ?? "document.pdf",
+            file_data: base64,
+          });
+        } else if (params.mimeType.startsWith("image/")) {
+          content.push({
+            type: "input_image",
+            image_url: `data:${params.mimeType};base64,${base64}`,
+          });
+        } else {
+          throw new Error("unsupported_mime_type");
+        }
+
+        const response = await fetch("https://api.openai.com/v1/responses", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model,
+            input: [
+              {
+                role: "user",
+                content,
+              },
+            ],
+          }),
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          const message = await response.text();
+          throw new Error(`openai_ocr_failed:${response.status}:${message}`);
+        }
+
+        const payload = (await response.json()) as Record<string, unknown>;
+        const text = extractOutputText(payload);
+        return {
+          text,
+          json: parseStructuredJson(text),
+          meta: { id: payload.id ?? null },
+          model,
+          provider: "openai",
+        };
+      } finally {
+        clearTimeout(timeout);
+      }
+    },
+  };
+}

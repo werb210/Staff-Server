@@ -91,6 +91,19 @@ BI aggregation jobs can be controlled via:
 - `BI_DAILY_JOB_INTERVAL_MS`
 - `BI_HOURLY_JOB_INTERVAL_MS`
 
+## OCR pipeline
+
+OCR jobs can be queued and reviewed via admin endpoints:
+
+- `POST /api/admin/ocr/documents/:documentId/enqueue`
+- `POST /api/admin/ocr/applications/:applicationId/enqueue`
+- `GET /api/admin/ocr/documents/:documentId/status`
+- `GET /api/admin/ocr/documents/:documentId/result`
+- `POST /api/admin/ocr/documents/:documentId/retry`
+
+Disable OCR by setting `OCR_ENABLED=false` or by enabling the OCR kill switch
+(`OPS_KILL_SWITCH_OCR=true` or `POST /api/admin/ops/kill-switches/ocr/enable`).
+
 ## Additional environment variables
 
 - `CLIENT_SUBMISSION_RATE_LIMIT_MAX`
@@ -101,6 +114,14 @@ BI aggregation jobs can be controlled via:
 - `LENDER_RETRY_BASE_DELAY_MS`
 - `LENDER_RETRY_MAX_DELAY_MS`
 - `LENDER_RETRY_MAX_COUNT`
+- `OCR_ENABLED` (default: true)
+- `OCR_PROVIDER` (default: openai)
+- `OCR_TIMEOUT_MS`
+- `OCR_MAX_ATTEMPTS`
+- `OCR_WORKER_CONCURRENCY`
+- `OCR_POLL_INTERVAL_MS`
+- `OPENAI_API_KEY`
+- `OPENAI_OCR_MODEL`
 
 ## Ops Control Plane
 
@@ -177,6 +198,7 @@ variables (all default to `false`):
 - `OPS_KILL_SWITCH_REPLAY`
 - `OPS_KILL_SWITCH_EXPORTS`
 - `OPS_KILL_SWITCH_LENDER_TRANSMISSION`
+- `OPS_KILL_SWITCH_OCR`
 
 Enable the exports kill switch:
 

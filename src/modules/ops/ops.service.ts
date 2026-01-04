@@ -2,6 +2,7 @@ import { pool } from "../../db";
 import {
   getOpsKillSwitchExports,
   getOpsKillSwitchLenderTransmission,
+  getOpsKillSwitchOcr,
   getOpsKillSwitchReplay,
 } from "../../config";
 
@@ -9,6 +10,7 @@ export const OPS_KILL_SWITCH_KEYS = [
   "replay",
   "exports",
   "lender_transmission",
+  "ocr",
 ] as const;
 
 export type OpsKillSwitchKey = (typeof OPS_KILL_SWITCH_KEYS)[number];
@@ -19,6 +21,9 @@ function getEnvKillSwitch(key: OpsKillSwitchKey): boolean {
   }
   if (key === "exports") {
     return getOpsKillSwitchExports();
+  }
+  if (key === "ocr") {
+    return getOpsKillSwitchOcr();
   }
   return getOpsKillSwitchLenderTransmission();
 }
