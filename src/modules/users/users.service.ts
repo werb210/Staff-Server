@@ -20,7 +20,7 @@ export async function setUserStatus(params: {
   const user = await findAuthUserById(params.userId);
   if (!user) {
     await recordAuditEvent({
-      action: params.active ? "user_enable" : "user_disable",
+      action: params.active ? "user_enabled" : "user_disabled",
       actorUserId: params.actorId,
       targetUserId: params.userId,
       ip: params.ip,
@@ -47,7 +47,7 @@ export async function setUserStatus(params: {
       });
     }
     await recordAuditEvent({
-      action: params.active ? "user_enable" : "user_disable",
+      action: params.active ? "user_enabled" : "user_disabled",
       actorUserId: params.actorId,
       targetUserId: params.userId,
       ip: params.ip,
@@ -59,7 +59,7 @@ export async function setUserStatus(params: {
   } catch (err) {
     await client.query("rollback");
     await recordAuditEvent({
-      action: params.active ? "user_enable" : "user_disable",
+      action: params.active ? "user_enabled" : "user_disabled",
       actorUserId: params.actorId,
       targetUserId: params.userId,
       ip: params.ip,
@@ -82,7 +82,7 @@ export async function changeUserRole(params: {
   const user = await findAuthUserById(params.userId);
   if (!user) {
     await recordAuditEvent({
-      action: "user_role_change",
+      action: "user_role_changed",
       actorUserId: params.actorId,
       targetUserId: params.userId,
       ip: params.ip,
@@ -107,7 +107,7 @@ export async function changeUserRole(params: {
       client,
     });
     await recordAuditEvent({
-      action: "user_role_change",
+      action: "user_role_changed",
       actorUserId: params.actorId,
       targetUserId: params.userId,
       ip: params.ip,
@@ -119,7 +119,7 @@ export async function changeUserRole(params: {
   } catch (err) {
     await client.query("rollback");
     await recordAuditEvent({
-      action: "user_role_change",
+      action: "user_role_changed",
       actorUserId: params.actorId,
       targetUserId: params.userId,
       ip: params.ip,

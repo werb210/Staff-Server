@@ -473,7 +473,7 @@ export async function createUserAccount(params: {
       client,
     });
     await recordAuditEvent({
-      action: "user_create",
+      action: "user_created",
       actorUserId: params.actorUserId ?? null,
       targetUserId: user.id,
       ip: params.ip,
@@ -486,7 +486,7 @@ export async function createUserAccount(params: {
   } catch (err) {
     await client.query("rollback");
     await recordAuditEvent({
-      action: "user_create",
+      action: "user_created",
       actorUserId: params.actorUserId ?? null,
       targetUserId: null,
       ip: params.ip,
@@ -583,7 +583,7 @@ export async function requestPasswordReset(params: {
   const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
   await createPasswordReset({ userId: params.userId, tokenHash, expiresAt });
   await recordAuditEvent({
-    action: "password_reset_request",
+    action: "password_reset_requested",
     actorUserId: params.actorUserId ?? null,
     targetUserId: params.userId,
     ip: params.ip,
@@ -603,7 +603,7 @@ export async function confirmPasswordReset(params: {
   const record = await findPasswordReset(tokenHash);
   if (!record || record.used_at || record.expires_at.getTime() < Date.now()) {
     await recordAuditEvent({
-      action: "password_reset",
+      action: "password_reset_completed",
       actorUserId: null,
       targetUserId: record?.user_id ?? null,
       ip: params.ip,
@@ -615,7 +615,7 @@ export async function confirmPasswordReset(params: {
 
   if (!timingSafeTokenCompare(record.token_hash, tokenHash)) {
     await recordAuditEvent({
-      action: "password_reset",
+      action: "password_reset_completed",
       actorUserId: null,
       targetUserId: record.user_id,
       ip: params.ip,
@@ -639,7 +639,7 @@ export async function confirmPasswordReset(params: {
     success: true,
   });
   await recordAuditEvent({
-    action: "password_reset",
+    action: "password_reset_completed",
     actorUserId: null,
     targetUserId: record.user_id,
     ip: params.ip,

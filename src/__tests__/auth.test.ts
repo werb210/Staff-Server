@@ -12,10 +12,15 @@ import fs from "fs";
 import path from "path";
 import { requireAuth, requireCapability } from "../middleware/auth";
 import { errorHandler } from "../middleware/errors";
+import { createHash } from "crypto";
 
 const app = buildApp();
 
 async function resetDb(): Promise<void> {
+  await pool.query("delete from lender_submissions");
+  await pool.query("delete from document_versions");
+  await pool.query("delete from documents");
+  await pool.query("delete from applications");
   await pool.query("delete from auth_refresh_tokens");
   await pool.query("delete from password_resets");
   await pool.query("delete from audit_events");
@@ -626,6 +631,112 @@ describe("auth", () => {
       .set("Authorization", `Bearer ${login.body.accessToken}`);
     expect(me.status).toBe(403);
     expect(me.body.code).toBe("user_disabled");
+  });
+
+  it("handles password reset lifecycle", async () => {
+    const admin = await createUserAccount({
+      email: "reset-admin@example.com",
+      password: "Password123!",
+      role: ROLES.ADMIN,
+    });
+    const user = await createUserAccount({
+      email: "reset-user@example.com",
+      password: "Password123!",
+      role: ROLES.STAFF,
+    });
+
+    const adminLogin = await request(app).post("/api/auth/login").send({
+      email: admin.email,
+      password: "Password123!",
+    });
+    const userLogin = await request(app).post("/api/auth/login").send({
+      email: user.email,
+      password: "Password123!",
+    });
+
+    const resetRequest = await request(app)
+      .post("/api/auth/password-reset/request")
+      .set("Authorization", `Bearer ${adminLogin.body.accessToken}`)
+      .send({ userId: user.id });
+    expect(resetRequest.status).toBe(200);
+    expect(resetRequest.body.token).toBeDefined();
+
+    const confirm = await request(app)
+      .post("/api/auth/password-reset/confirm")
+      .send({ token: resetRequest.body.token, newPassword: "NewPassword123!" });
+    expect(confirm.status).toBe(200);
+
+    const refresh = await request(app).post("/api/auth/refresh").send({
+      refreshToken: userLogin.body.refreshToken,
+    });
+    expect(refresh.status).toBe(401);
+    expect(refresh.body.code).toBe("invalid_token");
+
+    const audit = await pool.query(
+      `select action, success
+       from audit_events
+       where action in ('password_reset_requested', 'password_reset_completed')
+       order by created_at asc`
+    );
+    expect(audit.rows).toEqual([
+      { action: "password_reset_requested", success: true },
+      { action: "password_reset_completed", success: true },
+    ]);
+  });
+
+  it("rejects expired or reused reset tokens", async () => {
+    const admin = await createUserAccount({
+      email: "reset-expired-admin@example.com",
+      password: "Password123!",
+      role: ROLES.ADMIN,
+    });
+    const user = await createUserAccount({
+      email: "reset-expired-user@example.com",
+      password: "Password123!",
+      role: ROLES.STAFF,
+    });
+
+    const adminLogin = await request(app).post("/api/auth/login").send({
+      email: admin.email,
+      password: "Password123!",
+    });
+
+    const resetRequest = await request(app)
+      .post("/api/auth/password-reset/request")
+      .set("Authorization", `Bearer ${adminLogin.body.accessToken}`)
+      .send({ userId: user.id });
+    expect(resetRequest.status).toBe(200);
+
+    const expiredHash = createHash("sha256")
+      .update(resetRequest.body.token)
+      .digest("hex");
+    await pool.query(
+      `update password_resets set expires_at = $1 where token_hash = $2`,
+      [new Date(Date.now() - 60 * 1000), expiredHash]
+    );
+
+    const expired = await request(app)
+      .post("/api/auth/password-reset/confirm")
+      .send({ token: resetRequest.body.token, newPassword: "OtherPass123!" });
+    expect(expired.status).toBe(401);
+    expect(expired.body.code).toBe("invalid_token");
+
+    const freshRequest = await request(app)
+      .post("/api/auth/password-reset/request")
+      .set("Authorization", `Bearer ${adminLogin.body.accessToken}`)
+      .send({ userId: user.id });
+    expect(freshRequest.status).toBe(200);
+
+    const firstConfirm = await request(app)
+      .post("/api/auth/password-reset/confirm")
+      .send({ token: freshRequest.body.token, newPassword: "OtherPass123!" });
+    expect(firstConfirm.status).toBe(200);
+
+    const reuse = await request(app)
+      .post("/api/auth/password-reset/confirm")
+      .send({ token: freshRequest.body.token, newPassword: "OtherPass123!" });
+    expect(reuse.status).toBe(401);
+    expect(reuse.body.code).toBe("invalid_token");
   });
 
   it("fails startup when migrations are pending", async () => {

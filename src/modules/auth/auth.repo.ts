@@ -210,8 +210,8 @@ export async function createPasswordReset(params: {
   expiresAt: Date;
 }): Promise<void> {
   await pool.query(
-    `insert into password_resets (id, user_id, token_hash, expires_at, used_at)
-     values ($1, $2, $3, $4, null)`,
+    `insert into password_resets (id, user_id, token_hash, expires_at, used_at, created_at)
+     values ($1, $2, $3, $4, null, now())`,
     [randomUUID(), params.userId, params.tokenHash, params.expiresAt]
   );
 }
