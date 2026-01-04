@@ -2,6 +2,9 @@ import { Router } from "express";
 import { checkDb } from "../db";
 import { assertEnv, getBuildInfo } from "../config";
 import { getSchemaVersion } from "../migrations";
+import { listKillSwitches } from "../modules/ops/ops.service";
+import { listActiveReplayJobs } from "../modules/ops/replay.service";
+import { listRecentExports } from "../modules/exports/export.service";
 
 const router = Router();
 
@@ -41,6 +44,21 @@ router.get("/version", async (_req, res) => {
       requestId,
     });
   }
+});
+
+router.get("/ops", async (_req, res) => {
+  const switches = await listKillSwitches();
+  res.json({ switches });
+});
+
+router.get("/jobs", async (_req, res) => {
+  const jobs = await listActiveReplayJobs();
+  res.json({ jobs });
+});
+
+router.get("/exports/recent", async (_req, res) => {
+  const exports = await listRecentExports();
+  res.json({ exports });
 });
 
 export default router;
