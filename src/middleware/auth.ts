@@ -4,10 +4,15 @@ import { AppError, forbiddenError } from "./errors";
 import { type Role } from "../auth/roles";
 import { findAuthUserById } from "../modules/auth/auth.repo";
 import { recordAuditEvent } from "../modules/audit/audit.service";
+import {
+  type Capability,
+  getCapabilitiesForRole,
+} from "../auth/capabilities";
 
 export type AuthenticatedUser = {
   userId: string;
   role: Role;
+  capabilities: Capability[];
 };
 
 type AccessTokenPayload = {
@@ -71,6 +76,7 @@ export function requireAuth(
         req.user = {
           userId: payload.userId,
           role: payload.role,
+          capabilities: getCapabilitiesForRole(payload.role),
         };
         next();
       })
@@ -80,34 +86,40 @@ export function requireAuth(
   }
 }
 
-export function requireRole(roles: readonly Role[]) {
-  const allowed = roles;
-  return (req: Request, _res: Response, next: NextFunction): void => {
-    if (!allowed || allowed.length === 0) {
-      void recordAuditEvent({
-        action: "access_denied",
-        userId: req.user?.userId ?? null,
-        ip: req.ip,
-        userAgent: req.get("user-agent"),
-        success: false,
-      });
-      next(forbiddenError());
-      return;
-    }
-    const userRole = req.user?.role;
+export function requireCapability(capabilities: readonly Capability[]) {
+  const allowed = capabilities;
+  return async (req: Request, _res: Response, next: NextFunction) => {
+    try {
+      if (!allowed || allowed.length === 0) {
+        await recordAuditEvent({
+          action: "access_denied",
+          actorUserId: req.user?.userId ?? null,
+          targetUserId: null,
+          ip: req.ip,
+          userAgent: req.get("user-agent"),
+          success: false,
+        });
+        next(forbiddenError());
+        return;
+      }
+      const userCapabilities = req.user?.capabilities ?? [];
 
-    if (!userRole || !allowed.includes(userRole)) {
-      void recordAuditEvent({
-        action: "access_denied",
-        userId: req.user?.userId ?? null,
-        ip: req.ip,
-        userAgent: req.get("user-agent"),
-        success: false,
-      });
-      next(forbiddenError());
-      return;
-    }
+      if (!allowed.some((capability) => userCapabilities.includes(capability))) {
+        await recordAuditEvent({
+          action: "access_denied",
+          actorUserId: req.user?.userId ?? null,
+          targetUserId: null,
+          ip: req.ip,
+          userAgent: req.get("user-agent"),
+          success: false,
+        });
+        next(forbiddenError());
+        return;
+      }
 
-    next();
+      next();
+    } catch (err) {
+      next(err);
+    }
   };
 }

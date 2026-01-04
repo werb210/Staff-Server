@@ -1,11 +1,11 @@
 import { Router } from "express";
-import { requireAuth, requireRole } from "../middleware/auth";
-import { ROLES } from "../auth/roles";
+import { requireAuth, requireCapability } from "../middleware/auth";
+import { CAPABILITIES } from "../auth/capabilities";
 
 const router = Router();
 
 router.use(requireAuth);
-router.use(requireRole([ROLES.STAFF]));
+router.use(requireCapability([CAPABILITIES.STAFF_OVERVIEW]));
 
 router.get("/overview", (_req, res) => {
   res.json({ ok: true });

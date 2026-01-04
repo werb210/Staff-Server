@@ -7,7 +7,7 @@ import { requestId } from "./middleware/requestId";
 import { requestLogger } from "./middleware/requestLogger";
 import { errorHandler, notFoundHandler } from "./middleware/errors";
 import { assertEnv } from "./config";
-import { assertSchema, checkDb } from "./db";
+import { assertSchema, checkDb, pool } from "./db";
 import { assertNoPendingMigrations, runMigrations } from "./migrations";
 
 export function buildApp() {
@@ -41,9 +41,34 @@ async function start(): Promise<void> {
   await initializeServer();
   const app = buildApp();
   const port = process.env.PORT || 8080;
-  app.listen(port, () => {
+  const server = app.listen(port, () => {
     console.log(`Server listening on ${port}`);
   });
+
+  let shuttingDown = false;
+  const shutdown = (signal: string) => {
+    if (shuttingDown) {
+      return;
+    }
+    shuttingDown = true;
+    console.log(`Received ${signal}, shutting down.`);
+    server.close(async (err) => {
+      if (err) {
+        console.error("server_shutdown_error", err);
+        process.exit(1);
+      }
+      try {
+        await pool.end();
+        process.exit(0);
+      } catch (error) {
+        console.error("db_shutdown_error", error);
+        process.exit(1);
+      }
+    });
+  };
+
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
 }
 
 if (require.main === module) {

@@ -21,7 +21,8 @@ export async function setUserStatus(params: {
   if (!user) {
     await recordAuditEvent({
       action: params.active ? "user_enable" : "user_disable",
-      userId: params.actorId,
+      actorUserId: params.actorId,
+      targetUserId: params.userId,
       ip: params.ip,
       userAgent: params.userAgent,
       success: false,
@@ -35,20 +36,32 @@ export async function setUserStatus(params: {
     if (!params.active) {
       await incrementTokenVersion(params.userId, client);
       await revokeRefreshTokensForUser(params.userId, client);
+      await recordAuditEvent({
+        action: "token_revoke",
+        actorUserId: params.actorId,
+        targetUserId: params.userId,
+        ip: params.ip,
+        userAgent: params.userAgent,
+        success: true,
+        client,
+      });
     }
-    await client.query("commit");
     await recordAuditEvent({
       action: params.active ? "user_enable" : "user_disable",
-      userId: params.actorId,
+      actorUserId: params.actorId,
+      targetUserId: params.userId,
       ip: params.ip,
       userAgent: params.userAgent,
       success: true,
+      client,
     });
+    await client.query("commit");
   } catch (err) {
     await client.query("rollback");
     await recordAuditEvent({
       action: params.active ? "user_enable" : "user_disable",
-      userId: params.actorId,
+      actorUserId: params.actorId,
+      targetUserId: params.userId,
       ip: params.ip,
       userAgent: params.userAgent,
       success: false,
@@ -70,7 +83,8 @@ export async function changeUserRole(params: {
   if (!user) {
     await recordAuditEvent({
       action: "user_role_change",
-      userId: params.actorId,
+      actorUserId: params.actorId,
+      targetUserId: params.userId,
       ip: params.ip,
       userAgent: params.userAgent,
       success: false,
@@ -83,19 +97,31 @@ export async function changeUserRole(params: {
     await updateUserRole(params.userId, params.role, client);
     await incrementTokenVersion(params.userId, client);
     await revokeRefreshTokensForUser(params.userId, client);
-    await client.query("commit");
     await recordAuditEvent({
-      action: "user_role_change",
-      userId: params.actorId,
+      action: "token_revoke",
+      actorUserId: params.actorId,
+      targetUserId: params.userId,
       ip: params.ip,
       userAgent: params.userAgent,
       success: true,
+      client,
     });
+    await recordAuditEvent({
+      action: "user_role_change",
+      actorUserId: params.actorId,
+      targetUserId: params.userId,
+      ip: params.ip,
+      userAgent: params.userAgent,
+      success: true,
+      client,
+    });
+    await client.query("commit");
   } catch (err) {
     await client.query("rollback");
     await recordAuditEvent({
       action: "user_role_change",
-      userId: params.actorId,
+      actorUserId: params.actorId,
+      targetUserId: params.userId,
       ip: params.ip,
       userAgent: params.userAgent,
       success: false,
