@@ -63,6 +63,9 @@ async function downloadAzureBlobFromPath(pathValue: string): Promise<Buffer> {
   }
   const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING;
   if (!connectionString) {
+    console.warn("azure_storage_missing_connection_string", {
+      code: "azure_storage_missing_connection_string",
+    });
     throw new Error("missing_azure_storage_connection_string");
   }
   const container = match[1];

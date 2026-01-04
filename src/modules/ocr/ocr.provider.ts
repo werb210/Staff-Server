@@ -63,6 +63,7 @@ export function createOpenAiOcrProvider(): OcrProvider {
     async extract(params) {
       const apiKey = getOpenAiApiKey();
       if (!apiKey) {
+        console.warn("openai_api_key_missing", { code: "openai_api_key_missing" });
         throw new Error("missing_openai_api_key");
       }
       const model = getOpenAiOcrModel();

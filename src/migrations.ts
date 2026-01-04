@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { pool } from "./db";
+import { isPgMem, pool } from "./db";
 
 const migrationsDir = path.join(process.cwd(), "migrations");
 
@@ -127,6 +127,16 @@ function splitSql(sql: string): string[] {
   return statements;
 }
 
+function normalizeStatementForPgMem(statement: string): string {
+  let normalized = statement;
+  normalized = normalized.replace(/create index if not exists/gi, "create index");
+  normalized = normalized.replace(
+    /alter table ([\w".]+)\s+add column if not exists/gi,
+    "alter table $1 add column"
+  );
+  return normalized;
+}
+
 async function fetchAppliedMigrations(): Promise<Set<string>> {
   const res = await pool.query<{ id: string }>(
     "select id from schema_migrations"
@@ -149,7 +159,8 @@ export async function runMigrations(): Promise<void> {
       await client.query("begin");
       const statements = splitSql(rawSql);
       for (const statement of statements) {
-        await client.query(statement);
+        const normalized = isPgMem ? normalizeStatementForPgMem(statement) : statement;
+        await client.query(normalized);
       }
       await client.query(
         "insert into schema_migrations (id, applied_at) values ($1, now())",
