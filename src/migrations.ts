@@ -127,14 +127,50 @@ function splitSql(sql: string): string[] {
   return statements;
 }
 
+function stripSqlComments(statement: string): string {
+  return statement
+    .replace(/--.*$/gm, "")
+    .replace(/\/\*[\s\S]*?\*\//g, "");
+}
+
+function hasExecutableSql(statement: string): boolean {
+  return stripSqlComments(statement).trim().length > 0;
+}
+
 function normalizeStatementForPgMem(statement: string): string {
   let normalized = statement;
   normalized = normalized.replace(/create index if not exists/gi, "create index");
+  normalized = normalized.replace(/drop index if exists/gi, "drop index");
   normalized = normalized.replace(
     /alter table ([\w".]+)\s+add column if not exists/gi,
     "alter table $1 add column"
   );
+  normalized = normalized.replace(
+    /alter table ([\w".]+)\s+drop constraint if exists/gi,
+    "alter table $1 drop constraint"
+  );
   return normalized;
+}
+
+function shouldIgnorePgMemMigrationError(statement: string, error: unknown): boolean {
+  if (!isPgMem || !(error instanceof Error)) {
+    return false;
+  }
+  const message = error.message.toLowerCase();
+  if (message.includes("already exists")) {
+    if (/^\s*create index/i.test(statement)) {
+      return true;
+    }
+  }
+  if (message.includes("does not exist")) {
+    if (/^\s*alter table[\s\S]+drop constraint/i.test(statement)) {
+      return true;
+    }
+    if (/^\s*drop index/i.test(statement)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 async function fetchAppliedMigrations(): Promise<Set<string>> {
@@ -157,10 +193,20 @@ export async function runMigrations(): Promise<void> {
     const client = await pool.connect();
     try {
       await client.query("begin");
-      const statements = splitSql(rawSql);
+      const statements = splitSql(rawSql).filter(hasExecutableSql);
       for (const statement of statements) {
         const normalized = isPgMem ? normalizeStatementForPgMem(statement) : statement;
-        await client.query(normalized);
+        if (!hasExecutableSql(normalized)) {
+          continue;
+        }
+        try {
+          await client.query(normalized);
+        } catch (error) {
+          if (shouldIgnorePgMemMigrationError(normalized, error)) {
+            continue;
+          }
+          throw error;
+        }
       }
       await client.query(
         "insert into schema_migrations (id, applied_at) values ($1, now())",

@@ -2,8 +2,11 @@ const requiredRuntimeEnv = [
   "DATABASE_URL",
   "JWT_SECRET",
   "JWT_REFRESH_SECRET",
-  "NODE_ENV",
 ] as const;
+
+if (!process.env.NODE_ENV) {
+  process.env.NODE_ENV = "production";
+}
 
 function parsePositiveInt(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
