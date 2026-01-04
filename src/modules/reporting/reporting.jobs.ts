@@ -1,6 +1,5 @@
 import { computeDailyMetricsForDate } from "./dailyMetrics.service";
-import { computeLenderPerformanceForPeriod } from "./lenderPerformance.service";
-import { upsertDailyMetrics, upsertLenderPerformance, upsertPipelineSnapshot } from "./reporting.repo";
+import { upsertDailyMetrics, upsertLenderPerformanceWindow, upsertPipelineSnapshot } from "./reporting.repo";
 import { pool } from "../../db";
 
 function startOfDay(date: Date): Date {
@@ -60,25 +59,8 @@ export async function runPipelineSnapshotJob(now = new Date()): Promise<void> {
 export async function runLenderPerformanceJob(date = new Date()): Promise<void> {
   const periodStart = startOfDay(addDays(date, -1));
   const periodEnd = startOfDay(date);
-  const rows = await computeLenderPerformanceForPeriod({
-    start: periodStart,
-    end: periodEnd,
-  });
-
-  await Promise.all(
-    rows.map((row) =>
-      upsertLenderPerformance({
-        lenderId: row.lenderId,
-        periodStart: periodStart.toISOString().slice(0, 10),
-        periodEnd: periodEnd.toISOString().slice(0, 10),
-        submissions: row.submissions,
-        approvals: row.approvals,
-        declines: row.declines,
-        funded: row.funded,
-        avgDecisionTimeSeconds: row.avgDecisionTimeSeconds,
-      })
-    )
-  );
+  const createdAt = new Date(date);
+  await upsertLenderPerformanceWindow({ periodStart, periodEnd, createdAt });
 }
 
 export function startReportingJobs(): { stop: () => void } {

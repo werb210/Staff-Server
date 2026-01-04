@@ -101,3 +101,46 @@ export async function upsertLenderPerformance(params: {
     ]
   );
 }
+
+export async function upsertLenderPerformanceWindow(params: {
+  periodStart: Date;
+  periodEnd: Date;
+  createdAt: Date;
+}): Promise<void> {
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    await client.query(
+      `insert into reporting_lender_performance
+       (id, lender_id, period_start, period_end, submissions, approvals, declines, funded, avg_decision_time_seconds, created_at)
+       select
+         ls.lender_id || ':' || $1::text || ':' || $2::text,
+         ls.lender_id,
+         $1::date,
+         $2::date,
+         count(*)::int as submissions,
+         sum(case when ls.status = 'APPROVED' then 1 else 0 end)::int as approvals,
+         sum(case when ls.status = 'DECLINED' then 1 else 0 end)::int as declines,
+         sum(case when ls.status = 'FUNDED' then 1 else 0 end)::int as funded,
+         0,
+         $3::timestamp
+       from lender_submissions ls
+       where ls.created_at >= $1
+         and ls.created_at < $2
+       group by ls.lender_id
+       on conflict (lender_id, period_start, period_end) do update
+       set submissions = excluded.submissions,
+           approvals = excluded.approvals,
+           declines = excluded.declines,
+           funded = excluded.funded,
+           avg_decision_time_seconds = excluded.avg_decision_time_seconds`,
+      [params.periodStart, params.periodEnd, params.createdAt]
+    );
+    await client.query("commit");
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
+}

@@ -40,6 +40,9 @@ create table if not exists reporting_lender_performance (
   unique (lender_id, period_start, period_end)
 );
 
+create unique index if not exists reporting_lender_performance_unique_idx
+  on reporting_lender_performance (lender_id, period_start, period_end);
+
 create index if not exists applications_created_at_idx
   on applications (created_at);
 
