@@ -1,4 +1,5 @@
 import { AppError } from "../../middleware/errors";
+import { recordAuditEvent } from "../audit/audit.service";
 import { getOcrMaxAttempts, getOcrProvider } from "../../config";
 import {
   findApplicationById,
@@ -15,7 +16,7 @@ import {
   resetOcrJob,
 } from "./ocr.repo";
 import { createOpenAiOcrProvider, type OcrProvider } from "./ocr.provider";
-import { createOcrStorage, type OcrStorage } from "./ocr.storage";
+import { createOcrStorage, OcrStorageValidationError, type OcrStorage } from "./ocr.storage";
 import { type OcrJobRecord } from "./ocr.types";
 
 const OCR_RETRY_BASE_MS = 1000;
@@ -135,6 +136,30 @@ export async function processOcrJob(
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown_error";
+    if (error instanceof OcrStorageValidationError) {
+      console.error("ocr_storage_url_rejected", {
+        code: "ocr_storage_url_rejected",
+        jobId: job.id,
+        documentId: job.document_id,
+        url: error.url,
+      });
+      try {
+        await recordAuditEvent({
+          action: "ocr_storage_url_rejected",
+          actorUserId: null,
+          targetUserId: null,
+          targetType: "ocr_job",
+          targetId: job.id,
+          success: false,
+        });
+      } catch (auditError) {
+        console.error("ocr_storage_url_audit_failed", {
+          code: "ocr_storage_url_audit_failed",
+          jobId: job.id,
+          error: auditError instanceof Error ? auditError.message : "unknown_error",
+        });
+      }
+    }
     const attemptCount = job.attempt_count + 1;
     const status = attemptCount >= maxAttempts ? "canceled" : "failed";
     const nextAttemptAt =
