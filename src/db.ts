@@ -7,7 +7,7 @@ function createPool(): Pool {
   ) {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { newDb } = require("pg-mem") as typeof import("pg-mem");
-    const db = newDb({ autoCreateForeignKeyIndices: true });
+    const db = newDb({ autoCreateForeignKeyIndices: false });
     const adapter = db.adapters.createPg();
     return new adapter.Pool();
   }
