@@ -17,8 +17,8 @@ export function isPipelineState(value: string): value is PipelineState {
 export const LEGAL_TRANSITIONS: Record<PipelineState, readonly PipelineState[]> = {
   NEW: ["REQUIRES_DOCS"],
   REQUIRES_DOCS: ["UNDER_REVIEW"],
-  UNDER_REVIEW: ["LENDER_SUBMITTED"],
-  LENDER_SUBMITTED: ["APPROVED", "DECLINED"],
+  UNDER_REVIEW: ["LENDER_SUBMITTED", "REQUIRES_DOCS", "DECLINED"],
+  LENDER_SUBMITTED: ["APPROVED", "DECLINED", "REQUIRES_DOCS"],
   APPROVED: ["FUNDED"],
   DECLINED: [],
   FUNDED: [],

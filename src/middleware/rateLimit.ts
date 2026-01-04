@@ -4,6 +4,8 @@ import { AppError } from "./errors";
 import {
   getDocumentUploadRateLimitMax,
   getDocumentUploadRateLimitWindowMs,
+  getClientSubmissionRateLimitMax,
+  getClientSubmissionRateLimitWindowMs,
   getLenderSubmissionRateLimitMax,
   getLenderSubmissionRateLimitWindowMs,
   getLoginRateLimitMax,
@@ -120,6 +122,22 @@ export function documentUploadRateLimit(
       const applicationId =
         typeof req.params?.id === "string" ? req.params.id : "unknown";
       return `document_upload:${ip}:${userId}:${applicationId}`;
+    },
+    maxAttempts,
+    windowMs
+  );
+}
+
+export function clientSubmissionRateLimit(
+  maxAttempts = getClientSubmissionRateLimitMax(),
+  windowMs = getClientSubmissionRateLimitWindowMs()
+): (req: Request, res: Response, next: NextFunction) => void {
+  return createRateLimiter(
+    (req) => {
+      const ip = req.ip || "unknown";
+      const submissionKey =
+        typeof req.body?.submissionKey === "string" ? req.body.submissionKey : "unknown";
+      return `client_submission:${ip}:${submissionKey}`;
     },
     maxAttempts,
     windowMs

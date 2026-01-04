@@ -15,8 +15,13 @@ import { errorHandler } from "../middleware/errors";
 import { createHash } from "crypto";
 
 const app = buildApp();
+const requestId = "test-request-id";
+const postWithRequestId = (url: string) =>
+  request(app).post(url).set("x-request-id", requestId);
 
 async function resetDb(): Promise<void> {
+  await pool.query("delete from client_submissions");
+  await pool.query("delete from lender_submission_retries");
   await pool.query("delete from lender_submissions");
   await pool.query("delete from document_version_reviews");
   await pool.query("delete from document_versions");
@@ -26,7 +31,7 @@ async function resetDb(): Promise<void> {
   await pool.query("delete from auth_refresh_tokens");
   await pool.query("delete from password_resets");
   await pool.query("delete from audit_events");
-  await pool.query("delete from users");
+  await pool.query("delete from users where id <> 'client-submission-system'");
 }
 
 beforeAll(async () => {
@@ -61,7 +66,7 @@ describe("auth", () => {
       role: ROLES.ADMIN,
     });
 
-    const res = await request(app).post("/api/auth/login").send({
+    const res = await postWithRequestId("/api/auth/login").send({
       email: "admin@example.com",
       password: "Password123!",
     });
@@ -83,13 +88,13 @@ describe("auth", () => {
       role: ROLES.USER,
     });
 
-    const success = await request(app).post("/api/auth/login").send({
+    const success = await postWithRequestId("/api/auth/login").send({
       email: "audit-login@example.com",
       password: "Password123!",
     });
     expect(success.status).toBe(200);
 
-    const failure = await request(app).post("/api/auth/login").send({
+    const failure = await postWithRequestId("/api/auth/login").send({
       email: "audit-login@example.com",
       password: "WrongPassword!",
     });
@@ -114,7 +119,7 @@ describe("auth", () => {
       role: ROLES.STAFF,
     });
 
-    const res = await request(app).post("/api/auth/login").send({
+    const res = await postWithRequestId("/api/auth/login").send({
       email: "staff@example.com",
       password: "WrongPassword!",
     });
@@ -136,7 +141,7 @@ describe("auth", () => {
       user.id,
     ]);
 
-    const res = await request(app).post("/api/auth/login").send({
+    const res = await postWithRequestId("/api/auth/login").send({
       email: "expired@example.com",
       password: "Password123!",
     });
@@ -152,7 +157,7 @@ describe("auth", () => {
       role: ROLES.STAFF,
     });
 
-    const login = await request(app).post("/api/auth/login").send({
+    const login = await postWithRequestId("/api/auth/login").send({
       email: "refresh-expired@example.com",
       password: "Password123!",
     });
@@ -163,7 +168,7 @@ describe("auth", () => {
       user.id,
     ]);
 
-    const refresh = await request(app).post("/api/auth/refresh").send({
+    const refresh = await postWithRequestId("/api/auth/refresh").send({
       refreshToken: login.body.refreshToken,
     });
 
@@ -183,7 +188,7 @@ describe("auth", () => {
       actorId: user.id,
     });
 
-    const res = await request(app).post("/api/auth/login").send({
+    const res = await postWithRequestId("/api/auth/login").send({
       email: "disabled@example.com",
       password: "Password123!",
     });
@@ -199,7 +204,7 @@ describe("auth", () => {
       password: "Password123!",
       role: ROLES.STAFF,
     });
-    const login = await request(app).post("/api/auth/login").send({
+    const login = await postWithRequestId("/api/auth/login").send({
       email: "user@example.com",
       password: "Password123!",
     });
@@ -220,7 +225,7 @@ describe("auth", () => {
       password: "Password123!",
       role: ROLES.STAFF,
     });
-    const staffLogin = await request(app).post("/api/auth/login").send({
+    const staffLogin = await postWithRequestId("/api/auth/login").send({
       email: "staffer@example.com",
       password: "Password123!",
     });
@@ -235,7 +240,7 @@ describe("auth", () => {
       password: "Password123!",
       role: ROLES.ADMIN,
     });
-    const adminLogin = await request(app).post("/api/auth/login").send({
+    const adminLogin = await postWithRequestId("/api/auth/login").send({
       email: admin.email,
       password: "Password123!",
     });
@@ -266,13 +271,13 @@ describe("auth", () => {
       password: "Password123!",
       role: ROLES.STAFF,
     });
-    const login = await request(app).post("/api/auth/login").send({
+    const login = await postWithRequestId("/api/auth/login").send({
       email: "rotate@example.com",
       password: "Password123!",
     });
 
     const refreshToken = login.body.refreshToken;
-    const refresh = await request(app).post("/api/auth/refresh").send({
+    const refresh = await postWithRequestId("/api/auth/refresh").send({
       refreshToken,
     });
 
@@ -280,12 +285,12 @@ describe("auth", () => {
     expect(refresh.body.refreshToken).toBeDefined();
     expect(refresh.body.refreshToken).not.toBe(refreshToken);
 
-    const refreshLatest = await request(app).post("/api/auth/refresh").send({
+    const refreshLatest = await postWithRequestId("/api/auth/refresh").send({
       refreshToken: refresh.body.refreshToken,
     });
     expect(refreshLatest.status).toBe(200);
 
-    const reuseLatest = await request(app).post("/api/auth/refresh").send({
+    const reuseLatest = await postWithRequestId("/api/auth/refresh").send({
       refreshToken: refresh.body.refreshToken,
     });
     expect(reuseLatest.status).toBe(401);
@@ -299,18 +304,18 @@ describe("auth", () => {
       role: ROLES.STAFF,
     });
 
-    const login = await request(app).post("/api/auth/login").send({
+    const login = await postWithRequestId("/api/auth/login").send({
       email: "replay@example.com",
       password: "Password123!",
     });
 
     const refreshToken = login.body.refreshToken;
-    const refresh = await request(app).post("/api/auth/refresh").send({
+    const refresh = await postWithRequestId("/api/auth/refresh").send({
       refreshToken,
     });
     expect(refresh.status).toBe(200);
 
-    const replay = await request(app).post("/api/auth/refresh").send({
+    const replay = await postWithRequestId("/api/auth/refresh").send({
       refreshToken,
     });
     expect(replay.status).toBe(401);
@@ -337,19 +342,18 @@ describe("auth", () => {
       password: "Password123!",
       role: ROLES.STAFF,
     });
-    const login = await request(app).post("/api/auth/login").send({
+    const login = await postWithRequestId("/api/auth/login").send({
       email: "logout@example.com",
       password: "Password123!",
     });
 
     const refreshToken = login.body.refreshToken;
-    const logout = await request(app)
-      .post("/api/auth/logout")
+    const logout = await postWithRequestId("/api/auth/logout")
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .send({ refreshToken });
     expect(logout.status).toBe(200);
 
-    const refresh = await request(app).post("/api/auth/refresh").send({
+    const refresh = await postWithRequestId("/api/auth/refresh").send({
       refreshToken,
     });
     expect(refresh.status).toBe(401);
@@ -362,13 +366,12 @@ describe("auth", () => {
       password: "Password123!",
       role: ROLES.STAFF,
     });
-    const login = await request(app).post("/api/auth/login").send({
+    const login = await postWithRequestId("/api/auth/login").send({
       email: "staff-access@example.com",
       password: "Password123!",
     });
 
-    const res = await request(app)
-      .post("/api/users")
+    const res = await postWithRequestId("/api/users")
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .send({
         email: "newuser@example.com",
@@ -386,13 +389,12 @@ describe("auth", () => {
       password: "Password123!",
       role: ROLES.ADMIN,
     });
-    const login = await request(app).post("/api/auth/login").send({
+    const login = await postWithRequestId("/api/auth/login").send({
       email: "admin-manage@example.com",
       password: "Password123!",
     });
 
-    const res = await request(app)
-      .post("/api/users")
+    const res = await postWithRequestId("/api/users")
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .send({
         email: "managed@example.com",
@@ -411,13 +413,12 @@ describe("auth", () => {
       password: "Password123!",
       role: ROLES.STAFF,
     });
-    const login = await request(app).post("/api/auth/login").send({
+    const login = await postWithRequestId("/api/auth/login").send({
       email: "self-role@example.com",
       password: "Password123!",
     });
 
-    const res = await request(app)
-      .post(`/api/users/${staff.id}/role`)
+    const res = await postWithRequestId(`/api/users/${staff.id}/role`)
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .send({ role: ROLES.ADMIN });
 
@@ -431,7 +432,7 @@ describe("auth", () => {
       password: "Password123!",
       role: ROLES.STAFF,
     });
-    const login = await request(app).post("/api/auth/login").send({
+    const login = await postWithRequestId("/api/auth/login").send({
       email: "default-deny@example.com",
       password: "Password123!",
     });
@@ -463,19 +464,19 @@ describe("auth", () => {
       role: ROLES.STAFF,
     });
 
-    const first = await request(app).post("/api/auth/login").send({
+    const first = await postWithRequestId("/api/auth/login").send({
       email: "locked@example.com",
       password: "BadPassword!",
     });
     expect(first.status).toBe(401);
 
-    const second = await request(app).post("/api/auth/login").send({
+    const second = await postWithRequestId("/api/auth/login").send({
       email: "locked@example.com",
       password: "BadPassword!",
     });
     expect(second.status).toBe(401);
 
-    const locked = await request(app).post("/api/auth/login").send({
+    const locked = await postWithRequestId("/api/auth/login").send({
       email: "locked@example.com",
       password: "Password123!",
     });
@@ -490,18 +491,17 @@ describe("auth", () => {
       role: ROLES.STAFF,
     });
 
-    const login = await request(app).post("/api/auth/login").send({
+    const login = await postWithRequestId("/api/auth/login").send({
       email: "change@example.com",
       password: "Password123!",
     });
 
-    const change = await request(app)
-      .post("/api/auth/password-change")
+    const change = await postWithRequestId("/api/auth/password-change")
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .send({ currentPassword: "Password123!", newPassword: "NewPassword123!" });
     expect(change.status).toBe(200);
 
-    const refresh = await request(app).post("/api/auth/refresh").send({
+    const refresh = await postWithRequestId("/api/auth/refresh").send({
       refreshToken: login.body.refreshToken,
     });
     expect(refresh.status).toBe(401);
@@ -526,22 +526,21 @@ describe("auth", () => {
       role: ROLES.STAFF,
     });
 
-    const adminLogin = await request(app).post("/api/auth/login").send({
+    const adminLogin = await postWithRequestId("/api/auth/login").send({
       email: admin.email,
       password: "Password123!",
     });
-    const staffLogin = await request(app).post("/api/auth/login").send({
+    const staffLogin = await postWithRequestId("/api/auth/login").send({
       email: staff.email,
       password: "Password123!",
     });
 
-    const roleChange = await request(app)
-      .post(`/api/users/${staff.id}/role`)
+    const roleChange = await postWithRequestId(`/api/users/${staff.id}/role`)
       .set("Authorization", `Bearer ${adminLogin.body.accessToken}`)
       .send({ role: ROLES.ADMIN });
     expect(roleChange.status).toBe(200);
 
-    const refresh = await request(app).post("/api/auth/refresh").send({
+    const refresh = await postWithRequestId("/api/auth/refresh").send({
       refreshToken: staffLogin.body.refreshToken,
     });
     expect(refresh.status).toBe(401);
@@ -561,23 +560,22 @@ describe("auth", () => {
       role: ROLES.STAFF,
     });
 
-    const login = await request(app).post("/api/auth/login").send({
+    const login = await postWithRequestId("/api/auth/login").send({
       email: "cycle@example.com",
       password: "Password123!",
     });
 
-    const refreshed = await request(app).post("/api/auth/refresh").send({
+    const refreshed = await postWithRequestId("/api/auth/refresh").send({
       refreshToken: login.body.refreshToken,
     });
     expect(refreshed.status).toBe(200);
 
-    const logout = await request(app)
-      .post("/api/auth/logout")
+    const logout = await postWithRequestId("/api/auth/logout")
       .set("Authorization", `Bearer ${refreshed.body.accessToken}`)
       .send({ refreshToken: refreshed.body.refreshToken });
     expect(logout.status).toBe(200);
 
-    const reuse = await request(app).post("/api/auth/refresh").send({
+    const reuse = await postWithRequestId("/api/auth/refresh").send({
       refreshToken: refreshed.body.refreshToken,
     });
     expect(reuse.status).toBe(401);
@@ -591,17 +589,16 @@ describe("auth", () => {
       role: ROLES.STAFF,
     });
 
-    const login = await request(app).post("/api/auth/login").send({
+    const login = await postWithRequestId("/api/auth/login").send({
       email: "global@example.com",
       password: "Password123!",
     });
 
-    const logoutAll = await request(app)
-      .post("/api/auth/logout-all")
+    const logoutAll = await postWithRequestId("/api/auth/logout-all")
       .set("Authorization", `Bearer ${login.body.accessToken}`);
     expect(logoutAll.status).toBe(200);
 
-    const refresh = await request(app).post("/api/auth/refresh").send({
+    const refresh = await postWithRequestId("/api/auth/refresh").send({
       refreshToken: login.body.refreshToken,
     });
     expect(refresh.status).toBe(401);
@@ -621,7 +618,7 @@ describe("auth", () => {
       role: ROLES.STAFF,
     });
 
-    const login = await request(app).post("/api/auth/login").send({
+    const login = await postWithRequestId("/api/auth/login").send({
       email: "disabled-access@example.com",
       password: "Password123!",
     });
@@ -647,28 +644,26 @@ describe("auth", () => {
       role: ROLES.STAFF,
     });
 
-    const adminLogin = await request(app).post("/api/auth/login").send({
+    const adminLogin = await postWithRequestId("/api/auth/login").send({
       email: admin.email,
       password: "Password123!",
     });
-    const userLogin = await request(app).post("/api/auth/login").send({
+    const userLogin = await postWithRequestId("/api/auth/login").send({
       email: user.email,
       password: "Password123!",
     });
 
-    const resetRequest = await request(app)
-      .post("/api/auth/password-reset/request")
+    const resetRequest = await postWithRequestId("/api/auth/password-reset/request")
       .set("Authorization", `Bearer ${adminLogin.body.accessToken}`)
       .send({ userId: user.id });
     expect(resetRequest.status).toBe(200);
     expect(resetRequest.body.token).toBeDefined();
 
-    const confirm = await request(app)
-      .post("/api/auth/password-reset/confirm")
+    const confirm = await postWithRequestId("/api/auth/password-reset/confirm")
       .send({ token: resetRequest.body.token, newPassword: "NewPassword123!" });
     expect(confirm.status).toBe(200);
 
-    const refresh = await request(app).post("/api/auth/refresh").send({
+    const refresh = await postWithRequestId("/api/auth/refresh").send({
       refreshToken: userLogin.body.refreshToken,
     });
     expect(refresh.status).toBe(401);
@@ -698,13 +693,12 @@ describe("auth", () => {
       role: ROLES.STAFF,
     });
 
-    const adminLogin = await request(app).post("/api/auth/login").send({
+    const adminLogin = await postWithRequestId("/api/auth/login").send({
       email: admin.email,
       password: "Password123!",
     });
 
-    const resetRequest = await request(app)
-      .post("/api/auth/password-reset/request")
+    const resetRequest = await postWithRequestId("/api/auth/password-reset/request")
       .set("Authorization", `Bearer ${adminLogin.body.accessToken}`)
       .send({ userId: user.id });
     expect(resetRequest.status).toBe(200);
@@ -717,25 +711,21 @@ describe("auth", () => {
       [new Date(Date.now() - 60 * 1000), expiredHash]
     );
 
-    const expired = await request(app)
-      .post("/api/auth/password-reset/confirm")
+    const expired = await postWithRequestId("/api/auth/password-reset/confirm")
       .send({ token: resetRequest.body.token, newPassword: "OtherPass123!" });
     expect(expired.status).toBe(401);
     expect(expired.body.code).toBe("invalid_token");
 
-    const freshRequest = await request(app)
-      .post("/api/auth/password-reset/request")
+    const freshRequest = await postWithRequestId("/api/auth/password-reset/request")
       .set("Authorization", `Bearer ${adminLogin.body.accessToken}`)
       .send({ userId: user.id });
     expect(freshRequest.status).toBe(200);
 
-    const firstConfirm = await request(app)
-      .post("/api/auth/password-reset/confirm")
+    const firstConfirm = await postWithRequestId("/api/auth/password-reset/confirm")
       .send({ token: freshRequest.body.token, newPassword: "OtherPass123!" });
     expect(firstConfirm.status).toBe(200);
 
-    const reuse = await request(app)
-      .post("/api/auth/password-reset/confirm")
+    const reuse = await postWithRequestId("/api/auth/password-reset/confirm")
       .send({ token: freshRequest.body.token, newPassword: "OtherPass123!" });
     expect(reuse.status).toBe(401);
     expect(reuse.body.code).toBe("invalid_token");
