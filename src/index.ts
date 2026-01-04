@@ -7,6 +7,7 @@ import applicationsRoutes from "./routes/applications";
 import lenderRoutes from "./routes/lender";
 import adminRoutes from "./routes/admin";
 import reportsRoutes from "./routes/reports";
+import reportingRoutes from "./routes/reporting";
 import { requestId } from "./middleware/requestId";
 import { requestLogger } from "./middleware/requestLogger";
 import { errorHandler, notFoundHandler } from "./middleware/errors";
@@ -29,6 +30,7 @@ export function buildApp() {
   app.use("/api/applications", applicationsRoutes);
   app.use("/api/lender", lenderRoutes);
   app.use("/api/reports", reportsRoutes);
+  app.use("/api/reporting", reportingRoutes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
@@ -53,7 +55,7 @@ async function start(): Promise<void> {
   const server = app.listen(port, () => {
     console.log(`Server listening on ${port}`);
   });
-  const jobs = process.env.NODE_ENV === "test" ? null : startReportingJobs();
+  const jobs = startReportingJobs();
 
   let shuttingDown = false;
   const shutdown = (signal: string) => {

@@ -4,14 +4,12 @@ import { formatPeriod, type GroupBy } from "./reporting.utils";
 
 type Queryable = Pick<PoolClient, "query">;
 
-export type LenderPerformanceRow = {
+export type DocumentMetricsRow = {
   period: string;
-  lenderId: string;
-  submissions: number;
-  approvals: number;
-  declines: number;
-  funded: number;
-  avgDecisionTimeSeconds: number;
+  documentType: string;
+  documentsUploaded: number;
+  documentsReviewed: number;
+  documentsApproved: number;
 };
 
 function buildWhereClause(params: {
@@ -37,69 +35,63 @@ function buildWhereClause(params: {
 
 function periodExpression(groupBy: GroupBy): string {
   if (groupBy === "week") {
-    return "date_trunc('week', period_start)::date";
+    return "date_trunc('week', metric_date)::date";
   }
   if (groupBy === "month") {
-    return "date_trunc('month', period_start)::date";
+    return "date_trunc('month', metric_date)::date";
   }
-  return "period_start";
+  return "metric_date";
 }
 
-export async function listLenderPerformance(params: {
+export async function listDocumentMetrics(params: {
   from: Date | null;
   to: Date | null;
   groupBy: GroupBy;
   limit: number;
   offset: number;
-  lenderId?: string | null;
+  documentType?: string | null;
   client?: Queryable;
-}): Promise<LenderPerformanceRow[]> {
+}): Promise<DocumentMetricsRow[]> {
   const runner = params.client ?? pool;
   const { clause, values } = buildWhereClause({
-    column: "period_start",
+    column: "metric_date",
     from: params.from,
     to: params.to,
   });
-  if (params.lenderId) {
-    values.push(params.lenderId);
+  if (params.documentType) {
+    values.push(params.documentType);
   }
-  const lenderClause = params.lenderId
-    ? `${clause ? `${clause} and` : "where"} lender_id = $${values.length}`
+  const documentClause = params.documentType
+    ? `${clause ? `${clause} and` : "where"} document_type = $${values.length}`
     : clause;
   const periodExpr = periodExpression(params.groupBy);
   const limitIndex = values.length + 1;
   const offsetIndex = values.length + 2;
   const res = await runner.query<{
     period: Date | string;
-    lender_id: string;
-    submissions: number;
-    approvals: number;
-    declines: number;
-    funded: number;
-    avg_decision_time_seconds: number;
+    document_type: string;
+    documents_uploaded: number;
+    documents_reviewed: number;
+    documents_approved: number;
   }>(
     `select ${periodExpr} as period,
-            lender_id,
-            sum(submissions)::int as submissions,
-            sum(approvals)::int as approvals,
-            sum(declines)::int as declines,
-            sum(funded)::int as funded,
-            avg(avg_decision_time_seconds)::int as avg_decision_time_seconds
-     from reporting_lender_performance
-     ${lenderClause}
-     group by period, lender_id
-     order by period desc, lender_id asc
+            document_type,
+            sum(documents_uploaded)::int as documents_uploaded,
+            sum(documents_reviewed)::int as documents_reviewed,
+            sum(documents_approved)::int as documents_approved
+     from reporting_document_metrics_daily
+     ${documentClause}
+     group by period, document_type
+     order by period desc, document_type asc
      limit $${limitIndex} offset $${offsetIndex}`,
     [...values, params.limit, params.offset]
   );
 
   return res.rows.map((row) => ({
     period: formatPeriod(row.period),
-    lenderId: row.lender_id,
-    submissions: row.submissions,
-    approvals: row.approvals,
-    declines: row.declines,
-    funded: row.funded,
-    avgDecisionTimeSeconds: row.avg_decision_time_seconds,
+    documentType: row.document_type,
+    documentsUploaded: row.documents_uploaded,
+    documentsReviewed: row.documents_reviewed,
+    documentsApproved: row.documents_approved,
   }));
 }

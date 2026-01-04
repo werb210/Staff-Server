@@ -1,6 +1,6 @@
 import { pool } from "../../db";
 import { type PoolClient } from "pg";
-import { getPeriodKey, type GroupBy } from "./reporting.utils";
+import { formatPeriod, type GroupBy } from "./reporting.utils";
 
 type Queryable = Pick<PoolClient, "query">;
 
@@ -17,16 +17,12 @@ export type DailyMetricsRow = {
 };
 
 function buildWhereClause(params: {
-  base?: string;
   column: string;
   from: Date | null;
   to: Date | null;
 }): { clause: string; values: unknown[] } {
   const clauses: string[] = [];
   const values: unknown[] = [];
-  if (params.base) {
-    clauses.push(params.base);
-  }
   if (params.from) {
     values.push(params.from);
     clauses.push(`${params.column} >= $${values.length}`);
@@ -41,27 +37,14 @@ function buildWhereClause(params: {
   };
 }
 
-async function fetchDates(params: {
-  runner: Queryable;
-  table: string;
-  column: string;
-  base?: string;
-  from: Date | null;
-  to: Date | null;
-}): Promise<Date[]> {
-  const { clause, values } = buildWhereClause({
-    base: params.base,
-    column: params.column,
-    from: params.from,
-    to: params.to,
-  });
-  const res = await params.runner.query<{ period: Date }>(
-    `select ${params.column} as period
-     from ${params.table}
-     ${clause}`,
-    values
-  );
-  return res.rows.map((row) => row.period);
+function periodExpression(groupBy: GroupBy): string {
+  if (groupBy === "week") {
+    return "date_trunc('week', metric_date)::date";
+  }
+  if (groupBy === "month") {
+    return "date_trunc('month', metric_date)::date";
+  }
+  return "metric_date";
 }
 
 export async function listDailyMetrics(params: {
@@ -73,130 +56,53 @@ export async function listDailyMetrics(params: {
   client?: Queryable;
 }): Promise<DailyMetricsRow[]> {
   const runner = params.client ?? pool;
-  const [
-    createdDates,
-    submittedDates,
-    approvedDates,
-    declinedDates,
-    fundedDates,
-    documentsUploadedDates,
-    documentsApprovedDates,
-  lenderSubmissionDates,
-  ] = await Promise.all([
-    fetchDates({
-      runner,
-      table: "applications",
-      column: "created_at",
-      from: params.from,
-      to: params.to,
-    }),
-    fetchDates({
-      runner,
-      table: "applications",
-      column: "updated_at",
-      base: "pipeline_state = 'LENDER_SUBMITTED'",
-      from: params.from,
-      to: params.to,
-    }),
-    fetchDates({
-      runner,
-      table: "applications",
-      column: "updated_at",
-      base: "pipeline_state = 'APPROVED'",
-      from: params.from,
-      to: params.to,
-    }),
-    fetchDates({
-      runner,
-      table: "applications",
-      column: "updated_at",
-      base: "pipeline_state = 'DECLINED'",
-      from: params.from,
-      to: params.to,
-    }),
-    fetchDates({
-      runner,
-      table: "applications",
-      column: "updated_at",
-      base: "pipeline_state = 'FUNDED'",
-      from: params.from,
-      to: params.to,
-    }),
-    fetchDates({
-      runner,
-      table: "document_versions",
-      column: "created_at",
-      from: params.from,
-      to: params.to,
-    }),
-    fetchDates({
-      runner,
-      table: "document_version_reviews",
-      column: "reviewed_at",
-      base: "status = 'accepted'",
-      from: params.from,
-      to: params.to,
-    }),
-    fetchDates({
-      runner,
-      table: "lender_submissions",
-      column: "created_at",
-      from: params.from,
-      to: params.to,
-    }),
-  ]);
-
-  const metrics = new Map<string, DailyMetricsRow>();
-  const ensureRow = (period: Date) => {
-    const key = getPeriodKey(period, params.groupBy);
-    const existing = metrics.get(key);
-    if (existing) {
-      return existing;
-    }
-    const row: DailyMetricsRow = {
-      period: key,
-      applicationsCreated: 0,
-      applicationsSubmitted: 0,
-      applicationsApproved: 0,
-      applicationsDeclined: 0,
-      applicationsFunded: 0,
-      documentsUploaded: 0,
-      documentsApproved: 0,
-      lenderSubmissions: 0,
-    };
-    metrics.set(key, row);
-    return row;
-  };
-
-  createdDates.forEach((date) => {
-    ensureRow(date).applicationsCreated += 1;
+  const { clause, values } = buildWhereClause({
+    column: "metric_date",
+    from: params.from,
+    to: params.to,
   });
-  submittedDates.forEach((date) => {
-    ensureRow(date).applicationsSubmitted += 1;
-  });
-  approvedDates.forEach((date) => {
-    ensureRow(date).applicationsApproved += 1;
-  });
-  declinedDates.forEach((date) => {
-    ensureRow(date).applicationsDeclined += 1;
-  });
-  fundedDates.forEach((date) => {
-    ensureRow(date).applicationsFunded += 1;
-  });
-  documentsUploadedDates.forEach((date) => {
-    ensureRow(date).documentsUploaded += 1;
-  });
-  documentsApprovedDates.forEach((date) => {
-    ensureRow(date).documentsApproved += 1;
-  });
-  lenderSubmissionDates.forEach((date) => {
-    ensureRow(date).lenderSubmissions += 1;
-  });
-
-  const sorted = Array.from(metrics.values()).sort((a, b) =>
-    b.period.localeCompare(a.period)
+  const periodExpr = periodExpression(params.groupBy);
+  const limitIndex = values.length + 1;
+  const offsetIndex = values.length + 2;
+  const res = await runner.query<{
+    period: Date | string;
+    applications_created: number;
+    applications_submitted: number;
+    applications_approved: number;
+    applications_declined: number;
+    applications_funded: number;
+    documents_uploaded: number;
+    documents_approved: number;
+    lender_submissions: number;
+  }>(
+    `select ${periodExpr} as period,
+            sum(applications_created)::int as applications_created,
+            sum(applications_submitted)::int as applications_submitted,
+            sum(applications_approved)::int as applications_approved,
+            sum(applications_declined)::int as applications_declined,
+            sum(applications_funded)::int as applications_funded,
+            sum(documents_uploaded)::int as documents_uploaded,
+            sum(documents_approved)::int as documents_approved,
+            sum(lender_submissions)::int as lender_submissions
+     from reporting_daily_metrics
+     ${clause}
+     group by period
+     order by period desc
+     limit $${limitIndex} offset $${offsetIndex}`,
+    [...values, params.limit, params.offset]
   );
-  return sorted.slice(params.offset, params.offset + params.limit);
+
+  return res.rows.map((row) => ({
+    period: formatPeriod(row.period),
+    applicationsCreated: row.applications_created,
+    applicationsSubmitted: row.applications_submitted,
+    applicationsApproved: row.applications_approved,
+    applicationsDeclined: row.applications_declined,
+    applicationsFunded: row.applications_funded,
+    documentsUploaded: row.documents_uploaded,
+    documentsApproved: row.documents_approved,
+    lenderSubmissions: row.lender_submissions,
+  }));
 }
 
 export async function computeDailyMetricsForDate(params: {
