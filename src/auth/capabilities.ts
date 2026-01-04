@@ -12,6 +12,7 @@ export const CAPABILITIES = {
   LENDER_SUBMIT: "lender:submit",
   AUDIT_VIEW: "audit:view",
   ACCOUNT_UNLOCK: "account:unlock",
+  REPORT_VIEW: "report:view",
 } as const;
 
 export type Capability = (typeof CAPABILITIES)[keyof typeof CAPABILITIES];
@@ -28,6 +29,7 @@ const roleCapabilities: Record<Role, readonly Capability[]> = {
     CAPABILITIES.LENDER_SUBMIT,
     CAPABILITIES.AUDIT_VIEW,
     CAPABILITIES.ACCOUNT_UNLOCK,
+    CAPABILITIES.REPORT_VIEW,
   ],
   [ROLES.STAFF]: [
     CAPABILITIES.AUTH_SESSION,
@@ -38,6 +40,7 @@ const roleCapabilities: Record<Role, readonly Capability[]> = {
     CAPABILITIES.PIPELINE_MANAGE,
     CAPABILITIES.PIPELINE_OVERRIDE,
     CAPABILITIES.LENDER_SUBMIT,
+    CAPABILITIES.REPORT_VIEW,
   ],
   [ROLES.USER]: [
     CAPABILITIES.AUTH_SESSION,
