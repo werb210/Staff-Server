@@ -9,9 +9,11 @@ const app = buildApp();
 
 async function resetDb(): Promise<void> {
   await pool.query("delete from lender_submissions");
+  await pool.query("delete from document_version_reviews");
   await pool.query("delete from document_versions");
   await pool.query("delete from documents");
   await pool.query("delete from applications");
+  await pool.query("delete from idempotency_keys");
   await pool.query("delete from auth_refresh_tokens");
   await pool.query("delete from password_resets");
   await pool.query("delete from audit_events");
@@ -57,7 +59,11 @@ describe("applications and documents", () => {
     const appRes = await request(app)
       .post("/api/applications")
       .set("Authorization", `Bearer ${login.body.accessToken}`)
-      .send({ name: "Test Application", metadata: { source: "web" } });
+      .send({
+        name: "Test Application",
+        metadata: { source: "web" },
+        productType: "standard",
+      });
     expect(appRes.status).toBe(201);
 
     const applicationId = appRes.body.application.id;
@@ -67,6 +73,7 @@ describe("applications and documents", () => {
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .send({
         title: "Bank Statement",
+        documentType: "bank_statement",
         metadata: { fileName: "bank.pdf", mimeType: "application/pdf", size: 123 },
         content: "base64data",
       });
@@ -79,6 +86,7 @@ describe("applications and documents", () => {
       .send({
         documentId: upload1.body.document.documentId,
         title: "Bank Statement",
+        documentType: "bank_statement",
         metadata: { fileName: "bank-v2.pdf", mimeType: "application/pdf", size: 456 },
         content: "base64data2",
       });
@@ -110,7 +118,7 @@ describe("applications and documents", () => {
     const appRes = await request(app)
       .post("/api/applications")
       .set("Authorization", `Bearer ${ownerLogin.body.accessToken}`)
-      .send({ name: "Owner Application" });
+      .send({ name: "Owner Application", productType: "standard" });
     expect(appRes.status).toBe(201);
 
     const upload = await request(app)
@@ -118,6 +126,7 @@ describe("applications and documents", () => {
       .set("Authorization", `Bearer ${otherLogin.body.accessToken}`)
       .send({
         title: "Unauthorized",
+        documentType: "bank_statement",
         metadata: { fileName: "oops.pdf", mimeType: "application/pdf", size: 12 },
         content: "data",
       });
@@ -140,12 +149,12 @@ describe("applications and documents", () => {
     const appRes = await request(app)
       .post("/api/applications")
       .set("Authorization", `Bearer ${login.body.accessToken}`)
-      .send({ name: "Pipeline Application" });
+      .send({ name: "Pipeline Application", productType: "standard" });
 
     const transition = await request(app)
       .post(`/api/applications/${appRes.body.application.id}/pipeline`)
       .set("Authorization", `Bearer ${login.body.accessToken}`)
-      .send({ state: "submitted" });
+      .send({ state: "LENDER_SUBMITTED" });
 
     expect(transition.status).toBe(400);
     expect(transition.body.code).toBe("invalid_transition");
@@ -166,19 +175,194 @@ describe("applications and documents", () => {
     const appRes = await request(app)
       .post("/api/applications")
       .set("Authorization", `Bearer ${login.body.accessToken}`)
-      .send({ name: "Override Application" });
+      .send({ name: "Override Application", productType: "standard" });
+
+    const applicationId = appRes.body.application.id;
+
+    const bank = await request(app)
+      .post(`/api/applications/${applicationId}/documents`)
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .send({
+        title: "Bank Statement",
+        documentType: "bank_statement",
+        metadata: { fileName: "bank.pdf", mimeType: "application/pdf", size: 123 },
+        content: "base64data",
+      });
+
+    const idDoc = await request(app)
+      .post(`/api/applications/${applicationId}/documents`)
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .send({
+        title: "ID",
+        documentType: "id_document",
+        metadata: { fileName: "id.pdf", mimeType: "application/pdf", size: 50 },
+        content: "iddata",
+      });
+
+    await request(app)
+      .post(
+        `/api/applications/${applicationId}/documents/${bank.body.document.documentId}/versions/${bank.body.document.versionId}/accept`
+      )
+      .set("Authorization", `Bearer ${login.body.accessToken}`);
+
+    await request(app)
+      .post(
+        `/api/applications/${applicationId}/documents/${idDoc.body.document.documentId}/versions/${idDoc.body.document.versionId}/accept`
+      )
+      .set("Authorization", `Bearer ${login.body.accessToken}`);
 
     const transition = await request(app)
-      .post(`/api/applications/${appRes.body.application.id}/pipeline`)
+      .post(`/api/applications/${applicationId}/pipeline`)
       .set("Authorization", `Bearer ${login.body.accessToken}`)
-      .send({ state: "submitted", override: true });
+      .send({ state: "LENDER_SUBMITTED", override: true });
 
     expect(transition.status).toBe(200);
 
     const dbState = await pool.query(
       "select pipeline_state from applications where id = $1",
-      [appRes.body.application.id]
+      [applicationId]
     );
-    expect(dbState.rows[0].pipeline_state).toBe("submitted");
+    expect(dbState.rows[0].pipeline_state).toBe("LENDER_SUBMITTED");
+  });
+
+  it("forces requires docs when documents are missing", async () => {
+    await createUserAccount({
+      email: "requirements@apps.com",
+      password: "Password123!",
+      role: ROLES.USER,
+    });
+
+    const login = await request(app).post("/api/auth/login").send({
+      email: "requirements@apps.com",
+      password: "Password123!",
+    });
+
+    const appRes = await request(app)
+      .post("/api/applications")
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .send({ name: "Requirement App", productType: "standard" });
+    expect(appRes.status).toBe(201);
+    expect(appRes.body.application.pipelineState).toBe("REQUIRES_DOCS");
+  });
+
+  it("transitions to under review when required documents are accepted", async () => {
+    await createUserAccount({
+      email: "accept@apps.com",
+      password: "Password123!",
+      role: ROLES.STAFF,
+    });
+
+    const login = await request(app).post("/api/auth/login").send({
+      email: "accept@apps.com",
+      password: "Password123!",
+    });
+
+    const appRes = await request(app)
+      .post("/api/applications")
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .send({ name: "Acceptance App", productType: "standard" });
+
+    const applicationId = appRes.body.application.id;
+
+    const bank = await request(app)
+      .post(`/api/applications/${applicationId}/documents`)
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .send({
+        title: "Bank Statement",
+        documentType: "bank_statement",
+        metadata: { fileName: "bank.pdf", mimeType: "application/pdf", size: 123 },
+        content: "base64data",
+      });
+
+    const idDoc = await request(app)
+      .post(`/api/applications/${applicationId}/documents`)
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .send({
+        title: "ID",
+        documentType: "id_document",
+        metadata: { fileName: "id.pdf", mimeType: "application/pdf", size: 50 },
+        content: "iddata",
+      });
+
+    await request(app)
+      .post(
+        `/api/applications/${applicationId}/documents/${bank.body.document.documentId}/versions/${bank.body.document.versionId}/accept`
+      )
+      .set("Authorization", `Bearer ${login.body.accessToken}`);
+
+    await request(app)
+      .post(
+        `/api/applications/${applicationId}/documents/${idDoc.body.document.documentId}/versions/${idDoc.body.document.versionId}/accept`
+      )
+      .set("Authorization", `Bearer ${login.body.accessToken}`);
+
+    const stateAfterAccept = await pool.query(
+      "select pipeline_state from applications where id = $1",
+      [applicationId]
+    );
+    expect(stateAfterAccept.rows[0].pipeline_state).toBe("UNDER_REVIEW");
+
+    const audit = await pool.query(
+      `select action
+       from audit_events
+       where action = 'document_accepted'
+       order by created_at asc`
+    );
+    expect(audit.rows.length).toBe(2);
+  });
+
+  it("forces requires docs on document rejection", async () => {
+    await createUserAccount({
+      email: "review@apps.com",
+      password: "Password123!",
+      role: ROLES.STAFF,
+    });
+
+    const login = await request(app).post("/api/auth/login").send({
+      email: "review@apps.com",
+      password: "Password123!",
+    });
+
+    const appRes = await request(app)
+      .post("/api/applications")
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .send({ name: "Review App", productType: "standard" });
+
+    const applicationId = appRes.body.application.id;
+
+    const bank = await request(app)
+      .post(`/api/applications/${applicationId}/documents`)
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .send({
+        title: "Bank Statement",
+        documentType: "bank_statement",
+        metadata: { fileName: "bank.pdf", mimeType: "application/pdf", size: 123 },
+        content: "base64data",
+      });
+    expect(bank.status).toBe(201);
+
+    const idDoc = await request(app)
+      .post(`/api/applications/${applicationId}/documents`)
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .send({
+        title: "ID",
+        documentType: "id_document",
+        metadata: { fileName: "id.pdf", mimeType: "application/pdf", size: 50 },
+        content: "iddata",
+      });
+    expect(idDoc.status).toBe(201);
+
+    const reject = await request(app)
+      .post(
+        `/api/applications/${applicationId}/documents/${bank.body.document.documentId}/versions/${bank.body.document.versionId}/reject`
+      )
+      .set("Authorization", `Bearer ${login.body.accessToken}`);
+    expect(reject.status).toBe(200);
+
+    const stateAfterReject = await pool.query(
+      "select pipeline_state from applications where id = $1",
+      [applicationId]
+    );
+    expect(stateAfterReject.rows[0].pipeline_state).toBe("REQUIRES_DOCS");
   });
 });

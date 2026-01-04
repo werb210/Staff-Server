@@ -1,8 +1,13 @@
 import { Router } from "express";
 import { AppError } from "../../middleware/errors";
-import { createUserAccount, requestPasswordReset } from "../auth/auth.service";
+import {
+  createUserAccount,
+  requestPasswordReset,
+  unlockUserAccount,
+} from "../auth/auth.service";
 import { changeUserRole, setUserStatus } from "./users.service";
 import { isRole } from "../../auth/roles";
+import { CAPABILITIES } from "../../auth/capabilities";
 
 const router = Router();
 
@@ -107,6 +112,27 @@ router.post("/:id/force-password-reset", async (req, res, next) => {
       userAgent: req.get("user-agent"),
     });
     res.json({ token });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/:id/unlock", async (req, res, next) => {
+  try {
+    const actorId = req.user?.userId;
+    if (!actorId) {
+      throw new AppError("missing_token", "Authorization token is required.", 401);
+    }
+    if (!req.user?.capabilities.includes(CAPABILITIES.ACCOUNT_UNLOCK)) {
+      throw new AppError("forbidden", "Admin access required.", 403);
+    }
+    await unlockUserAccount({
+      userId: req.params.id,
+      actorUserId: actorId,
+      ip: req.ip,
+      userAgent: req.get("user-agent"),
+    });
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }

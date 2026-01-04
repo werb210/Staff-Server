@@ -9,9 +9,11 @@ const app = buildApp();
 
 async function resetDb(): Promise<void> {
   await pool.query("delete from lender_submissions");
+  await pool.query("delete from document_version_reviews");
   await pool.query("delete from document_versions");
   await pool.query("delete from documents");
   await pool.query("delete from applications");
+  await pool.query("delete from idempotency_keys");
   await pool.query("delete from auth_refresh_tokens");
   await pool.query("delete from password_resets");
   await pool.query("delete from audit_events");
@@ -57,9 +59,40 @@ describe("lender submissions", () => {
     const appRes = await request(app)
       .post("/api/applications")
       .set("Authorization", `Bearer ${login.body.accessToken}`)
-      .send({ name: "Lender Application" });
+      .send({ name: "Lender Application", productType: "standard" });
 
     const applicationId = appRes.body.application.id;
+
+    const bank = await request(app)
+      .post(`/api/applications/${applicationId}/documents`)
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .send({
+        title: "Bank Statement",
+        documentType: "bank_statement",
+        metadata: { fileName: "bank.pdf", mimeType: "application/pdf", size: 123 },
+        content: "base64data",
+      });
+    const idDoc = await request(app)
+      .post(`/api/applications/${applicationId}/documents`)
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .send({
+        title: "ID",
+        documentType: "id_document",
+        metadata: { fileName: "id.pdf", mimeType: "application/pdf", size: 50 },
+        content: "iddata",
+      });
+
+    await request(app)
+      .post(
+        `/api/applications/${applicationId}/documents/${bank.body.document.documentId}/versions/${bank.body.document.versionId}/accept`
+      )
+      .set("Authorization", `Bearer ${login.body.accessToken}`);
+
+    await request(app)
+      .post(
+        `/api/applications/${applicationId}/documents/${idDoc.body.document.documentId}/versions/${idDoc.body.document.versionId}/accept`
+      )
+      .set("Authorization", `Bearer ${login.body.accessToken}`);
 
     const submission1 = await request(app)
       .post("/api/lender/submissions")
@@ -90,5 +123,31 @@ describe("lender submissions", () => {
       "lender_submission_created",
       "lender_submission_retried",
     ]);
+  });
+
+  it("requires under review state for submission", async () => {
+    await createUserAccount({
+      email: "lender2@apps.com",
+      password: "Password123!",
+      role: ROLES.STAFF,
+    });
+
+    const login = await request(app).post("/api/auth/login").send({
+      email: "lender2@apps.com",
+      password: "Password123!",
+    });
+
+    const appRes = await request(app)
+      .post("/api/applications")
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .send({ name: "Blocked Application", productType: "standard" });
+
+    const submission = await request(app)
+      .post("/api/lender/submissions")
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .send({ applicationId: appRes.body.application.id });
+
+    expect(submission.status).toBe(400);
+    expect(submission.body.code).toBe("invalid_state");
   });
 });

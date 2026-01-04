@@ -5,6 +5,7 @@ import usersRoutes from "./routes/users";
 import staffRoutes from "./routes/staff";
 import applicationsRoutes from "./routes/applications";
 import lenderRoutes from "./routes/lender";
+import adminRoutes from "./routes/admin";
 import { requestId } from "./middleware/requestId";
 import { requestLogger } from "./middleware/requestLogger";
 import { errorHandler, notFoundHandler } from "./middleware/errors";
@@ -22,6 +23,7 @@ export function buildApp() {
   app.use("/api/auth", authRoutes);
   app.use("/api/users", usersRoutes);
   app.use("/api/staff", staffRoutes);
+  app.use("/api/admin", adminRoutes);
   app.use("/api/applications", applicationsRoutes);
   app.use("/api/lender", lenderRoutes);
 

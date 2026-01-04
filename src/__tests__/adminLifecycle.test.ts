@@ -9,9 +9,11 @@ const app = buildApp();
 
 async function resetDb(): Promise<void> {
   await pool.query("delete from lender_submissions");
+  await pool.query("delete from document_version_reviews");
   await pool.query("delete from document_versions");
   await pool.query("delete from documents");
   await pool.query("delete from applications");
+  await pool.query("delete from idempotency_keys");
   await pool.query("delete from auth_refresh_tokens");
   await pool.query("delete from password_resets");
   await pool.query("delete from audit_events");

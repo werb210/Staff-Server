@@ -648,6 +648,35 @@ export async function confirmPasswordReset(params: {
   });
 }
 
+export async function unlockUserAccount(params: {
+  userId: string;
+  actorUserId: string;
+  ip?: string;
+  userAgent?: string;
+}): Promise<void> {
+  const user = await findAuthUserById(params.userId);
+  if (!user) {
+    await recordAuditEvent({
+      action: "account_unlock",
+      actorUserId: params.actorUserId,
+      targetUserId: params.userId,
+      ip: params.ip,
+      userAgent: params.userAgent,
+      success: false,
+    });
+    throw new AppError("not_found", "User not found.", 404);
+  }
+  await resetLoginFailures(params.userId);
+  await recordAuditEvent({
+    action: "account_unlock",
+    actorUserId: params.actorUserId,
+    targetUserId: params.userId,
+    ip: params.ip,
+    userAgent: params.userAgent,
+    success: true,
+  });
+}
+
 function msToSeconds(value: string): number {
   if (value.endsWith("ms")) {
     return Math.floor(Number(value.replace("ms", "")) / 1000);
