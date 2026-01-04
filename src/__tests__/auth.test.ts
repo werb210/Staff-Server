@@ -10,7 +10,7 @@ import { ROLES } from "../auth/roles";
 import { runMigrations } from "../migrations";
 import fs from "fs";
 import path from "path";
-import { requireAuth, requireRole } from "../middleware/auth";
+import { requireAuth, requireCapability } from "../middleware/auth";
 import { errorHandler } from "../middleware/errors";
 
 const app = buildApp();
@@ -24,12 +24,15 @@ async function resetDb(): Promise<void> {
 
 beforeAll(async () => {
   process.env.DATABASE_URL = "pg-mem";
+  process.env.BUILD_TIMESTAMP = "2024-01-01T00:00:00.000Z";
+  process.env.COMMIT_SHA = "test-commit";
   process.env.JWT_SECRET = "test-access-secret";
   process.env.JWT_REFRESH_SECRET = "test-refresh-secret";
   process.env.JWT_EXPIRES_IN = "1h";
   process.env.JWT_REFRESH_EXPIRES_IN = "1d";
   process.env.LOGIN_LOCKOUT_THRESHOLD = "2";
   process.env.LOGIN_LOCKOUT_MINUTES = "10";
+  process.env.PASSWORD_MAX_AGE_DAYS = "30";
   process.env.NODE_ENV = "test";
   await runMigrations();
 });
@@ -66,6 +69,37 @@ describe("auth", () => {
     });
   });
 
+  it("writes audit events for login success and failure", async () => {
+    await createUserAccount({
+      email: "audit-login@example.com",
+      password: "Password123!",
+      role: ROLES.USER,
+    });
+
+    const success = await request(app).post("/api/auth/login").send({
+      email: "audit-login@example.com",
+      password: "Password123!",
+    });
+    expect(success.status).toBe(200);
+
+    const failure = await request(app).post("/api/auth/login").send({
+      email: "audit-login@example.com",
+      password: "WrongPassword!",
+    });
+    expect(failure.status).toBe(401);
+
+    const res = await pool.query(
+      `select action, success
+       from audit_events
+       where action = 'login'
+       order by created_at asc`
+    );
+    expect(res.rows).toEqual([
+      { action: "login", success: true },
+      { action: "login", success: false },
+    ]);
+  });
+
   it("fails login with bad password", async () => {
     await createUserAccount({
       email: "staff@example.com",
@@ -81,6 +115,27 @@ describe("auth", () => {
     expect(res.status).toBe(401);
     expect(res.body.code).toBe("invalid_credentials");
     expect(res.body.requestId).toBeDefined();
+  });
+
+  it("blocks login when password is expired", async () => {
+    const user = await createUserAccount({
+      email: "expired@example.com",
+      password: "Password123!",
+      role: ROLES.STAFF,
+    });
+    const expiredDate = new Date(Date.now() - 45 * 24 * 60 * 60 * 1000);
+    await pool.query(`update users set password_changed_at = $1 where id = $2`, [
+      expiredDate,
+      user.id,
+    ]);
+
+    const res = await request(app).post("/api/auth/login").send({
+      email: "expired@example.com",
+      password: "Password123!",
+    });
+
+    expect(res.status).toBe(403);
+    expect(res.body.code).toBe("password_expired");
   });
 
   it("fails login when user disabled", async () => {
@@ -192,17 +247,55 @@ describe("auth", () => {
     expect(refresh.body.refreshToken).toBeDefined();
     expect(refresh.body.refreshToken).not.toBe(refreshToken);
 
-    const reuse = await request(app).post("/api/auth/refresh").send({
-      refreshToken,
+    const refreshLatest = await request(app).post("/api/auth/refresh").send({
+      refreshToken: refresh.body.refreshToken,
     });
-    expect(reuse.status).toBe(401);
-    expect(reuse.body.code).toBe("invalid_token");
+    expect(refreshLatest.status).toBe(200);
 
     const reuseLatest = await request(app).post("/api/auth/refresh").send({
       refreshToken: refresh.body.refreshToken,
     });
     expect(reuseLatest.status).toBe(401);
     expect(reuseLatest.body.code).toBe("invalid_token");
+  });
+
+  it("rejects refresh token replay with audit entry", async () => {
+    const user = await createUserAccount({
+      email: "replay@example.com",
+      password: "Password123!",
+      role: ROLES.STAFF,
+    });
+
+    const login = await request(app).post("/api/auth/login").send({
+      email: "replay@example.com",
+      password: "Password123!",
+    });
+
+    const refreshToken = login.body.refreshToken;
+    const refresh = await request(app).post("/api/auth/refresh").send({
+      refreshToken,
+    });
+    expect(refresh.status).toBe(200);
+
+    const replay = await request(app).post("/api/auth/refresh").send({
+      refreshToken,
+    });
+    expect(replay.status).toBe(401);
+    expect(replay.body.code).toBe("invalid_token");
+
+    const audit = await pool.query(
+      `select action, success, actor_user_id, target_user_id
+       from audit_events
+       where action = 'token_reuse'
+       order by created_at desc
+       limit 1`
+    );
+    expect(audit.rows[0]).toEqual({
+      action: "token_reuse",
+      success: false,
+      actor_user_id: user.id,
+      target_user_id: user.id,
+    });
   });
 
   it("rejects revoked refresh tokens", async () => {
@@ -254,6 +347,26 @@ describe("auth", () => {
     expect(res.body.code).toBe("forbidden");
   });
 
+  it("rejects unauthorized role escalation attempts", async () => {
+    const staff = await createUserAccount({
+      email: "self-role@example.com",
+      password: "Password123!",
+      role: ROLES.STAFF,
+    });
+    const login = await request(app).post("/api/auth/login").send({
+      email: "self-role@example.com",
+      password: "Password123!",
+    });
+
+    const res = await request(app)
+      .post(`/api/users/${staff.id}/role`)
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .send({ role: ROLES.ADMIN });
+
+    expect(res.status).toBe(403);
+    expect(res.body.code).toBe("forbidden");
+  });
+
   it("denies access when roles are not declared", async () => {
     await createUserAccount({
       email: "default-deny@example.com",
@@ -270,7 +383,7 @@ describe("auth", () => {
     protectedApp.get(
       "/protected",
       requireAuth,
-      requireRole([]),
+      requireCapability([]),
       (_req, res) => {
         res.json({ ok: true });
       }

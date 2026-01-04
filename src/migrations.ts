@@ -178,3 +178,18 @@ export async function assertNoPendingMigrations(): Promise<void> {
     throw new Error(`pending_migrations:${pending.join(",")}`);
   }
 }
+
+export async function getSchemaVersion(): Promise<string> {
+  await ensureMigrationsTable();
+  const res = await pool.query<{ id: string }>(
+    `select id
+     from schema_migrations
+     order by applied_at desc, id desc
+     limit 1`
+  );
+  const latest = res.rows[0]?.id;
+  if (!latest) {
+    throw new Error("schema_version_missing");
+  }
+  return latest;
+}

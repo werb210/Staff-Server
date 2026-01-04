@@ -5,8 +5,8 @@ import {
   passwordResetRateLimit,
   refreshRateLimit,
 } from "../../middleware/rateLimit";
-import { requireAuth, requireRole } from "../../middleware/auth";
-import { ALL_ROLES, ROLES } from "../../auth/roles";
+import { requireAuth, requireCapability } from "../../middleware/auth";
+import { CAPABILITIES } from "../../auth/capabilities";
 import {
   confirmPasswordReset,
   loginUser,
@@ -67,7 +67,7 @@ router.post("/refresh", refreshRateLimit(), async (req, res, next) => {
 router.post(
   "/logout",
   requireAuth,
-  requireRole(ALL_ROLES),
+  requireCapability([CAPABILITIES.AUTH_SESSION]),
   async (req, res, next) => {
     try {
       const { refreshToken } = req.body ?? {};
@@ -101,7 +101,7 @@ router.post(
 router.post(
   "/logout-all",
   requireAuth,
-  requireRole(ALL_ROLES),
+  requireCapability([CAPABILITIES.AUTH_SESSION]),
   async (req, res, next) => {
     try {
       if (!req.user) {
@@ -123,7 +123,11 @@ router.post(
   }
 );
 
-router.get("/me", requireAuth, requireRole(ALL_ROLES), async (req, res, next) => {
+router.get(
+  "/me",
+  requireAuth,
+  requireCapability([CAPABILITIES.AUTH_SESSION]),
+  async (req, res, next) => {
   try {
     if (!req.user) {
       throw new AppError("missing_token", "Authorization token is required.", 401);
@@ -132,12 +136,13 @@ router.get("/me", requireAuth, requireRole(ALL_ROLES), async (req, res, next) =>
   } catch (err) {
     next(err);
   }
-});
+  }
+);
 
 router.post(
   "/password-reset/request",
   requireAuth,
-  requireRole([ROLES.ADMIN]),
+  requireCapability([CAPABILITIES.USER_MANAGE]),
   passwordResetRateLimit(),
   async (req, res, next) => {
     try {
@@ -147,6 +152,7 @@ router.post(
       }
       const token = await requestPasswordReset({
         userId,
+        actorUserId: req.user?.userId ?? null,
         ip: req.ip,
         userAgent: req.get("user-agent"),
       });
@@ -186,7 +192,7 @@ router.post(
 router.post(
   "/password-change",
   requireAuth,
-  requireRole(ALL_ROLES),
+  requireCapability([CAPABILITIES.AUTH_SESSION]),
   async (req, res, next) => {
     try {
       const { currentPassword, newPassword } = req.body ?? {};

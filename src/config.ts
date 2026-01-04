@@ -1,4 +1,6 @@
 const requiredEnv = [
+  "BUILD_TIMESTAMP",
+  "COMMIT_SHA",
   "DATABASE_URL",
   "JWT_SECRET",
   "JWT_REFRESH_SECRET",
@@ -28,4 +30,18 @@ export function getLoginLockoutThreshold(): number {
 export function getLoginLockoutMinutes(): number {
   const value = Number(process.env.LOGIN_LOCKOUT_MINUTES ?? "15");
   return Number.isNaN(value) || value < 1 ? 15 : value;
+}
+
+export function getPasswordMaxAgeDays(): number {
+  const value = Number(process.env.PASSWORD_MAX_AGE_DAYS ?? "90");
+  return Number.isNaN(value) || value < 1 ? 90 : value;
+}
+
+export function getBuildInfo(): { commitHash: string; buildTimestamp: string } {
+  const commitHash = process.env.COMMIT_SHA;
+  const buildTimestamp = process.env.BUILD_TIMESTAMP;
+  if (!commitHash || !buildTimestamp) {
+    throw new Error("missing_build_metadata");
+  }
+  return { commitHash, buildTimestamp };
 }

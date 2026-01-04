@@ -11,6 +11,7 @@ export interface AuthUser {
   password_hash: string;
   role: Role;
   active: boolean;
+  password_changed_at: Date;
   failed_login_attempts: number;
   locked_until: Date | null;
   token_version: number;
@@ -20,7 +21,7 @@ export async function findAuthUserByEmail(
   email: string
 ): Promise<AuthUser | null> {
   const res = await pool.query<AuthUser>(
-    `select id, email, password_hash, role, active, failed_login_attempts, locked_until, token_version
+    `select id, email, password_hash, role, active, password_changed_at, failed_login_attempts, locked_until, token_version
      from users
      where email = $1
      limit 1`,
@@ -32,7 +33,7 @@ export async function findAuthUserByEmail(
 
 export async function findAuthUserById(id: string): Promise<AuthUser | null> {
   const res = await pool.query<AuthUser>(
-    `select id, email, password_hash, role, active, failed_login_attempts, locked_until, token_version
+    `select id, email, password_hash, role, active, password_changed_at, failed_login_attempts, locked_until, token_version
      from users
      where id = $1
      limit 1`,
@@ -51,7 +52,7 @@ export async function createUser(params: {
   const res = await runner.query<AuthUser>(
     `insert into users (id, email, password_hash, role, active, password_changed_at)
      values ($1, $2, $3, $4, true, now())
-     returning id, email, password_hash, role, active, failed_login_attempts, locked_until, token_version`,
+     returning id, email, password_hash, role, active, password_changed_at, failed_login_attempts, locked_until, token_version`,
     [randomUUID(), params.email, params.passwordHash, params.role]
   );
   return res.rows[0];
@@ -143,49 +144,15 @@ export async function storeRefreshToken(params: {
   userId: string;
   tokenHash: string;
   expiresAt: Date;
+  client?: Queryable;
 }): Promise<void> {
-  const client = await pool.connect();
-  try {
-    await client.query("begin");
-    await client.query(
-      `update auth_refresh_tokens
-       set revoked_at = now()
-       where user_id = $1 and revoked_at is null`,
-      [params.userId]
-    );
-    await client.query(
-      `insert into auth_refresh_tokens
-       (id, user_id, token_hash, expires_at, revoked_at, created_at)
-       values ($1, $2, $3, $4, null, now())
-       on conflict (id)
-       do update set
-         user_id = excluded.user_id,
-         token_hash = excluded.token_hash,
-         expires_at = excluded.expires_at,
-         revoked_at = null,
-         created_at = excluded.created_at`,
-      [params.userId, params.userId, params.tokenHash, params.expiresAt]
-    );
-    await client.query("commit");
-  } catch (err) {
-    await client.query("rollback");
-    throw err;
-  } finally {
-    client.release();
-  }
-}
-
-export async function findRefreshToken(
-  tokenHash: string
-): Promise<RefreshTokenRecord | null> {
-  const res = await pool.query<RefreshTokenRecord>(
-    `select id, user_id, token_hash, expires_at, revoked_at
-     from auth_refresh_tokens
-     where token_hash = $1
-     limit 1`,
-    [tokenHash]
+  const runner = params.client ?? pool;
+  await runner.query(
+    `insert into auth_refresh_tokens
+     (id, user_id, token_hash, expires_at, revoked_at, created_at)
+     values ($1, $2, $3, $4, null, now())`,
+    [randomUUID(), params.userId, params.tokenHash, params.expiresAt]
   );
-  return res.rows[0] ?? null;
 }
 
 export async function revokeRefreshToken(
@@ -212,6 +179,21 @@ export async function revokeRefreshTokensForUser(
      where user_id = $1 and revoked_at is null`,
     [userId]
   );
+}
+
+export async function consumeRefreshToken(
+  tokenHash: string,
+  client?: Queryable
+): Promise<RefreshTokenRecord | null> {
+  const runner = client ?? pool;
+  const res = await runner.query<RefreshTokenRecord>(
+    `update auth_refresh_tokens
+     set revoked_at = now()
+     where token_hash = $1 and revoked_at is null
+     returning id, user_id, token_hash, expires_at, revoked_at`,
+    [tokenHash]
+  );
+  return res.rows[0] ?? null;
 }
 
 export type PasswordResetRecord = {
