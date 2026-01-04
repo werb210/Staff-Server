@@ -6,8 +6,11 @@ import { ROLES } from "../auth/roles";
 import { runMigrations } from "../migrations";
 
 const app = buildApp();
+const requestId = "test-request-id";
 
 async function resetDb(): Promise<void> {
+  await pool.query("delete from client_submissions");
+  await pool.query("delete from lender_submission_retries");
   await pool.query("delete from lender_submissions");
   await pool.query("delete from document_version_reviews");
   await pool.query("delete from document_versions");
@@ -17,7 +20,7 @@ async function resetDb(): Promise<void> {
   await pool.query("delete from auth_refresh_tokens");
   await pool.query("delete from password_resets");
   await pool.query("delete from audit_events");
-  await pool.query("delete from users");
+  await pool.query("delete from users where id <> 'client-submission-system'");
 }
 
 beforeAll(async () => {
@@ -51,7 +54,10 @@ describe("lender submissions", () => {
       role: ROLES.STAFF,
     });
 
-    const login = await request(app).post("/api/auth/login").send({
+    const login = await request(app)
+      .post("/api/auth/login")
+      .set("x-request-id", requestId)
+      .send({
       email: "lender@apps.com",
       password: "Password123!",
     });
@@ -59,6 +65,7 @@ describe("lender submissions", () => {
     const appRes = await request(app)
       .post("/api/applications")
       .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .set("x-request-id", requestId)
       .send({ name: "Lender Application", productType: "standard" });
 
     const applicationId = appRes.body.application.id;
@@ -66,6 +73,7 @@ describe("lender submissions", () => {
     const bank = await request(app)
       .post(`/api/applications/${applicationId}/documents`)
       .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .set("x-request-id", requestId)
       .send({
         title: "Bank Statement",
         documentType: "bank_statement",
@@ -75,6 +83,7 @@ describe("lender submissions", () => {
     const idDoc = await request(app)
       .post(`/api/applications/${applicationId}/documents`)
       .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .set("x-request-id", requestId)
       .send({
         title: "ID",
         documentType: "id_document",
@@ -86,25 +95,29 @@ describe("lender submissions", () => {
       .post(
         `/api/applications/${applicationId}/documents/${bank.body.document.documentId}/versions/${bank.body.document.versionId}/accept`
       )
-      .set("Authorization", `Bearer ${login.body.accessToken}`);
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .set("x-request-id", requestId);
 
     await request(app)
       .post(
         `/api/applications/${applicationId}/documents/${idDoc.body.document.documentId}/versions/${idDoc.body.document.versionId}/accept`
       )
-      .set("Authorization", `Bearer ${login.body.accessToken}`);
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .set("x-request-id", requestId);
 
     const submission1 = await request(app)
       .post("/api/lender/submissions")
       .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .set("x-request-id", requestId)
       .send({ applicationId, idempotencyKey: "key-123" });
     expect(submission1.status).toBe(201);
 
     const submission2 = await request(app)
       .post("/api/lender/submissions")
       .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .set("x-request-id", requestId)
       .send({ applicationId, idempotencyKey: "key-123" });
-    expect(submission2.status).toBe(201);
+    expect(submission2.status).toBe(200);
     expect(submission2.body.submission.id).toBe(submission1.body.submission.id);
 
     const status = await request(app)
@@ -125,14 +138,17 @@ describe("lender submissions", () => {
     ]);
   });
 
-  it("requires under review state for submission", async () => {
+  it("rejects submissions without required documents", async () => {
     await createUserAccount({
       email: "lender2@apps.com",
       password: "Password123!",
       role: ROLES.STAFF,
     });
 
-    const login = await request(app).post("/api/auth/login").send({
+    const login = await request(app)
+      .post("/api/auth/login")
+      .set("x-request-id", requestId)
+      .send({
       email: "lender2@apps.com",
       password: "Password123!",
     });
@@ -140,14 +156,91 @@ describe("lender submissions", () => {
     const appRes = await request(app)
       .post("/api/applications")
       .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .set("x-request-id", requestId)
       .send({ name: "Blocked Application", productType: "standard" });
 
     const submission = await request(app)
       .post("/api/lender/submissions")
       .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .set("x-request-id", requestId)
       .send({ applicationId: appRes.body.application.id });
 
     expect(submission.status).toBe(400);
-    expect(submission.body.code).toBe("invalid_state");
+    expect(submission.body.submission.status).toBe("failed");
+    expect(submission.body.submission.failureReason).toBe("missing_documents");
+  });
+
+  it("retries failed lender submissions", async () => {
+    await createUserAccount({
+      email: "retry@apps.com",
+      password: "Password123!",
+      role: ROLES.ADMIN,
+    });
+
+    const login = await request(app)
+      .post("/api/auth/login")
+      .set("x-request-id", requestId)
+      .send({
+        email: "retry@apps.com",
+        password: "Password123!",
+      });
+
+    const appRes = await request(app)
+      .post("/api/applications")
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .set("x-request-id", requestId)
+      .send({ name: "Retry Application", productType: "standard" });
+
+    const applicationId = appRes.body.application.id;
+
+    const bank = await request(app)
+      .post(`/api/applications/${applicationId}/documents`)
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .set("x-request-id", requestId)
+      .send({
+        title: "Bank Statement",
+        documentType: "bank_statement",
+        metadata: { fileName: "bank.pdf", mimeType: "application/pdf", size: 123 },
+        content: "base64data",
+      });
+    const idDoc = await request(app)
+      .post(`/api/applications/${applicationId}/documents`)
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .set("x-request-id", requestId)
+      .send({
+        title: "ID",
+        documentType: "id_document",
+        metadata: { fileName: "id.pdf", mimeType: "application/pdf", size: 50 },
+        content: "iddata",
+      });
+
+    await request(app)
+      .post(
+        `/api/applications/${applicationId}/documents/${bank.body.document.documentId}/versions/${bank.body.document.versionId}/accept`
+      )
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .set("x-request-id", requestId);
+
+    await request(app)
+      .post(
+        `/api/applications/${applicationId}/documents/${idDoc.body.document.documentId}/versions/${idDoc.body.document.versionId}/accept`
+      )
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .set("x-request-id", requestId);
+
+    const submission = await request(app)
+      .post("/api/lender/submissions")
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .set("x-request-id", requestId)
+      .send({ applicationId, lenderId: "timeout" });
+    expect(submission.status).toBe(502);
+    expect(submission.body.submission.failureReason).toBe("lender_timeout");
+
+    const retry = await request(app)
+      .post(`/api/admin/transmissions/${submission.body.submission.id}/retry`)
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .set("x-request-id", requestId);
+    expect(retry.status).toBe(200);
+    expect(retry.body.retry.status).toBe("submitted");
   });
 });

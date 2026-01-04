@@ -105,6 +105,20 @@ export function getDocumentUploadRateLimitWindowMs(): number {
   );
 }
 
+export function getClientSubmissionRateLimitMax(): number {
+  return parseRateLimit(
+    process.env.CLIENT_SUBMISSION_RATE_LIMIT_MAX,
+    rateLimitFallback(20, 2000)
+  );
+}
+
+export function getClientSubmissionRateLimitWindowMs(): number {
+  return parseRateLimit(
+    process.env.CLIENT_SUBMISSION_RATE_LIMIT_WINDOW_MS,
+    rateLimitFallback(60_000, 60_000)
+  );
+}
+
 export function getLenderSubmissionRateLimitMax(): number {
   return parseRateLimit(
     process.env.LENDER_SUBMISSION_RATE_LIMIT_MAX,
@@ -131,6 +145,46 @@ export function getAdminRateLimitWindowMs(): number {
     process.env.ADMIN_RATE_LIMIT_WINDOW_MS,
     rateLimitFallback(60_000, 60_000)
   );
+}
+
+export function getDocumentMaxSizeBytes(): number {
+  const value = Number(process.env.DOCUMENT_MAX_SIZE_BYTES ?? "10485760");
+  if (Number.isNaN(value) || value < 1) {
+    return 10 * 1024 * 1024;
+  }
+  return value;
+}
+
+export function getDocumentAllowedMimeTypes(): string[] {
+  const raw = process.env.DOCUMENT_ALLOWED_MIME_TYPES;
+  if (!raw) {
+    return ["application/pdf", "image/png", "image/jpeg"];
+  }
+  const values = raw
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+  return values.length > 0 ? values : ["application/pdf", "image/png", "image/jpeg"];
+}
+
+export function getClientSubmissionOwnerUserId(): string {
+  return process.env.CLIENT_SUBMISSION_OWNER_USER_ID ?? "client-submission-system";
+}
+
+export function getLenderRetryBaseDelayMs(): number {
+  return parseIntervalMs(process.env.LENDER_RETRY_BASE_DELAY_MS, 60_000);
+}
+
+export function getLenderRetryMaxDelayMs(): number {
+  return parseIntervalMs(process.env.LENDER_RETRY_MAX_DELAY_MS, 60 * 60 * 1000);
+}
+
+export function getLenderRetryMaxCount(): number {
+  const value = Number(process.env.LENDER_RETRY_MAX_COUNT ?? "5");
+  if (Number.isNaN(value) || value < 0) {
+    return 5;
+  }
+  return value;
 }
 
 export function getBuildInfo(): { commitHash: string; buildTimestamp: string } {

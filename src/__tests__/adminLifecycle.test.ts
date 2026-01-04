@@ -6,8 +6,11 @@ import { ROLES } from "../auth/roles";
 import { runMigrations } from "../migrations";
 
 const app = buildApp();
+const requestId = "test-request-id";
 
 async function resetDb(): Promise<void> {
+  await pool.query("delete from client_submissions");
+  await pool.query("delete from lender_submission_retries");
   await pool.query("delete from lender_submissions");
   await pool.query("delete from document_version_reviews");
   await pool.query("delete from document_versions");
@@ -17,7 +20,7 @@ async function resetDb(): Promise<void> {
   await pool.query("delete from auth_refresh_tokens");
   await pool.query("delete from password_resets");
   await pool.query("delete from audit_events");
-  await pool.query("delete from users");
+  await pool.query("delete from users where id <> 'client-submission-system'");
 }
 
 beforeAll(async () => {
@@ -50,7 +53,10 @@ describe("admin lifecycle", () => {
       password: "Password123!",
       role: ROLES.STAFF,
     });
-    const staffLogin = await request(app).post("/api/auth/login").send({
+    const staffLogin = await request(app)
+      .post("/api/auth/login")
+      .set("x-request-id", requestId)
+      .send({
       email: "staff@example.com",
       password: "Password123!",
     });
@@ -58,6 +64,7 @@ describe("admin lifecycle", () => {
     const res = await request(app)
       .post("/api/users")
       .set("Authorization", `Bearer ${staffLogin.body.accessToken}`)
+      .set("x-request-id", requestId)
       .send({
         email: "new@example.com",
         password: "Password123!",
@@ -80,21 +87,31 @@ describe("admin lifecycle", () => {
       role: ROLES.STAFF,
     });
 
-    const adminLogin = await request(app).post("/api/auth/login").send({
+    const adminLogin = await request(app)
+      .post("/api/auth/login")
+      .set("x-request-id", requestId)
+      .send({
       email: admin.email,
       password: "Password123!",
     });
-    const userLogin = await request(app).post("/api/auth/login").send({
+    const userLogin = await request(app)
+      .post("/api/auth/login")
+      .set("x-request-id", requestId)
+      .send({
       email: user.email,
       password: "Password123!",
     });
 
     const disable = await request(app)
       .post(`/api/users/${user.id}/disable`)
-      .set("Authorization", `Bearer ${adminLogin.body.accessToken}`);
+      .set("Authorization", `Bearer ${adminLogin.body.accessToken}`)
+      .set("x-request-id", requestId);
     expect(disable.status).toBe(200);
 
-    const refresh = await request(app).post("/api/auth/refresh").send({
+    const refresh = await request(app)
+      .post("/api/auth/refresh")
+      .set("x-request-id", requestId)
+      .send({
       refreshToken: userLogin.body.refreshToken,
     });
     expect(refresh.status).toBe(401);
@@ -113,7 +130,10 @@ describe("admin lifecycle", () => {
       password: "Password123!",
       role: ROLES.ADMIN,
     });
-    const adminLogin = await request(app).post("/api/auth/login").send({
+    const adminLogin = await request(app)
+      .post("/api/auth/login")
+      .set("x-request-id", requestId)
+      .send({
       email: admin.email,
       password: "Password123!",
     });
@@ -121,6 +141,7 @@ describe("admin lifecycle", () => {
     const created = await request(app)
       .post("/api/users")
       .set("Authorization", `Bearer ${adminLogin.body.accessToken}`)
+      .set("x-request-id", requestId)
       .send({
         email: "audited@example.com",
         password: "Password123!",
@@ -131,17 +152,20 @@ describe("admin lifecycle", () => {
 
     const disable = await request(app)
       .post(`/api/users/${userId}/disable`)
-      .set("Authorization", `Bearer ${adminLogin.body.accessToken}`);
+      .set("Authorization", `Bearer ${adminLogin.body.accessToken}`)
+      .set("x-request-id", requestId);
     expect(disable.status).toBe(200);
 
     const enable = await request(app)
       .post(`/api/users/${userId}/enable`)
-      .set("Authorization", `Bearer ${adminLogin.body.accessToken}`);
+      .set("Authorization", `Bearer ${adminLogin.body.accessToken}`)
+      .set("x-request-id", requestId);
     expect(enable.status).toBe(200);
 
     const roleChange = await request(app)
       .post(`/api/users/${userId}/role`)
       .set("Authorization", `Bearer ${adminLogin.body.accessToken}`)
+      .set("x-request-id", requestId)
       .send({ role: ROLES.ADMIN });
     expect(roleChange.status).toBe(200);
 

@@ -12,8 +12,24 @@ export type LenderSubmissionRecord = {
   lender_id: string;
   submitted_at: Date | null;
   payload: unknown | null;
+  payload_hash: string | null;
+  lender_response: unknown | null;
+  response_received_at: Date | null;
+  failure_reason: string | null;
   created_at: Date;
   updated_at: Date;
+};
+
+export type LenderSubmissionRetryRecord = {
+  id: string;
+  submission_id: string;
+  status: string;
+  attempt_count: number;
+  next_attempt_at: Date | null;
+  last_error: string | null;
+  created_at: Date;
+  updated_at: Date;
+  canceled_at: Date | null;
 };
 
 export async function findSubmissionByIdempotencyKey(
@@ -22,7 +38,8 @@ export async function findSubmissionByIdempotencyKey(
 ): Promise<LenderSubmissionRecord | null> {
   const runner = client ?? pool;
   const res = await runner.query<LenderSubmissionRecord>(
-    `select id, application_id, status, idempotency_key, lender_id, submitted_at, payload, created_at, updated_at
+    `select id, application_id, status, idempotency_key, lender_id, submitted_at, payload, payload_hash,
+            lender_response, response_received_at, failure_reason, created_at, updated_at
      from lender_submissions
      where idempotency_key = $1
      limit 1`,
@@ -38,14 +55,20 @@ export async function createSubmission(params: {
   lenderId: string;
   submittedAt: Date;
   payload: unknown;
+  payloadHash: string;
+  lenderResponse: unknown | null;
+  responseReceivedAt: Date | null;
+  failureReason: string | null;
   client?: Queryable;
 }): Promise<LenderSubmissionRecord> {
   const runner = params.client ?? pool;
   const res = await runner.query<LenderSubmissionRecord>(
     `insert into lender_submissions
-     (id, application_id, status, idempotency_key, lender_id, submitted_at, payload, created_at, updated_at)
-     values ($1, $2, $3, $4, $5, $6, $7, now(), now())
-     returning id, application_id, status, idempotency_key, lender_id, submitted_at, payload, created_at, updated_at`,
+     (id, application_id, status, idempotency_key, lender_id, submitted_at, payload, payload_hash,
+      lender_response, response_received_at, failure_reason, created_at, updated_at)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, now(), now())
+     returning id, application_id, status, idempotency_key, lender_id, submitted_at, payload, payload_hash,
+               lender_response, response_received_at, failure_reason, created_at, updated_at`,
     [
       randomUUID(),
       params.applicationId,
@@ -54,6 +77,10 @@ export async function createSubmission(params: {
       params.lenderId,
       params.submittedAt,
       params.payload,
+      params.payloadHash,
+      params.lenderResponse,
+      params.responseReceivedAt,
+      params.failureReason,
     ]
   );
   return res.rows[0];
@@ -65,7 +92,8 @@ export async function findSubmissionById(
 ): Promise<LenderSubmissionRecord | null> {
   const runner = client ?? pool;
   const res = await runner.query<LenderSubmissionRecord>(
-    `select id, application_id, status, idempotency_key, lender_id, submitted_at, payload, created_at, updated_at
+    `select id, application_id, status, idempotency_key, lender_id, submitted_at, payload, payload_hash,
+            lender_response, response_received_at, failure_reason, created_at, updated_at
      from lender_submissions
      where id = $1
      limit 1`,
@@ -74,17 +102,114 @@ export async function findSubmissionById(
   return res.rows[0] ?? null;
 }
 
-export async function findSubmissionByApplicationId(
+export async function findSubmissionByApplicationAndLender(
+  params: { applicationId: string; lenderId: string },
+  client?: Queryable
+): Promise<LenderSubmissionRecord | null> {
+  const runner = client ?? pool;
+  const res = await runner.query<LenderSubmissionRecord>(
+    `select id, application_id, status, idempotency_key, lender_id, submitted_at, payload, payload_hash,
+            lender_response, response_received_at, failure_reason, created_at, updated_at
+     from lender_submissions
+     where application_id = $1
+       and lender_id = $2
+     limit 1`,
+    [params.applicationId, params.lenderId]
+  );
+  return res.rows[0] ?? null;
+}
+
+export async function findLatestSubmissionByApplicationId(
   applicationId: string,
   client?: Queryable
 ): Promise<LenderSubmissionRecord | null> {
   const runner = client ?? pool;
   const res = await runner.query<LenderSubmissionRecord>(
-    `select id, application_id, status, idempotency_key, lender_id, submitted_at, payload, created_at, updated_at
+    `select id, application_id, status, idempotency_key, lender_id, submitted_at, payload, payload_hash,
+            lender_response, response_received_at, failure_reason, created_at, updated_at
      from lender_submissions
      where application_id = $1
+     order by created_at desc
      limit 1`,
     [applicationId]
+  );
+  return res.rows[0] ?? null;
+}
+
+export async function updateSubmissionStatus(params: {
+  submissionId: string;
+  status: string;
+  lenderResponse: unknown | null;
+  responseReceivedAt: Date | null;
+  failureReason: string | null;
+  client?: Queryable;
+}): Promise<void> {
+  const runner = params.client ?? pool;
+  await runner.query(
+    `update lender_submissions
+     set status = $1,
+         lender_response = $2,
+         response_received_at = $3,
+         failure_reason = $4,
+         updated_at = now()
+     where id = $5`,
+    [
+      params.status,
+      params.lenderResponse,
+      params.responseReceivedAt,
+      params.failureReason,
+      params.submissionId,
+    ]
+  );
+}
+
+export async function upsertSubmissionRetryState(params: {
+  submissionId: string;
+  status: string;
+  attemptCount: number;
+  nextAttemptAt: Date | null;
+  lastError: string | null;
+  canceledAt: Date | null;
+  client?: Queryable;
+}): Promise<LenderSubmissionRetryRecord> {
+  const runner = params.client ?? pool;
+  const res = await runner.query<LenderSubmissionRetryRecord>(
+    `insert into lender_submission_retries
+     (id, submission_id, status, attempt_count, next_attempt_at, last_error, created_at, updated_at, canceled_at)
+     values ($1, $2, $3, $4, $5, $6, now(), now(), $7)
+     on conflict (submission_id)
+     do update set
+       status = excluded.status,
+       attempt_count = excluded.attempt_count,
+       next_attempt_at = excluded.next_attempt_at,
+       last_error = excluded.last_error,
+       canceled_at = excluded.canceled_at,
+       updated_at = now()
+     returning id, submission_id, status, attempt_count, next_attempt_at, last_error, created_at, updated_at, canceled_at`,
+    [
+      randomUUID(),
+      params.submissionId,
+      params.status,
+      params.attemptCount,
+      params.nextAttemptAt,
+      params.lastError,
+      params.canceledAt,
+    ]
+  );
+  return res.rows[0];
+}
+
+export async function findSubmissionRetryState(
+  submissionId: string,
+  client?: Queryable
+): Promise<LenderSubmissionRetryRecord | null> {
+  const runner = client ?? pool;
+  const res = await runner.query<LenderSubmissionRetryRecord>(
+    `select id, submission_id, status, attempt_count, next_attempt_at, last_error, created_at, updated_at, canceled_at
+     from lender_submission_retries
+     where submission_id = $1
+     limit 1`,
+    [submissionId]
   );
   return res.rows[0] ?? null;
 }

@@ -7,6 +7,8 @@ import {
   createDocumentVersionReview,
   findApplicationById,
   findDocumentById,
+  findDocumentByApplicationAndType,
+  findAcceptedDocumentVersion,
   findDocumentVersionById,
   findDocumentVersionReview,
   findLatestDocumentVersionStatus,
@@ -17,13 +19,14 @@ import { pool } from "../../db";
 import { type Role, ROLES } from "../../auth/roles";
 import { type PoolClient } from "pg";
 import { createIdempotencyRecord, findIdempotencyRecord } from "../idempotency/idempotency.repo";
-import { getRequirements } from "./documentRequirements";
+import { getDocumentCategory, getRequirements, isSupportedProductType } from "./documentRequirements";
 import {
   PIPELINE_STATES,
   canTransition,
   isPipelineState,
   type PipelineState,
 } from "./pipelineState";
+import { getDocumentAllowedMimeTypes, getDocumentMaxSizeBytes } from "../../config";
 
 const IDEMPOTENCY_SCOPE_APPLICATION = "application_create";
 const IDEMPOTENCY_SCOPE_DOCUMENT = "document_upload";
@@ -71,6 +74,35 @@ function assertMetadata(value: unknown): asserts value is MetadataPayload {
   ) {
     throw new AppError("invalid_metadata", "Metadata is invalid.", 400);
   }
+}
+
+function validateDocumentMetadata(metadata: MetadataPayload): void {
+  const allowed = getDocumentAllowedMimeTypes();
+  if (!allowed.includes(metadata.mimeType)) {
+    throw new AppError("invalid_mime_type", "Unsupported document MIME type.", 400);
+  }
+  const maxSize = getDocumentMaxSizeBytes();
+  if (metadata.size > maxSize) {
+    throw new AppError("document_too_large", "Document exceeds max size.", 400);
+  }
+}
+
+async function recordDocumentUploadFailure(params: {
+  actorUserId: string;
+  targetUserId: string | null;
+  ip?: string;
+  userAgent?: string;
+  client?: Queryable;
+}): Promise<void> {
+  await recordAuditEvent({
+    action: "document_upload_rejected",
+    actorUserId: params.actorUserId,
+    targetUserId: params.targetUserId,
+    ip: params.ip,
+    userAgent: params.userAgent,
+    success: false,
+    client: params.client,
+  });
 }
 
 function canAccessApplication(role: Role, ownerUserId: string, actorId: string): boolean {
@@ -329,6 +361,17 @@ export async function uploadDocument(params: {
   userAgent?: string;
 }): Promise<IdempotentResult<DocumentUploadResponse>> {
   assertMetadata(params.metadata);
+  try {
+    validateDocumentMetadata(params.metadata);
+  } catch (err) {
+    await recordDocumentUploadFailure({
+      actorUserId: params.actorUserId,
+      targetUserId: null,
+      ip: params.ip,
+      userAgent: params.userAgent,
+    });
+    throw err;
+  }
 
   const application = await findApplicationById(params.applicationId);
   if (!application) {
@@ -353,6 +396,50 @@ export async function uploadDocument(params: {
       success: false,
     });
     throw new AppError("forbidden", "Not authorized.", 403);
+  }
+
+  if (!isSupportedProductType(application.product_type)) {
+    await recordDocumentUploadFailure({
+      actorUserId: params.actorUserId,
+      targetUserId: application.owner_user_id,
+      ip: params.ip,
+      userAgent: params.userAgent,
+    });
+    throw new AppError("invalid_product", "Unsupported product type.", 400);
+  }
+
+  const documentCategory = getDocumentCategory(
+    application.product_type,
+    params.documentType ?? params.title
+  );
+  if (!documentCategory) {
+    await recordDocumentUploadFailure({
+      actorUserId: params.actorUserId,
+      targetUserId: application.owner_user_id,
+      ip: params.ip,
+      userAgent: params.userAgent,
+    });
+    throw new AppError("invalid_document_type", "Document type is not allowed.", 400);
+  }
+
+  if (!isPipelineState(application.pipeline_state)) {
+    throw new AppError("invalid_state", "Pipeline state is invalid.", 400);
+  }
+  const requirements = getRequirements({
+    productType: application.product_type,
+    pipelineState: application.pipeline_state,
+  });
+  const requirement = requirements.find(
+    (item) => item.documentType === (params.documentType ?? params.title)
+  );
+  if (!requirement) {
+    await recordDocumentUploadFailure({
+      actorUserId: params.actorUserId,
+      targetUserId: application.owner_user_id,
+      ip: params.ip,
+      userAgent: params.userAgent,
+    });
+    throw new AppError("invalid_document_type", "Document type is not allowed.", 400);
   }
 
   const client = await pool.connect();
@@ -383,7 +470,56 @@ export async function uploadDocument(params: {
         await client.query("rollback");
         throw new AppError("not_found", "Document not found.", 404);
       }
+      if (existingDoc.document_type !== (params.documentType ?? existingDoc.document_type)) {
+        await recordDocumentUploadFailure({
+          actorUserId: params.actorUserId,
+          targetUserId: application.owner_user_id,
+          ip: params.ip,
+          userAgent: params.userAgent,
+          client,
+        });
+        throw new AppError("document_type_mismatch", "Document type mismatch.", 400);
+      }
+      const accepted = await findAcceptedDocumentVersion({
+        documentId,
+        client,
+      });
+      if (accepted) {
+        await recordDocumentUploadFailure({
+          actorUserId: params.actorUserId,
+          targetUserId: application.owner_user_id,
+          ip: params.ip,
+          userAgent: params.userAgent,
+          client,
+        });
+        throw new AppError(
+          "document_immutable",
+          "Accepted document versions cannot be modified.",
+          409
+        );
+      }
     } else {
+      if (!requirement.multipleAllowed) {
+        const existing = await findDocumentByApplicationAndType({
+          applicationId: params.applicationId,
+          documentType: params.documentType ?? params.title,
+          client,
+        });
+        if (existing) {
+          await recordDocumentUploadFailure({
+            actorUserId: params.actorUserId,
+            targetUserId: application.owner_user_id,
+            ip: params.ip,
+            userAgent: params.userAgent,
+            client,
+          });
+          throw new AppError(
+            "document_duplicate",
+            "Multiple documents are not allowed for this type.",
+            409
+          );
+        }
+      }
       const doc = await createDocument({
         applicationId: params.applicationId,
         ownerUserId: application.owner_user_id,

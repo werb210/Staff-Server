@@ -21,6 +21,9 @@ import {
 } from "../modules/reporting/reporting.jobs";
 
 const app = buildApp();
+const requestId = "test-request-id";
+const postWithRequestId = (url: string) =>
+  request(app).post(url).set("x-request-id", requestId);
 
 async function resetDb(): Promise<void> {
   await pool.query("delete from reporting_lender_funnel_daily");
@@ -31,6 +34,8 @@ async function resetDb(): Promise<void> {
   await pool.query("delete from reporting_lender_performance");
   await pool.query("delete from reporting_pipeline_snapshots");
   await pool.query("delete from reporting_daily_metrics");
+  await pool.query("delete from client_submissions");
+  await pool.query("delete from lender_submission_retries");
   await pool.query("delete from lender_submissions");
   await pool.query("delete from document_version_reviews");
   await pool.query("delete from document_versions");
@@ -40,7 +45,7 @@ async function resetDb(): Promise<void> {
   await pool.query("delete from auth_refresh_tokens");
   await pool.query("delete from password_resets");
   await pool.query("delete from audit_events");
-  await pool.query("delete from users");
+  await pool.query("delete from users where id <> 'client-submission-system'");
 }
 
 beforeAll(async () => {
@@ -244,11 +249,11 @@ describe("reporting", () => {
       role: ROLES.ADMIN,
     });
 
-    const userLogin = await request(app).post("/api/auth/login").send({
+    const userLogin = await postWithRequestId("/api/auth/login").send({
       email: "user@reports.test",
       password: "Password123!",
     });
-    const adminLogin = await request(app).post("/api/auth/login").send({
+    const adminLogin = await postWithRequestId("/api/auth/login").send({
       email: "admin@reports.test",
       password: "Password123!",
     });

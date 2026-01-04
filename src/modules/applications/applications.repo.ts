@@ -134,6 +134,23 @@ export async function findDocumentById(
   return res.rows[0] ?? null;
 }
 
+export async function findDocumentByApplicationAndType(params: {
+  applicationId: string;
+  documentType: string;
+  client?: Queryable;
+}): Promise<DocumentRecord | null> {
+  const runner = params.client ?? pool;
+  const res = await runner.query<DocumentRecord>(
+    `select id, application_id, owner_user_id, title, document_type, created_at
+     from documents
+     where application_id = $1
+       and document_type = $2
+     limit 1`,
+    [params.applicationId, params.documentType]
+  );
+  return res.rows[0] ?? null;
+}
+
 export async function getLatestDocumentVersion(
   documentId: string,
   client?: Queryable
@@ -198,6 +215,24 @@ export async function findDocumentVersionReview(
      where document_version_id = $1
      limit 1`,
     [documentVersionId]
+  );
+  return res.rows[0] ?? null;
+}
+
+export async function findAcceptedDocumentVersion(params: {
+  documentId: string;
+  client?: Queryable;
+}): Promise<DocumentVersionRecord | null> {
+  const runner = params.client ?? pool;
+  const res = await runner.query<DocumentVersionRecord>(
+    `select dv.id, dv.document_id, dv.version, dv.metadata, dv.content, dv.created_at
+     from document_versions dv
+     join document_version_reviews r on r.document_version_id = dv.id
+     where dv.document_id = $1
+       and r.status = 'accepted'
+     order by dv.version desc
+     limit 1`,
+    [params.documentId]
   );
   return res.rows[0] ?? null;
 }

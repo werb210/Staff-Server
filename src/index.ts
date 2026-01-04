@@ -8,7 +8,9 @@ import lenderRoutes from "./routes/lender";
 import adminRoutes from "./routes/admin";
 import reportsRoutes from "./routes/reports";
 import reportingRoutes from "./routes/reporting";
+import clientRoutes from "./routes/client";
 import { requestId } from "./middleware/requestId";
+import { requireRequestId } from "./middleware/requireRequestId";
 import { requestLogger } from "./middleware/requestLogger";
 import { errorHandler, notFoundHandler } from "./middleware/errors";
 import { assertEnv } from "./config";
@@ -20,6 +22,7 @@ export function buildApp() {
   const app = express();
   app.use(express.json());
   app.use(requestId);
+  app.use(requireRequestId);
   app.use(requestLogger);
 
   app.use("/api/_int", internalRoutes);
@@ -28,6 +31,7 @@ export function buildApp() {
   app.use("/api/staff", staffRoutes);
   app.use("/api/admin", adminRoutes);
   app.use("/api/applications", applicationsRoutes);
+  app.use("/api/client", clientRoutes);
   app.use("/api/lender", lenderRoutes);
   app.use("/api/reports", reportsRoutes);
   app.use("/api/reporting", reportingRoutes);
