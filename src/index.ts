@@ -3,6 +3,8 @@ import internalRoutes from "./routes/internal";
 import authRoutes from "./routes/auth";
 import usersRoutes from "./routes/users";
 import staffRoutes from "./routes/staff";
+import applicationsRoutes from "./routes/applications";
+import lenderRoutes from "./routes/lender";
 import { requestId } from "./middleware/requestId";
 import { requestLogger } from "./middleware/requestLogger";
 import { errorHandler, notFoundHandler } from "./middleware/errors";
@@ -20,6 +22,8 @@ export function buildApp() {
   app.use("/api/auth", authRoutes);
   app.use("/api/users", usersRoutes);
   app.use("/api/staff", staffRoutes);
+  app.use("/api/applications", applicationsRoutes);
+  app.use("/api/lender", lenderRoutes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
