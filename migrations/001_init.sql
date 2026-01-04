@@ -38,3 +38,13 @@ create table audit_logs (
   success boolean not null,
   created_at timestamp not null
 );
+
+create table audit_events (
+  id text primary key,
+  user_id text null references users(id) on delete set null,
+  action text not null,
+  ip text null,
+  user_agent text null,
+  success boolean not null,
+  created_at timestamp not null
+);

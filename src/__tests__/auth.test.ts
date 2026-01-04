@@ -11,6 +11,7 @@ import { runMigrations } from "../migrations";
 import fs from "fs";
 import path from "path";
 import { requireAuth, requireRole } from "../middleware/auth";
+import { errorHandler } from "../middleware/errors";
 
 const app = buildApp();
 
@@ -274,6 +275,7 @@ describe("auth", () => {
         res.json({ ok: true });
       }
     );
+    protectedApp.use(errorHandler);
 
     const res = await request(protectedApp)
       .get("/protected")
