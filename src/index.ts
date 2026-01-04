@@ -6,12 +6,14 @@ import staffRoutes from "./routes/staff";
 import applicationsRoutes from "./routes/applications";
 import lenderRoutes from "./routes/lender";
 import adminRoutes from "./routes/admin";
+import reportsRoutes from "./routes/reports";
 import { requestId } from "./middleware/requestId";
 import { requestLogger } from "./middleware/requestLogger";
 import { errorHandler, notFoundHandler } from "./middleware/errors";
 import { assertEnv } from "./config";
 import { assertSchema, checkDb, pool } from "./db";
 import { assertNoPendingMigrations, runMigrations } from "./migrations";
+import { startReportingJobs } from "./modules/reporting/reporting.jobs";
 
 export function buildApp() {
   const app = express();
@@ -26,6 +28,7 @@ export function buildApp() {
   app.use("/api/admin", adminRoutes);
   app.use("/api/applications", applicationsRoutes);
   app.use("/api/lender", lenderRoutes);
+  app.use("/api/reports", reportsRoutes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
@@ -50,6 +53,7 @@ async function start(): Promise<void> {
   const server = app.listen(port, () => {
     console.log(`Server listening on ${port}`);
   });
+  const jobs = process.env.NODE_ENV === "test" ? null : startReportingJobs();
 
   let shuttingDown = false;
   const shutdown = (signal: string) => {
@@ -64,6 +68,7 @@ async function start(): Promise<void> {
         process.exit(1);
       }
       try {
+        jobs?.stop();
         await pool.end();
         process.exit(0);
       } catch (error) {
