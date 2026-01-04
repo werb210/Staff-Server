@@ -101,3 +101,99 @@ BI aggregation jobs can be controlled via:
 - `LENDER_RETRY_BASE_DELAY_MS`
 - `LENDER_RETRY_MAX_DELAY_MS`
 - `LENDER_RETRY_MAX_COUNT`
+
+## Ops Control Plane
+
+Admin-only ops control plane endpoints live under `/api/admin/ops`:
+
+- `GET /api/admin/ops/kill-switches`
+- `POST /api/admin/ops/kill-switches/:key/enable`
+- `POST /api/admin/ops/kill-switches/:key/disable`
+- `POST /api/admin/ops/replay/:scope`
+- `GET /api/admin/ops/replay/:id/status`
+
+Example: list kill switches
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/admin/ops/kill-switches
+```
+
+## Replay Procedures
+
+Supported replay scopes are `audit_events`, `lender_submissions`, and `reporting_daily_metrics`.
+
+Start a replay:
+
+```bash
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/admin/ops/replay/audit_events
+```
+
+Check status:
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/admin/ops/replay/{replayJobId}/status
+```
+
+## Data Export Procedures
+
+Admin exports are served under `/api/admin/exports` and accept a JSON payload with optional
+`from`, `to`, `pipelineState`, `lenderId`, `productType`, and `format` (`json` or `csv`).
+
+Pipeline summary export (JSON):
+
+```bash
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"from":"2024-01-01","to":"2024-02-01","format":"json"}' \
+  http://localhost:8080/api/admin/exports/pipeline
+```
+
+Lender performance export (CSV):
+
+```bash
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"lenderId":"default","format":"csv"}' \
+  http://localhost:8080/api/admin/exports/lenders
+```
+
+Application volume export (CSV):
+
+```bash
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"productType":"term_loan","format":"csv"}' \
+  http://localhost:8080/api/admin/exports/applications
+```
+
+## Emergency Kill Switches
+
+Kill switches can be toggled through the ops control plane or enforced via environment
+variables (all default to `false`):
+
+- `OPS_KILL_SWITCH_REPLAY`
+- `OPS_KILL_SWITCH_EXPORTS`
+- `OPS_KILL_SWITCH_LENDER_TRANSMISSION`
+
+Enable the exports kill switch:
+
+```bash
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/admin/ops/kill-switches/exports/enable
+```
+
+Disable the exports kill switch:
+
+```bash
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/admin/ops/kill-switches/exports/disable
+```
+
+Internal introspection (no auth):
+
+```bash
+curl http://localhost:8080/api/_int/ops
+```

@@ -13,6 +13,7 @@ export const CAPABILITIES = {
   AUDIT_VIEW: "audit:view",
   ACCOUNT_UNLOCK: "account:unlock",
   REPORT_VIEW: "report:view",
+  OPS_MANAGE: "ops:manage",
 } as const;
 
 export type Capability = (typeof CAPABILITIES)[keyof typeof CAPABILITIES];
@@ -30,6 +31,7 @@ const roleCapabilities: Record<Role, readonly Capability[]> = {
     CAPABILITIES.AUDIT_VIEW,
     CAPABILITIES.ACCOUNT_UNLOCK,
     CAPABILITIES.REPORT_VIEW,
+    CAPABILITIES.OPS_MANAGE,
   ],
   [ROLES.STAFF]: [
     CAPABILITIES.AUTH_SESSION,

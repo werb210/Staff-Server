@@ -26,6 +26,7 @@ import {
   getLenderRetryMaxDelayMs,
 } from "../../config";
 import { createHash } from "crypto";
+import { isKillSwitchEnabled } from "../ops/ops.service";
 
 const IDEMPOTENCY_SCOPE_LENDER = "lender_submission";
 
@@ -517,6 +518,13 @@ export async function submitApplication(params: {
   ip?: string;
   userAgent?: string;
 }): Promise<IdempotentResult<{ id: string; status: string; failureReason?: string | null }>> {
+  if (await isKillSwitchEnabled("lender_transmission")) {
+    throw new AppError(
+      "ops_kill_switch",
+      "Lender transmissions are currently disabled.",
+      423
+    );
+  }
   const client = await pool.connect();
   try {
     await client.query("begin");
@@ -693,6 +701,13 @@ export async function retrySubmission(params: {
   ip?: string;
   userAgent?: string;
 }): Promise<{ id: string; status: string; retryStatus: string }> {
+  if (await isKillSwitchEnabled("lender_transmission")) {
+    throw new AppError(
+      "ops_kill_switch",
+      "Lender transmissions are currently disabled.",
+      423
+    );
+  }
   const client = await pool.connect();
   try {
     await client.query("begin");

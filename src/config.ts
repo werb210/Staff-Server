@@ -229,3 +229,15 @@ export function getReportingDailyIntervalMs(): number {
 export function getReportingHourlyIntervalMs(): number {
   return parseIntervalMs(process.env.BI_HOURLY_JOB_INTERVAL_MS, 60 * 60 * 1000);
 }
+
+export function getOpsKillSwitchReplay(): boolean {
+  return parseBoolean(process.env.OPS_KILL_SWITCH_REPLAY, false);
+}
+
+export function getOpsKillSwitchExports(): boolean {
+  return parseBoolean(process.env.OPS_KILL_SWITCH_EXPORTS, false);
+}
+
+export function getOpsKillSwitchLenderTransmission(): boolean {
+  return parseBoolean(process.env.OPS_KILL_SWITCH_LENDER_TRANSMISSION, false);
+}
