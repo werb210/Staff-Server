@@ -37,6 +37,54 @@ export function getPasswordMaxAgeDays(): number {
   return Number.isNaN(value) || value < 1 ? 90 : value;
 }
 
+function parseRateLimit(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  if (Number.isNaN(parsed) || parsed < 1) {
+    return fallback;
+  }
+  return parsed;
+}
+
+export function getLoginRateLimitMax(): number {
+  return parseRateLimit(process.env.LOGIN_RATE_LIMIT_MAX, 10);
+}
+
+export function getLoginRateLimitWindowMs(): number {
+  return parseRateLimit(process.env.LOGIN_RATE_LIMIT_WINDOW_MS, 60_000);
+}
+
+export function getRefreshRateLimitMax(): number {
+  return parseRateLimit(process.env.REFRESH_RATE_LIMIT_MAX, 10);
+}
+
+export function getRefreshRateLimitWindowMs(): number {
+  return parseRateLimit(process.env.REFRESH_RATE_LIMIT_WINDOW_MS, 60_000);
+}
+
+export function getPasswordResetRateLimitMax(): number {
+  return parseRateLimit(process.env.PASSWORD_RESET_RATE_LIMIT_MAX, 5);
+}
+
+export function getPasswordResetRateLimitWindowMs(): number {
+  return parseRateLimit(process.env.PASSWORD_RESET_RATE_LIMIT_WINDOW_MS, 60_000);
+}
+
+export function getDocumentUploadRateLimitMax(): number {
+  return parseRateLimit(process.env.DOCUMENT_UPLOAD_RATE_LIMIT_MAX, 20);
+}
+
+export function getDocumentUploadRateLimitWindowMs(): number {
+  return parseRateLimit(process.env.DOCUMENT_UPLOAD_RATE_LIMIT_WINDOW_MS, 60_000);
+}
+
+export function getLenderSubmissionRateLimitMax(): number {
+  return parseRateLimit(process.env.LENDER_SUBMISSION_RATE_LIMIT_MAX, 10);
+}
+
+export function getLenderSubmissionRateLimitWindowMs(): number {
+  return parseRateLimit(process.env.LENDER_SUBMISSION_RATE_LIMIT_WINDOW_MS, 60_000);
+}
+
 export function getBuildInfo(): { commitHash: string; buildTimestamp: string } {
   const commitHash = process.env.COMMIT_SHA;
   const buildTimestamp = process.env.BUILD_TIMESTAMP;

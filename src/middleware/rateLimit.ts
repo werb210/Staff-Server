@@ -1,6 +1,18 @@
 import { type NextFunction, type Request, type Response } from "express";
 import jwt from "jsonwebtoken";
 import { AppError } from "./errors";
+import {
+  getDocumentUploadRateLimitMax,
+  getDocumentUploadRateLimitWindowMs,
+  getLenderSubmissionRateLimitMax,
+  getLenderSubmissionRateLimitWindowMs,
+  getLoginRateLimitMax,
+  getLoginRateLimitWindowMs,
+  getPasswordResetRateLimitMax,
+  getPasswordResetRateLimitWindowMs,
+  getRefreshRateLimitMax,
+  getRefreshRateLimitWindowMs,
+} from "../config";
 
 type RateLimitEntry = {
   count: number;
@@ -36,8 +48,8 @@ function createRateLimiter(
 }
 
 export function loginRateLimit(
-  maxAttempts = 10,
-  windowMs = 60_000
+  maxAttempts = getLoginRateLimitMax(),
+  windowMs = getLoginRateLimitWindowMs()
 ): (req: Request, res: Response, next: NextFunction) => void {
   return createRateLimiter(
     (req) => {
@@ -56,8 +68,8 @@ export function loginRateLimit(
 type RefreshPayload = { userId?: string };
 
 export function refreshRateLimit(
-  maxAttempts = 10,
-  windowMs = 60_000
+  maxAttempts = getRefreshRateLimitMax(),
+  windowMs = getRefreshRateLimitWindowMs()
 ): (req: Request, res: Response, next: NextFunction) => void {
   return createRateLimiter(
     (req) => {
@@ -74,8 +86,8 @@ export function refreshRateLimit(
 }
 
 export function passwordResetRateLimit(
-  maxAttempts = 5,
-  windowMs = 60_000
+  maxAttempts = getPasswordResetRateLimitMax(),
+  windowMs = getPasswordResetRateLimitWindowMs()
 ): (req: Request, res: Response, next: NextFunction) => void {
   return createRateLimiter(
     (req) => {
@@ -93,4 +105,40 @@ export function passwordResetRateLimit(
 
 export function resetLoginRateLimit(): void {
   attemptsByKey.clear();
+}
+
+export function documentUploadRateLimit(
+  maxAttempts = getDocumentUploadRateLimitMax(),
+  windowMs = getDocumentUploadRateLimitWindowMs()
+): (req: Request, res: Response, next: NextFunction) => void {
+  return createRateLimiter(
+    (req) => {
+      const ip = req.ip || "unknown";
+      const userId = req.user?.userId ?? "unknown";
+      const applicationId =
+        typeof req.params?.id === "string" ? req.params.id : "unknown";
+      return `document_upload:${ip}:${userId}:${applicationId}`;
+    },
+    maxAttempts,
+    windowMs
+  );
+}
+
+export function lenderSubmissionRateLimit(
+  maxAttempts = getLenderSubmissionRateLimitMax(),
+  windowMs = getLenderSubmissionRateLimitWindowMs()
+): (req: Request, res: Response, next: NextFunction) => void {
+  return createRateLimiter(
+    (req) => {
+      const ip = req.ip || "unknown";
+      const userId = req.user?.userId ?? "unknown";
+      const applicationId =
+        typeof req.body?.applicationId === "string"
+          ? req.body.applicationId
+          : "unknown";
+      return `lender_submission:${ip}:${userId}:${applicationId}`;
+    },
+    maxAttempts,
+    windowMs
+  );
 }
