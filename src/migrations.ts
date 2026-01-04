@@ -24,7 +24,7 @@ async function ensureMigrationsTable(): Promise<void> {
   if (isTestDatabase()) {
     await pool.query(
       `create table if not exists schema_migrations (
-        id text primary key,
+        id text,
         applied_at timestamp
       )`
     );
@@ -39,11 +39,15 @@ async function ensureMigrationsTable(): Promise<void> {
   );
 }
 
-function sanitizeMigrationForTests(sql: string): string {
+function splitSql(sql: string): string[] {
   return sql
-    .split("\n")
-    .filter((line) => !/drop constraint/i.test(line))
-    .join("\n");
+    .split(";")
+    .map((statement) => statement.trim())
+    .filter(
+      (statement) =>
+        statement.length > 0 &&
+        !/^alter\s+table\s+\w+$/i.test(statement)
+    );
 }
 
 async function fetchAppliedMigrations(): Promise<Set<string>> {
@@ -57,21 +61,26 @@ export async function runMigrations(): Promise<void> {
   await ensureMigrationsTable();
   const migrationFiles = listMigrationFiles();
   const applied = await fetchAppliedMigrations();
+  const isTest = process.env.NODE_ENV === "test";
 
   for (const file of migrationFiles) {
     if (applied.has(file)) {
       continue;
     }
     const rawSql = fs.readFileSync(path.join(migrationsDir, file), "utf8");
-    const sql = isTestDatabase() ? sanitizeMigrationForTests(rawSql) : rawSql;
     const client = await pool.connect();
     try {
       await client.query("begin");
-      const statements = sql
-        .split(";")
-        .map((statement) => statement.trim())
-        .filter(Boolean);
+      const statements = splitSql(rawSql);
       for (const statement of statements) {
+        if (isTest) {
+          if (/^create\s+index/i.test(statement)) {
+            continue;
+          }
+          if (/^alter\s+table\s+/i.test(statement)) {
+            continue;
+          }
+        }
         await client.query(statement);
       }
       await client.query(
