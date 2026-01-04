@@ -141,3 +141,37 @@ export function getBuildInfo(): { commitHash: string; buildTimestamp: string } {
   }
   return { commitHash, buildTimestamp };
 }
+
+function parseBoolean(value: string | undefined, fallback: boolean): boolean {
+  if (value === undefined) {
+    return fallback;
+  }
+  if (value.toLowerCase() === "true") {
+    return true;
+  }
+  if (value.toLowerCase() === "false") {
+    return false;
+  }
+  return fallback;
+}
+
+function parseIntervalMs(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  if (Number.isNaN(parsed) || parsed < 1) {
+    return fallback;
+  }
+  return parsed;
+}
+
+export function getReportingJobsEnabled(): boolean {
+  const fallback = process.env.NODE_ENV !== "test";
+  return parseBoolean(process.env.BI_JOBS_ENABLED, fallback);
+}
+
+export function getReportingDailyIntervalMs(): number {
+  return parseIntervalMs(process.env.BI_DAILY_JOB_INTERVAL_MS, 24 * 60 * 60 * 1000);
+}
+
+export function getReportingHourlyIntervalMs(): number {
+  return parseIntervalMs(process.env.BI_HOURLY_JOB_INTERVAL_MS, 60 * 60 * 1000);
+}

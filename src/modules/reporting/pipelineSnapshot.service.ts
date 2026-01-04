@@ -1,6 +1,6 @@
 import { pool } from "../../db";
 import { type PoolClient } from "pg";
-import { getPeriodKey, type GroupBy } from "./reporting.utils";
+import { formatPeriod, type GroupBy } from "./reporting.utils";
 
 type Queryable = Pick<PoolClient, "query">;
 
@@ -31,49 +31,61 @@ function buildWhereClause(params: {
   };
 }
 
+function periodExpression(groupBy: GroupBy): string {
+  if (groupBy === "week") {
+    return "date_trunc('week', snapshot_date)::date";
+  }
+  if (groupBy === "month") {
+    return "date_trunc('month', snapshot_date)::date";
+  }
+  return "snapshot_date";
+}
+
 export async function listPipelineSnapshots(params: {
   from: Date | null;
   to: Date | null;
   groupBy: GroupBy;
   limit: number;
   offset: number;
+  pipelineState?: string | null;
   client?: Queryable;
 }): Promise<PipelineSnapshotRow[]> {
   const runner = params.client ?? pool;
   const { clause, values } = buildWhereClause({
-    column: "updated_at",
+    column: "snapshot_date",
     from: params.from,
     to: params.to,
   });
-  const res = await runner.query<{ period: Date; pipeline_state: string }>(
-    `select updated_at as period,
-            pipeline_state
-     from applications
-     ${clause}`,
-    values
+  if (params.pipelineState) {
+    values.push(params.pipelineState);
+  }
+  const stateClause = params.pipelineState
+    ? `${clause ? `${clause} and` : "where"} pipeline_state = $${values.length}`
+    : clause;
+  const periodExpr = periodExpression(params.groupBy);
+  const limitIndex = values.length + 1;
+  const offsetIndex = values.length + 2;
+  const res = await runner.query<{
+    period: Date | string;
+    pipeline_state: string;
+    application_count: number;
+  }>(
+    `select ${periodExpr} as period,
+            pipeline_state,
+            sum(application_count)::int as application_count
+     from reporting_pipeline_daily_snapshots
+     ${stateClause}
+     group by period, pipeline_state
+     order by period desc, pipeline_state asc
+     limit $${limitIndex} offset $${offsetIndex}`,
+    [...values, params.limit, params.offset]
   );
 
-  const aggregated = new Map<string, PipelineSnapshotRow>();
-  res.rows.forEach((row) => {
-    const periodKey = getPeriodKey(row.period, params.groupBy);
-    const key = `${periodKey}:${row.pipeline_state}`;
-    const existing = aggregated.get(key) ?? {
-      period: periodKey,
-      pipelineState: row.pipeline_state,
-      applicationCount: 0,
-    };
-    existing.applicationCount += 1;
-    aggregated.set(key, existing);
-  });
-
-  const sorted = Array.from(aggregated.values()).sort((a, b) => {
-    if (a.period === b.period) {
-      return a.pipelineState.localeCompare(b.pipelineState);
-    }
-    return b.period.localeCompare(a.period);
-  });
-
-  return sorted.slice(params.offset, params.offset + params.limit);
+  return res.rows.map((row) => ({
+    period: formatPeriod(row.period),
+    pipelineState: row.pipeline_state,
+    applicationCount: row.application_count,
+  }));
 }
 
 export async function listCurrentPipelineState(params?: {

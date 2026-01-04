@@ -6,6 +6,10 @@ import { recordAuditEvent } from "../audit/audit.service";
 import { listDailyMetrics } from "./dailyMetrics.service";
 import { listPipelineSnapshots, listCurrentPipelineState } from "./pipelineSnapshot.service";
 import { listLenderPerformance } from "./lenderPerformance.service";
+import { listApplicationVolume } from "./applicationVolume.service";
+import { listDocumentMetrics } from "./documentMetrics.service";
+import { listStaffActivity } from "./staffActivity.service";
+import { listLenderFunnel } from "./lenderFunnel.service";
 import { pool } from "../../db";
 
 const router = Router();
@@ -22,8 +26,11 @@ function parseGroupBy(value: unknown): GroupBy {
 }
 
 function parseDate(value: unknown, label: string): Date | null {
-  if (typeof value !== "string") {
+  if (value === undefined || value === null || value === "") {
     return null;
+  }
+  if (typeof value !== "string") {
+    throw new AppError("invalid_range", `Invalid ${label} timestamp.`, 400);
   }
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) {
@@ -33,11 +40,31 @@ function parseDate(value: unknown, label: string): Date | null {
 }
 
 function parseLimit(value: unknown): number {
-  return Math.min(200, Math.max(1, Number(value ?? 50) || 50));
+  if (value === undefined) {
+    return 50;
+  }
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    throw new AppError("invalid_pagination", "Invalid limit.", 400);
+  }
+  return Math.min(200, Math.max(1, parsed));
 }
 
 function parseOffset(value: unknown): number {
-  return Math.max(0, Number(value ?? 0) || 0);
+  if (value === undefined) {
+    return 0;
+  }
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    throw new AppError("invalid_pagination", "Invalid offset.", 400);
+  }
+  return Math.max(0, parsed);
+}
+
+function assertRange(from: Date | null, to: Date | null): void {
+  if (from && to && from > to) {
+    throw new AppError("invalid_range", "from must be before to.", 400);
+  }
 }
 
 router.use(requireAuth);
@@ -48,9 +75,7 @@ router.get("/overview", async (req, res, next) => {
     const { from, to, groupBy, limit, offset } = req.query ?? {};
     const parsedFrom = parseDate(from, "from");
     const parsedTo = parseDate(to, "to");
-    if (parsedFrom && parsedTo && parsedFrom > parsedTo) {
-      throw new AppError("invalid_range", "from must be before to.", 400);
-    }
+    assertRange(parsedFrom, parsedTo);
     const parsedLimit = parseLimit(limit);
     const parsedOffset = parseOffset(offset);
 
@@ -84,9 +109,7 @@ router.get("/pipeline", async (req, res, next) => {
     const { from, to, groupBy, limit, offset } = req.query ?? {};
     const parsedFrom = parseDate(from, "from");
     const parsedTo = parseDate(to, "to");
-    if (parsedFrom && parsedTo && parsedFrom > parsedTo) {
-      throw new AppError("invalid_range", "from must be before to.", 400);
-    }
+    assertRange(parsedFrom, parsedTo);
     const parsedLimit = parseLimit(limit);
     const parsedOffset = parseOffset(offset);
 
@@ -111,6 +134,211 @@ router.get("/pipeline", async (req, res, next) => {
     });
 
     res.json({ currentState, snapshots, limit: parsedLimit, offset: parsedOffset });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/pipeline/summary", async (req, res, next) => {
+  try {
+    const currentState = await listCurrentPipelineState();
+
+    await recordAuditEvent({
+      action: "REPORT_VIEW",
+      actorUserId: req.user?.userId ?? null,
+      targetUserId: null,
+      targetType: "reporting",
+      targetId: "pipeline_summary",
+      ip: req.ip,
+      userAgent: req.get("user-agent"),
+      success: true,
+    });
+
+    res.json({ currentState });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/pipeline/timeseries", async (req, res, next) => {
+  try {
+    const { from, to, groupBy, limit, offset, pipelineState } = req.query ?? {};
+    const parsedFrom = parseDate(from, "from");
+    const parsedTo = parseDate(to, "to");
+    assertRange(parsedFrom, parsedTo);
+    const parsedLimit = parseLimit(limit);
+    const parsedOffset = parseOffset(offset);
+
+    const snapshots = await listPipelineSnapshots({
+      from: parsedFrom,
+      to: parsedTo,
+      groupBy: parseGroupBy(groupBy),
+      limit: parsedLimit,
+      offset: parsedOffset,
+      pipelineState: typeof pipelineState === "string" ? pipelineState : null,
+    });
+
+    await recordAuditEvent({
+      action: "REPORT_VIEW",
+      actorUserId: req.user?.userId ?? null,
+      targetUserId: null,
+      targetType: "reporting",
+      targetId: "pipeline_timeseries",
+      ip: req.ip,
+      userAgent: req.get("user-agent"),
+      success: true,
+    });
+
+    res.json({ snapshots, limit: parsedLimit, offset: parsedOffset });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/lenders/performance", async (req, res, next) => {
+  try {
+    const { from, to, groupBy, limit, offset, lenderId } = req.query ?? {};
+    const parsedFrom = parseDate(from, "from");
+    const parsedTo = parseDate(to, "to");
+    assertRange(parsedFrom, parsedTo);
+    const parsedLimit = parseLimit(limit);
+    const parsedOffset = parseOffset(offset);
+
+    const performance = await listLenderPerformance({
+      from: parsedFrom,
+      to: parsedTo,
+      groupBy: parseGroupBy(groupBy),
+      limit: parsedLimit,
+      offset: parsedOffset,
+      lenderId: typeof lenderId === "string" ? lenderId : null,
+    });
+    const funnel = await listLenderFunnel({
+      from: parsedFrom,
+      to: parsedTo,
+      groupBy: parseGroupBy(groupBy),
+      limit: parsedLimit,
+      offset: parsedOffset,
+      lenderId: typeof lenderId === "string" ? lenderId : null,
+    });
+
+    await recordAuditEvent({
+      action: "REPORT_VIEW",
+      actorUserId: req.user?.userId ?? null,
+      targetUserId: null,
+      targetType: "reporting",
+      targetId: "lender_performance",
+      ip: req.ip,
+      userAgent: req.get("user-agent"),
+      success: true,
+    });
+
+    res.json({ performance, funnel, limit: parsedLimit, offset: parsedOffset });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/applications/volume", async (req, res, next) => {
+  try {
+    const { from, to, groupBy, limit, offset, productType } = req.query ?? {};
+    const parsedFrom = parseDate(from, "from");
+    const parsedTo = parseDate(to, "to");
+    assertRange(parsedFrom, parsedTo);
+    const parsedLimit = parseLimit(limit);
+    const parsedOffset = parseOffset(offset);
+
+    const metrics = await listApplicationVolume({
+      from: parsedFrom,
+      to: parsedTo,
+      groupBy: parseGroupBy(groupBy),
+      limit: parsedLimit,
+      offset: parsedOffset,
+      productType: typeof productType === "string" ? productType : null,
+    });
+
+    await recordAuditEvent({
+      action: "REPORT_VIEW",
+      actorUserId: req.user?.userId ?? null,
+      targetUserId: null,
+      targetType: "reporting",
+      targetId: "application_volume",
+      ip: req.ip,
+      userAgent: req.get("user-agent"),
+      success: true,
+    });
+
+    res.json({ metrics, limit: parsedLimit, offset: parsedOffset });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/documents/metrics", async (req, res, next) => {
+  try {
+    const { from, to, groupBy, limit, offset, documentType } = req.query ?? {};
+    const parsedFrom = parseDate(from, "from");
+    const parsedTo = parseDate(to, "to");
+    assertRange(parsedFrom, parsedTo);
+    const parsedLimit = parseLimit(limit);
+    const parsedOffset = parseOffset(offset);
+
+    const metrics = await listDocumentMetrics({
+      from: parsedFrom,
+      to: parsedTo,
+      groupBy: parseGroupBy(groupBy),
+      limit: parsedLimit,
+      offset: parsedOffset,
+      documentType: typeof documentType === "string" ? documentType : null,
+    });
+
+    await recordAuditEvent({
+      action: "REPORT_VIEW",
+      actorUserId: req.user?.userId ?? null,
+      targetUserId: null,
+      targetType: "reporting",
+      targetId: "document_metrics",
+      ip: req.ip,
+      userAgent: req.get("user-agent"),
+      success: true,
+    });
+
+    res.json({ metrics, limit: parsedLimit, offset: parsedOffset });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/staff/activity", async (req, res, next) => {
+  try {
+    const { from, to, groupBy, limit, offset, staffUserId, action } = req.query ?? {};
+    const parsedFrom = parseDate(from, "from");
+    const parsedTo = parseDate(to, "to");
+    assertRange(parsedFrom, parsedTo);
+    const parsedLimit = parseLimit(limit);
+    const parsedOffset = parseOffset(offset);
+
+    const metrics = await listStaffActivity({
+      from: parsedFrom,
+      to: parsedTo,
+      groupBy: parseGroupBy(groupBy),
+      limit: parsedLimit,
+      offset: parsedOffset,
+      staffUserId: typeof staffUserId === "string" ? staffUserId : null,
+      action: typeof action === "string" ? action : null,
+    });
+
+    await recordAuditEvent({
+      action: "REPORT_VIEW",
+      actorUserId: req.user?.userId ?? null,
+      targetUserId: null,
+      targetType: "reporting",
+      targetId: "staff_activity",
+      ip: req.ip,
+      userAgent: req.get("user-agent"),
+      success: true,
+    });
+
+    res.json({ metrics, limit: parsedLimit, offset: parsedOffset });
   } catch (err) {
     next(err);
   }
@@ -179,9 +407,7 @@ router.get("/lenders", async (req, res, next) => {
     const { from, to, groupBy, limit, offset } = req.query ?? {};
     const parsedFrom = parseDate(from, "from");
     const parsedTo = parseDate(to, "to");
-    if (parsedFrom && parsedTo && parsedFrom > parsedTo) {
-      throw new AppError("invalid_range", "from must be before to.", 400);
-    }
+    assertRange(parsedFrom, parsedTo);
     const parsedLimit = parseLimit(limit);
     const parsedOffset = parseOffset(offset);
 

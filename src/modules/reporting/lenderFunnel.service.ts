@@ -4,14 +4,12 @@ import { formatPeriod, type GroupBy } from "./reporting.utils";
 
 type Queryable = Pick<PoolClient, "query">;
 
-export type LenderPerformanceRow = {
+export type LenderFunnelRow = {
   period: string;
   lenderId: string;
   submissions: number;
   approvals: number;
-  declines: number;
   funded: number;
-  avgDecisionTimeSeconds: number;
 };
 
 function buildWhereClause(params: {
@@ -37,15 +35,15 @@ function buildWhereClause(params: {
 
 function periodExpression(groupBy: GroupBy): string {
   if (groupBy === "week") {
-    return "date_trunc('week', period_start)::date";
+    return "date_trunc('week', metric_date)::date";
   }
   if (groupBy === "month") {
-    return "date_trunc('month', period_start)::date";
+    return "date_trunc('month', metric_date)::date";
   }
-  return "period_start";
+  return "metric_date";
 }
 
-export async function listLenderPerformance(params: {
+export async function listLenderFunnel(params: {
   from: Date | null;
   to: Date | null;
   groupBy: GroupBy;
@@ -53,10 +51,10 @@ export async function listLenderPerformance(params: {
   offset: number;
   lenderId?: string | null;
   client?: Queryable;
-}): Promise<LenderPerformanceRow[]> {
+}): Promise<LenderFunnelRow[]> {
   const runner = params.client ?? pool;
   const { clause, values } = buildWhereClause({
-    column: "period_start",
+    column: "metric_date",
     from: params.from,
     to: params.to,
   });
@@ -74,18 +72,14 @@ export async function listLenderPerformance(params: {
     lender_id: string;
     submissions: number;
     approvals: number;
-    declines: number;
     funded: number;
-    avg_decision_time_seconds: number;
   }>(
     `select ${periodExpr} as period,
             lender_id,
             sum(submissions)::int as submissions,
             sum(approvals)::int as approvals,
-            sum(declines)::int as declines,
-            sum(funded)::int as funded,
-            avg(avg_decision_time_seconds)::int as avg_decision_time_seconds
-     from reporting_lender_performance
+            sum(funded)::int as funded
+     from reporting_lender_funnel_daily
      ${lenderClause}
      group by period, lender_id
      order by period desc, lender_id asc
@@ -98,8 +92,6 @@ export async function listLenderPerformance(params: {
     lenderId: row.lender_id,
     submissions: row.submissions,
     approvals: row.approvals,
-    declines: row.declines,
     funded: row.funded,
-    avgDecisionTimeSeconds: row.avg_decision_time_seconds,
   }));
 }

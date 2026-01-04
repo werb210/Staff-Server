@@ -27,3 +27,16 @@ export function getPeriodKey(date: Date, groupBy: GroupBy): string {
   }
   return normalized.toISOString().slice(0, 10);
 }
+
+export function formatPeriod(value: unknown): string {
+  if (value instanceof Date) {
+    return value.toISOString().slice(0, 10);
+  }
+  if (typeof value === "string") {
+    return value.slice(0, 10);
+  }
+  if (value && typeof value === "object" && "toISOString" in value) {
+    return (value as { toISOString: () => string }).toISOString().slice(0, 10);
+  }
+  return new Date(String(value)).toISOString().slice(0, 10);
+}
