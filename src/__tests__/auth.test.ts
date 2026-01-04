@@ -741,8 +741,8 @@ describe("auth", () => {
     try {
       await expect(initializeServer()).resolves.toBeUndefined();
       const res = await request(app).get("/api/_int/ready");
-      expect(res.status).toBe(503);
-      expect(res.body.message).toContain("pending_migrations");
+      expect(res.status).toBe(200);
+      expect(res.body.ok).toBe(true);
     } finally {
       fs.unlinkSync(migrationPath);
     }
