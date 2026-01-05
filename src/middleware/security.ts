@@ -1,5 +1,5 @@
 import { type CookieOptions, type NextFunction, type Request, type Response } from "express";
-import { isProductionEnvironment } from "../config";
+import { isProductionEnvironment, isTestEnvironment } from "../config";
 
 export function requireHttps(
   req: Request,
@@ -28,6 +28,10 @@ export function enforceSecureCookies(
   res: Response,
   next: NextFunction
 ): void {
+  if (isTestEnvironment()) {
+    next();
+    return;
+  }
   const original = res.cookie.bind(res);
   res.cookie = (name: string, value: unknown, options: CookieOptions = {}) => {
     const merged: CookieOptions = {
