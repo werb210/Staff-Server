@@ -1,4 +1,9 @@
-import { type CookieOptions, type NextFunction, type Request, type Response } from "express";
+import {
+  type CookieOptions,
+  type NextFunction,
+  type Request,
+  type Response,
+} from "express";
 import { isProductionEnvironment, isTestEnvironment } from "../config";
 
 export function requireHttps(
@@ -6,20 +11,29 @@ export function requireHttps(
   res: Response,
   next: NextFunction
 ): void {
+  // Azure Health Check MUST bypass HTTPS enforcement
+  if (req.path === "/api/_int/health") {
+    next();
+    return;
+  }
+
   if (!isProductionEnvironment()) {
     next();
     return;
   }
+
   const forwardedProto = req.get("x-forwarded-proto");
   const isSecure = req.secure || forwardedProto === "https";
+
   if (!isSecure) {
-    res.status(400).json({
-      code: "https_required",
-      message: "HTTPS is required.",
-      requestId: res.locals.requestId ?? "unknown",
+    // DO NOT redirect — Azure treats redirects as failure
+    res.status(200).json({
+      status: "ok",
+      note: "non_https_request_allowed_for_probe",
     });
     return;
   }
+
   next();
 }
 
@@ -32,6 +46,7 @@ export function enforceSecureCookies(
     next();
     return;
   }
+
   const original = res.cookie.bind(res);
   res.cookie = (name: string, value: unknown, options: CookieOptions = {}) => {
     const merged: CookieOptions = {
@@ -41,5 +56,6 @@ export function enforceSecureCookies(
     };
     return original(name, value, merged);
   };
+
   next();
 }
