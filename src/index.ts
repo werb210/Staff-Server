@@ -1,6 +1,7 @@
 import express, { type Express } from "express";
 import helmet from "helmet";
 import cors from "cors";
+
 import authRoutes from "./routes/auth";
 import usersRoutes from "./routes/users";
 import staffRoutes from "./routes/staff";
@@ -11,6 +12,7 @@ import clientRoutes from "./routes/client";
 import reportingRoutes from "./routes/reporting";
 import reportsRoutes from "./routes/reports";
 import internalRoutes from "./routes/internal";
+
 import { requestId } from "./middleware/requestId";
 import { requestLogger } from "./middleware/requestLogger";
 import { errorHandler, notFoundHandler } from "./middleware/errors";
@@ -38,9 +40,7 @@ type AppConfig = {
 const defaultConfig: AppConfig = {
   serviceName: "boreal-staff-server",
   enableRequestLogging: !isTestEnvironment(),
-  port: Number.isFinite(Number(process.env.PORT))
-    ? Number(process.env.PORT)
-    : 3000,
+  port: Number(process.env.PORT || 3000),
 };
 
 export function buildApp(config: AppConfig = defaultConfig): Express {
@@ -51,20 +51,7 @@ export function buildApp(config: AppConfig = defaultConfig): Express {
 
   app.use(
     helmet({
-      contentSecurityPolicy: {
-        useDefaults: false,
-        directives: {
-          defaultSrc: ["'none'"],
-          baseUri: ["'self'"],
-          frameAncestors: ["'none'"],
-          formAction: ["'self'"],
-          scriptSrc: ["'self'"],
-          styleSrc: ["'self'"],
-          imgSrc: ["'self'", "data:"],
-          connectSrc: ["'self'"],
-          objectSrc: ["'none'"],
-        },
-      },
+      contentSecurityPolicy: false,
     })
   );
 
@@ -72,11 +59,7 @@ export function buildApp(config: AppConfig = defaultConfig): Express {
   app.use(
     cors({
       origin: (origin, callback) => {
-        if (!origin) {
-          callback(null, true);
-          return;
-        }
-        if (corsAllowlist.includes(origin)) {
+        if (!origin || corsAllowlist.includes(origin)) {
           callback(null, true);
           return;
         }
@@ -85,6 +68,7 @@ export function buildApp(config: AppConfig = defaultConfig): Express {
       credentials: true,
     })
   );
+
   app.use(express.json({ limit: getRequestBodyLimit() }));
   app.use(express.urlencoded({ extended: true, limit: getRequestBodyLimit() }));
   app.use(requestId);
@@ -93,6 +77,10 @@ export function buildApp(config: AppConfig = defaultConfig): Express {
     app.use(requestLogger);
   }
 
+  // INTERNAL ROUTES FIRST (unblocked for Azure health probes)
+  app.use("/api/_int", internalRoutes);
+
+  // SECURITY AFTER INTERNAL
   app.use(enforceSecureCookies);
   app.use(requireHttps);
 
@@ -104,7 +92,6 @@ export function buildApp(config: AppConfig = defaultConfig): Express {
     res.status(200).json({ service: config.serviceName });
   });
 
-  app.use("/api/_int", internalRoutes);
   app.use("/api/auth", authRoutes);
   app.use("/api/users", usersRoutes);
   app.use("/api/staff", staffRoutes);
@@ -125,17 +112,21 @@ export async function initializeServer(): Promise<void> {
   assertEnv();
   initializeAppInsights();
   await checkDb();
+
   if (!isTestEnvironment()) {
     await logBackupStatus();
   }
+
   if (isProductionEnvironment() && shouldRunMigrations()) {
     await runMigrations();
   }
+
   const app = buildApp(defaultConfig);
 
   const server = app.listen(defaultConfig.port, () => {
     logInfo("server_listening", { port: defaultConfig.port });
   });
+
   if (isTestEnvironment()) {
     server.unref();
   }
