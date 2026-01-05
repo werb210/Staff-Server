@@ -1,12 +1,15 @@
-const requiredRuntimeEnv = [
-  "DATABASE_URL",
-  "JWT_SECRET",
-  "JWT_REFRESH_SECRET",
-] as const;
-
-if (!process.env.NODE_ENV) {
-  process.env.NODE_ENV = "production";
-}
+import {
+  assertEnv as assertRuntimeEnv,
+  getAppInsightsConnectionString,
+  getCorsAllowlist,
+  getGlobalRateLimitMax,
+  getGlobalRateLimitWindowMs,
+  getJwtExpiresIn,
+  getJwtRefreshExpiresIn,
+  isProductionEnv,
+  isTestEnv,
+} from "./config/env";
+import { logInfo } from "./observability/logger";
 
 function parsePositiveInt(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
@@ -45,11 +48,11 @@ const buildTimestampEnv = process.env.BUILD_TIMESTAMP;
 const commitShaEnv = process.env.COMMIT_SHA;
 
 if (buildTimestampEnv) {
-  console.info("build_timestamp", { buildTimestamp: buildTimestampEnv });
+  logInfo("build_timestamp", { buildTimestamp: buildTimestampEnv });
 }
 
 if (commitShaEnv) {
-  console.info("commit_sha", { commitSha: commitShaEnv });
+  logInfo("commit_sha", { commitSha: commitShaEnv });
 }
 
 /**
@@ -71,19 +74,15 @@ export function getBuildInfo(): { commitHash: string; buildTimestamp: string } {
  * Only true runtime dependencies are enforced.
  */
 export function assertEnv(): void {
-  const missing = requiredRuntimeEnv.filter((key) => !process.env[key]);
-
-  if (missing.length > 0) {
-    throw new Error(`missing_env:${missing.join(",")}`);
-  }
+  assertRuntimeEnv();
 }
 
 export function getAccessTokenExpiresIn(): string {
-  return process.env.JWT_EXPIRES_IN ?? "15m";
+  return getJwtExpiresIn();
 }
 
 export function getRefreshTokenExpiresIn(): string {
-  return process.env.JWT_REFRESH_EXPIRES_IN ?? "30d";
+  return getJwtRefreshExpiresIn();
 }
 
 export function getLoginLockoutThreshold(): number {
@@ -244,4 +243,48 @@ export function getAdminRateLimitMax(): number {
 
 export function getAdminRateLimitWindowMs(): number {
   return parsePositiveInt(process.env.ADMIN_RATE_LIMIT_WINDOW_MS, 60_000);
+}
+
+export function getCorsAllowlistConfig(): string[] {
+  return getCorsAllowlist();
+}
+
+export function getGlobalRateLimitWindowMsConfig(): number {
+  return getGlobalRateLimitWindowMs();
+}
+
+export function getGlobalRateLimitMaxConfig(): number {
+  return getGlobalRateLimitMax();
+}
+
+export function getAppInsightsConnectionStringConfig(): string {
+  return getAppInsightsConnectionString();
+}
+
+export function isTestEnvironment(): boolean {
+  return isTestEnv();
+}
+
+export function isProductionEnvironment(): boolean {
+  return isProductionEnv();
+}
+
+export function getRequestBodyLimit(): string {
+  return process.env.REQUEST_BODY_LIMIT ?? "1mb";
+}
+
+export function getDbPoolMax(): number {
+  return parsePositiveInt(process.env.DB_POOL_MAX, 10);
+}
+
+export function getDbPoolIdleTimeoutMs(): number {
+  return parsePositiveInt(process.env.DB_POOL_IDLE_TIMEOUT_MS, 30_000);
+}
+
+export function getDbPoolConnectionTimeoutMs(): number {
+  return parsePositiveInt(process.env.DB_POOL_CONNECTION_TIMEOUT_MS, 10_000);
+}
+
+export function shouldRunMigrations(): boolean {
+  return process.env.RUN_MIGRATIONS === "true";
 }

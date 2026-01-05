@@ -1,4 +1,5 @@
 import { getOcrTimeoutMs, getOpenAiApiKey, getOpenAiOcrModel } from "../../config";
+import { logWarn } from "../../observability/logger";
 
 export type OcrExtractionResult = {
   text: string;
@@ -63,7 +64,7 @@ export function createOpenAiOcrProvider(): OcrProvider {
     async extract(params) {
       const apiKey = getOpenAiApiKey();
       if (!apiKey) {
-        console.warn("openai_api_key_missing", { code: "openai_api_key_missing" });
+        logWarn("openai_api_key_missing", { code: "openai_api_key_missing" });
         throw new Error("missing_openai_api_key");
       }
       const model = getOpenAiOcrModel();

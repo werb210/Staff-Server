@@ -14,6 +14,20 @@ import internalRoutes from "./routes/internal";
 import { requestId } from "./middleware/requestId";
 import { requestLogger } from "./middleware/requestLogger";
 import { errorHandler, notFoundHandler } from "./middleware/errors";
+import {
+  assertEnv,
+  getCorsAllowlistConfig,
+  getRequestBodyLimit,
+  isProductionEnvironment,
+  isTestEnvironment,
+  shouldRunMigrations,
+} from "./config";
+import { globalRateLimit } from "./middleware/rateLimit";
+import { enforceSecureCookies, requireHttps } from "./middleware/security";
+import { initializeAppInsights } from "./observability/appInsights";
+import { logInfo } from "./observability/logger";
+import { checkDb, logBackupStatus } from "./db";
+import { runMigrations } from "./migrations";
 
 type AppConfig = {
   serviceName: string;
@@ -23,7 +37,7 @@ type AppConfig = {
 
 const defaultConfig: AppConfig = {
   serviceName: "boreal-staff-server",
-  enableRequestLogging: process.env.NODE_ENV !== "test",
+  enableRequestLogging: !isTestEnvironment(),
   port: Number.isFinite(Number(process.env.PORT))
     ? Number(process.env.PORT)
     : 3000,
@@ -32,13 +46,58 @@ const defaultConfig: AppConfig = {
 export function buildApp(config: AppConfig = defaultConfig): Express {
   const app = express();
 
-  app.use(helmet());
-  app.use(cors());
-  app.use(express.json());
+  app.set("trust proxy", 1);
+  app.disable("x-powered-by");
+
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        useDefaults: false,
+        directives: {
+          defaultSrc: ["'none'"],
+          baseUri: ["'self'"],
+          frameAncestors: ["'none'"],
+          formAction: ["'self'"],
+          scriptSrc: ["'self'"],
+          styleSrc: ["'self'"],
+          imgSrc: ["'self'", "data:"],
+          connectSrc: ["'self'"],
+          objectSrc: ["'none'"],
+        },
+      },
+    })
+  );
+
+  const corsAllowlist = getCorsAllowlistConfig();
+  app.use(
+    cors({
+      origin: (origin, callback) => {
+        if (!origin) {
+          callback(null, true);
+          return;
+        }
+        if (corsAllowlist.includes(origin)) {
+          callback(null, true);
+          return;
+        }
+        callback(new Error("cors_not_allowed"));
+      },
+      credentials: true,
+    })
+  );
+  app.use(express.json({ limit: getRequestBodyLimit() }));
+  app.use(express.urlencoded({ extended: true, limit: getRequestBodyLimit() }));
   app.use(requestId);
 
   if (config.enableRequestLogging) {
     app.use(requestLogger);
+  }
+
+  app.use(enforceSecureCookies);
+  app.use(requireHttps);
+
+  if (isProductionEnvironment()) {
+    app.use(globalRateLimit());
   }
 
   app.get("/", (_req, res) => {
@@ -63,12 +122,21 @@ export function buildApp(config: AppConfig = defaultConfig): Express {
 }
 
 export async function initializeServer(): Promise<void> {
+  assertEnv();
+  initializeAppInsights();
+  await checkDb();
+  if (!isTestEnvironment()) {
+    await logBackupStatus();
+  }
+  if (isProductionEnvironment() && shouldRunMigrations()) {
+    await runMigrations();
+  }
   const app = buildApp(defaultConfig);
 
   const server = app.listen(defaultConfig.port, () => {
-    console.log(`Staff Server listening on port ${defaultConfig.port}`);
+    logInfo("server_listening", { port: defaultConfig.port });
   });
-  if (process.env.NODE_ENV === "test") {
+  if (isTestEnvironment()) {
     server.unref();
   }
 }

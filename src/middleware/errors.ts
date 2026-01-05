@@ -1,4 +1,5 @@
 import { type NextFunction, type Request, type Response } from "express";
+import { logError, logWarn } from "../observability/logger";
 
 export class AppError extends Error {
   status: number;
@@ -17,12 +18,23 @@ export function forbiddenError(): AppError {
 
 export function errorHandler(
   err: Error,
-  _req: Request,
+  req: Request,
   res: Response,
   _next: NextFunction
 ): void {
   const requestId = res.locals.requestId ?? "unknown";
+  const durationMs = res.locals.requestStart
+    ? Date.now() - Number(res.locals.requestStart)
+    : null;
   if (err instanceof AppError) {
+    logWarn("request_error", {
+      requestId,
+      route: req.originalUrl,
+      durationMs,
+      code: err.code,
+      message: err.message,
+      status: err.status,
+    });
     res.status(err.status).json({
       code: err.code,
       message: err.message,
@@ -31,8 +43,10 @@ export function errorHandler(
     return;
   }
 
-  console.error("request_error", {
+  logError("request_error", {
     requestId,
+    route: req.originalUrl,
+    durationMs,
     message: err.message,
     stack: err.stack,
   });

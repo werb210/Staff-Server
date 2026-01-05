@@ -17,6 +17,7 @@ import {
   getReportingJobsEnabled,
 } from "../../config";
 import { runWithRequestContext } from "../../middleware/requestContext";
+import { logError, logInfo } from "../../observability/logger";
 import { type PoolClient } from "pg";
 import { computeDailyMetricsForDate } from "./dailyMetrics.service";
 
@@ -56,15 +57,20 @@ async function runWithTransaction<T>(fn: (client: PoolClient) => Promise<T>): Pr
 async function runJobWithLogging(name: string, fn: () => Promise<number>): Promise<void> {
   const requestId = randomUUID();
   const startedAt = Date.now();
-  await runWithRequestContext(requestId, async () => {
-    console.info("reporting_job_started", { requestId, name });
+  await runWithRequestContext({ requestId }, async () => {
+    logInfo("reporting_job_started", { requestId, name });
     try {
       const rowCount = await fn();
       const durationMs = Date.now() - startedAt;
-      console.info("reporting_job_completed", { requestId, name, durationMs, rowCount });
+      logInfo("reporting_job_completed", { requestId, name, durationMs, rowCount });
     } catch (error) {
       const durationMs = Date.now() - startedAt;
-      console.error("reporting_job_failed", { requestId, name, durationMs, error });
+      logError("reporting_job_failed", {
+        requestId,
+        name,
+        durationMs,
+        error: error instanceof Error ? error.message : "unknown_error",
+      });
       throw error;
     }
   });

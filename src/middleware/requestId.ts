@@ -10,8 +10,9 @@ export function requestId(
   const headerId = req.get("x-request-id");
   const id = headerId && headerId.trim().length > 0 ? headerId : randomUUID();
   res.locals.requestId = id;
+  res.locals.requestRoute = req.originalUrl;
   res.setHeader("x-request-id", id);
-  runWithRequestContext(id, () => {
+  runWithRequestContext({ requestId: id, route: req.originalUrl }, () => {
     next();
   });
 }

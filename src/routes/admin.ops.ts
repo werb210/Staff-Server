@@ -3,6 +3,7 @@ import { AppError } from "../middleware/errors";
 import { requireAuth, requireCapability } from "../middleware/auth";
 import { CAPABILITIES } from "../auth/capabilities";
 import { recordAuditEvent } from "../modules/audit/audit.service";
+import { logError } from "../observability/logger";
 import {
   OPS_KILL_SWITCH_KEYS,
   type OpsKillSwitchKey,
@@ -108,7 +109,7 @@ router.post("/replay/:scope", async (req, res, next) => {
     setImmediate(() => {
       runReplayJob(job.id, job.scope).catch((error) => {
         const message = error instanceof Error ? error.message : "unknown error";
-        console.error("replay_failed", { code: "replay_failed", message });
+        logError("replay_failed", { code: "replay_failed", message });
       });
     });
     res.status(202).json({ job });

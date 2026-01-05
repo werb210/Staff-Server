@@ -18,6 +18,7 @@ import {
 import { createOpenAiOcrProvider, type OcrProvider } from "./ocr.provider";
 import { createOcrStorage, OcrStorageValidationError, type OcrStorage } from "./ocr.storage";
 import { type OcrJobRecord } from "./ocr.types";
+import { logError } from "../../observability/logger";
 
 const OCR_RETRY_BASE_MS = 1000;
 const OCR_RETRY_MAX_MS = 15 * 60 * 1000;
@@ -137,7 +138,7 @@ export async function processOcrJob(
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown_error";
     if (error instanceof OcrStorageValidationError) {
-      console.error("ocr_storage_url_rejected", {
+      logError("ocr_storage_url_rejected", {
         code: "ocr_storage_url_rejected",
         jobId: job.id,
         documentId: job.document_id,
@@ -153,7 +154,7 @@ export async function processOcrJob(
           success: false,
         });
       } catch (auditError) {
-        console.error("ocr_storage_url_audit_failed", {
+        logError("ocr_storage_url_audit_failed", {
           code: "ocr_storage_url_audit_failed",
           jobId: job.id,
           error: auditError instanceof Error ? auditError.message : "unknown_error",

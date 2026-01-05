@@ -23,6 +23,15 @@ async function ensureMigrationsTable(): Promise<void> {
   );
 }
 
+export async function assertMigrationsTableExists(): Promise<void> {
+  const res = await pool.query<{ exists: string | null }>(
+    "select to_regclass('public.schema_migrations') as exists"
+  );
+  if (!res.rows[0]?.exists) {
+    throw new Error("migrations_table_missing");
+  }
+}
+
 function splitSql(sql: string): string[] {
   const statements: string[] = [];
   let current = "";
