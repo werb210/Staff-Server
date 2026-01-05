@@ -1,18 +1,15 @@
-import {
-  type CookieOptions,
-  type NextFunction,
-  type Request,
-  type Response,
-} from "express";
+import { type CookieOptions, type NextFunction, type Request, type Response } from "express";
 import { isProductionEnvironment, isTestEnvironment } from "../config";
+
+const INTERNAL_PREFIX = "/api/_int";
 
 export function requireHttps(
   req: Request,
   res: Response,
   next: NextFunction
 ): void {
-  // Azure Health Check MUST bypass HTTPS enforcement
-  if (req.path === "/api/_int/health") {
+  // Never block Azure health probes or internal routes
+  if (req.path.startsWith(INTERNAL_PREFIX)) {
     next();
     return;
   }
@@ -26,10 +23,10 @@ export function requireHttps(
   const isSecure = req.secure || forwardedProto === "https";
 
   if (!isSecure) {
-    // DO NOT redirect — Azure treats redirects as failure
-    res.status(200).json({
-      status: "ok",
-      note: "non_https_request_allowed_for_probe",
+    res.status(400).json({
+      code: "https_required",
+      message: "HTTPS is required.",
+      requestId: res.locals.requestId ?? "unknown",
     });
     return;
   }
