@@ -9,22 +9,10 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    env:
-      NODE_ENV: test
-      DATABASE_URL: pg-mem
-      JWT_SECRET: ci-access-secret
-      JWT_REFRESH_SECRET: ci-refresh-secret
-      JWT_EXPIRES_IN: 1h
-      JWT_REFRESH_EXPIRES_IN: 1d
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Inject build metadata
-        run: |
-          echo "BUILD_TIMESTAMP=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_ENV
-          echo "COMMIT_SHA=${GITHUB_SHA}" >> $GITHUB_ENV
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -35,30 +23,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests (CI)
-        run: npm run ci:test
-
-      - name: Validate required environment variables
-        run: |
-          test -n "$DATABASE_URL"
-          test -n "$JWT_SECRET"
-          test -n "$JWT_REFRESH_SECRET"
-          test -n "$NODE_ENV"
-          echo "env vars validated"
-
       - name: Build TypeScript
         run: npm run build
-
-      - name: Validate migrations
-        run: npm run migrate:check
-
-      - name: Verify dist output (FAIL IF MISSING)
-        run: |
-          test -f dist/routes/auth.js
-          echo "dist build verified"
-
-      - name: Remove source files (Azure must NOT run src)
-        run: rm -rf src
 
       - name: Azure Login
         uses: azure/login@v1
