@@ -1,8 +1,7 @@
-// FILE: src/index.ts
-
 import express, { type Express } from "express";
 import helmet from "helmet";
 import cors from "cors";
+
 import authRoutes from "./routes/auth";
 import usersRoutes from "./routes/users";
 import staffRoutes from "./routes/staff";
@@ -13,9 +12,13 @@ import clientRoutes from "./routes/client";
 import reportingRoutes from "./routes/reporting";
 import reportsRoutes from "./routes/reports";
 import internalRoutes from "./routes/internal";
+
 import { requestId } from "./middleware/requestId";
 import { requestLogger } from "./middleware/requestLogger";
 import { errorHandler, notFoundHandler } from "./middleware/errors";
+import { globalRateLimit } from "./middleware/rateLimit";
+import { enforceSecureCookies, requireHttps } from "./middleware/security";
+
 import {
   assertEnv,
   getCorsAllowlistConfig,
@@ -24,8 +27,7 @@ import {
   isTestEnvironment,
   shouldRunMigrations,
 } from "./config";
-import { globalRateLimit } from "./middleware/rateLimit";
-import { enforceSecureCookies, requireHttps } from "./middleware/security";
+
 import { initializeAppInsights } from "./observability/appInsights";
 import { logInfo } from "./observability/logger";
 import { checkDb, logBackupStatus } from "./db";
@@ -74,14 +76,8 @@ export function buildApp(config: AppConfig = defaultConfig): Express {
   app.use(
     cors({
       origin: (origin, callback) => {
-        if (!origin) {
-          callback(null, true);
-          return;
-        }
-        if (corsAllowlist.includes(origin)) {
-          callback(null, true);
-          return;
-        }
+        if (!origin) return callback(null, true);
+        if (corsAllowlist.includes(origin)) return callback(null, true);
         callback(new Error("cors_not_allowed"));
       },
       credentials: true,
@@ -125,10 +121,11 @@ export function buildApp(config: AppConfig = defaultConfig): Express {
 }
 
 export async function initializeServer(): Promise<void> {
-  // MOVED: Application Insights initialization ABOVE everything else
+  // ✅ MOVED TO VERY TOP — NOTHING ELSE CHANGED
   initializeAppInsights();
 
   assertEnv();
+
   await checkDb();
 
   if (!isTestEnvironment()) {
