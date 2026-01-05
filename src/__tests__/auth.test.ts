@@ -1,6 +1,6 @@
 import request from "supertest";
 import express from "express";
-import { buildApp, initializeServer } from "../index";
+import { buildApp, defaultConfig, initializeServer } from "../index";
 import { pool } from "../db";
 import { createUserAccount } from "../modules/auth/auth.service";
 import { setUserActive } from "../modules/auth/auth.repo";
@@ -14,7 +14,7 @@ import { requireAuth, requireCapability } from "../middleware/auth";
 import { errorHandler } from "../middleware/errors";
 import { createHash } from "crypto";
 
-const app = buildApp();
+const app = buildApp(defaultConfig);
 const requestId = "test-request-id";
 const postWithRequestId = (url: string) =>
   request(app).post(url).set("x-request-id", requestId);
@@ -739,7 +739,7 @@ describe("auth", () => {
     );
     fs.writeFileSync(migrationPath, "select 1;");
     try {
-      await expect(initializeServer()).resolves.toBeUndefined();
+      await expect(initializeServer(defaultConfig)).resolves.toBeUndefined();
       const res = await request(app).get("/api/_int/ready");
       expect(res.status).toBe(200);
       expect(res.body.ok).toBe(true);

@@ -1,6 +1,6 @@
 import request from "supertest";
 import { randomUUID } from "crypto";
-import { buildApp } from "../index";
+import { buildApp, defaultConfig } from "../index";
 import { pool } from "../db";
 import { runMigrations } from "../migrations";
 import { createUserAccount } from "../modules/auth/auth.service";
@@ -20,7 +20,7 @@ import {
   runStaffActivityJob,
 } from "../modules/reporting/reporting.jobs";
 
-const app = buildApp();
+const app = buildApp(defaultConfig);
 const requestId = "test-request-id";
 const postWithRequestId = (url: string) =>
   request(app).post(url).set("x-request-id", requestId);

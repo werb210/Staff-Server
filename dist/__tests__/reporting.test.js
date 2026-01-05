@@ -1,0 +1,298 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const supertest_1 = __importDefault(require("supertest"));
+const crypto_1 = require("crypto");
+const index_1 = require("../index");
+const db_1 = require("../db");
+const migrations_1 = require("../migrations");
+const auth_service_1 = require("../modules/auth/auth.service");
+const roles_1 = require("../auth/roles");
+const dailyMetrics_service_1 = require("../modules/reporting/dailyMetrics.service");
+const applicationVolume_service_1 = require("../modules/reporting/applicationVolume.service");
+const documentMetrics_service_1 = require("../modules/reporting/documentMetrics.service");
+const staffActivity_service_1 = require("../modules/reporting/staffActivity.service");
+const reporting_jobs_1 = require("../modules/reporting/reporting.jobs");
+const app = (0, index_1.buildApp)(index_1.defaultConfig);
+const requestId = "test-request-id";
+const postWithRequestId = (url) => (0, supertest_1.default)(app).post(url).set("x-request-id", requestId);
+async function resetDb() {
+    await db_1.pool.query("delete from reporting_lender_funnel_daily");
+    await db_1.pool.query("delete from reporting_staff_activity_daily");
+    await db_1.pool.query("delete from reporting_document_metrics_daily");
+    await db_1.pool.query("delete from reporting_application_volume_daily");
+    await db_1.pool.query("delete from reporting_pipeline_daily_snapshots");
+    await db_1.pool.query("delete from reporting_lender_performance");
+    await db_1.pool.query("delete from reporting_pipeline_snapshots");
+    await db_1.pool.query("delete from reporting_daily_metrics");
+    await db_1.pool.query("delete from client_submissions");
+    await db_1.pool.query("delete from lender_submission_retries");
+    await db_1.pool.query("delete from lender_submissions");
+    await db_1.pool.query("delete from document_version_reviews");
+    await db_1.pool.query("delete from document_versions");
+    await db_1.pool.query("delete from documents");
+    await db_1.pool.query("delete from applications");
+    await db_1.pool.query("delete from idempotency_keys");
+    await db_1.pool.query("delete from auth_refresh_tokens");
+    await db_1.pool.query("delete from password_resets");
+    await db_1.pool.query("delete from audit_events");
+    await db_1.pool.query("delete from users where id <> 'client-submission-system'");
+}
+beforeAll(async () => {
+    process.env.DATABASE_URL = "pg-mem";
+    process.env.BUILD_TIMESTAMP = "2024-01-01T00:00:00.000Z";
+    process.env.COMMIT_SHA = "test-commit";
+    process.env.JWT_SECRET = "test-access-secret";
+    process.env.JWT_REFRESH_SECRET = "test-refresh-secret";
+    process.env.JWT_EXPIRES_IN = "1h";
+    process.env.JWT_REFRESH_EXPIRES_IN = "1d";
+    process.env.LOGIN_LOCKOUT_THRESHOLD = "2";
+    process.env.LOGIN_LOCKOUT_MINUTES = "10";
+    process.env.PASSWORD_MAX_AGE_DAYS = "30";
+    process.env.NODE_ENV = "test";
+    await (0, migrations_1.runMigrations)();
+});
+beforeEach(async () => {
+    await resetDb();
+});
+afterAll(async () => {
+    await db_1.pool.end();
+});
+async function seedReportingData() {
+    const owner = await (0, auth_service_1.createUserAccount)({
+        email: "owner@reports.test",
+        password: "Password123!",
+        role: roles_1.ROLES.USER,
+    });
+    const staff = await (0, auth_service_1.createUserAccount)({
+        email: "staff@reports.test",
+        password: "Password123!",
+        role: roles_1.ROLES.STAFF,
+    });
+    const baseDate = new Date("2024-02-01T10:00:00.000Z");
+    const applicationIds = [(0, crypto_1.randomUUID)(), (0, crypto_1.randomUUID)(), (0, crypto_1.randomUUID)(), (0, crypto_1.randomUUID)()];
+    const states = ["LENDER_SUBMITTED", "APPROVED", "DECLINED", "FUNDED"];
+    await Promise.all(applicationIds.map((id, index) => db_1.pool.query(`insert into applications
+         (id, owner_user_id, name, metadata, product_type, pipeline_state, created_at, updated_at)
+         values ($1, $2, $3, $4, $5, $6, $7, $7)`, [
+        id,
+        owner.id,
+        `App ${index}`,
+        null,
+        index % 2 === 0 ? "standard" : "express",
+        states[index],
+        baseDate,
+    ])));
+    const documentId = (0, crypto_1.randomUUID)();
+    await db_1.pool.query(`insert into documents
+     (id, application_id, owner_user_id, title, document_type, created_at)
+     values ($1, $2, $3, $4, $5, $6)`, [documentId, applicationIds[0], owner.id, "Bank Statement", "bank_statement", baseDate]);
+    const versionIds = [(0, crypto_1.randomUUID)(), (0, crypto_1.randomUUID)()];
+    await db_1.pool.query(`insert into document_versions
+     (id, document_id, version, metadata, content, created_at)
+     values ($1, $2, $3, $4, $5, $6),
+            ($7, $2, $8, $4, $9, $6)`, [
+        versionIds[0],
+        documentId,
+        1,
+        JSON.stringify({ file: "v1" }),
+        "content1",
+        baseDate,
+        versionIds[1],
+        2,
+        "content2",
+    ]);
+    await db_1.pool.query(`insert into document_version_reviews
+     (id, document_version_id, status, reviewed_by_user_id, reviewed_at)
+     values ($1, $2, $3, $4, $5)`, [(0, crypto_1.randomUUID)(), versionIds[0], "accepted", staff.id, baseDate]);
+    await db_1.pool.query(`insert into lender_submissions
+     (id, application_id, status, idempotency_key, lender_id, submitted_at, payload, created_at, updated_at)
+     values ($1, $2, $3, $4, $5, $6, $7, $6, $6)`, [
+        (0, crypto_1.randomUUID)(),
+        applicationIds[0],
+        "submitted",
+        (0, crypto_1.randomUUID)(),
+        "lender-a",
+        baseDate,
+        JSON.stringify({}),
+    ]);
+    await db_1.pool.query(`insert into audit_events
+     (id, actor_user_id, target_user_id, action, ip, user_agent, request_id, success, created_at)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`, [(0, crypto_1.randomUUID)(), staff.id, null, "REPORT_VIEW", "127.0.0.1", "jest", "req-1", true, baseDate]);
+    return { ownerId: owner.id, staffId: staff.id };
+}
+describe("reporting", () => {
+    it("aggregates daily metrics correctly", async () => {
+        await seedReportingData();
+        const runDate = new Date("2024-02-01T05:00:00.000Z");
+        await (0, reporting_jobs_1.runDailyMetricsJob)(runDate);
+        const metrics = await (0, dailyMetrics_service_1.listDailyMetrics)({
+            from: new Date("2024-02-01T00:00:00.000Z"),
+            to: new Date("2024-02-02T00:00:00.000Z"),
+            groupBy: "day",
+            limit: 10,
+            offset: 0,
+        });
+        expect(metrics).toHaveLength(1);
+        expect(metrics[0]).toMatchObject({
+            applicationsCreated: 4,
+            applicationsSubmitted: 1,
+            applicationsApproved: 1,
+            applicationsDeclined: 1,
+            applicationsFunded: 1,
+            documentsUploaded: 2,
+            documentsApproved: 1,
+            lenderSubmissions: 1,
+        });
+    });
+    it("aggregates volume, documents, and staff metrics", async () => {
+        const { staffId } = await seedReportingData();
+        const runDate = new Date("2024-02-01T05:00:00.000Z");
+        await (0, reporting_jobs_1.runApplicationVolumeJob)(runDate);
+        await (0, reporting_jobs_1.runDocumentMetricsJob)(runDate);
+        await (0, reporting_jobs_1.runStaffActivityJob)(runDate);
+        const volume = await (0, applicationVolume_service_1.listApplicationVolume)({
+            from: new Date("2024-02-01T00:00:00.000Z"),
+            to: new Date("2024-02-02T00:00:00.000Z"),
+            groupBy: "day",
+            limit: 10,
+            offset: 0,
+        });
+        const documents = await (0, documentMetrics_service_1.listDocumentMetrics)({
+            from: new Date("2024-02-01T00:00:00.000Z"),
+            to: new Date("2024-02-02T00:00:00.000Z"),
+            groupBy: "day",
+            limit: 10,
+            offset: 0,
+        });
+        const activity = await (0, staffActivity_service_1.listStaffActivity)({
+            from: new Date("2024-02-01T00:00:00.000Z"),
+            to: new Date("2024-02-02T00:00:00.000Z"),
+            groupBy: "day",
+            limit: 10,
+            offset: 0,
+            staffUserId: staffId,
+        });
+        expect(volume.length).toBeGreaterThan(0);
+        expect(documents[0]).toMatchObject({
+            documentType: "bank_statement",
+            documentsUploaded: 2,
+            documentsReviewed: 1,
+            documentsApproved: 1,
+        });
+        expect(activity[0]).toMatchObject({
+            staffUserId: staffId,
+            action: "REPORT_VIEW",
+            activityCount: 1,
+        });
+    });
+    it("enforces reporting access roles", async () => {
+        await (0, auth_service_1.createUserAccount)({
+            email: "user@reports.test",
+            password: "Password123!",
+            role: roles_1.ROLES.USER,
+        });
+        await (0, auth_service_1.createUserAccount)({
+            email: "admin@reports.test",
+            password: "Password123!",
+            role: roles_1.ROLES.ADMIN,
+        });
+        const userLogin = await postWithRequestId("/api/auth/login").send({
+            email: "user@reports.test",
+            password: "Password123!",
+        });
+        const adminLogin = await postWithRequestId("/api/auth/login").send({
+            email: "admin@reports.test",
+            password: "Password123!",
+        });
+        const forbidden = await (0, supertest_1.default)(app)
+            .get("/api/reporting/applications/volume")
+            .set("Authorization", `Bearer ${userLogin.body.accessToken}`);
+        expect(forbidden.status).toBe(403);
+        const allowed = await (0, supertest_1.default)(app)
+            .get("/api/reporting/applications/volume")
+            .set("Authorization", `Bearer ${adminLogin.body.accessToken}`);
+        expect(allowed.status).toBe(200);
+    });
+    it("runs reporting jobs idempotently", async () => {
+        await seedReportingData();
+        const runDate = new Date("2024-02-01T05:00:00.000Z");
+        const lenderRunDate = new Date("2024-02-02T05:00:00.000Z");
+        await (0, reporting_jobs_1.runDailyMetricsJob)(runDate);
+        await (0, reporting_jobs_1.runDailyMetricsJob)(runDate);
+        const dailyCount = await db_1.pool.query("select count(*) from reporting_daily_metrics where metric_date = $1", ["2024-02-01"]);
+        expect(Number(dailyCount.rows[0].count)).toBe(1);
+        await (0, reporting_jobs_1.runPipelineSnapshotJob)(runDate);
+        await (0, reporting_jobs_1.runPipelineSnapshotJob)(runDate);
+        const expectedSnapshots = await db_1.pool.query("select count(distinct pipeline_state) from applications");
+        const snapshotCount = await db_1.pool.query("select count(*) from reporting_pipeline_snapshots where snapshot_at = $1", ["2024-02-01T05:00:00.000Z"]);
+        expect(Number(snapshotCount.rows[0].count)).toBe(Number(expectedSnapshots.rows[0].count));
+        await (0, reporting_jobs_1.runDailyPipelineSnapshotJob)(runDate);
+        await (0, reporting_jobs_1.runDailyPipelineSnapshotJob)(runDate);
+        const dailySnapshotCount = await db_1.pool.query("select count(*) from reporting_pipeline_daily_snapshots where snapshot_date = $1", ["2024-02-01"]);
+        expect(Number(dailySnapshotCount.rows[0].count)).toBe(Number(expectedSnapshots.rows[0].count));
+        await (0, reporting_jobs_1.runLenderPerformanceJob)(lenderRunDate);
+        await (0, reporting_jobs_1.runLenderPerformanceJob)(lenderRunDate);
+        const lenderCount = await db_1.pool.query("select count(*) from reporting_lender_performance where period_start = $1 and lender_id = $2", ["2024-02-01", "lender-a"]);
+        expect(Number(lenderCount.rows[0].count)).toBe(1);
+        await (0, reporting_jobs_1.runApplicationVolumeJob)(runDate);
+        await (0, reporting_jobs_1.runApplicationVolumeJob)(runDate);
+        const volumeCount = await db_1.pool.query("select count(*) from reporting_application_volume_daily where metric_date = $1", ["2024-02-01"]);
+        expect(Number(volumeCount.rows[0].count)).toBeGreaterThan(0);
+        await (0, reporting_jobs_1.runDocumentMetricsJob)(runDate);
+        await (0, reporting_jobs_1.runDocumentMetricsJob)(runDate);
+        const documentCount = await db_1.pool.query("select count(*) from reporting_document_metrics_daily where metric_date = $1", ["2024-02-01"]);
+        expect(Number(documentCount.rows[0].count)).toBeGreaterThan(0);
+        await (0, reporting_jobs_1.runStaffActivityJob)(runDate);
+        await (0, reporting_jobs_1.runStaffActivityJob)(runDate);
+        const staffCount = await db_1.pool.query("select count(*) from reporting_staff_activity_daily where metric_date = $1", ["2024-02-01"]);
+        expect(Number(staffCount.rows[0].count)).toBe(1);
+        await (0, reporting_jobs_1.runLenderFunnelJob)(runDate);
+        await (0, reporting_jobs_1.runLenderFunnelJob)(runDate);
+        const funnelCount = await db_1.pool.query("select count(*) from reporting_lender_funnel_daily where metric_date = $1 and lender_id = $2", ["2024-02-01", "lender-a"]);
+        expect(Number(funnelCount.rows[0].count)).toBe(1);
+    });
+    it("handles date boundaries correctly", async () => {
+        const { ownerId } = await seedReportingData();
+        const boundaryStart = new Date("2024-02-03T00:00:00.000Z");
+        const boundaryEnd = new Date("2024-02-04T00:00:00.000Z");
+        await db_1.pool.query(`insert into applications
+       (id, owner_user_id, name, metadata, product_type, pipeline_state, created_at, updated_at)
+       values ($1, $2, $3, $4, $5, $6, $7, $7)`, [(0, crypto_1.randomUUID)(), ownerId, "Boundary App", null, "standard", "APPROVED", boundaryEnd]);
+        await (0, reporting_jobs_1.runDailyMetricsJob)(boundaryStart);
+        const metrics = await (0, dailyMetrics_service_1.listDailyMetrics)({
+            from: boundaryStart,
+            to: boundaryEnd,
+            groupBy: "day",
+            limit: 10,
+            offset: 0,
+        });
+        const totalCreated = metrics.reduce((sum, row) => sum + row.applicationsCreated, 0);
+        expect(totalCreated).toBe(0);
+    });
+    it("does not write to transactional tables during jobs", async () => {
+        await seedReportingData();
+        const countsBefore = await Promise.all([
+            db_1.pool.query("select count(*) from applications"),
+            db_1.pool.query("select count(*) from documents"),
+            db_1.pool.query("select count(*) from document_versions"),
+            db_1.pool.query("select count(*) from document_version_reviews"),
+            db_1.pool.query("select count(*) from lender_submissions"),
+        ]);
+        await (0, reporting_jobs_1.runDailyMetricsJob)(new Date("2024-02-02T05:00:00.000Z"));
+        await (0, reporting_jobs_1.runPipelineSnapshotJob)(new Date("2024-02-02T05:00:00.000Z"));
+        await (0, reporting_jobs_1.runLenderPerformanceJob)(new Date("2024-02-02T05:00:00.000Z"));
+        const countsAfter = await Promise.all([
+            db_1.pool.query("select count(*) from applications"),
+            db_1.pool.query("select count(*) from documents"),
+            db_1.pool.query("select count(*) from document_versions"),
+            db_1.pool.query("select count(*) from document_version_reviews"),
+            db_1.pool.query("select count(*) from lender_submissions"),
+        ]);
+        countsBefore.forEach((before, index) => {
+            expect(before.rows[0].count).toBe(countsAfter[index].rows[0].count);
+        });
+    });
+});

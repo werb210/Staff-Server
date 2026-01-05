@@ -1,11 +1,11 @@
 import request from "supertest";
-import { buildApp } from "../index";
+import { buildApp, defaultConfig } from "../index";
 import { pool } from "../db";
 import { createUserAccount } from "../modules/auth/auth.service";
 import { ROLES } from "../auth/roles";
 import { runMigrations } from "../migrations";
 
-const app = buildApp();
+const app = buildApp(defaultConfig);
 const requestId = "test-request-id";
 
 async function resetDb(): Promise<void> {

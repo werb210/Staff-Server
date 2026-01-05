@@ -9,7 +9,7 @@ import { listRecentExports } from "../modules/exports/export.service";
 const router = Router();
 
 router.get("/health", (_req, res) => {
-  res.json({ ok: true });
+  res.status(200).json({ status: "ok" });
 });
 
 router.get("/ready", async (_req, res) => {
