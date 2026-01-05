@@ -1,13 +1,6 @@
-import express, { Express } from "express";
-import http from "http";
-import cors from "cors";
+import express, { type Express } from "express";
 import helmet from "helmet";
-
-import { initializeAppInsights } from "./observability/appInsights";
-import { requestId } from "./middleware/requestId";
-import { requestLogger } from "./middleware/requestLogger";
-import { errorHandler, notFoundHandler } from "./middleware/errors";
-import { getCorsAllowlistConfig, getRequestBodyLimit } from "./config";
+import cors from "cors";
 
 import authRoutes from "./routes/auth";
 import usersRoutes from "./routes/users";
@@ -20,31 +13,92 @@ import reportingRoutes from "./routes/reporting";
 import reportsRoutes from "./routes/reports";
 import internalRoutes from "./routes/internal";
 
-const PORT = Number(process.env.PORT) || 8080;
+import { requestId } from "./middleware/requestId";
+import { requestLogger } from "./middleware/requestLogger";
+import { errorHandler, notFoundHandler } from "./middleware/errors";
+import {
+  assertEnv,
+  getCorsAllowlistConfig,
+  getRequestBodyLimit,
+  isProductionEnvironment,
+  isTestEnvironment,
+  shouldRunMigrations,
+} from "./config";
+import { globalRateLimit } from "./middleware/rateLimit";
+import { enforceSecureCookies, requireHttps } from "./middleware/security";
+import { initializeAppInsights } from "./observability/appInsights";
+import { logInfo } from "./observability/logger";
+import { checkDb, logBackupStatus } from "./db";
+import { runMigrations } from "./migrations";
 
-/**
- * buildApp()
- * - PURE
- * - NO side effects
- * - SAFE for CI imports
- */
-export function buildApp(): Express {
+export type AppConfig = {
+  serviceName: string;
+  enableRequestLogging: boolean;
+  port: number;
+};
+
+export const defaultConfig: AppConfig = {
+  serviceName: "boreal-staff-server",
+  enableRequestLogging: !isTestEnvironment(),
+  port: Number.isFinite(Number(process.env.PORT))
+    ? Number(process.env.PORT)
+    : 8080,
+};
+
+export function buildApp(config: AppConfig = defaultConfig): Express {
   const app = express();
 
-  // MUST be first – used by Azure + smoke tests
-  app.get("/api/_int/health", (_req, res) =>
-    res.status(200).json({ ok: true })
+  app.set("trust proxy", 1);
+  app.disable("x-powered-by");
+
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        useDefaults: false,
+        directives: {
+          defaultSrc: ["'none'"],
+          baseUri: ["'self'"],
+          frameAncestors: ["'none'"],
+          formAction: ["'self'"],
+          scriptSrc: ["'self'"],
+          styleSrc: ["'self'"],
+          imgSrc: ["'self'", "data:"],
+          connectSrc: ["'self'"],
+          objectSrc: ["'none'"],
+        },
+      },
+    })
   );
 
-  app.get("/", (_req, res) => res.status(200).send("OK"));
+  const corsAllowlist = getCorsAllowlistConfig();
+  app.use(
+    cors({
+      origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        if (corsAllowlist.includes(origin)) return callback(null, true);
+        return callback(new Error("cors_not_allowed"));
+      },
+      credentials: true,
+    })
+  );
 
-  app.use(cors({ origin: getCorsAllowlistConfig() }));
-  app.use(helmet());
-  app.use(express.json({ limit: getRequestBodyLimit() }));
+  const bodyLimit = getRequestBodyLimit();
+  app.use(express.json({ limit: bodyLimit }));
+  app.use(express.urlencoded({ extended: true, limit: bodyLimit }));
 
   app.use(requestId);
-  app.use(requestLogger);
+  if (config.enableRequestLogging) app.use(requestLogger);
 
+  app.use(enforceSecureCookies);
+  app.use(requireHttps);
+
+  if (isProductionEnvironment()) app.use(globalRateLimit());
+
+  app.get("/", (_req, res) => {
+    res.status(200).json({ service: config.serviceName });
+  });
+
+  app.use("/api/_int", internalRoutes);
   app.use("/api/auth", authRoutes);
   app.use("/api/users", usersRoutes);
   app.use("/api/staff", staffRoutes);
@@ -54,7 +108,6 @@ export function buildApp(): Express {
   app.use("/api/client", clientRoutes);
   app.use("/api/reporting", reportingRoutes);
   app.use("/api/reports", reportsRoutes);
-  app.use("/api/_int", internalRoutes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
@@ -62,26 +115,23 @@ export function buildApp(): Express {
   return app;
 }
 
-/**
- * initializeServer()
- * - ONLY place that binds PORT
- * - ONLY place AppInsights runs
- */
 export async function initializeServer(): Promise<void> {
+  assertEnv();
   initializeAppInsights();
+  await checkDb();
+  if (!isTestEnvironment()) await logBackupStatus();
+  if (isProductionEnvironment() && shouldRunMigrations()) {
+    await runMigrations();
+  }
 
-  const app = buildApp();
-  const server = http.createServer(app);
-
-  server.listen(PORT, () => {
-    console.info(`server_listening`, { port: PORT });
+  const app = buildApp(defaultConfig);
+  const server = app.listen(defaultConfig.port, () => {
+    logInfo("server_listening", { port: defaultConfig.port });
   });
+
+  if (isTestEnvironment()) server.unref();
 }
 
-// REQUIRED for Azure App Service
 if (require.main === module) {
-  initializeServer().catch((err) => {
-    console.error("server_boot_failed", err);
-    process.exit(1);
-  });
+  void initializeServer();
 }
