@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { checkDb } from "../db";
 import { assertEnv, getBuildInfo } from "../config";
-import { getSchemaVersion } from "../migrations";
+import { assertMigrationsTableExists, getSchemaVersion } from "../migrations";
 import { listKillSwitches } from "../modules/ops/ops.service";
 import { listActiveReplayJobs } from "../modules/ops/replay.service";
 import { listRecentExports } from "../modules/exports/export.service";
@@ -16,6 +16,7 @@ router.get("/ready", async (_req, res) => {
   try {
     assertEnv();
     await checkDb();
+    await assertMigrationsTableExists();
     res.json({ ok: true });
   } catch (err) {
     const requestId = res.locals.requestId ?? "unknown";

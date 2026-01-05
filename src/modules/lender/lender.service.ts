@@ -27,6 +27,7 @@ import {
 } from "../../config";
 import { createHash } from "crypto";
 import { isKillSwitchEnabled } from "../ops/ops.service";
+import { logInfo, logWarn } from "../../observability/logger";
 
 const IDEMPOTENCY_SCOPE_LENDER = "lender_submission";
 
@@ -323,6 +324,11 @@ async function transmitSubmission(params: {
     failureReason: null,
     client: params.client,
   });
+  logInfo("lender_submission_created", {
+    submissionId: submission.id,
+    applicationId: params.applicationId,
+    lenderId: params.lenderId,
+  });
 
   if (missingDocumentTypes.length > 0) {
     await recordSubmissionFailure({
@@ -340,6 +346,12 @@ async function transmitSubmission(params: {
       ip: params.ip,
       userAgent: params.userAgent,
       client: params.client,
+    });
+    logWarn("lender_submission_failed", {
+      submissionId: submission.id,
+      applicationId: params.applicationId,
+      lenderId: params.lenderId,
+      reason: "missing_documents",
     });
 
     return {
@@ -368,6 +380,12 @@ async function transmitSubmission(params: {
       userAgent: params.userAgent,
       client: params.client,
     });
+    logWarn("lender_submission_failed", {
+      submissionId: submission.id,
+      applicationId: params.applicationId,
+      lenderId: params.lenderId,
+      reason: response.failureReason ?? "lender_error",
+    });
 
     return {
       statusCode: 502,
@@ -383,6 +401,11 @@ async function transmitSubmission(params: {
     responseReceivedAt: new Date(response.response.receivedAt),
     failureReason: null,
     client: params.client,
+  });
+  logInfo("lender_submission_submitted", {
+    submissionId: submission.id,
+    applicationId: params.applicationId,
+    lenderId: params.lenderId,
   });
 
   if (application.pipeline_state === "REQUIRES_DOCS") {

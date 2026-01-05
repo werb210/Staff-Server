@@ -3,6 +3,7 @@ import { AppError } from "../middleware/errors";
 import { requireAuth, requireCapability } from "../middleware/auth";
 import { CAPABILITIES } from "../auth/capabilities";
 import { recordAuditEvent } from "../modules/audit/audit.service";
+import { logError } from "../observability/logger";
 import { isKillSwitchEnabled } from "../modules/ops/ops.service";
 import {
   exportApplicationVolume,
@@ -148,7 +149,7 @@ router.post("/pipeline", async (req, res, next) => {
       success: false,
     });
     const message = err instanceof Error ? err.message : "unknown error";
-    console.error("export_failed", { code: "export_failed", message });
+    logError("export_failed", { code: "export_failed", message });
     next(err);
   }
 });
@@ -216,7 +217,7 @@ router.post("/lenders", async (req, res, next) => {
       success: false,
     });
     const message = err instanceof Error ? err.message : "unknown error";
-    console.error("export_failed", { code: "export_failed", message });
+    logError("export_failed", { code: "export_failed", message });
     next(err);
   }
 });
@@ -284,7 +285,7 @@ router.post("/applications", async (req, res, next) => {
       success: false,
     });
     const message = err instanceof Error ? err.message : "unknown error";
-    console.error("export_failed", { code: "export_failed", message });
+    logError("export_failed", { code: "export_failed", message });
     next(err);
   }
 });

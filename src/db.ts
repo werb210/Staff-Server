@@ -1,4 +1,10 @@
 import { Pool } from "pg";
+import {
+  getDbPoolConnectionTimeoutMs,
+  getDbPoolIdleTimeoutMs,
+  getDbPoolMax,
+} from "./config";
+import { logError, logInfo, logWarn } from "./observability/logger";
 
 export const isPgMem =
   process.env.NODE_ENV === "test" &&
@@ -16,13 +22,52 @@ function createPool(): Pool {
   return new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : undefined,
+    max: getDbPoolMax(),
+    idleTimeoutMillis: getDbPoolIdleTimeoutMs(),
+    connectionTimeoutMillis: getDbPoolConnectionTimeoutMs(),
   });
 }
 
 export const pool = createPool();
 
 export async function checkDb(): Promise<void> {
-  await pool.query("select 1");
+  try {
+    await pool.query("select 1");
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "unknown";
+    logError("db_unavailable", { error: message });
+    throw err;
+  }
+}
+
+export async function logBackupStatus(): Promise<void> {
+  try {
+    const res = await pool.query<{ name: string; setting: string }>(
+      `select name, setting
+       from pg_settings
+       where name in ('backup_retention_days', 'geo_redundant_backup')`
+    );
+    const settings = new Map(res.rows.map((row) => [row.name, row.setting]));
+    const retentionRaw = settings.get("backup_retention_days");
+    const retentionDays = retentionRaw ? Number(retentionRaw) : null;
+    const geoRedundant = settings.get("geo_redundant_backup") ?? "unknown";
+
+    if (!retentionDays || retentionDays <= 0) {
+      logWarn("backup_retention_disabled", {
+        retentionDays,
+        geoRedundant,
+      });
+      return;
+    }
+
+    logInfo("backup_retention_configured", {
+      retentionDays,
+      geoRedundant,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "unknown";
+    logWarn("backup_retention_check_failed", { error: message });
+  }
 }
 
 type RequiredColumn = {

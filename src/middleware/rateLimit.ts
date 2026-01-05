@@ -16,7 +16,10 @@ import {
   getRefreshRateLimitWindowMs,
   getAdminRateLimitMax,
   getAdminRateLimitWindowMs,
+  getGlobalRateLimitMaxConfig,
+  getGlobalRateLimitWindowMsConfig,
 } from "../config";
+import { logWarn } from "../observability/logger";
 
 type RateLimitEntry = {
   count: number;
@@ -44,6 +47,11 @@ function createRateLimiter(
 
     entry.count += 1;
     if (entry.count > maxAttempts) {
+      logWarn("rate_limit_exceeded", {
+        key,
+        limit: maxAttempts,
+        windowMs,
+      });
       next(new AppError("rate_limited", "Too many attempts.", 429));
       return;
     }
@@ -172,6 +180,20 @@ export function adminRateLimit(
       const ip = req.ip || "unknown";
       const userId = req.user?.userId ?? "unknown";
       return `admin:${ip}:${userId}`;
+    },
+    maxAttempts,
+    windowMs
+  );
+}
+
+export function globalRateLimit(
+  maxAttempts = getGlobalRateLimitMaxConfig(),
+  windowMs = getGlobalRateLimitWindowMsConfig()
+): (req: Request, res: Response, next: NextFunction) => void {
+  return createRateLimiter(
+    (req) => {
+      const ip = req.ip || "unknown";
+      return `global:${ip}`;
     },
     maxAttempts,
     windowMs

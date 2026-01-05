@@ -10,6 +10,7 @@ import {
 } from "../applications/documentRequirements";
 import { getDocumentAllowedMimeTypes, getDocumentMaxSizeBytes, getClientSubmissionOwnerUserId } from "../../config";
 import { createClientSubmission, findClientSubmissionByKey } from "./clientSubmission.repo";
+import { logInfo, logWarn } from "../../observability/logger";
 
 export type ClientSubmissionResponse = {
   applicationId: string;
@@ -233,6 +234,10 @@ export async function submitClientApplication(params: {
         client,
       });
       await client.query("commit");
+      logInfo("client_submission_retried", {
+        submissionKey: submission.submissionKey,
+        applicationId: existing.application_id,
+      });
       return {
         status: 200,
         value: { applicationId: existing.application_id, pipelineState: "NEW" },
@@ -302,6 +307,10 @@ export async function submitClientApplication(params: {
     });
 
     await client.query("commit");
+    logInfo("client_submission_created", {
+      submissionKey: submission.submissionKey,
+      applicationId: application.id,
+    });
     return {
       status: 201,
       value: { applicationId: application.id, pipelineState: application.pipeline_state },
@@ -316,6 +325,12 @@ export async function submitClientApplication(params: {
       ip: params.ip,
       userAgent: params.userAgent,
       success: false,
+    });
+    logWarn("client_submission_failed", {
+      submissionKey: typeof params.payload === "object" && params.payload !== null
+        ? (params.payload as { submissionKey?: string }).submissionKey
+        : undefined,
+      error: err instanceof Error ? err.message : "unknown_error",
     });
     throw err;
   } finally {

@@ -28,6 +28,7 @@ import { AppError } from "../../middleware/errors";
 import { recordAuditEvent } from "../audit/audit.service";
 import { pool } from "../../db";
 import { type Role } from "../../auth/roles";
+import { logInfo, logWarn } from "../../observability/logger";
 
 type AccessTokenPayload = {
   userId: string;
@@ -137,6 +138,10 @@ export async function loginUser(
   const user = await findAuthUserByEmail(email);
 
   if (!user || !user.password_hash || !user.role || !user.email) {
+    logWarn("auth_login_failed", {
+      email,
+      reason: "invalid_credentials",
+    });
     await recordAuditEvent({
       action: "login",
       actorUserId: user?.id ?? null,
@@ -149,6 +154,11 @@ export async function loginUser(
   }
 
   if (!user.active) {
+    logWarn("auth_login_failed", {
+      email,
+      userId: user.id,
+      reason: "user_disabled",
+    });
     await recordAuditEvent({
       action: "login",
       actorUserId: user.id,
@@ -162,6 +172,11 @@ export async function loginUser(
 
   const now = Date.now();
   if (user.locked_until && user.locked_until.getTime() > now) {
+    logWarn("auth_login_failed", {
+      email,
+      userId: user.id,
+      reason: "account_locked",
+    });
     await recordAuditEvent({
       action: "login",
       actorUserId: user.id,
@@ -213,12 +228,22 @@ export async function loginUser(
       userAgent,
       success: false,
     });
+    logWarn("auth_login_failed", {
+      email,
+      userId: user.id,
+      reason: "invalid_credentials",
+    });
     throw new AppError("invalid_credentials", "Invalid email or password.", 401);
   }
 
   await resetLoginFailures(user.id);
 
   if (isPasswordExpired(user.password_changed_at)) {
+    logWarn("auth_login_failed", {
+      email,
+      userId: user.id,
+      reason: "password_expired",
+    });
     await recordAuditEvent({
       action: "login",
       actorUserId: user.id,
@@ -270,6 +295,10 @@ export async function loginUser(
     ip,
     userAgent,
     success: true,
+  });
+  logInfo("auth_login_succeeded", {
+    userId: user.id,
+    email: user.email,
   });
 
   return {
@@ -377,6 +406,7 @@ export async function refreshSession(
         success: true,
         client,
       });
+      logInfo("auth_refresh_succeeded", { userId: user.id });
       await client.query("commit");
 
       return { accessToken: newAccessToken, refreshToken: newRefreshToken };
@@ -398,6 +428,10 @@ export async function refreshSession(
       ip,
       userAgent,
       success: false,
+    });
+    logWarn("auth_refresh_failed", {
+      userId: actorUserId,
+      error: err instanceof Error ? err.message : "unknown_error",
     });
     throw err;
   }

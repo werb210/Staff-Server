@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { pool } from "../../db";
+import { logError } from "../../observability/logger";
 import { isKillSwitchEnabled } from "./ops.service";
 
 export const REPLAY_SCOPES = [
@@ -198,7 +199,7 @@ export async function runReplayJob(id: string, scope: ReplayScope): Promise<void
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown error";
-    console.error("replay_failed", { code: "replay_failed", message });
+    logError("replay_failed", { code: "replay_failed", message });
     await pool.query(
       `update ops_replay_jobs
        set status = 'failed', completed_at = now()

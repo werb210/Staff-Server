@@ -1,0 +1,41 @@
+import { type CookieOptions, type NextFunction, type Request, type Response } from "express";
+import { isProductionEnvironment } from "../config";
+
+export function requireHttps(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void {
+  if (!isProductionEnvironment()) {
+    next();
+    return;
+  }
+  const forwardedProto = req.get("x-forwarded-proto");
+  const isSecure = req.secure || forwardedProto === "https";
+  if (!isSecure) {
+    res.status(400).json({
+      code: "https_required",
+      message: "HTTPS is required.",
+      requestId: res.locals.requestId ?? "unknown",
+    });
+    return;
+  }
+  next();
+}
+
+export function enforceSecureCookies(
+  _req: Request,
+  res: Response,
+  next: NextFunction
+): void {
+  const original = res.cookie.bind(res);
+  res.cookie = (name: string, value: unknown, options: CookieOptions = {}) => {
+    const merged: CookieOptions = {
+      ...options,
+      secure: true,
+      sameSite: "strict",
+    };
+    return original(name, value, merged);
+  };
+  next();
+}
