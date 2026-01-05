@@ -1,31 +1,31 @@
-import appInsights from "applicationinsights";
-import {
-  getAppInsightsConnectionStringConfig,
-  isTestEnvironment,
-} from "../config";
-import { logInfo } from "./logger";
-
-let initialized = false;
+import * as appInsights from "applicationinsights";
+import { isTestEnvironment } from "../config";
+import { logInfo, logWarn } from "./logger";
 
 export function initializeAppInsights(): void {
-  if (initialized || isTestEnvironment()) {
+  if (isTestEnvironment()) {
     return;
   }
-  const connectionString = getAppInsightsConnectionStringConfig();
+
+  const connectionString =
+    process.env.APPLICATIONINSIGHTS_CONNECTION_STRING ??
+    process.env.APPINSIGHTS_CONNECTION_STRING;
+
   if (!connectionString) {
+    logWarn("appinsights_disabled", {
+      reason: "missing_connection_string",
+    });
     return;
   }
 
   appInsights
     .setup(connectionString)
-    .setAutoCollectRequests(true)
-    .setAutoCollectDependencies(true)
+    .setAutoCollectConsole(true, true)
     .setAutoCollectExceptions(true)
     .setAutoCollectPerformance(true)
-    .setAutoCollectConsole(false)
-    .setUseDiskRetryCaching(true)
+    .setAutoCollectRequests(true)
+    .setSendLiveMetrics(false)
     .start();
 
-  initialized = true;
-  logInfo("app_insights_initialized", {});
+  logInfo("appinsights_initialized");
 }
