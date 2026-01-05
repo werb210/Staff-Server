@@ -1,15 +1,15 @@
 import { type CookieOptions, type NextFunction, type Request, type Response } from "express";
 import { isProductionEnvironment, isTestEnvironment } from "../config";
 
-const INTERNAL_PREFIX = "/api/_int";
+const HEALTH_CHECK_PATH = "/api/_int/health";
 
 export function requireHttps(
   req: Request,
   res: Response,
   next: NextFunction
 ): void {
-  // Never block Azure health probes or internal routes
-  if (req.path.startsWith(INTERNAL_PREFIX)) {
+  // Never block Azure health probes.
+  if (req.path === HEALTH_CHECK_PATH) {
     next();
     return;
   }
