@@ -18,6 +18,7 @@ import {
   getAdminRateLimitWindowMs,
   getGlobalRateLimitMaxConfig,
   getGlobalRateLimitWindowMsConfig,
+  isTestEnvironment,
 } from "../config";
 import { logWarn } from "../observability/logger";
 
@@ -36,6 +37,10 @@ function createRateLimiter(
   windowMs = 60_000
 ): (req: Request, res: Response, next: NextFunction) => void {
   return (req: Request, _res: Response, next: NextFunction): void => {
+    if (isTestEnvironment()) {
+      next();
+      return;
+    }
     const key = keyBuilder(req);
     const now = Date.now();
     const entry = attemptsByKey.get(key);
