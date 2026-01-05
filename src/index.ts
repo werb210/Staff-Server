@@ -1,4 +1,7 @@
 // FILE: src/index.ts
+const { initializeAppInsights } = require("./observability/appInsights");
+
+initializeAppInsights();
 
 import express, { type Express } from "express";
 import helmet from "helmet";
@@ -26,7 +29,6 @@ import {
 } from "./config";
 import { globalRateLimit } from "./middleware/rateLimit";
 import { enforceSecureCookies, requireHttps } from "./middleware/security";
-import { initializeAppInsights } from "./observability/appInsights";
 import { logInfo } from "./observability/logger";
 import { checkDb, logBackupStatus } from "./db";
 import { runMigrations } from "./migrations";
@@ -131,9 +133,6 @@ export function buildApp(config: AppConfig = defaultConfig): Express {
 }
 
 export async function initializeServer(): Promise<void> {
-  // ✅ MOVED TO VERY TOP — NOTHING ELSE CHANGED
-  initializeAppInsights();
-
   assertEnv();
 
   await checkDb();
