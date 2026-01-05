@@ -51,16 +51,18 @@ const defaultConfig: AppConfig = {
 export function buildApp(config: AppConfig = defaultConfig): Express {
   const app = express();
 
-  app.set("trust proxy", 1);
-  app.disable("x-powered-by");
-
-  app.get("/api/_int/health", (_req, res) => {
-    res.status(200).json({ ok: true });
-  });
-
+  // Public root — must exist for browser + Azure visibility
   app.get("/", (_req, res) => {
     res.status(200).send("OK");
   });
+
+  // Public internal health — never gated by middleware
+  app.get("/api/_int/health", (_req, res) => {
+    res.status(200).send("OK");
+  });
+
+  app.set("trust proxy", 1);
+  app.disable("x-powered-by");
 
   app.get(/^\/robots.*\.txt$/, (_req, res) => {
     res.status(200).send("OK");
