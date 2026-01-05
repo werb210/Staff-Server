@@ -11,7 +11,7 @@
     "build": "tsc -p tsconfig.json",
     "migrate:check": "node dist/migrationsCheck.js",
     "start": "node dist/index.js",
-    "test": "jest",
+    "test": "jest --runInBand --detectOpenHandles --forceExit",
     "ci:test": "NODE_ENV=test npm test"
   },
   "dependencies": {
