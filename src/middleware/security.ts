@@ -2,6 +2,7 @@ import { type CookieOptions, type NextFunction, type Request, type Response } fr
 import { isProductionEnvironment, isTestEnvironment } from "../config";
 
 const HEALTH_CHECK_PATH = "/api/_int/health";
+const ROBOTS_TXT_PATH = /^\/robots.*\.txt$/;
 
 export function requireHttps(
   req: Request,
@@ -9,7 +10,7 @@ export function requireHttps(
   next: NextFunction
 ): void {
   // Never block Azure health probes.
-  if (req.path === HEALTH_CHECK_PATH) {
+  if (req.path === HEALTH_CHECK_PATH || req.path === "/" || ROBOTS_TXT_PATH.test(req.path)) {
     next();
     return;
   }
