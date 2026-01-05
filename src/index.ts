@@ -21,16 +21,16 @@ import usersRoutes from "./routes/users";
 
 const PORT = Number(process.env.PORT) || 8080;
 
-export function buildApp(): Express {
+function buildApp(): Express {
   const app = express();
 
   app.get("/", (_req, res) => res.status(200).send("OK"));
   app.get("/health", (_req, res) => res.status(200).send("OK"));
 
-  app.use(requestId);
-  app.use(requestLogger);
   app.use(helmet());
   app.use(cors({ origin: getCorsAllowlistConfig() }));
+  app.use(requestId);
+  app.use(requestLogger);
   app.use(express.json({ limit: getRequestBodyLimit() }));
 
   app.use("/api/auth", authRoutes);
@@ -50,7 +50,7 @@ export function buildApp(): Express {
   return app;
 }
 
-export async function initializeServer(): Promise<void> {
+async function initializeServer(): Promise<void> {
   initializeAppInsights();
 
   const app = buildApp();
@@ -66,5 +66,9 @@ export async function initializeServer(): Promise<void> {
 }
 
 if (require.main === module) {
-  void initializeServer();
+  void (async () => {
+    await initializeServer();
+  })();
 }
+
+export { buildApp, initializeServer };
