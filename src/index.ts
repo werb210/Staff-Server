@@ -40,7 +40,7 @@ type AppConfig = {
 const defaultConfig: AppConfig = {
   serviceName: "boreal-staff-server",
   enableRequestLogging: !isTestEnvironment(),
-  port: Number.isFinite(Number(process.env.PORT)) ? Number(process.env.PORT) : 3000,
+  port: Number.isFinite(Number(process.env.PORT)) ? Number(process.env.PORT) : 8080,
 };
 
 export function buildApp(config: AppConfig = defaultConfig): Express {
