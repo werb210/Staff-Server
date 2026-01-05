@@ -50,6 +50,14 @@ export function buildApp(config: AppConfig = defaultConfig): Express {
   app.disable("x-powered-by");
 
   app.get("/api/_int/health", (_req, res) => {
+    res.status(200).json({ ok: true });
+  });
+
+  app.get("/", (_req, res) => {
+    res.status(200).send("OK");
+  });
+
+  app.get(/^\/robots.*\.txt$/, (_req, res) => {
     res.status(200).send("OK");
   });
 
@@ -104,10 +112,6 @@ export function buildApp(config: AppConfig = defaultConfig): Express {
   if (isProductionEnvironment()) {
     app.use(globalRateLimit());
   }
-
-  app.get("/", (_req, res) => {
-    res.status(200).json({ service: config.serviceName });
-  });
 
   app.use("/api/_int", internalRoutes);
   app.use("/api/auth", authRoutes);

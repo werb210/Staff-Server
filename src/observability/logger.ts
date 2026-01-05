@@ -27,18 +27,22 @@ function buildPayload(level: LogLevel, event: string, fields: LogFields = {}): R
 }
 
 function writeLog(level: LogLevel, event: string, fields?: LogFields): void {
-  const payload = buildPayload(level, event, fields);
-  const output = JSON.stringify(payload);
-  switch (level) {
-    case "warn":
-      console.warn(output);
-      break;
-    case "error":
-      console.error(output);
-      break;
-    default:
-      console.info(output);
-      break;
+  try {
+    const payload = buildPayload(level, event, fields);
+    const output = JSON.stringify(payload);
+    switch (level) {
+      case "warn":
+        console.warn(output);
+        break;
+      case "error":
+        console.error(output);
+        break;
+      default:
+        console.info(output);
+        break;
+    }
+  } catch {
+    // Swallow logging errors to avoid crashing tests or runtime paths.
   }
 }
 
