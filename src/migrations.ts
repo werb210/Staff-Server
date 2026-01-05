@@ -24,6 +24,18 @@ async function ensureMigrationsTable(): Promise<void> {
 }
 
 export async function assertMigrationsTableExists(): Promise<void> {
+  if (isPgMem) {
+    const res = await pool.query<{ count: number }>(
+      `select count(*)::int as count
+       from information_schema.tables
+       where table_schema = 'public'
+         and table_name = 'schema_migrations'`
+    );
+    if ((res.rows[0]?.count ?? 0) <= 0) {
+      throw new Error("migrations_table_missing");
+    }
+    return;
+  }
   const res = await pool.query<{ exists: string | null }>(
     "select to_regclass('public.schema_migrations') as exists"
   );

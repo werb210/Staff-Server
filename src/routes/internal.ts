@@ -5,6 +5,7 @@ import { assertMigrationsTableExists, getSchemaVersion } from "../migrations";
 import { listKillSwitches } from "../modules/ops/ops.service";
 import { listActiveReplayJobs } from "../modules/ops/replay.service";
 import { listRecentExports } from "../modules/exports/export.service";
+import { assertAuthSubsystem } from "../modules/auth/auth.service";
 
 const router = Router();
 
@@ -15,6 +16,7 @@ router.get("/health", (_req, res) => {
 router.get("/ready", async (_req, res) => {
   try {
     assertEnv();
+    assertAuthSubsystem();
     await checkDb();
     await assertMigrationsTableExists();
     res.json({ ok: true });
