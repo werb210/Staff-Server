@@ -7,10 +7,7 @@ import { initializeAppInsights } from "./observability/appInsights";
 import { requestId } from "./middleware/requestId";
 import { requestLogger } from "./middleware/requestLogger";
 import { errorHandler, notFoundHandler } from "./middleware/errors";
-import {
-  getCorsAllowlistConfig,
-  getRequestBodyLimit,
-} from "./config";
+import { getCorsAllowlistConfig, getRequestBodyLimit } from "./config";
 
 import authRoutes from "./routes/auth";
 import usersRoutes from "./routes/users";
@@ -26,18 +23,24 @@ import internalRoutes from "./routes/internal";
 const PORT = Number(process.env.PORT) || 8080;
 
 /**
- * BUILD APP (used by tests)
- * NO side effects
+ * buildApp()
+ * - PURE
+ * - NO side effects
+ * - SAFE for CI imports
  */
 export function buildApp(): Express {
   const app = express();
 
+  // MUST be first – used by Azure + smoke tests
+  app.get("/api/_int/health", (_req, res) =>
+    res.status(200).json({ ok: true })
+  );
+
   app.get("/", (_req, res) => res.status(200).send("OK"));
-  app.get("/health", (_req, res) => res.status(200).send("OK"));
 
   app.use(cors({ origin: getCorsAllowlistConfig() }));
-  app.use(express.json({ limit: getRequestBodyLimit() }));
   app.use(helmet());
+  app.use(express.json({ limit: getRequestBodyLimit() }));
 
   app.use(requestId);
   app.use(requestLogger);
@@ -51,7 +54,7 @@ export function buildApp(): Express {
   app.use("/api/client", clientRoutes);
   app.use("/api/reporting", reportingRoutes);
   app.use("/api/reports", reportsRoutes);
-  app.use("/api/internal", internalRoutes);
+  app.use("/api/_int", internalRoutes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
@@ -60,25 +63,25 @@ export function buildApp(): Express {
 }
 
 /**
- * PRODUCTION SERVER START
- * NEVER runs in tests
+ * initializeServer()
+ * - ONLY place that binds PORT
+ * - ONLY place AppInsights runs
  */
-export function initializeServer(): void {
-  if (process.env.NODE_ENV === "test") return;
-
+export async function initializeServer(): Promise<void> {
   initializeAppInsights();
 
   const app = buildApp();
   const server = http.createServer(app);
 
   server.listen(PORT, () => {
-    console.log(`server_listening:${PORT}`);
+    console.info(`server_listening`, { port: PORT });
   });
 }
 
-/**
- * ENTRYPOINT
- */
+// REQUIRED for Azure App Service
 if (require.main === module) {
-  initializeServer();
+  initializeServer().catch((err) => {
+    console.error("server_boot_failed", err);
+    process.exit(1);
+  });
 }
