@@ -49,6 +49,10 @@ export function buildApp(config: AppConfig = defaultConfig): Express {
   app.set("trust proxy", 1);
   app.disable("x-powered-by");
 
+  app.get("/api/_int/health", (_req, res) => {
+    res.status(200).send("OK");
+  });
+
   app.use(
     helmet({
       contentSecurityPolicy: {
