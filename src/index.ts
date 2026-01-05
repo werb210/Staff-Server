@@ -3,35 +3,38 @@ const { initializeAppInsights } = require("./observability/appInsights");
 
 initializeAppInsights();
 
-import express, { type Express } from "express";
-import helmet from "helmet";
-import cors from "cors";
-import authRoutes from "./routes/auth";
-import usersRoutes from "./routes/users";
-import staffRoutes from "./routes/staff";
-import adminRoutes from "./routes/admin";
-import applicationsRoutes from "./routes/applications";
-import lenderRoutes from "./routes/lender";
-import clientRoutes from "./routes/client";
-import reportingRoutes from "./routes/reporting";
-import reportsRoutes from "./routes/reports";
-import internalRoutes from "./routes/internal";
-import { requestId } from "./middleware/requestId";
-import { requestLogger } from "./middleware/requestLogger";
-import { errorHandler, notFoundHandler } from "./middleware/errors";
-import {
+const express = require("express") as typeof import("express");
+const helmet = require("helmet");
+const cors = require("cors");
+const authRoutes = require("./routes/auth").default;
+const usersRoutes = require("./routes/users").default;
+const staffRoutes = require("./routes/staff").default;
+const adminRoutes = require("./routes/admin").default;
+const applicationsRoutes = require("./routes/applications").default;
+const lenderRoutes = require("./routes/lender").default;
+const clientRoutes = require("./routes/client").default;
+const reportingRoutes = require("./routes/reporting").default;
+const reportsRoutes = require("./routes/reports").default;
+const internalRoutes = require("./routes/internal").default;
+const { requestId } = require("./middleware/requestId");
+const { requestLogger } = require("./middleware/requestLogger");
+const { errorHandler, notFoundHandler } = require("./middleware/errors");
+const {
   assertEnv,
   getCorsAllowlistConfig,
   getRequestBodyLimit,
   isProductionEnvironment,
   isTestEnvironment,
   shouldRunMigrations,
-} from "./config";
-import { globalRateLimit } from "./middleware/rateLimit";
-import { enforceSecureCookies, requireHttps } from "./middleware/security";
-import { logInfo } from "./observability/logger";
-import { checkDb, logBackupStatus } from "./db";
-import { runMigrations } from "./migrations";
+} = require("./config");
+const { globalRateLimit } = require("./middleware/rateLimit");
+const { enforceSecureCookies, requireHttps } = require("./middleware/security");
+const { logInfo } = require("./observability/logger");
+const { checkDb, logBackupStatus } = require("./db");
+const { runMigrations } = require("./migrations");
+
+type Express = import("express").Express;
+type CorsOriginCallback = (err: Error | null, allow?: boolean) => void;
 
 type AppConfig = {
   serviceName: string;
@@ -85,7 +88,7 @@ export function buildApp(config: AppConfig = defaultConfig): Express {
   const corsAllowlist = getCorsAllowlistConfig();
   app.use(
     cors({
-      origin: (origin, callback) => {
+      origin: (origin: string | undefined, callback: CorsOriginCallback) => {
         if (!origin) {
           callback(null, true);
           return;

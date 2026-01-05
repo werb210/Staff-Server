@@ -35,6 +35,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Run tests (CI)
+        run: npm run ci:test
+
       - name: Validate required environment variables
         run: |
           test -n "$DATABASE_URL"
@@ -45,9 +48,6 @@ jobs:
 
       - name: Build TypeScript
         run: npm run build
-
-      - name: Run tests
-        run: npm test
 
       - name: Validate migrations
         run: npm run migrate:check
