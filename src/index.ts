@@ -22,6 +22,7 @@ export async function startServer() {
   assertEnv();
   await checkDb();
   await runMigrations();
+  console.log("BOOT OK");
 
   const app = express();
 
@@ -56,6 +57,7 @@ export async function startServer() {
   app.use((_req, res) => {
     res.status(404).json({ error: "Not found" });
   });
+  console.log("BOOT OK");
 
   app.listen(PORT, () => {
     console.log(`Staff Server running on port ${PORT}`);

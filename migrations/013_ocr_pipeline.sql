@@ -1,4 +1,4 @@
-create table ocr_jobs (
+create table if not exists ocr_jobs (
   id text primary key,
   document_id text not null references documents(id) on delete cascade,
   application_id text not null references applications(id) on delete cascade,
@@ -15,7 +15,7 @@ create table ocr_jobs (
   check (status in ('queued', 'processing', 'succeeded', 'failed', 'canceled'))
 );
 
-create table ocr_results (
+create table if not exists ocr_results (
   id text primary key,
   document_id text not null references documents(id) on delete cascade,
   provider text not null,
