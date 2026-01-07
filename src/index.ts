@@ -14,6 +14,7 @@ import reportsRoutes from "./routes/reports";
 import { assertEnv } from "./config";
 import { checkDb } from "./db";
 import { runMigrations } from "./migrations";
+import { errorHandler } from "./middleware/errors";
 
 const PORT = Number(process.env.PORT) || 8080;
 
@@ -42,6 +43,9 @@ export async function startServer() {
   app.use("/api/client", clientRoutes);
   app.use("/api/reporting", reportingRoutes);
   app.use("/api/reports", reportsRoutes);
+
+  /* -------------------- API ERRORS (JSON ONLY) -------------------- */
+  app.use("/api", errorHandler);
 
   /* -------------------- API 404 (JSON ONLY) -------------------- */
   app.use("/api", (_req, res) => {
