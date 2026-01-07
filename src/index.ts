@@ -1,98 +1,93 @@
 import express from "express";
 import cors from "cors";
-
-import {
-  assertEnv,
-  isProductionEnvironment,
-  isTestEnvironment,
-  shouldRunMigrations,
-} from "./config";
-import { initializeAppInsights } from "./observability/appInsights";
-import { checkDb } from "./db";
-import { runMigrations } from "./migrations";
+import path from "path";
 
 import authRoutes from "./routes/auth";
+import usersRoutes from "./routes/users";
 import staffRoutes from "./routes/staff";
 import adminRoutes from "./routes/admin";
-import applicationRoutes from "./routes/applications";
+import applicationsRoutes from "./routes/applications";
 import lenderRoutes from "./routes/lender";
 import clientRoutes from "./routes/client";
 import reportingRoutes from "./routes/reporting";
-import reportRoutes from "./routes/reports";
+import reportsRoutes from "./routes/reports";
 
 import { notFoundHandler, errorHandler } from "./middleware/errors";
+import { assertEnv } from "./config";
+import { checkDb } from "./db";
+import { runMigrations } from "./migrations";
 
-export type AppConfig = {
-  port: number;
-};
+const app = express();
+const PORT = Number(process.env.PORT) || 8080;
 
-export const defaultConfig: AppConfig = {
-  port: Number.isFinite(Number(process.env.PORT))
-    ? Number(process.env.PORT)
-    : 8080,
-};
+assertEnv();
 
-export function buildApp(config = defaultConfig): express.Express {
-  const app = express();
+/* -----------------------------
+   Core middleware
+------------------------------ */
+app.use(cors());
+app.use(express.json());
 
-  app.use(cors());
-  app.use(express.json());
+/* -----------------------------
+   Health check (JSON ONLY)
+------------------------------ */
+app.get("/health", (_req, res) => {
+  res.status(200).json({ ok: true });
+});
 
-  // ===============================
-  // HEALTH
-  // ===============================
-  app.get("/health", (_req, res) => {
-    res.json({ ok: true });
-  });
+/* -----------------------------
+   API ROUTES — MUST COME FIRST
+------------------------------ */
+app.use("/api/auth", authRoutes);
+app.use("/api/users", usersRoutes);
+app.use("/api/staff", staffRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/applications", applicationsRoutes);
+app.use("/api/lender", lenderRoutes);
+app.use("/api/client", clientRoutes);
+app.use("/api/reporting", reportingRoutes);
+app.use("/api/reports", reportsRoutes);
 
-  // ===============================
-  // API ROUTES (ONLY)
-  // ===============================
-  app.use("/api/auth", authRoutes);
-  app.use("/api/staff", staffRoutes);
-  app.use("/api/admin", adminRoutes);
-  app.use("/api/applications", applicationRoutes);
-  app.use("/api/lender", lenderRoutes);
-  app.use("/api/client", clientRoutes);
-  app.use("/api/reporting", reportingRoutes);
-  app.use("/api/reports", reportRoutes);
+/* -----------------------------
+   API 404 — NEVER HTML
+------------------------------ */
+app.use("/api", (_req, res) => {
+  res.status(404).json({ error: "API route not found" });
+});
 
-  // ===============================
-  // HARD API 404 (NO HTML EVER)
-  // ===============================
-  app.use("/api", (_req, res) => {
-    res.status(404).json({ error: "API route not found" });
-  });
+/* -----------------------------
+   SPA STATIC (NON-API ONLY)
+------------------------------ */
+const distPath = path.resolve(process.cwd(), "dist");
 
-  // ===============================
-  // ERROR HANDLING
-  // ===============================
-  app.use(notFoundHandler);
-  app.use(errorHandler);
+/**
+ * IMPORTANT:
+ * This regex explicitly EXCLUDES:
+ *   /api
+ *   /health
+ *
+ * That guarantees API routes can NEVER return HTML.
+ */
+app.get(/^\/(?!api|health).*/, (_req, res) => {
+  res.sendFile(path.join(distPath, "index.html"));
+});
 
-  return app;
-}
+/* -----------------------------
+   Error handling
+------------------------------ */
+app.use(notFoundHandler);
+app.use(errorHandler);
 
-export async function initializeServer(): Promise<void> {
-  assertEnv();
-  initializeAppInsights();
+/* -----------------------------
+   Startup
+------------------------------ */
+async function start() {
   await checkDb();
+  await runMigrations();
 
-  if (isProductionEnvironment() && shouldRunMigrations()) {
-    await runMigrations();
-  }
-
-  const app = buildApp(defaultConfig);
-
-  const server = app.listen(defaultConfig.port, () => {
-    console.log(`Staff Server listening on port ${defaultConfig.port}`);
+  app.listen(PORT, () => {
+    console.log(`Staff Server running on port ${PORT}`);
   });
-
-  if (isTestEnvironment()) {
-    server.unref();
-  }
 }
 
-if (require.main === module) {
-  void initializeServer();
-}
+start();
