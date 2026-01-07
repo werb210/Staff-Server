@@ -60,6 +60,8 @@ app.use("/api", (_req, res) => {
 ------------------------------ */
 const distPath = path.resolve(process.cwd(), "dist");
 
+app.use(/^\/(?!api|health).*/, express.static(distPath));
+
 /**
  * IMPORTANT:
  * This regex explicitly EXCLUDES:
