@@ -1,4 +1,4 @@
-create table users (
+create table if not exists users (
   id text primary key,
   email text not null unique,
   password_hash text not null,
@@ -10,7 +10,7 @@ create table users (
   token_version integer not null default 0
 );
 
-create table auth_refresh_tokens (
+create table if not exists auth_refresh_tokens (
   id text primary key,
   user_id text not null references users(id) on delete cascade,
   token_hash text not null unique,
@@ -20,7 +20,7 @@ create table auth_refresh_tokens (
   unique (user_id)
 );
 
-create table password_resets (
+create table if not exists password_resets (
   id text primary key,
   user_id text not null references users(id) on delete cascade,
   token_hash text not null unique,
@@ -28,7 +28,7 @@ create table password_resets (
   used_at timestamp null
 );
 
-create table audit_logs (
+create table if not exists audit_logs (
   id text primary key,
   actor_user_id text null references users(id) on delete set null,
   action text not null,
@@ -39,7 +39,7 @@ create table audit_logs (
   created_at timestamp not null
 );
 
-create table audit_events (
+create table if not exists audit_events (
   id text primary key,
   user_id text null references users(id) on delete set null,
   action text not null,
