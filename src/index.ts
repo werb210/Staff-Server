@@ -62,6 +62,11 @@ export async function startServer() {
   app.use(cors());
   app.use(express.json());
 
+  /* -------------------- HEALTH -------------------- */
+  app.get("/health", (_req, res) => {
+    res.json({ ok: true });
+  });
+
   app.use("/api", (_req, res, next) => {
     res.setTimeout(apiTimeoutMs, () => {
       if (!res.headersSent) {
@@ -81,37 +86,55 @@ export async function startServer() {
   const { default: reportingRoutes } = await import("./routes/reporting");
   const { default: reportsRoutes } = await import("./routes/reports");
 
-  /* -------------------- HEALTH -------------------- */
-  app.get("/health", (_req, res) => {
-    res.json({ ok: true });
-  });
-
   /* -------------------- API ROUTES -------------------- */
-  app.use("/api/auth", authRoutes);
-  app.use("/api/users", usersRoutes);
-  app.use("/api/staff", staffRoutes);
-  app.use("/api/admin", adminRoutes);
-  app.use("/api/applications", applicationsRoutes);
-  app.use("/api/lender", lenderRoutes);
-  app.use("/api/client", clientRoutes);
-  app.use("/api/reporting", reportingRoutes);
-  app.use("/api/reports", reportsRoutes);
+  const apiRouter = express.Router();
+  apiRouter.use("/auth", authRoutes);
+  apiRouter.use("/users", usersRoutes);
+  apiRouter.use("/staff", staffRoutes);
+  apiRouter.use("/admin", adminRoutes);
+  apiRouter.use("/applications", applicationsRoutes);
+  apiRouter.use("/lender", lenderRoutes);
+  apiRouter.use("/client", clientRoutes);
+  apiRouter.use("/reporting", reportingRoutes);
+  apiRouter.use("/reports", reportsRoutes);
+  app.use("/api", apiRouter);
 
   /* -------------------- API ERRORS (JSON ONLY) -------------------- */
+  app.use("/api", (err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (err instanceof SyntaxError) {
+      res.status(400).json({ ok: false, error: "invalid_json" });
+      return;
+    }
+    next(err);
+  });
   app.use("/api", errorHandler);
 
   /* -------------------- API 404 (JSON ONLY) -------------------- */
-  app.use("/api", (_req, res) => {
-    res.status(404).json({ error: "API route not found" });
+  app.all("/api", (req, res) => {
+    res.status(404).json({ ok: false, error: "not_found", path: req.originalUrl });
+  });
+  app.all("/api/*", (req, res) => {
+    res.status(404).json({ ok: false, error: "not_found", path: req.originalUrl });
   });
 
   /* -------------------- SPA/STATIC (NON-API ONLY) -------------------- */
   const staticDir = path.join(process.cwd(), "public");
   const spaIndex = path.join(staticDir, "index.html");
   if (fs.existsSync(staticDir)) {
-    app.use(express.static(staticDir));
+    const staticHandler = express.static(staticDir);
+    app.use((req, res, next) => {
+      if (req.path.startsWith("/api")) {
+        next();
+        return;
+      }
+      staticHandler(req, res, next);
+    });
   }
-  app.get("*", (_req, res, next) => {
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/api")) {
+      next();
+      return;
+    }
     if (!fs.existsSync(spaIndex)) {
       next();
       return;
