@@ -54,6 +54,8 @@ export async function startServer() {
         console.warn("DB startup check failed:", message);
       }
     })();
+  } else {
+    console.log("MIGRATIONS SKIPPED (production)");
   }
   console.log("BOOT OK");
 
@@ -99,6 +101,11 @@ export async function startServer() {
   apiRouter.use("/reports", reportsRoutes);
   app.use("/api", apiRouter);
 
+  /* -------------------- API 404 (JSON ONLY) -------------------- */
+  app.use("/api", (req, res) => {
+    res.status(404).json({ ok: false, error: "not_found", path: req.originalUrl });
+  });
+
   /* -------------------- API ERRORS (JSON ONLY) -------------------- */
   app.use("/api", (err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
     if (err instanceof SyntaxError) {
@@ -108,14 +115,6 @@ export async function startServer() {
     next(err);
   });
   app.use("/api", errorHandler);
-
-  /* -------------------- API 404 (JSON ONLY) -------------------- */
-  app.all("/api", (req, res) => {
-    res.status(404).json({ ok: false, error: "not_found", path: req.originalUrl });
-  });
-  app.all("/api/*", (req, res) => {
-    res.status(404).json({ ok: false, error: "not_found", path: req.originalUrl });
-  });
 
   /* -------------------- SPA/STATIC (NON-API ONLY) -------------------- */
   const staticDir = path.join(process.cwd(), "public");
