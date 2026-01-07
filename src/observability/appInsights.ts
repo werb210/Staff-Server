@@ -30,7 +30,7 @@ export function initializeAppInsights(): void {
       .setup(connectionString)
       .setAutoCollectConsole(true, true)
       .setAutoCollectExceptions(true)
-      .setAutoCollectPerformance(true)
+      .setAutoCollectPerformance(true, false)
       .setAutoCollectRequests(true)
       .setSendLiveMetrics(false)
       .start();

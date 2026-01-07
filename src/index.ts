@@ -129,7 +129,7 @@ export async function startServer() {
     }
     res.sendFile(spaIndex);
   });
-  app.use(/^\/(?!api(?:\/|$)).*/, nonApiRouter);
+  app.use("/", nonApiRouter);
 
   /* -------------------- GLOBAL 404 (NON-API ONLY) -------------------- */
   app.use((_req, res) => {
