@@ -62,7 +62,6 @@ export async function startServer() {
   const app = express();
 
   app.use(cors());
-  app.use(express.json());
 
   /* -------------------- HEALTH -------------------- */
   app.get("/health", (_req, res) => {
@@ -81,6 +80,7 @@ export async function startServer() {
 
   /* -------------------- API ROUTES -------------------- */
   const apiRouter = express.Router();
+  apiRouter.use(express.json());
   apiRouter.use((_req, res, next) => {
     res.setTimeout(apiTimeoutMs, () => {
       if (!res.headersSent) {

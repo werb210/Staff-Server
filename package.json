@@ -2,9 +2,8 @@
   "name": "staff-server",
   "version": "1.0.0",
   "private": true,
-  "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "npm run build && node dist/index.js",
     "build": "tsc",
     "start": "node dist/index.js"
   },
