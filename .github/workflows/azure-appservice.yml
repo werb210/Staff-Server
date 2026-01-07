@@ -26,6 +26,11 @@ jobs:
       - name: Build TypeScript
         run: npm run build
 
+      - name: Run API contract test
+        run: |
+          chmod +x test-api-contract.sh
+          ./test-api-contract.sh https://staff.boreal.financial
+
       - name: Azure Login
         uses: azure/login@v1
         with:
