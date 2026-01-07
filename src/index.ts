@@ -102,7 +102,7 @@ export async function startServer() {
 
   /* -------------------- API 404 (JSON ONLY) -------------------- */
   apiRouter.use((req, res) => {
-    res.status(404).json({ ok: false, error: "not_found", path: req.originalUrl });
+    res.status(404).json({ error: "not_found", path: req.originalUrl });
   });
 
   /* -------------------- API ERRORS (JSON ONLY) -------------------- */
@@ -116,14 +116,9 @@ export async function startServer() {
   apiRouter.use(errorHandler);
   app.use("/api", apiRouter);
 
-  app.all("/api/*", (req, res) => {
-    res.status(404).json({
-      error: "API_ROUTE_NOT_FOUND",
-      path: req.originalUrl,
-    });
-  });
-
-  printRoutes(app);
+  if (!isProduction) {
+    printRoutes(app);
+  }
 
   /* -------------------- SPA/STATIC (NON-API ONLY) -------------------- */
   const nonApiRouter = express.Router();

@@ -29,7 +29,7 @@ jobs:
       - name: Run API contract test
         run: |
           chmod +x test-api-contract.sh
-          ./test-api-contract.sh https://staff.boreal.financial
+          ./test-api-contract.sh
 
       - name: Azure Login
         uses: azure/login@v1
