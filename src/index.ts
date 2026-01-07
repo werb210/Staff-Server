@@ -69,15 +69,6 @@ export async function startServer() {
     res.json({ ok: true });
   });
 
-  app.use("/api", (_req, res, next) => {
-    res.setTimeout(apiTimeoutMs, () => {
-      if (!res.headersSent) {
-        res.status(504).json({ code: "timeout", message: "Request timed out." });
-      }
-    });
-    next();
-  });
-
   const { default: authRoutes } = await import("./routes/auth");
   const { default: usersRoutes } = await import("./routes/users");
   const { default: staffRoutes } = await import("./routes/staff");
@@ -90,6 +81,14 @@ export async function startServer() {
 
   /* -------------------- API ROUTES -------------------- */
   const apiRouter = express.Router();
+  apiRouter.use((_req, res, next) => {
+    res.setTimeout(apiTimeoutMs, () => {
+      if (!res.headersSent) {
+        res.status(504).json({ code: "timeout", message: "Request timed out." });
+      }
+    });
+    next();
+  });
   apiRouter.use("/auth", authRoutes);
   apiRouter.use("/users", usersRoutes);
   apiRouter.use("/staff", staffRoutes);
@@ -99,47 +98,38 @@ export async function startServer() {
   apiRouter.use("/client", clientRoutes);
   apiRouter.use("/reporting", reportingRoutes);
   apiRouter.use("/reports", reportsRoutes);
-  app.use("/api", apiRouter);
 
   /* -------------------- API 404 (JSON ONLY) -------------------- */
-  app.use("/api", (req, res) => {
+  apiRouter.use((req, res) => {
     res.status(404).json({ ok: false, error: "not_found", path: req.originalUrl });
   });
 
   /* -------------------- API ERRORS (JSON ONLY) -------------------- */
-  app.use("/api", (err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+  apiRouter.use((err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
     if (err instanceof SyntaxError) {
       res.status(400).json({ ok: false, error: "invalid_json" });
       return;
     }
     next(err);
   });
-  app.use("/api", errorHandler);
+  apiRouter.use(errorHandler);
+  app.use("/api", apiRouter);
 
   /* -------------------- SPA/STATIC (NON-API ONLY) -------------------- */
+  const nonApiRouter = express.Router();
   const staticDir = path.join(process.cwd(), "public");
   const spaIndex = path.join(staticDir, "index.html");
   if (fs.existsSync(staticDir)) {
-    const staticHandler = express.static(staticDir);
-    app.use((req, res, next) => {
-      if (req.path.startsWith("/api")) {
-        next();
-        return;
-      }
-      staticHandler(req, res, next);
-    });
+    nonApiRouter.use(express.static(staticDir));
   }
-  app.get("*", (req, res, next) => {
-    if (req.path.startsWith("/api")) {
-      next();
-      return;
-    }
+  nonApiRouter.get("*", (req, res, next) => {
     if (!fs.existsSync(spaIndex)) {
       next();
       return;
     }
     res.sendFile(spaIndex);
   });
+  app.use(/^\/(?!api(?:\/|$)).*/, nonApiRouter);
 
   /* -------------------- GLOBAL 404 (NON-API ONLY) -------------------- */
   app.use((_req, res) => {
