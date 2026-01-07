@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import express from "express";
 import cors from "cors";
 
@@ -53,11 +55,24 @@ export async function startServer() {
     res.status(404).json({ error: "API route not found" });
   });
 
-  /* -------------------- GLOBAL 404 (NO HTML) -------------------- */
+  /* -------------------- SPA/STATIC (NON-API ONLY) -------------------- */
+  const staticDir = path.join(process.cwd(), "public");
+  const spaIndex = path.join(staticDir, "index.html");
+  if (fs.existsSync(staticDir)) {
+    app.use(express.static(staticDir));
+  }
+  app.get("*", (_req, res, next) => {
+    if (!fs.existsSync(spaIndex)) {
+      next();
+      return;
+    }
+    res.sendFile(spaIndex);
+  });
+
+  /* -------------------- GLOBAL 404 (NON-API ONLY) -------------------- */
   app.use((_req, res) => {
     res.status(404).json({ error: "Not found" });
   });
-  console.log("BOOT OK");
 
   app.listen(PORT, () => {
     console.log(`Staff Server running on port ${PORT}`);
