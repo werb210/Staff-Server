@@ -5,6 +5,7 @@ import cors from "cors";
 
 import { assertEnv } from "./config";
 import { errorHandler } from "./middleware/errors";
+import { printRoutes } from "./debug/printRoutes";
 
 if (!process.env.NODE_ENV) {
   process.env.NODE_ENV = "test";
@@ -114,6 +115,15 @@ export async function startServer() {
   });
   apiRouter.use(errorHandler);
   app.use("/api", apiRouter);
+
+  app.all("/api/*", (req, res) => {
+    res.status(404).json({
+      error: "API_ROUTE_NOT_FOUND",
+      path: req.originalUrl,
+    });
+  });
+
+  printRoutes(app);
 
   /* -------------------- SPA/STATIC (NON-API ONLY) -------------------- */
   const nonApiRouter = express.Router();
