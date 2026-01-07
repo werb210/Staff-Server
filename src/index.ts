@@ -11,13 +11,16 @@ if (!process.env.NODE_ENV) {
 }
 
 const PORT = Number(process.env.PORT) || 8080;
+const isProduction = process.env.NODE_ENV === "production";
 
 export async function startServer() {
   assertEnv();
-  const { checkDb } = await import("./db");
-  const { runMigrations } = await import("./migrations");
-  await checkDb();
-  await runMigrations();
+  if (!isProduction) {
+    const { checkDb } = await import("./db");
+    const { runMigrations } = await import("./migrations");
+    await checkDb();
+    await runMigrations();
+  }
   console.log("BOOT OK");
 
   const app = express();
