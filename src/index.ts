@@ -1,114 +1,72 @@
-import express, { type Express } from "express";
-import helmet from "helmet";
+import express from "express";
 import cors from "cors";
 
-import authRoutes from "./routes/auth";
-import usersRoutes from "./routes/users";
-import staffRoutes from "./routes/staff";
-import adminRoutes from "./routes/admin";
-import applicationsRoutes from "./routes/applications";
-import lenderRoutes from "./routes/lender";
-import clientRoutes from "./routes/client";
-import reportingRoutes from "./routes/reporting";
-import reportsRoutes from "./routes/reports";
-import internalRoutes from "./routes/internal";
-
-import { requestId } from "./middleware/requestId";
-import { requestLogger } from "./middleware/requestLogger";
-import { errorHandler, notFoundHandler } from "./middleware/errors";
 import {
   assertEnv,
-  getCorsAllowlistConfig,
-  getRequestBodyLimit,
   isProductionEnvironment,
   isTestEnvironment,
   shouldRunMigrations,
 } from "./config";
-import { globalRateLimit } from "./middleware/rateLimit";
-import { enforceSecureCookies, requireHttps } from "./middleware/security";
 import { initializeAppInsights } from "./observability/appInsights";
-import { logInfo } from "./observability/logger";
-import { checkDb, logBackupStatus } from "./db";
+import { checkDb } from "./db";
 import { runMigrations } from "./migrations";
 
+import authRoutes from "./routes/auth";
+import staffRoutes from "./routes/staff";
+import adminRoutes from "./routes/admin";
+import applicationRoutes from "./routes/applications";
+import lenderRoutes from "./routes/lender";
+import clientRoutes from "./routes/client";
+import reportingRoutes from "./routes/reporting";
+import reportRoutes from "./routes/reports";
+
+import { notFoundHandler, errorHandler } from "./middleware/errors";
+
 export type AppConfig = {
-  serviceName: string;
-  enableRequestLogging: boolean;
   port: number;
 };
 
 export const defaultConfig: AppConfig = {
-  serviceName: "boreal-staff-server",
-  enableRequestLogging: !isTestEnvironment(),
   port: Number.isFinite(Number(process.env.PORT))
     ? Number(process.env.PORT)
     : 8080,
 };
 
-export function buildApp(config: AppConfig = defaultConfig): Express {
+export function buildApp(config = defaultConfig): express.Express {
   const app = express();
 
-  app.set("trust proxy", 1);
-  app.disable("x-powered-by");
+  app.use(cors());
+  app.use(express.json());
 
-  app.use(
-    helmet({
-      contentSecurityPolicy: {
-        useDefaults: false,
-        directives: {
-          defaultSrc: ["'none'"],
-          baseUri: ["'self'"],
-          frameAncestors: ["'none'"],
-          formAction: ["'self'"],
-          scriptSrc: ["'self'"],
-          styleSrc: ["'self'"],
-          imgSrc: ["'self'", "data:"],
-          connectSrc: ["'self'"],
-          objectSrc: ["'none'"],
-        },
-      },
-    })
-  );
-
-  const corsAllowlist = getCorsAllowlistConfig();
-  app.use(
-    cors({
-      origin: (origin, callback) => {
-        if (!origin) return callback(null, true);
-        if (corsAllowlist.includes(origin)) return callback(null, true);
-        return callback(new Error("cors_not_allowed"));
-      },
-      credentials: true,
-    })
-  );
-
-  const bodyLimit = getRequestBodyLimit();
-  app.use(express.json({ limit: bodyLimit }));
-  app.use(express.urlencoded({ extended: true, limit: bodyLimit }));
-
-  app.use(requestId);
-  if (config.enableRequestLogging) app.use(requestLogger);
-
-  app.use(enforceSecureCookies);
-  app.use(requireHttps);
-
-  if (isProductionEnvironment()) app.use(globalRateLimit());
-
-  app.get("/", (_req, res) => {
-    res.status(200).json({ service: config.serviceName });
+  // ===============================
+  // HEALTH
+  // ===============================
+  app.get("/health", (_req, res) => {
+    res.json({ ok: true });
   });
 
-  app.use("/api/_int", internalRoutes);
+  // ===============================
+  // API ROUTES (ONLY)
+  // ===============================
   app.use("/api/auth", authRoutes);
-  app.use("/api/users", usersRoutes);
   app.use("/api/staff", staffRoutes);
   app.use("/api/admin", adminRoutes);
-  app.use("/api/applications", applicationsRoutes);
+  app.use("/api/applications", applicationRoutes);
   app.use("/api/lender", lenderRoutes);
   app.use("/api/client", clientRoutes);
   app.use("/api/reporting", reportingRoutes);
-  app.use("/api/reports", reportsRoutes);
+  app.use("/api/reports", reportRoutes);
 
+  // ===============================
+  // HARD API 404 (NO HTML EVER)
+  // ===============================
+  app.use("/api", (_req, res) => {
+    res.status(404).json({ error: "API route not found" });
+  });
+
+  // ===============================
+  // ERROR HANDLING
+  // ===============================
   app.use(notFoundHandler);
   app.use(errorHandler);
 
@@ -119,17 +77,20 @@ export async function initializeServer(): Promise<void> {
   assertEnv();
   initializeAppInsights();
   await checkDb();
-  if (!isTestEnvironment()) await logBackupStatus();
+
   if (isProductionEnvironment() && shouldRunMigrations()) {
     await runMigrations();
   }
 
   const app = buildApp(defaultConfig);
+
   const server = app.listen(defaultConfig.port, () => {
-    logInfo("server_listening", { port: defaultConfig.port });
+    console.log(`Staff Server listening on port ${defaultConfig.port}`);
   });
 
-  if (isTestEnvironment()) server.unref();
+  if (isTestEnvironment()) {
+    server.unref();
+  }
 }
 
 if (require.main === module) {
