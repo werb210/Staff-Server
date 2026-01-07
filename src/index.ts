@@ -3,25 +3,19 @@ import path from "path";
 import express from "express";
 import cors from "cors";
 
-import authRoutes from "./routes/auth";
-import usersRoutes from "./routes/users";
-import staffRoutes from "./routes/staff";
-import adminRoutes from "./routes/admin";
-import applicationsRoutes from "./routes/applications";
-import lenderRoutes from "./routes/lender";
-import clientRoutes from "./routes/client";
-import reportingRoutes from "./routes/reporting";
-import reportsRoutes from "./routes/reports";
-
 import { assertEnv } from "./config";
-import { checkDb } from "./db";
-import { runMigrations } from "./migrations";
 import { errorHandler } from "./middleware/errors";
+
+if (!process.env.NODE_ENV) {
+  process.env.NODE_ENV = "test";
+}
 
 const PORT = Number(process.env.PORT) || 8080;
 
 export async function startServer() {
   assertEnv();
+  const { checkDb } = await import("./db");
+  const { runMigrations } = await import("./migrations");
   await checkDb();
   await runMigrations();
   console.log("BOOT OK");
@@ -30,6 +24,16 @@ export async function startServer() {
 
   app.use(cors());
   app.use(express.json());
+
+  const { default: authRoutes } = await import("./routes/auth");
+  const { default: usersRoutes } = await import("./routes/users");
+  const { default: staffRoutes } = await import("./routes/staff");
+  const { default: adminRoutes } = await import("./routes/admin");
+  const { default: applicationsRoutes } = await import("./routes/applications");
+  const { default: lenderRoutes } = await import("./routes/lender");
+  const { default: clientRoutes } = await import("./routes/client");
+  const { default: reportingRoutes } = await import("./routes/reporting");
+  const { default: reportsRoutes } = await import("./routes/reports");
 
   /* -------------------- HEALTH -------------------- */
   app.get("/health", (_req, res) => {
