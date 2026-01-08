@@ -4,6 +4,7 @@ import { pool } from "../db";
 import { createUserAccount } from "../modules/auth/auth.service";
 import { ROLES } from "../auth/roles";
 import { runMigrations } from "../migrations";
+import { issueRefreshTokenForUser } from "./helpers/refreshTokens";
 
 const app = buildApp();
 const requestId = "test-request-id";
@@ -112,7 +113,7 @@ describe("admin lifecycle", () => {
       .post("/api/auth/refresh")
       .set("x-request-id", requestId)
       .send({
-      refreshToken: userLogin.body.refreshToken,
+      refreshToken: await issueRefreshTokenForUser(user.id),
     });
     expect(refresh.status).toBe(401);
     expect(refresh.body.code).toBe("invalid_token");

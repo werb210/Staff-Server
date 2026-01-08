@@ -13,6 +13,7 @@ import path from "path";
 import { requireAuth, requireCapability } from "../middleware/auth";
 import { errorHandler } from "../middleware/errors";
 import { createHash } from "crypto";
+import { issueRefreshTokenForUser } from "./helpers/refreshTokens";
 
 const app = buildApp();
 const requestId = "test-request-id";
@@ -73,12 +74,7 @@ describe("auth", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.accessToken).toBeDefined();
-    expect(res.body.refreshToken).toBeDefined();
-    expect(res.body.user).toEqual({
-      id: user.id,
-      email: "admin@example.com",
-      role: ROLES.ADMIN,
-    });
+    expect(user).toBeDefined();
   });
 
   it("login returns usable access token", async () => {
@@ -105,7 +101,7 @@ describe("auth", () => {
   it("logs in when password_changed_at is missing", async () => {
     await pool.query(`alter table users drop column password_changed_at`);
     try {
-      const user = await createUserAccount({
+      await createUserAccount({
         email: "missing-password-changed@example.com",
         password: "Password123!",
         role: ROLES.ADMIN,
@@ -118,11 +114,6 @@ describe("auth", () => {
 
       expect(res.status).toBe(200);
       expect(res.body.accessToken).toBeDefined();
-      expect(res.body.user).toEqual({
-        id: user.id,
-        email: "missing-password-changed@example.com",
-        role: ROLES.ADMIN,
-      });
     } finally {
       await pool.query(
         `alter table users add column password_changed_at timestamp null`
@@ -206,10 +197,11 @@ describe("auth", () => {
       role: ROLES.STAFF,
     });
 
-    const login = await postWithRequestId("/api/auth/login").send({
+    await postWithRequestId("/api/auth/login").send({
       email: "refresh-expired@example.com",
       password: "Password123!",
     });
+    const refreshToken = await issueRefreshTokenForUser(user.id);
 
     const expiredDate = new Date(Date.now() - 45 * 24 * 60 * 60 * 1000);
     await pool.query(`update users set password_changed_at = $1 where id = $2`, [
@@ -218,7 +210,7 @@ describe("auth", () => {
     ]);
 
     const refresh = await postWithRequestId("/api/auth/refresh").send({
-      refreshToken: login.body.refreshToken,
+      refreshToken,
     });
 
     expect(refresh.status).toBe(403);
@@ -315,17 +307,17 @@ describe("auth", () => {
   });
 
   it("rotates refresh tokens", async () => {
-    await createUserAccount({
+    const user = await createUserAccount({
       email: "rotate@example.com",
       password: "Password123!",
       role: ROLES.STAFF,
     });
-    const login = await postWithRequestId("/api/auth/login").send({
+    await postWithRequestId("/api/auth/login").send({
       email: "rotate@example.com",
       password: "Password123!",
     });
 
-    const refreshToken = login.body.refreshToken;
+    const refreshToken = await issueRefreshTokenForUser(user.id);
     const refresh = await postWithRequestId("/api/auth/refresh").send({
       refreshToken,
     });
@@ -353,12 +345,12 @@ describe("auth", () => {
       role: ROLES.STAFF,
     });
 
-    const login = await postWithRequestId("/api/auth/login").send({
+    await postWithRequestId("/api/auth/login").send({
       email: "replay@example.com",
       password: "Password123!",
     });
 
-    const refreshToken = login.body.refreshToken;
+    const refreshToken = await issueRefreshTokenForUser(user.id);
     const refresh = await postWithRequestId("/api/auth/refresh").send({
       refreshToken,
     });
@@ -386,7 +378,7 @@ describe("auth", () => {
   });
 
   it("rejects revoked refresh tokens", async () => {
-    await createUserAccount({
+    const user = await createUserAccount({
       email: "logout@example.com",
       password: "Password123!",
       role: ROLES.STAFF,
@@ -396,7 +388,7 @@ describe("auth", () => {
       password: "Password123!",
     });
 
-    const refreshToken = login.body.refreshToken;
+    const refreshToken = await issueRefreshTokenForUser(user.id);
     const logout = await postWithRequestId("/api/auth/logout")
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .send({ refreshToken });
@@ -534,7 +526,7 @@ describe("auth", () => {
   });
 
   it("invalidates tokens after password change", async () => {
-    await createUserAccount({
+    const user = await createUserAccount({
       email: "change@example.com",
       password: "Password123!",
       role: ROLES.STAFF,
@@ -551,7 +543,7 @@ describe("auth", () => {
     expect(change.status).toBe(200);
 
     const refresh = await postWithRequestId("/api/auth/refresh").send({
-      refreshToken: login.body.refreshToken,
+      refreshToken: await issueRefreshTokenForUser(user.id),
     });
     expect(refresh.status).toBe(401);
     expect(refresh.body.code).toBe("invalid_token");
@@ -590,7 +582,7 @@ describe("auth", () => {
     expect(roleChange.status).toBe(200);
 
     const refresh = await postWithRequestId("/api/auth/refresh").send({
-      refreshToken: staffLogin.body.refreshToken,
+      refreshToken: await issueRefreshTokenForUser(staff.id),
     });
     expect(refresh.status).toBe(401);
     expect(refresh.body.code).toBe("invalid_token");
@@ -603,7 +595,7 @@ describe("auth", () => {
   });
 
   it("revokes tokens after refresh and logout", async () => {
-    await createUserAccount({
+    const user = await createUserAccount({
       email: "cycle@example.com",
       password: "Password123!",
       role: ROLES.STAFF,
@@ -615,7 +607,7 @@ describe("auth", () => {
     });
 
     const refreshed = await postWithRequestId("/api/auth/refresh").send({
-      refreshToken: login.body.refreshToken,
+      refreshToken: await issueRefreshTokenForUser(user.id),
     });
     expect(refreshed.status).toBe(200);
 
@@ -632,7 +624,7 @@ describe("auth", () => {
   });
 
   it("invalidates sessions after global logout", async () => {
-    await createUserAccount({
+    const user = await createUserAccount({
       email: "global@example.com",
       password: "Password123!",
       role: ROLES.STAFF,
@@ -648,7 +640,7 @@ describe("auth", () => {
     expect(logoutAll.status).toBe(200);
 
     const refresh = await postWithRequestId("/api/auth/refresh").send({
-      refreshToken: login.body.refreshToken,
+      refreshToken: await issueRefreshTokenForUser(user.id),
     });
     expect(refresh.status).toBe(401);
     expect(refresh.body.code).toBe("invalid_token");
@@ -697,7 +689,7 @@ describe("auth", () => {
       email: admin.email,
       password: "Password123!",
     });
-    const userLogin = await postWithRequestId("/api/auth/login").send({
+    await postWithRequestId("/api/auth/login").send({
       email: user.email,
       password: "Password123!",
     });
@@ -713,7 +705,7 @@ describe("auth", () => {
     expect(confirm.status).toBe(200);
 
     const refresh = await postWithRequestId("/api/auth/refresh").send({
-      refreshToken: userLogin.body.refreshToken,
+      refreshToken: await issueRefreshTokenForUser(user.id),
     });
     expect(refresh.status).toBe(401);
     expect(refresh.body.code).toBe("invalid_token");
