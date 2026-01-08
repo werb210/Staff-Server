@@ -53,7 +53,10 @@ function timingSafeTokenCompare(a: string, b: string): boolean {
   return timingSafeEqual(aBuf, bBuf);
 }
 
-function isPasswordExpired(passwordChangedAt: Date): boolean {
+function isPasswordExpired(passwordChangedAt?: Date | null): boolean {
+  if (!passwordChangedAt) {
+    return false;
+  }
   const maxAgeDays = getPasswordMaxAgeDays();
   const maxAgeMs = maxAgeDays * 24 * 60 * 60 * 1000;
   return passwordChangedAt.getTime() < Date.now() - maxAgeMs;

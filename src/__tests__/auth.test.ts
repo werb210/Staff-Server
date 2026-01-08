@@ -81,6 +81,34 @@ describe("auth", () => {
     });
   });
 
+  it("logs in when password_changed_at is missing", async () => {
+    await pool.query(`alter table users drop column password_changed_at`);
+    try {
+      const user = await createUserAccount({
+        email: "missing-password-changed@example.com",
+        password: "Password123!",
+        role: ROLES.ADMIN,
+      });
+
+      const res = await postWithRequestId("/api/auth/login").send({
+        email: "missing-password-changed@example.com",
+        password: "Password123!",
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.body.accessToken).toBeDefined();
+      expect(res.body.user).toEqual({
+        id: user.id,
+        email: "missing-password-changed@example.com",
+        role: ROLES.ADMIN,
+      });
+    } finally {
+      await pool.query(
+        `alter table users add column password_changed_at timestamp null`
+      );
+    }
+  });
+
   it("writes audit events for login success and failure", async () => {
     await createUserAccount({
       email: "audit-login@example.com",
