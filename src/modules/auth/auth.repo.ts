@@ -153,4 +153,184 @@ export async function updatePassword(
   );
 }
 
-/* REMAINDER OF FILE UNCHANGED */
+export interface RefreshTokenRecord {
+  id: string;
+  user_id: string;
+  token_hash: string;
+  expires_at: Date;
+  revoked_at: Date | null;
+  created_at: Date;
+}
+
+export interface PasswordResetRecord {
+  id: string;
+  user_id: string;
+  token_hash: string;
+  expires_at: Date;
+  used_at: Date | null;
+  created_at: Date;
+}
+
+export async function storeRefreshToken(params: {
+  userId: string;
+  tokenHash: string;
+  expiresAt: Date;
+  client?: Queryable;
+}): Promise<void> {
+  const runner = params.client ?? pool;
+  await runner.query(
+    `insert into auth_refresh_tokens (id, user_id, token_hash, expires_at, revoked_at, created_at)
+     values ($1, $2, $3, $4, null, now())
+     on conflict (user_id)
+     do update set token_hash = excluded.token_hash,
+                   expires_at = excluded.expires_at,
+                   revoked_at = null,
+                   created_at = excluded.created_at`,
+    [randomUUID(), params.userId, params.tokenHash, params.expiresAt]
+  );
+}
+
+export async function consumeRefreshToken(
+  tokenHash: string,
+  client?: Queryable
+): Promise<RefreshTokenRecord | null> {
+  const runner = client ?? pool;
+  const res = await runner.query<RefreshTokenRecord>(
+    `update auth_refresh_tokens
+     set revoked_at = now()
+     where token_hash = $1
+       and revoked_at is null
+     returning id, user_id, token_hash, expires_at, revoked_at, created_at`,
+    [tokenHash]
+  );
+  return res.rows[0] ?? null;
+}
+
+export async function revokeRefreshToken(
+  tokenHash: string,
+  client?: Queryable
+): Promise<void> {
+  const runner = client ?? pool;
+  await runner.query(
+    `update auth_refresh_tokens
+     set revoked_at = now()
+     where token_hash = $1
+       and revoked_at is null`,
+    [tokenHash]
+  );
+}
+
+export async function revokeRefreshTokensForUser(
+  userId: string,
+  client?: Queryable
+): Promise<void> {
+  const runner = client ?? pool;
+  await runner.query(
+    `update auth_refresh_tokens
+     set revoked_at = now()
+     where user_id = $1
+       and revoked_at is null`,
+    [userId]
+  );
+}
+
+export async function createPasswordReset(params: {
+  userId: string;
+  tokenHash: string;
+  expiresAt: Date;
+  client?: Queryable;
+}): Promise<void> {
+  const runner = params.client ?? pool;
+  await runner.query(
+    `insert into password_resets (id, user_id, token_hash, expires_at, used_at, created_at)
+     values ($1, $2, $3, $4, null, now())`,
+    [randomUUID(), params.userId, params.tokenHash, params.expiresAt]
+  );
+}
+
+export async function findPasswordReset(
+  tokenHash: string,
+  client?: Queryable
+): Promise<PasswordResetRecord | null> {
+  const runner = client ?? pool;
+  const res = await runner.query<PasswordResetRecord>(
+    `select id, user_id, token_hash, expires_at, used_at, created_at
+     from password_resets
+     where token_hash = $1
+     limit 1`,
+    [tokenHash]
+  );
+  return res.rows[0] ?? null;
+}
+
+export async function markPasswordResetUsed(
+  id: string,
+  client?: Queryable
+): Promise<void> {
+  const runner = client ?? pool;
+  await runner.query(
+    `update password_resets set used_at = now() where id = $1`,
+    [id]
+  );
+}
+
+export async function incrementTokenVersion(
+  userId: string,
+  client?: Queryable
+): Promise<void> {
+  const runner = client ?? pool;
+  await runner.query(
+    `update users set token_version = token_version + 1 where id = $1`,
+    [userId]
+  );
+}
+
+export async function recordFailedLogin(
+  userId: string,
+  lockedUntil: Date | null,
+  client?: Queryable
+): Promise<void> {
+  const runner = client ?? pool;
+  await runner.query(
+    `update users
+     set failed_login_attempts = failed_login_attempts + 1,
+         locked_until = $2
+     where id = $1`,
+    [userId, lockedUntil]
+  );
+}
+
+export async function resetLoginFailures(
+  userId: string,
+  client?: Queryable
+): Promise<void> {
+  const runner = client ?? pool;
+  await runner.query(
+    `update users
+     set failed_login_attempts = 0,
+         locked_until = null
+     where id = $1`,
+    [userId]
+  );
+}
+
+export async function setUserActive(
+  userId: string,
+  active: boolean,
+  client?: Queryable
+): Promise<void> {
+  const runner = client ?? pool;
+  await runner.query(`update users set active = $2 where id = $1`, [
+    userId,
+    active,
+  ]);
+}
+
+export async function updateUserRole(
+  userId: string,
+  role: Role,
+  client?: Queryable
+): Promise<void> {
+  const runner = client ?? pool;
+  await runner.query(`update users set role = $2 where id = $1`, [userId, role]);
+}
