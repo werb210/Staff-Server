@@ -1,11 +1,14 @@
-// src/api/index.ts
 import { Router } from "express";
 import authRoutes from "../modules/auth/auth.routes";
+import { requestContext } from "../middleware/requestContext";
 import { notFoundHandler, errorHandler } from "../middleware/errors";
 
 const router = Router();
 
-// ---- API ROUTES ----
+// 🔴 CONTEXT MOUNTED HERE (NOT index.ts)
+router.use(requestContext);
+
+// ---- ROUTES ----
 router.use("/auth", authRoutes);
 
 // ---- FALLTHROUGHS ----
