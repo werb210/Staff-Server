@@ -5,6 +5,7 @@ import { createUserAccount } from "../modules/auth/auth.service";
 import { ROLES } from "../auth/roles";
 import { runMigrations } from "../migrations";
 import { recordAuditEvent } from "../modules/audit/audit.service";
+import { ensureAuditEventSchema } from "./helpers/auditSchema";
 
 const app = buildApp();
 const requestId = "test-request-id";
@@ -54,6 +55,7 @@ beforeAll(async () => {
   process.env.JWT_REFRESH_EXPIRES_IN = "1d";
   process.env.NODE_ENV = "test";
   await runMigrations();
+  await ensureAuditEventSchema();
 });
 
 beforeEach(async () => {
@@ -171,7 +173,7 @@ describe("ops + exports", () => {
       success: true,
     });
     const targetIdsResult = await pool.query<{ id: string }>(
-      "select id from audit_events where action in ($1, $2)",
+      "select id from audit_events where event_action in ($1, $2)",
       ["test_event", "test_event_two"]
     );
     const targetIds = targetIdsResult.rows.map((row) => row.id);

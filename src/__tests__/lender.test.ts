@@ -4,6 +4,7 @@ import { pool } from "../db";
 import { createUserAccount } from "../modules/auth/auth.service";
 import { ROLES } from "../auth/roles";
 import { runMigrations } from "../migrations";
+import { ensureAuditEventSchema } from "./helpers/auditSchema";
 
 const app = buildApp();
 const requestId = "test-request-id";
@@ -36,6 +37,7 @@ beforeAll(async () => {
   process.env.PASSWORD_MAX_AGE_DAYS = "30";
   process.env.NODE_ENV = "test";
   await runMigrations();
+  await ensureAuditEventSchema();
 });
 
 beforeEach(async () => {
@@ -127,9 +129,9 @@ describe("lender submissions", () => {
     expect(status.body.submission.status).toBe("submitted");
 
     const audit = await pool.query(
-      `select action
+      `select event_action as action
        from audit_events
-       where action in ('lender_submission_created', 'lender_submission_retried')
+       where event_action in ('lender_submission_created', 'lender_submission_retried')
        order by created_at asc`
     );
     expect(audit.rows.map((row) => row.action)).toEqual([

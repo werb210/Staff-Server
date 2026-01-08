@@ -39,7 +39,7 @@ export async function listAuditEvents(params: {
     values.push(params.targetUserId);
   }
   if (params.action) {
-    clauses.push(`action = $${idx++}`);
+    clauses.push(`event_action = $${idx++}`);
     values.push(params.action);
   }
   if (params.from) {
@@ -57,7 +57,15 @@ export async function listAuditEvents(params: {
   values.push(params.offset);
 
   const res = await runner.query<AuditEventRecord>(
-    `select id, actor_user_id, target_user_id, action, ip, user_agent, request_id, success, created_at
+    `select id,
+            actor_user_id,
+            target_user_id,
+            event_action as action,
+            ip_address as ip,
+            user_agent,
+            request_id,
+            success,
+            created_at
      from audit_events
      ${where}
      order by created_at desc
