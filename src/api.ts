@@ -13,7 +13,6 @@ import usersRoutes from "./routes/users";
 import { errorHandler, notFoundHandler } from "./middleware/errors";
 import { requestId } from "./middleware/requestId";
 import { requestLogger } from "./middleware/requestLogger";
-import { requireRequestId } from "./middleware/requireRequestId";
 import { enforceSecureCookies, requireHttps } from "./middleware/security";
 
 const router = Router();
@@ -22,7 +21,6 @@ router.use(requestId);
 router.use(requestLogger);
 router.use(requireHttps);
 router.use(enforceSecureCookies);
-router.use(requireRequestId);
 
 router.use("/_int", internalRoutes);
 router.use("/auth", authRoutes);

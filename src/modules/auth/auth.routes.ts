@@ -31,13 +31,13 @@ router.post("/login", loginRateLimit(), async (req, res, next) => {
       );
     }
 
-    const result = await loginUser(
+    const { accessToken, user } = await loginUser(
       email,
       password,
       req.ip,
       req.get("user-agent")
     );
-    res.json(result);
+    res.json({ accessToken, user });
   } catch (err) {
     next(err);
   }
