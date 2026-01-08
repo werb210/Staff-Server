@@ -8,6 +8,7 @@ import {
   type Capability,
   getCapabilitiesForRole,
 } from "../auth/capabilities";
+import { getAccessTokenSecret } from "../config";
 
 export type AuthenticatedUser = {
   userId: string;
@@ -44,7 +45,7 @@ export function requireAuth(
     return;
   }
 
-  const secret = process.env.JWT_SECRET;
+  const secret = getAccessTokenSecret();
   if (!secret) {
     next(new AppError("auth_misconfigured", "Auth is not configured.", 503));
     return;

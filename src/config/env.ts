@@ -5,7 +5,6 @@ dotenv.config();
 const requiredRuntimeEnv = [
   "NODE_ENV",
   "DATABASE_URL",
-  "JWT_SECRET",
   "JWT_REFRESH_SECRET",
   "JWT_EXPIRES_IN",
   "JWT_REFRESH_EXPIRES_IN",
@@ -43,6 +42,15 @@ function getEnvValue(key: string): string | undefined {
   return value && value.trim().length > 0 ? value.trim() : undefined;
 }
 
+export function getAccessTokenSecret(): string | undefined {
+  const jwtSecret = getEnvValue("JWT_SECRET");
+  const authJwtSecret = getEnvValue("AUTH_JWT_SECRET");
+  if (jwtSecret && authJwtSecret && jwtSecret !== authJwtSecret) {
+    throw new Error("conflicting_env:JWT_SECRET,AUTH_JWT_SECRET");
+  }
+  return jwtSecret ?? authJwtSecret;
+}
+
 function parsePositiveInt(value: string | undefined, fallback?: number): number {
   if (!value) {
     if (fallback !== undefined) {
@@ -75,7 +83,12 @@ export function assertEnv(): void {
   if (isTestEnv()) {
     return;
   }
-  const missing = requiredRuntimeEnv.filter((key) => !getEnvValue(key));
+  const missing: string[] = requiredRuntimeEnv.filter(
+    (key) => !getEnvValue(key)
+  );
+  if (!getAccessTokenSecret()) {
+    missing.push("JWT_SECRET");
+  }
   if (missing.length > 0) {
     throw new Error(`missing_env:${missing.join(",")}`);
   }
@@ -110,7 +123,7 @@ export function getEnvConfig(): EnvConfig {
   const nodeEnv = getEnvValue("NODE_ENV") ?? (treatAsTest ? "test" : currentNodeEnv);
   const databaseUrl =
     getEnvValue("DATABASE_URL") ?? (treatAsTest ? "" : "");
-  const jwtSecret = getEnvValue("JWT_SECRET") ?? (treatAsTest ? "test" : "");
+  const jwtSecret = getAccessTokenSecret() ?? (treatAsTest ? "test" : "");
   const jwtRefreshSecret =
     getEnvValue("JWT_REFRESH_SECRET") ?? (treatAsTest ? "test" : "");
   const jwtExpiresIn =

@@ -1,5 +1,6 @@
 import {
   assertEnv as assertRuntimeEnv,
+  getAccessTokenSecret as getAccessTokenSecretValue,
   getAppInsightsConnectionString,
   getCorsAllowlist,
   getGlobalRateLimitMax,
@@ -79,6 +80,10 @@ export function assertEnv(): void {
 
 export function getAccessTokenExpiresIn(): string {
   return getJwtExpiresIn();
+}
+
+export function getAccessTokenSecret(): string | undefined {
+  return getAccessTokenSecretValue();
 }
 
 export function getRefreshTokenExpiresIn(): string {
