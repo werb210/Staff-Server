@@ -3,6 +3,8 @@ import cors from "cors";
 
 import apiRouter from "./api";
 import { printRoutes } from "./debug/printRoutes";
+import { requestContext } from "./middleware/requestContext";
+import { notFoundHandler, errorHandler } from "./middleware/errors";
 
 const app = express();
 
@@ -17,8 +19,14 @@ app.use(
     exposedHeaders: ["x-request-id"],
   })
 );
+
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
+
+// --------------------
+// REQUEST CONTEXT (FIX)
+// --------------------
+app.use(requestContext);
 
 // --------------------
 // Health (must be JSON)
@@ -32,9 +40,15 @@ app.get("/", (_req, res) => {
 });
 
 // --------------------
-// API ROUTES (FIRST)
+// API ROUTES
 // --------------------
 app.use("/api", apiRouter);
+
+// --------------------
+// FALLTHROUGHS
+// --------------------
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 printRoutes(app);
 
