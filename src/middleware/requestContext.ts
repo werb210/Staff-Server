@@ -8,6 +8,12 @@ type Store = {
   start: number;
 };
 
+export type RequestContext = {
+  requestId: string;
+  route?: string;
+  start?: number;
+};
+
 const storage = new AsyncLocalStorage<Store>();
 
 export function requestContext(
@@ -39,4 +45,27 @@ export function getRequestId(): string | undefined {
 
 export function getRequestRoute(): string | undefined {
   return storage.getStore()?.route;
+}
+
+export function runWithRequestContext<T>(
+  ctx: RequestContext,
+  fn: () => T
+): T {
+  const previous = storage.getStore();
+  const store: Store = {
+    requestId: ctx.requestId,
+    route: ctx.route,
+    start: ctx.start ?? Date.now(),
+  };
+  const restore = (): void => {
+    if (previous) {
+      storage.enterWith(previous);
+    }
+  };
+  const result = storage.run(store, () => fn());
+  if (result instanceof Promise) {
+    return result.finally(restore) as T;
+  }
+  restore();
+  return result;
 }
