@@ -1,14 +1,14 @@
-// src/middleware/requestContext.ts
-import { type Request, type Response, type NextFunction } from "express";
+import { AsyncLocalStorage } from "async_hooks";
 import { randomUUID } from "crypto";
+import { type Request, type Response, type NextFunction } from "express";
 
-const store = new AsyncLocalStorage<{
+type Store = {
   requestId: string;
   route?: string;
   start: number;
-}>();
+};
 
-import { AsyncLocalStorage } from "async_hooks";
+const storage = new AsyncLocalStorage<Store>();
 
 export function requestContext(
   req: Request,
@@ -18,7 +18,7 @@ export function requestContext(
   const requestId =
     (req.headers["x-request-id"] as string | undefined) ?? randomUUID();
 
-  store.run(
+  storage.run(
     {
       requestId,
       route: req.originalUrl,
@@ -34,9 +34,9 @@ export function requestContext(
 }
 
 export function getRequestId(): string | undefined {
-  return store.getStore()?.requestId;
+  return storage.getStore()?.requestId;
 }
 
 export function getRequestRoute(): string | undefined {
-  return store.getStore()?.route;
+  return storage.getStore()?.route;
 }
