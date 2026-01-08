@@ -19,6 +19,7 @@ import {
 } from "./auth.repo";
 import {
   getAccessTokenExpiresIn,
+  getAccessTokenSecret,
   getLoginLockoutMinutes,
   getLoginLockoutThreshold,
   getPasswordMaxAgeDays,
@@ -88,7 +89,7 @@ async function handleRefreshReuse(
 }
 
 function issueAccessToken(payload: AccessTokenPayload): string {
-  const secret = process.env.JWT_SECRET;
+  const secret = getAccessTokenSecret();
   if (!secret) {
     throw new AppError("auth_misconfigured", "Auth is not configured.", 503);
   }
@@ -114,7 +115,7 @@ function issueRefreshToken(payload: AccessTokenPayload): string {
 }
 
 export function assertAuthSubsystem(): void {
-  const accessSecret = process.env.JWT_SECRET;
+  const accessSecret = getAccessTokenSecret();
   const refreshSecret = process.env.JWT_REFRESH_SECRET;
   if (!accessSecret || !refreshSecret) {
     throw new AppError("auth_misconfigured", "Auth is not configured.", 503);

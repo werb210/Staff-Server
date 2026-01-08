@@ -81,6 +81,27 @@ describe("auth", () => {
     });
   });
 
+  it("login returns usable access token", async () => {
+    await createUserAccount({
+      email: "token-check@example.com",
+      password: "Password123!",
+      role: ROLES.STAFF,
+    });
+
+    const login = await postWithRequestId("/api/auth/login").send({
+      email: "token-check@example.com",
+      password: "Password123!",
+    });
+
+    expect(login.body.accessToken).toBeTruthy();
+
+    const me = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${login.body.accessToken}`);
+
+    expect(me.status).toBe(200);
+  });
+
   it("logs in when password_changed_at is missing", async () => {
     await pool.query(`alter table users drop column password_changed_at`);
     try {
