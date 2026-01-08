@@ -1,5 +1,5 @@
 import request from "supertest";
-import { buildApp } from "../index";
+import { buildApp } from "../app";
 import { pool } from "../db";
 import { createUserAccount } from "../modules/auth/auth.service";
 import { ROLES } from "../auth/roles";

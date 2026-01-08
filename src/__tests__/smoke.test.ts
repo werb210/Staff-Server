@@ -1,5 +1,5 @@
 import request from "supertest";
-import { buildApp } from "../index";
+import { buildApp } from "../app";
 
 const app = buildApp();
 

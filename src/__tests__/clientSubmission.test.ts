@@ -1,5 +1,5 @@
 import request from "supertest";
-import { buildApp } from "../index";
+import { buildApp } from "../app";
 import { pool } from "../db";
 import { runMigrations } from "../migrations";
 

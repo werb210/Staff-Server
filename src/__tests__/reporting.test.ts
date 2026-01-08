@@ -1,6 +1,6 @@
 import request from "supertest";
 import { randomUUID } from "crypto";
-import { buildApp } from "../index";
+import { buildApp } from "../app";
 import { pool } from "../db";
 import { runMigrations } from "../migrations";
 import { createUserAccount } from "../modules/auth/auth.service";
