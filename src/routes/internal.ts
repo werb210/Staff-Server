@@ -1,11 +1,12 @@
 import { Router } from "express";
 import { checkDb } from "../db";
-import { assertEnv, getBuildInfo } from "../config";
-import { assertMigrationsTableExists, getSchemaVersion } from "../migrations";
+import { assertEnv, COMMIT_SHA } from "../config";
+import { assertMigrationsTableExists } from "../migrations";
 import { listKillSwitches } from "../modules/ops/ops.service";
 import { listActiveReplayJobs } from "../modules/ops/replay.service";
 import { listRecentExports } from "../modules/exports/export.service";
 import { assertAuthSubsystem } from "../modules/auth/auth.service";
+import packageJson from "../../package.json";
 
 const router = Router();
 
@@ -34,19 +35,10 @@ router.get("/ready", async (_req, res) => {
   }
 });
 
-router.get("/version", async (_req, res) => {
-  try {
-    const { commitHash, buildTimestamp } = getBuildInfo();
-    const schemaVersion = await getSchemaVersion();
-    res.json({ commitHash, buildTimestamp, schemaVersion });
-  } catch {
-    const requestId = res.locals.requestId ?? "unknown";
-    res.status(503).json({
-      code: "service_unavailable",
-      message: "Version information unavailable.",
-      requestId,
-    });
-  }
+router.get("/version", (_req, res) => {
+  const version = COMMIT_SHA !== "unknown" ? COMMIT_SHA : packageJson.version;
+  const env = process.env.NODE_ENV ?? "production";
+  res.json({ version, env });
 });
 
 router.get("/ops", async (_req, res, next) => {

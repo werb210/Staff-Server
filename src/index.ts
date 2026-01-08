@@ -1,7 +1,5 @@
 import express from "express";
-import path from "path";
 import cors from "cors";
-import cookieParser from "cookie-parser";
 
 import apiRouter from "./api";
 import { printRoutes } from "./debug/printRoutes";
@@ -14,12 +12,13 @@ const app = express();
 app.use(
   cors({
     origin: true,
-    credentials: true,
+    credentials: false,
+    allowedHeaders: ["Authorization", "Content-Type", "X-Request-Id"],
+    exposedHeaders: ["x-request-id"],
   })
 );
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser());
 
 // --------------------
 // Health (must be JSON)
@@ -28,20 +27,14 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true });
 });
 
+app.get("/", (_req, res) => {
+  res.json({ status: "ok" });
+});
+
 // --------------------
 // API ROUTES (FIRST)
 // --------------------
 app.use("/api", apiRouter);
-
-// --------------------
-// SPA STATIC (LAST)
-// --------------------
-const distPath = path.join(__dirname, "../dist");
-app.use(express.static(distPath));
-
-app.get("*", (_req, res) => {
-  res.sendFile(path.join(distPath, "index.html"));
-});
 
 printRoutes(app);
 
