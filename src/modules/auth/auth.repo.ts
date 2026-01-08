@@ -11,17 +11,34 @@ export interface AuthUser {
   password_hash: string;
   role: Role;
   active: boolean;
-  password_changed_at: Date;
+  password_changed_at?: Date | null;
   failed_login_attempts: number;
   locked_until: Date | null;
   token_version: number;
 }
 
+async function hasPasswordChangedAtColumn(
+  client?: Queryable
+): Promise<boolean> {
+  const runner = client ?? pool;
+  const res = await runner.query(
+    `select 1
+     from information_schema.columns
+     where table_name = 'users' and column_name = 'password_changed_at'
+     limit 1`
+  );
+  return (res.rowCount ?? 0) > 0;
+}
+
 export async function findAuthUserByEmail(
   email: string
 ): Promise<AuthUser | null> {
+  const hasPasswordChangedAt = await hasPasswordChangedAtColumn();
+  const columns = hasPasswordChangedAt
+    ? "id, email, password_hash, role, active, password_changed_at, failed_login_attempts, locked_until, token_version"
+    : "id, email, password_hash, role, active, failed_login_attempts, locked_until, token_version";
   const res = await pool.query<AuthUser>(
-    `select id, email, password_hash, role, active, password_changed_at, failed_login_attempts, locked_until, token_version
+    `select ${columns}
      from users
      where email = $1
      limit 1`,
@@ -32,8 +49,12 @@ export async function findAuthUserByEmail(
 }
 
 export async function findAuthUserById(id: string): Promise<AuthUser | null> {
+  const hasPasswordChangedAt = await hasPasswordChangedAtColumn();
+  const columns = hasPasswordChangedAt
+    ? "id, email, password_hash, role, active, password_changed_at, failed_login_attempts, locked_until, token_version"
+    : "id, email, password_hash, role, active, failed_login_attempts, locked_until, token_version";
   const res = await pool.query<AuthUser>(
-    `select id, email, password_hash, role, active, password_changed_at, failed_login_attempts, locked_until, token_version
+    `select ${columns}
      from users
      where id = $1
      limit 1`,
@@ -49,10 +70,20 @@ export async function createUser(params: {
   client?: Queryable;
 }): Promise<AuthUser> {
   const runner = params.client ?? pool;
+  const hasPasswordChangedAt = await hasPasswordChangedAtColumn(runner);
+  const columns = hasPasswordChangedAt
+    ? "(id, email, password_hash, role, active, password_changed_at)"
+    : "(id, email, password_hash, role, active)";
+  const values = hasPasswordChangedAt
+    ? "($1, $2, $3, $4, true, now())"
+    : "($1, $2, $3, $4, true)";
+  const returning = hasPasswordChangedAt
+    ? "id, email, password_hash, role, active, password_changed_at, failed_login_attempts, locked_until, token_version"
+    : "id, email, password_hash, role, active, failed_login_attempts, locked_until, token_version";
   const res = await runner.query<AuthUser>(
-    `insert into users (id, email, password_hash, role, active, password_changed_at)
-     values ($1, $2, $3, $4, true, now())
-     returning id, email, password_hash, role, active, password_changed_at, failed_login_attempts, locked_until, token_version`,
+    `insert into users ${columns}
+     values ${values}
+     returning ${returning}`,
     [randomUUID(), params.email, params.passwordHash, params.role]
   );
   return res.rows[0];
@@ -76,8 +107,12 @@ export async function updatePassword(
   client?: Queryable
 ): Promise<void> {
   const runner = client ?? pool;
+  const hasPasswordChangedAt = await hasPasswordChangedAtColumn(runner);
+  const setClause = hasPasswordChangedAt
+    ? "password_hash = $1, password_changed_at = now()"
+    : "password_hash = $1";
   await runner.query(
-    `update users set password_hash = $1, password_changed_at = now()
+    `update users set ${setClause}
      where id = $2`,
     [passwordHash, userId]
   );
