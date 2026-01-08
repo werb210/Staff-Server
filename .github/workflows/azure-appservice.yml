@@ -6,9 +6,15 @@ on:
       - main
   workflow_dispatch:
 
+# HARD STOP: only one prod deploy at a time
+concurrency:
+  group: staff-server-prod
+  cancel-in-progress: true
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Checkout repository
@@ -34,6 +40,7 @@ jobs:
 
       - name: Prepare deploy package
         run: |
+          set -euo pipefail
           rm -rf deploy deploy.zip
           mkdir deploy
           cp -R dist deploy/dist
@@ -43,8 +50,8 @@ jobs:
           fi
           cd deploy
           npm ci --omit=dev
+          zip -r ../deploy.zip .
           cd ..
-          (cd deploy && zip -r ../deploy.zip .)
 
       - name: Azure Login
         uses: azure/login@v2
@@ -52,7 +59,8 @@ jobs:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Deploy to Azure Web App
-        uses: azure/webapps-deploy@v2
+        uses: azure/webapps-deploy@v3
+        timeout-minutes: 10
         with:
           app-name: boreal-staff-server
           package: deploy.zip
