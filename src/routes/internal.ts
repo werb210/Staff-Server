@@ -1,12 +1,11 @@
 import { Router } from "express";
 import { checkDb } from "../db";
-import { assertEnv, COMMIT_SHA } from "../config";
+import { assertEnv, getBuildInfo } from "../config";
 import { assertMigrationsTableExists } from "../migrations";
 import { listKillSwitches } from "../modules/ops/ops.service";
 import { listActiveReplayJobs } from "../modules/ops/replay.service";
 import { listRecentExports } from "../modules/exports/export.service";
 import { assertAuthSubsystem } from "../modules/auth/auth.service";
-import packageJson from "../../package.json";
 
 const router = Router();
 
@@ -36,9 +35,8 @@ router.get("/ready", async (_req, res) => {
 });
 
 router.get("/version", (_req, res) => {
-  const version = COMMIT_SHA !== "unknown" ? COMMIT_SHA : packageJson.version;
-  const env = process.env.NODE_ENV ?? "production";
-  res.json({ version, env });
+  const { commitHash, buildTimestamp } = getBuildInfo();
+  res.json({ commitHash, buildTimestamp });
 });
 
 router.get("/ops", async (_req, res, next) => {
