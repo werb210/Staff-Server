@@ -49,19 +49,31 @@ router.get("/version", async (_req, res) => {
   }
 });
 
-router.get("/ops", async (_req, res) => {
-  const switches = await listKillSwitches();
-  res.json({ switches });
+router.get("/ops", async (_req, res, next) => {
+  try {
+    const switches = await listKillSwitches();
+    res.json({ switches });
+  } catch (err) {
+    next(err);
+  }
 });
 
-router.get("/jobs", async (_req, res) => {
-  const jobs = await listActiveReplayJobs();
-  res.json({ jobs });
+router.get("/jobs", async (_req, res, next) => {
+  try {
+    const jobs = await listActiveReplayJobs();
+    res.json({ jobs });
+  } catch (err) {
+    next(err);
+  }
 });
 
-router.get("/exports/recent", async (_req, res) => {
-  const exports = await listRecentExports();
-  res.json({ exports });
+router.get("/exports/recent", async (_req, res, next) => {
+  try {
+    const exports = await listRecentExports();
+    res.json({ exports });
+  } catch (err) {
+    next(err);
+  }
 });
 
 export default router;
