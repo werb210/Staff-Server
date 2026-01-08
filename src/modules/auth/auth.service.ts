@@ -135,9 +135,7 @@ export async function loginUser(
   ip?: string,
   userAgent?: string
 ): Promise<{
-  user: { id: string; email: string; role: Role };
   accessToken: string;
-  refreshToken: string;
 }> {
   const user = await findAuthUserByEmail(email);
 
@@ -305,15 +303,7 @@ export async function loginUser(
     email: user.email,
   });
 
-  return {
-    accessToken,
-    refreshToken,
-    user: {
-      id: user.id,
-      email: user.email,
-      role: user.role,
-    },
-  };
+  return { accessToken };
 }
 
 export async function refreshSession(

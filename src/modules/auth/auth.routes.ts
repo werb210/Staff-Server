@@ -16,7 +16,6 @@ import {
   changePassword,
   logoutAll,
 } from "./auth.service";
-import { getAccessTokenExpiresIn } from "../../config";
 
 const router = Router();
 
@@ -32,18 +31,13 @@ router.post("/login", loginRateLimit(), async (req, res, next) => {
       );
     }
 
-    const { accessToken, user, refreshToken } = await loginUser(
+    const result = await loginUser(
       email,
       password,
       req.ip,
       req.get("user-agent")
     );
-    res.json({
-      accessToken,
-      expiresIn: getAccessTokenExpiresIn(),
-      refreshToken,
-      user,
-    });
+    res.status(200).json(result);
   } catch (err) {
     next(err);
   }
