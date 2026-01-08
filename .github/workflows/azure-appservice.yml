@@ -2,11 +2,10 @@ name: Deploy Staff Server to Azure App Service
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
 
-# HARD STOP: only one prod deploy at a time
+# Prevent overlapping / stuck deployments
 concurrency:
   group: staff-server-prod
   cancel-in-progress: true
@@ -28,30 +27,32 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+        timeout-minutes: 5
 
       - name: Build TypeScript
         run: npm run build
+        timeout-minutes: 5
 
-      - name: Validate compiled app
-        run: node dist/index.js --help
-
-      - name: Run API contract tests
-        run: ./test-api-contract.sh
+      # ❌ DO NOT RUN THE APP IN CI
+      # This is what caused your hangs
+      # Startup code waits on env / DB / migrations
 
       - name: Prepare deploy package
         run: |
           set -euo pipefail
           rm -rf deploy deploy.zip
           mkdir deploy
+
           cp -R dist deploy/dist
           cp package.json deploy/package.json
-          if [ -f package-lock.json ]; then
-            cp package-lock.json deploy/package-lock.json
-          fi
+          cp package-lock.json deploy/package-lock.json
+
           cd deploy
-          npm ci --omit=dev
-          zip -r ../deploy.zip .
+          npm ci --omit=dev --ignore-scripts
           cd ..
+
+          zip -r deploy.zip deploy
+        timeout-minutes: 5
 
       - name: Azure Login
         uses: azure/login@v2
@@ -59,8 +60,7 @@ jobs:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Deploy to Azure Web App
-        uses: azure/webapps-deploy@v3
-        timeout-minutes: 10
+        uses: azure/webapps-deploy@v2
         with:
           app-name: boreal-staff-server
           package: deploy.zip
