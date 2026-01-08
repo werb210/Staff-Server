@@ -26,8 +26,25 @@ jobs:
       - name: Build TypeScript
         run: npm run build
 
+      - name: Validate compiled app
+        run: node dist/index.js --help
+
       - name: Run API contract tests
         run: ./test-api-contract.sh
+
+      - name: Prepare deploy package
+        run: |
+          rm -rf deploy deploy.zip
+          mkdir deploy
+          cp -R dist deploy/dist
+          cp package.json deploy/package.json
+          if [ -f package-lock.json ]; then
+            cp package-lock.json deploy/package-lock.json
+          fi
+          cd deploy
+          npm ci --omit=dev
+          cd ..
+          (cd deploy && zip -r ../deploy.zip .)
 
       - name: Azure Login
         uses: azure/login@v2
@@ -38,4 +55,4 @@ jobs:
         uses: azure/webapps-deploy@v2
         with:
           app-name: boreal-staff-server
-          package: .
+          package: deploy.zip
