@@ -25,7 +25,8 @@ jobs:
       - name: Build TypeScript
         run: npm run build
 
-      # ❌ REMOVED: broken API contract test
+      - name: Run API contract tests
+        run: ./test-api-contract.sh
 
       - name: Azure Login
         uses: azure/login@v2
