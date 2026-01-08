@@ -1,151 +1,62 @@
-import fs from "fs";
-import path from "path";
 import express from "express";
+import path from "path";
 import cors from "cors";
+import cookieParser from "cookie-parser";
+import { fileURLToPath } from "url";
 
-import { assertEnv } from "./config";
-import { errorHandler } from "./middleware/errors";
-import { printRoutes } from "./debug/printRoutes";
+import apiRouter from "./api"; // <-- your existing API router
 
-if (!process.env.NODE_ENV) {
-  process.env.NODE_ENV = "test";
-}
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-if (!process.env.DB_POOL_CONNECTION_TIMEOUT_MS) {
-  process.env.DB_POOL_CONNECTION_TIMEOUT_MS = "5000";
-}
+const app = express();
 
-if (process.env.DATABASE_URL) {
-  const rawUrl = process.env.DATABASE_URL;
-  try {
-    const url = new URL(rawUrl);
-    if (!url.searchParams.has("sslmode")) {
-      url.searchParams.set("sslmode", "require");
-      process.env.DATABASE_URL = url.toString();
-    }
-  } catch {
-    if (!rawUrl.includes("sslmode=")) {
-      const separator = rawUrl.includes("?") ? "&" : "?";
-      process.env.DATABASE_URL = `${rawUrl}${separator}sslmode=require`;
-    }
-  }
-}
+// --------------------
+// Core middleware
+// --------------------
+app.use(cors({
+  origin: true,
+  credentials: true,
+}));
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
-const PORT = Number(process.env.PORT) || 8080;
-const isProduction = process.env.NODE_ENV === "production";
-const apiTimeoutMs = Number(process.env.API_REQUEST_TIMEOUT_MS) || 10000;
+// --------------------
+// Health (must be JSON)
+// --------------------
+app.get("/health", (_req, res) => {
+  res.json({ ok: true });
+});
 
-export async function startServer() {
-  try {
-    assertEnv();
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.warn("ENV validation failed:", message);
-  }
+// --------------------
+// API ROUTES (FIRST)
+// --------------------
+app.use("/api", apiRouter);
 
-  if (!isProduction) {
-    void (async () => {
-      try {
-        const { checkDb } = await import("./db");
-        const { runMigrations } = await import("./migrations");
-        await checkDb();
-        await runMigrations();
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        console.warn("DB startup check failed:", message);
-      }
-    })();
-  } else {
-    console.log("MIGRATIONS SKIPPED (production)");
-  }
-  console.log("BOOT OK");
+// --------------------
+// API 404 GUARD (JSON ONLY)
+// --------------------
+app.use("/api", (_req, res) => {
+  res.status(404).json({ error: "API route not found" });
+});
 
-  const app = express();
+// --------------------
+// SPA STATIC (LAST)
+// --------------------
+const distPath = path.join(__dirname, "../dist");
+app.use(express.static(distPath));
 
-  app.use(cors());
+app.get("*", (_req, res) => {
+  res.sendFile(path.join(distPath, "index.html"));
+});
 
-  /* -------------------- HEALTH -------------------- */
-  app.get("/health", (_req, res) => {
-    res.json({ ok: true });
-  });
+// --------------------
+// BOOT
+// --------------------
+const port = Number(process.env.PORT) || 8080;
+app.listen(port, () => {
+  console.log(`Staff Server running on port ${port}`);
+});
 
-  const { default: authRoutes } = await import("./routes/auth");
-  const { default: usersRoutes } = await import("./routes/users");
-  const { default: staffRoutes } = await import("./routes/staff");
-  const { default: adminRoutes } = await import("./routes/admin");
-  const { default: applicationsRoutes } = await import("./routes/applications");
-  const { default: lenderRoutes } = await import("./routes/lender");
-  const { default: clientRoutes } = await import("./routes/client");
-  const { default: reportingRoutes } = await import("./routes/reporting");
-  const { default: reportsRoutes } = await import("./routes/reports");
-
-  /* -------------------- API ROUTES -------------------- */
-  const apiRouter = express.Router();
-  apiRouter.use(express.json());
-  apiRouter.use((_req, res, next) => {
-    res.setTimeout(apiTimeoutMs, () => {
-      if (!res.headersSent) {
-        res.status(504).json({ code: "timeout", message: "Request timed out." });
-      }
-    });
-    next();
-  });
-  apiRouter.use("/auth", authRoutes);
-  apiRouter.use("/users", usersRoutes);
-  apiRouter.use("/staff", staffRoutes);
-  apiRouter.use("/admin", adminRoutes);
-  apiRouter.use("/applications", applicationsRoutes);
-  apiRouter.use("/lender", lenderRoutes);
-  apiRouter.use("/client", clientRoutes);
-  apiRouter.use("/reporting", reportingRoutes);
-  apiRouter.use("/reports", reportsRoutes);
-
-  /* -------------------- API 404 (JSON ONLY) -------------------- */
-  apiRouter.use((req, res) => {
-    res.status(404).json({ error: "not_found", path: req.originalUrl });
-  });
-
-  /* -------------------- API ERRORS (JSON ONLY) -------------------- */
-  apiRouter.use((err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
-    if (err instanceof SyntaxError) {
-      res.status(400).json({ ok: false, error: "invalid_json" });
-      return;
-    }
-    next(err);
-  });
-  apiRouter.use(errorHandler);
-  app.use("/api", apiRouter);
-
-  if (!isProduction) {
-    printRoutes(app);
-  }
-
-  /* -------------------- SPA/STATIC (NON-API ONLY) -------------------- */
-  const nonApiRouter = express.Router();
-  const staticDir = path.join(process.cwd(), "public");
-  const spaIndex = path.join(staticDir, "index.html");
-  if (fs.existsSync(staticDir)) {
-    nonApiRouter.use(express.static(staticDir));
-  }
-  nonApiRouter.get("*", (req, res, next) => {
-    if (!fs.existsSync(spaIndex)) {
-      next();
-      return;
-    }
-    res.sendFile(spaIndex);
-  });
-  app.use("/", nonApiRouter);
-
-  /* -------------------- GLOBAL 404 (NON-API ONLY) -------------------- */
-  app.use((_req, res) => {
-    res.status(404).json({ error: "Not found" });
-  });
-
-  app.listen(PORT, () => {
-    console.log(`Staff Server running on port ${PORT}`);
-  });
-}
-
-if (require.main === module) {
-  void startServer();
-}
+export default app;
