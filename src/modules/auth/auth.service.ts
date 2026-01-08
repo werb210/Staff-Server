@@ -303,7 +303,9 @@ export async function loginUser(
     email: user.email,
   });
 
-  return { accessToken };
+  return {
+    accessToken,
+  };
 }
 
 export async function refreshSession(
