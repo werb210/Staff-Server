@@ -1,6 +1,6 @@
 import request from "supertest";
 import express from "express";
-import { buildApp, initializeServer } from "../index";
+import { buildApp, initializeServer } from "../app";
 import { pool } from "../db";
 import { createUserAccount } from "../modules/auth/auth.service";
 import { setUserActive } from "../modules/auth/auth.repo";
@@ -90,6 +90,29 @@ describe("auth", () => {
     });
 
     expect(login.body.accessToken).toBeTruthy();
+
+    const me = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${login.body.accessToken}`);
+
+    expect(me.status).toBe(200);
+  });
+
+  it("preserves access token in login response for authenticated calls", async () => {
+    await createUserAccount({
+      email: "response-token@example.com",
+      password: "Password123!",
+      role: ROLES.STAFF,
+    });
+
+    const login = await postWithRequestId("/api/auth/login").send({
+      email: "response-token@example.com",
+      password: "Password123!",
+    });
+
+    expect(Object.prototype.hasOwnProperty.call(login.body, "accessToken")).toBe(
+      true
+    );
 
     const me = await request(app)
       .get("/api/auth/me")
@@ -537,13 +560,15 @@ describe("auth", () => {
       password: "Password123!",
     });
 
+    const refreshToken = await issueRefreshTokenForUser(user.id);
+
     const change = await postWithRequestId("/api/auth/password-change")
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .send({ currentPassword: "Password123!", newPassword: "NewPassword123!" });
     expect(change.status).toBe(200);
 
     const refresh = await postWithRequestId("/api/auth/refresh").send({
-      refreshToken: await issueRefreshTokenForUser(user.id),
+      refreshToken,
     });
     expect(refresh.status).toBe(401);
     expect(refresh.body.code).toBe("invalid_token");
@@ -576,13 +601,15 @@ describe("auth", () => {
       password: "Password123!",
     });
 
+    const refreshToken = await issueRefreshTokenForUser(staff.id);
+
     const roleChange = await postWithRequestId(`/api/users/${staff.id}/role`)
       .set("Authorization", `Bearer ${adminLogin.body.accessToken}`)
       .send({ role: ROLES.ADMIN });
     expect(roleChange.status).toBe(200);
 
     const refresh = await postWithRequestId("/api/auth/refresh").send({
-      refreshToken: await issueRefreshTokenForUser(staff.id),
+      refreshToken,
     });
     expect(refresh.status).toBe(401);
     expect(refresh.body.code).toBe("invalid_token");
@@ -599,11 +626,6 @@ describe("auth", () => {
       email: "cycle@example.com",
       password: "Password123!",
       role: ROLES.STAFF,
-    });
-
-    const login = await postWithRequestId("/api/auth/login").send({
-      email: "cycle@example.com",
-      password: "Password123!",
     });
 
     const refreshed = await postWithRequestId("/api/auth/refresh").send({
@@ -635,12 +657,14 @@ describe("auth", () => {
       password: "Password123!",
     });
 
+    const refreshToken = await issueRefreshTokenForUser(user.id);
+
     const logoutAll = await postWithRequestId("/api/auth/logout-all")
       .set("Authorization", `Bearer ${login.body.accessToken}`);
     expect(logoutAll.status).toBe(200);
 
     const refresh = await postWithRequestId("/api/auth/refresh").send({
-      refreshToken: await issueRefreshTokenForUser(user.id),
+      refreshToken,
     });
     expect(refresh.status).toBe(401);
     expect(refresh.body.code).toBe("invalid_token");
@@ -700,12 +724,14 @@ describe("auth", () => {
     expect(resetRequest.status).toBe(200);
     expect(resetRequest.body.token).toBeDefined();
 
+    const refreshToken = await issueRefreshTokenForUser(user.id);
+
     const confirm = await postWithRequestId("/api/auth/password-reset/confirm")
       .send({ token: resetRequest.body.token, newPassword: "NewPassword123!" });
     expect(confirm.status).toBe(200);
 
     const refresh = await postWithRequestId("/api/auth/refresh").send({
-      refreshToken: await issueRefreshTokenForUser(user.id),
+      refreshToken,
     });
     expect(refresh.status).toBe(401);
     expect(refresh.body.code).toBe("invalid_token");
