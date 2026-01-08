@@ -90,6 +90,8 @@ describe("auth", () => {
     });
 
     expect(login.body.accessToken).toBeTruthy();
+    expect(typeof login.body.accessToken).toBe("string");
+    expect(login.body.accessToken.length).toBeGreaterThan(0);
 
     const me = await request(app)
       .get("/api/auth/me")
