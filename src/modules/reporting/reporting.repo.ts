@@ -427,10 +427,10 @@ export async function upsertStaffActivityWindow(params: {
     `insert into reporting_staff_activity_daily
      (id, metric_date, staff_user_id, action, activity_count, created_at)
      select
-       ae.actor_user_id || ':' || ae.action || ':' || $1::text,
+       ae.actor_user_id || ':' || ae.event_action || ':' || $1::text,
        $1::date,
        ae.actor_user_id,
-       ae.action,
+       ae.event_action,
        count(*)::int,
        $3::timestamp
      from audit_events ae
@@ -438,7 +438,7 @@ export async function upsertStaffActivityWindow(params: {
      where ae.actor_user_id is not null
        and u.role in ('admin', 'staff')
        and ae.created_at >= $1 and ae.created_at < $2
-     group by ae.actor_user_id, ae.action
+     group by ae.actor_user_id, ae.event_action
      on conflict (metric_date, staff_user_id, action) do update
      set activity_count = excluded.activity_count`,
     [params.start, params.end, params.createdAt]

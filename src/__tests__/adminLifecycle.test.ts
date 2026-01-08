@@ -5,6 +5,7 @@ import { createUserAccount } from "../modules/auth/auth.service";
 import { ROLES } from "../auth/roles";
 import { runMigrations } from "../migrations";
 import { issueRefreshTokenForUser } from "./helpers/refreshTokens";
+import { ensureAuditEventSchema } from "./helpers/auditSchema";
 
 const app = buildApp();
 const requestId = "test-request-id";
@@ -37,6 +38,7 @@ beforeAll(async () => {
   process.env.PASSWORD_MAX_AGE_DAYS = "30";
   process.env.NODE_ENV = "test";
   await runMigrations();
+  await ensureAuditEventSchema();
 });
 
 beforeEach(async () => {
@@ -171,10 +173,10 @@ describe("admin lifecycle", () => {
     expect(roleChange.status).toBe(200);
 
     const audit = await pool.query(
-      `select action
+      `select event_action as action
        from audit_events
        where target_user_id = $1
-         and action in ('user_created', 'user_disabled', 'user_enabled', 'user_role_changed')
+         and event_action in ('user_created', 'user_disabled', 'user_enabled', 'user_role_changed')
        order by created_at asc`,
       [userId]
     );

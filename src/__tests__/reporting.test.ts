@@ -19,6 +19,7 @@ import {
   runPipelineSnapshotJob,
   runStaffActivityJob,
 } from "../modules/reporting/reporting.jobs";
+import { ensureAuditEventSchema } from "./helpers/auditSchema";
 
 const app = buildApp();
 const requestId = "test-request-id";
@@ -61,6 +62,7 @@ beforeAll(async () => {
   process.env.PASSWORD_MAX_AGE_DAYS = "30";
   process.env.NODE_ENV = "test";
   await runMigrations();
+  await ensureAuditEventSchema();
 });
 
 beforeEach(async () => {
@@ -157,9 +159,21 @@ async function seedReportingData(): Promise<{ ownerId: string; staffId: string }
 
   await pool.query(
     `insert into audit_events
-     (id, actor_user_id, target_user_id, action, ip, user_agent, request_id, success, created_at)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-    [randomUUID(), staff.id, null, "REPORT_VIEW", "127.0.0.1", "jest", "req-1", true, baseDate]
+     (id, actor_user_id, target_user_id, event_type, event_action, ip_address, user_agent, request_id, success, metadata, created_at)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+    [
+      randomUUID(),
+      staff.id,
+      null,
+      "reporting",
+      "REPORT_VIEW",
+      "127.0.0.1",
+      "jest",
+      "req-1",
+      true,
+      JSON.stringify({}),
+      baseDate,
+    ]
   );
 
   return { ownerId: owner.id, staffId: staff.id };

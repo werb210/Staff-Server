@@ -2,6 +2,7 @@ import request from "supertest";
 import { buildApp } from "../app";
 import { pool } from "../db";
 import { runMigrations } from "../migrations";
+import { ensureAuditEventSchema } from "./helpers/auditSchema";
 
 const app = buildApp();
 const requestId = "test-request-id";
@@ -34,6 +35,7 @@ beforeAll(async () => {
   process.env.PASSWORD_MAX_AGE_DAYS = "30";
   process.env.NODE_ENV = "test";
   await runMigrations();
+  await ensureAuditEventSchema();
 });
 
 beforeEach(async () => {

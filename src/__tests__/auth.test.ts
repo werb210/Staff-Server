@@ -14,6 +14,7 @@ import { requireAuth, requireCapability } from "../middleware/auth";
 import { errorHandler } from "../middleware/errors";
 import { createHash } from "crypto";
 import { issueRefreshTokenForUser } from "./helpers/refreshTokens";
+import { ensureAuditEventSchema } from "./helpers/auditSchema";
 
 const app = buildApp();
 const requestId = "test-request-id";
@@ -48,6 +49,7 @@ beforeAll(async () => {
   process.env.PASSWORD_MAX_AGE_DAYS = "30";
   process.env.NODE_ENV = "test";
   await runMigrations();
+  await ensureAuditEventSchema();
 });
 
 beforeEach(async () => {
@@ -164,9 +166,9 @@ describe("auth", () => {
     expect(failure.status).toBe(401);
 
     const res = await pool.query(
-      `select action, success
+      `select event_action as action, success
        from audit_events
-       where action = 'login'
+       where event_action = 'login'
        order by created_at asc`
     );
     expect(res.rows).toEqual([
@@ -386,9 +388,9 @@ describe("auth", () => {
     expect(replay.body.code).toBe("invalid_token");
 
     const audit = await pool.query(
-      `select action, success, actor_user_id, target_user_id
+      `select event_action as action, success, actor_user_id, target_user_id
        from audit_events
-       where action = 'token_reuse'
+       where event_action = 'token_reuse'
        order by created_at desc
        limit 1`
     );
@@ -737,9 +739,9 @@ describe("auth", () => {
     expect(refresh.body.code).toBe("invalid_token");
 
     const audit = await pool.query(
-      `select action, success
+      `select event_action as action, success
        from audit_events
-       where action in ('password_reset_requested', 'password_reset_completed')
+       where event_action in ('password_reset_requested', 'password_reset_completed')
        order by created_at asc`
     );
     expect(audit.rows).toEqual([

@@ -14,6 +14,7 @@ import {
   lockOcrJobs,
 } from "../modules/ocr/ocr.repo";
 import { processOcrJob } from "../modules/ocr/ocr.service";
+import { ensureAuditEventSchema } from "./helpers/auditSchema";
 
 async function seedDocument(): Promise<{ documentId: string; applicationId: string }> {
   const user = await createUserAccount({
@@ -45,6 +46,7 @@ async function seedDocument(): Promise<{ documentId: string; applicationId: stri
 describe("ocr jobs", () => {
   beforeAll(async () => {
     await runMigrations();
+    await ensureAuditEventSchema();
   });
 
   beforeEach(async () => {

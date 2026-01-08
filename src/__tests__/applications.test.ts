@@ -4,6 +4,7 @@ import { pool } from "../db";
 import { createUserAccount } from "../modules/auth/auth.service";
 import { ROLES } from "../auth/roles";
 import { runMigrations } from "../migrations";
+import { ensureAuditEventSchema } from "./helpers/auditSchema";
 
 const app = buildApp();
 const requestId = "test-request-id";
@@ -36,6 +37,7 @@ beforeAll(async () => {
   process.env.PASSWORD_MAX_AGE_DAYS = "30";
   process.env.NODE_ENV = "test";
   await runMigrations();
+  await ensureAuditEventSchema();
 });
 
 beforeEach(async () => {
@@ -346,9 +348,9 @@ describe("applications and documents", () => {
     expect(stateAfterAccept.rows[0].pipeline_state).toBe("UNDER_REVIEW");
 
     const audit = await pool.query(
-      `select action
+      `select event_action as action
        from audit_events
-       where action = 'document_accepted'
+       where event_action = 'document_accepted'
        order by created_at asc`
     );
     expect(audit.rows.length).toBe(2);
@@ -451,9 +453,9 @@ describe("applications and documents", () => {
     expect(upload.body.code).toBe("invalid_mime_type");
 
     const audit = await pool.query(
-      `select action
+      `select event_action as action
        from audit_events
-       where action = 'document_upload_rejected'`
+       where event_action = 'document_upload_rejected'`
     );
     expect(audit.rows.length).toBe(1);
   });
