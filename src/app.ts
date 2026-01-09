@@ -8,6 +8,11 @@ import { runMigrations } from "./migrations";
 export function buildApp(): express.Express {
   const app = express();
 
+  app.use((req, _res, next) => {
+    console.log("[REQ]", req.method, req.originalUrl);
+    next();
+  });
+
   app.use(
     cors({
       origin: true,

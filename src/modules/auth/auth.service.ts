@@ -8,6 +8,7 @@ import {
   findAuthUserByEmail,
   findAuthUserById,
   findPasswordReset,
+  hasActivePasswordReset,
   incrementTokenVersion,
   markPasswordResetUsed,
   recordFailedLogin,
@@ -137,12 +138,14 @@ export async function loginUser(
 ): Promise<{
   accessToken: string;
 }> {
+  logInfo("auth_login_received", { email });
   const user = await findAuthUserByEmail(email);
+  logInfo("auth_login_user_lookup", { email, userExists: Boolean(user) });
 
   if (!user || !user.password_hash || !user.role || !user.email) {
     logWarn("auth_login_failed", {
       email,
-      reason: "invalid_credentials",
+      reason: "user_not_found",
     });
     await recordAuditEvent({
       action: "login",
@@ -152,14 +155,27 @@ export async function loginUser(
       userAgent,
       success: false,
     });
-    throw new AppError("invalid_credentials", "Invalid email or password.", 401);
+    throw new AppError("user_not_found", "User not found.", 401);
   }
+
+  const now = Date.now();
+  const isLocked = Boolean(
+    user.locked_until && user.locked_until.getTime() > now
+  );
+  const forceReset = await hasActivePasswordReset(user.id);
+  logInfo("auth_login_flags", {
+    email,
+    userId: user.id,
+    disabled: !user.active,
+    locked: isLocked,
+    force_reset: forceReset,
+  });
 
   if (!user.active) {
     logWarn("auth_login_failed", {
       email,
       userId: user.id,
-      reason: "user_disabled",
+      reason: "account_disabled",
     });
     await recordAuditEvent({
       action: "login",
@@ -169,11 +185,10 @@ export async function loginUser(
       userAgent,
       success: false,
     });
-    throw new AppError("user_disabled", "User is disabled.", 403);
+    throw new AppError("account_disabled", "Account is disabled.", 403);
   }
 
-  const now = Date.now();
-  if (user.locked_until && user.locked_until.getTime() > now) {
+  if (isLocked) {
     logWarn("auth_login_failed", {
       email,
       userId: user.id,
@@ -198,7 +213,39 @@ export async function loginUser(
     await resetLoginFailures(user.id);
   }
 
+  if (forceReset) {
+    logWarn("auth_login_failed", {
+      email,
+      userId: user.id,
+      reason: "password_reset_required",
+    });
+    await recordAuditEvent({
+      action: "login",
+      actorUserId: user.id,
+      targetUserId: user.id,
+      ip,
+      userAgent,
+      success: false,
+    });
+    throw new AppError(
+      "password_reset_required",
+      "Password reset required.",
+      403
+    );
+  }
+
+  logInfo("auth_login_password_hash", {
+    email,
+    userId: user.id,
+    algorithm: "bcrypt",
+  });
   const ok = await bcrypt.compare(password, user.password_hash);
+  logInfo("auth_login_password_check", {
+    email,
+    userId: user.id,
+    algorithm: "bcrypt",
+    match: ok,
+  });
 
   if (!ok) {
     const lockoutThreshold = getLoginLockoutThreshold();
@@ -233,9 +280,9 @@ export async function loginUser(
     logWarn("auth_login_failed", {
       email,
       userId: user.id,
-      reason: "invalid_credentials",
+      reason: "password_mismatch",
     });
-    throw new AppError("invalid_credentials", "Invalid email or password.", 401);
+    throw new AppError("password_mismatch", "Password mismatch.", 401);
   }
 
   await resetLoginFailures(user.id);
