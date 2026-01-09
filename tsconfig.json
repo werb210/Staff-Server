@@ -12,8 +12,8 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "noUnusedLocals": true,
-    "types": ["node", "jest"]
+    "types": ["node"]
   },
   "include": ["src/**/*"],
-  "exclude": ["**/__tests__/**", "**/*.test.ts"]
+  "exclude": ["**/__tests__/**/*", "**/*.test.ts"]
 }
