@@ -41,10 +41,6 @@ export function initializeAppInsights(): void {
   initialized = true;
 
   try {
-    if (isTestEnvironment()) {
-      return;
-    }
-
     const connectionString =
       process.env.APPINSIGHTS_CONNECTION_STRING ??
       process.env.APPLICATIONINSIGHTS_CONNECTION_STRING;
@@ -52,6 +48,7 @@ export function initializeAppInsights(): void {
     if (!connectionString?.trim()) {
       logWarn("appinsights_disabled", {
         reason: "missing_connection_string",
+        testEnvironment: isTestEnvironment(),
       });
       return;
     }
@@ -66,10 +63,10 @@ export function initializeAppInsights(): void {
     appInsights
       .setup(connectionString)
       .setAutoCollectConsole(false, false)
-      .setAutoCollectExceptions(false)
+      .setAutoCollectExceptions(true)
       .setAutoCollectPerformance(false, false)
-      .setAutoCollectRequests(false)
-      .setAutoCollectDependencies(false)
+      .setAutoCollectRequests(true)
+      .setAutoCollectDependencies(true)
       .setSendLiveMetrics(false)
       .start();
 

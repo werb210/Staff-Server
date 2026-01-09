@@ -1,10 +1,10 @@
 import request from "supertest";
-import { buildApp } from "../app";
+import { buildAppWithApiRoutes } from "../app";
 import { pool } from "../db";
 import { runMigrations } from "../migrations";
 import { ensureAuditEventSchema } from "./helpers/auditSchema";
 
-const app = buildApp();
+const app = buildAppWithApiRoutes();
 const requestId = "test-request-id";
 
 async function resetDb(): Promise<void> {

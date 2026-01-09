@@ -65,6 +65,7 @@ describe("request logging lifecycle", () => {
     expect(completed?.payload.requestId).toBe("req-123");
     expect(started?.payload.durationMs).toBe(0);
     expect(typeof completed?.payload.durationMs).toBe("number");
+    expect(completed?.payload.outcome).toBe("success");
   });
 
   it("logs errors before completion with duration and requestId", async () => {
@@ -105,5 +106,6 @@ describe("request logging lifecycle", () => {
     expect(completedEntry?.payload.requestId).toBe("req-err");
     expect(typeof errorEntry?.payload.durationMs).toBe("number");
     expect(typeof completedEntry?.payload.durationMs).toBe("number");
+    expect(completedEntry?.payload.outcome).toBe("failure");
   });
 });

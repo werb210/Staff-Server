@@ -54,6 +54,7 @@ export function requestLogger(
     const durationMs = Date.now() - start;
     const requestId = res.locals.requestId ?? "unknown";
     const ip = req.ip ?? "unknown";
+    const outcome = res.statusCode >= 400 ? "failure" : "success";
     logInfo("request_completed", {
       requestId,
       route: req.originalUrl,
@@ -62,6 +63,7 @@ export function requestLogger(
       status: res.statusCode,
       ip,
       durationMs,
+      outcome,
       responseBody: res.locals.responseBody,
     });
 
@@ -75,6 +77,7 @@ export function requestLogger(
         requestId,
         route: req.originalUrl,
         method: req.method,
+        outcome,
       },
     });
   });

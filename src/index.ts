@@ -1,13 +1,21 @@
-import { buildApp } from "./app";
-import { warmUpDatabase, pool } from "./db";
+import { buildApp, registerApiRoutes } from "./app";
+import { pool, waitForDatabaseReady, warmUpDatabase } from "./db";
 import { logError, logInfo, logWarn } from "./observability/logger";
 import { initializeAppInsights } from "./observability/appInsights";
+import { setDbConnected } from "./startupState";
 
 initializeAppInsights();
 
-const app = buildApp();
+process.on("unhandledRejection", (reason) => {
+  logError("unhandled_rejection", {
+    error: reason instanceof Error ? reason.message : String(reason),
+  });
+  process.exit(1);
+});
 
 async function logStartupStatus(): Promise<void> {
+  await waitForDatabaseReady();
+  setDbConnected(true);
   await warmUpDatabase();
   logInfo("db_connected");
 
@@ -32,6 +40,8 @@ async function startServer(): Promise<void> {
     process.exit(1);
   }
 
+  const app = buildApp();
+  registerApiRoutes(app);
   const port = Number(process.env.PORT) || 8080;
   app.listen(port, () => {
     logInfo("startup_complete", { port });
@@ -39,5 +49,3 @@ async function startServer(): Promise<void> {
 }
 
 void startServer();
-
-export default app;

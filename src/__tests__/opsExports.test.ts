@@ -1,5 +1,5 @@
 import request from "supertest";
-import { buildApp } from "../app";
+import { buildAppWithApiRoutes } from "../app";
 import { pool } from "../db";
 import { createUserAccount } from "../modules/auth/auth.service";
 import { ROLES } from "../auth/roles";
@@ -7,7 +7,7 @@ import { runMigrations } from "../migrations";
 import { recordAuditEvent } from "../modules/audit/audit.service";
 import { ensureAuditEventSchema } from "./helpers/auditSchema";
 
-const app = buildApp();
+const app = buildAppWithApiRoutes();
 const requestId = "test-request-id";
 
 async function resetDb(): Promise<void> {

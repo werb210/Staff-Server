@@ -1,6 +1,6 @@
 import request from "supertest";
 import express from "express";
-import { buildApp, initializeServer } from "../app";
+import { buildAppWithApiRoutes, initializeServer } from "../app";
 import { pool } from "../db";
 import { createUserAccount } from "../modules/auth/auth.service";
 import { setUserActive } from "../modules/auth/auth.repo";
@@ -16,7 +16,7 @@ import { createHash } from "crypto";
 import { issueRefreshTokenForUser } from "./helpers/refreshTokens";
 import { ensureAuditEventSchema } from "./helpers/auditSchema";
 
-const app = buildApp();
+const app = buildAppWithApiRoutes();
 const requestId = "test-request-id";
 const postWithRequestId = (url: string) =>
   request(app).post(url).set("x-request-id", requestId);
@@ -222,7 +222,7 @@ describe("auth", () => {
     });
 
     expect(res.status).toBe(401);
-    expect(res.body.code).toBe("password_mismatch");
+    expect(res.body.code).toBe("invalid_credentials");
     expect(res.body.requestId).toBeDefined();
   });
 
@@ -258,9 +258,81 @@ describe("auth", () => {
     });
 
     expect(res.status).toBe(503);
-    expect(res.body.code).toBe("service_unavailable");
+    expect(res.body.code).toBe("db_unavailable");
 
     spy.mockRestore();
+  });
+
+  it("rejects login before database readiness", async () => {
+    const { setDbConnected } = await import("../startupState");
+    setDbConnected(false);
+
+    const res = await postWithRequestId("/api/auth/login").send({
+      email: "not-ready@example.com",
+      password: "Password123!",
+    });
+
+    expect(res.status).toBe(503);
+    expect(res.body.code).toBe("db_unavailable");
+
+    setDbConnected(true);
+  });
+
+  it("does not log invalid credentials when db times out", async () => {
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+    const spy = jest
+      .spyOn(pool, "query")
+      .mockImplementationOnce(() =>
+        Promise.reject(new Error("timeout while connecting"))
+      );
+
+    const res = await postWithRequestId("/api/auth/login").send({
+      email: "timeout@example.com",
+      password: "Password123!",
+    });
+
+    expect(res.status).toBe(503);
+    expect(res.body.code).toBe("db_unavailable");
+
+    const warnings = warnSpy.mock.calls
+      .map((call) => call[0])
+      .filter(Boolean)
+      .map((entry) => {
+        try {
+          return JSON.parse(String(entry));
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean);
+
+    expect(
+      warnings.some((payload) => payload.event === "auth_login_failed")
+    ).toBe(false);
+
+    warnSpy.mockRestore();
+    errorSpy.mockRestore();
+    spy.mockRestore();
+  });
+
+  it("logs in successfully after database warm-up", async () => {
+    const { warmUpDatabase } = await import("../db");
+    await warmUpDatabase();
+
+    await createUserAccount({
+      email: "warmup@example.com",
+      password: "Password123!",
+      role: ROLES.STAFF,
+    });
+
+    const res = await postWithRequestId("/api/auth/login").send({
+      email: "warmup@example.com",
+      password: "Password123!",
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.accessToken).toBeDefined();
   });
 
   it("blocks login when password is expired", async () => {
@@ -396,6 +468,7 @@ describe("auth", () => {
 
     expect(res.status).toBe(503);
     expect(res.body.code).toBe("service_unavailable");
+    expect(res.body.ok).toBe(false);
 
     process.env.JWT_SECRET = original;
   });
@@ -409,6 +482,7 @@ describe("auth", () => {
 
     expect(res.status).toBe(503);
     expect(res.body.code).toBe("service_unavailable");
+    expect(res.body.ok).toBe(false);
 
     spy.mockRestore();
   });

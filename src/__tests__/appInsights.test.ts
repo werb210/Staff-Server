@@ -1,5 +1,6 @@
 import express from "express";
 import request from "supertest";
+import { ROLES } from "../auth/roles";
 
 const trackRequest = jest.fn();
 const trackDependency = jest.fn();
@@ -76,6 +77,38 @@ describe("application insights telemetry", () => {
 
     process.env.NODE_ENV = originalNodeEnv;
     process.env.DATABASE_URL = originalDatabaseUrl;
+    process.env.APPINSIGHTS_CONNECTION_STRING = originalConnectionString;
+  });
+
+  it("emits dependency telemetry for auth queries", async () => {
+    const originalConnectionString = process.env.APPINSIGHTS_CONNECTION_STRING;
+
+    process.env.APPINSIGHTS_CONNECTION_STRING = "InstrumentationKey=fake";
+
+    const { initializeAppInsights } = await import(
+      "../observability/appInsights"
+    );
+    const { buildAppWithApiRoutes } = await import("../app");
+    const { createUserAccount } = await import(
+      "../modules/auth/auth.service"
+    );
+
+    initializeAppInsights();
+
+    const app = buildAppWithApiRoutes();
+    await createUserAccount({
+      email: "telemetry-auth@example.com",
+      password: "Password123!",
+      role: ROLES.STAFF,
+    });
+
+    await request(app).post("/api/auth/login").send({
+      email: "telemetry-auth@example.com",
+      password: "Password123!",
+    });
+
+    expect(trackDependency).toHaveBeenCalled();
+
     process.env.APPINSIGHTS_CONNECTION_STRING = originalConnectionString;
   });
 });

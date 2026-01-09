@@ -17,6 +17,21 @@ export interface AuthUser {
   token_version: number;
 }
 
+export interface AuthUserBase {
+  id: string;
+  email: string;
+  role: Role;
+  active: boolean;
+  failed_login_attempts: number;
+  locked_until: Date | null;
+  token_version: number;
+}
+
+export interface AuthPasswordMetadata {
+  password_hash: string;
+  password_changed_at?: Date | null;
+}
+
 /**
  * IMPORTANT:
  * - information_schema is schema-wide
@@ -82,6 +97,52 @@ export async function findAuthUserByEmail(
   }
 
   return res.rows[0] ?? null;
+}
+
+export async function findAuthUserByEmailBase(
+  email: string
+): Promise<AuthUserBase | null> {
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const res = await pool.query<AuthUserBase>(
+    `select id, email, role, active, failed_login_attempts, locked_until, token_version
+     from users
+     where lower(email) = $1
+     order by id asc`,
+    [normalizedEmail]
+  );
+
+  if (res.rows.length > 1) {
+    throw new Error("duplicate_email");
+  }
+
+  return res.rows[0] ?? null;
+}
+
+export async function findAuthPasswordMetadata(
+  userId: string,
+  client?: Queryable
+): Promise<AuthPasswordMetadata | null> {
+  const runner = client ?? pool;
+  const hasPasswordChangedAt = await hasPasswordChangedAtColumn(runner);
+  const columns = hasPasswordChangedAt
+    ? "password_hash, password_changed_at"
+    : "password_hash";
+
+  const res = await runner.query<AuthPasswordMetadata>(
+    `select ${columns} from users where id = $1 limit 1`,
+    [userId]
+  );
+
+  if (!res.rows[0]) {
+    return null;
+  }
+
+  if (!hasPasswordChangedAt) {
+    return { ...res.rows[0], password_changed_at: null };
+  }
+
+  return res.rows[0];
 }
 
 export async function findAuthUserById(

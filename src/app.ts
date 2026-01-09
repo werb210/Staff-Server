@@ -2,6 +2,7 @@ import cors from "cors";
 import express from "express";
 
 import apiRouter from "./api";
+import readyRoutes from "./routes/ready";
 import { printRoutes } from "./debug/printRoutes";
 import { runMigrations } from "./migrations";
 import { requestId } from "./middleware/requestId";
@@ -37,13 +38,22 @@ export function buildApp(): express.Express {
     res.json({ status: "ok" });
   });
 
-  app.use("/api", apiRouter);
-
-  printRoutes(app);
+  app.use("/api/_int", readyRoutes);
 
   return app;
 }
 
 export async function initializeServer(): Promise<void> {
   await runMigrations();
+}
+
+export function registerApiRoutes(app: express.Express): void {
+  app.use("/api", apiRouter);
+  printRoutes(app);
+}
+
+export function buildAppWithApiRoutes(): express.Express {
+  const app = buildApp();
+  registerApiRoutes(app);
+  return app;
 }
