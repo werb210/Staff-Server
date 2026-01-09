@@ -3,6 +3,7 @@ import {
   getDbPoolConnectionTimeoutMs,
   getDbPoolIdleTimeoutMs,
   getDbPoolMax,
+  isTestEnvironment,
 } from "./config";
 import { logError, logInfo, logWarn } from "./observability/logger";
 import { trackDependency } from "./observability/appInsights";
@@ -11,12 +12,32 @@ export const isPgMem =
   process.env.NODE_ENV === "test" &&
   (!process.env.DATABASE_URL || process.env.DATABASE_URL === "pg-mem");
 
-const poolConfig: PoolConfig = {
+const basePoolConfig: PoolConfig = {
   max: getDbPoolMax(),
   min: 0,
   idleTimeoutMillis: getDbPoolIdleTimeoutMs(),
   connectionTimeoutMillis: getDbPoolConnectionTimeoutMs(),
 };
+
+const testPoolOverrideEnabled =
+  isTestEnvironment() && process.env.DB_POOL_TEST_MODE === "true";
+
+const poolConfig: PoolConfig = testPoolOverrideEnabled
+  ? {
+      ...basePoolConfig,
+      max: 2,
+      idleTimeoutMillis: 1000,
+      connectionTimeoutMillis: 1000,
+    }
+  : basePoolConfig;
+
+if (testPoolOverrideEnabled) {
+  logInfo("db_test_pool_override_enabled", {
+    max: poolConfig.max,
+    idleTimeoutMillis: poolConfig.idleTimeoutMillis,
+    connectionTimeoutMillis: poolConfig.connectionTimeoutMillis,
+  });
+}
 
 type DbMetadata = {
   host: string;
@@ -118,6 +139,10 @@ function createPool(): Pool {
 
 export const pool = createPool();
 
+export function getPoolConfig(): PoolConfig {
+  return { ...poolConfig };
+}
+
 const poolTarget = `${dbMetadata.host}${dbMetadata.port ? `:${dbMetadata.port}` : ""}`;
 
 function getQueryText(args: unknown[]): string {
@@ -137,26 +162,27 @@ function wrapQuery<T extends { query: Pool["query"] }>(
 ): void {
   const originalQuery = runner.query.bind(runner);
   runner.query = (async (...args: Parameters<Pool["query"]>) => {
+    const queryText = getQueryText(args);
     const start = Date.now();
     try {
-      const result = await originalQuery(...args);
+      const result = await runQueryWithTestControls(originalQuery, args, queryText);
       trackDependency({
         name: "postgres.query",
         target: poolTarget,
-        data: getQueryText(args),
+        data: queryText,
         duration: Date.now() - start,
         success: true,
-        dependencyTypeName: "postgresql",
+        dependencyTypeName: "postgres",
       });
       return result;
     } catch (error) {
       trackDependency({
         name: "postgres.query",
         target: poolTarget,
-        data: getQueryText(args),
+        data: queryText,
         duration: Date.now() - start,
         success: false,
-        dependencyTypeName: "postgresql",
+        dependencyTypeName: "postgres",
       });
       throw error;
     }
@@ -207,6 +233,64 @@ export async function checkDb(): Promise<void> {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+type TestQueryControls = {
+  delayMs: number;
+  timeoutMs: number;
+};
+
+function getTestQueryControls(queryText: string): TestQueryControls {
+  if (!isTestEnvironment()) {
+    return { delayMs: 0, timeoutMs: 0 };
+  }
+  const pattern = process.env.DB_TEST_SLOW_QUERY_PATTERN;
+  const delayMs = Math.max(0, Number(process.env.DB_TEST_SLOW_QUERY_MS ?? 0));
+  const timeoutMs = Math.max(0, Number(process.env.DB_TEST_QUERY_TIMEOUT_MS ?? 0));
+  if (!pattern || !queryText.toLowerCase().includes(pattern.toLowerCase())) {
+    return { delayMs: 0, timeoutMs: 0 };
+  }
+  return { delayMs, timeoutMs };
+}
+
+function createTimeoutError(timeoutMs: number): Error {
+  const error = new Error(`db_query_timeout_after_${timeoutMs}ms`);
+  (error as { code?: string }).code = "ETIMEDOUT";
+  return error;
+}
+
+async function runQueryWithTestControls(
+  queryFn: (...args: Parameters<Pool["query"]>) => ReturnType<Pool["query"]>,
+  args: Parameters<Pool["query"]>,
+  queryText: string
+): Promise<Awaited<ReturnType<Pool["query"]>>> {
+  if (isTestEnvironment() && process.env.DB_TEST_FORCE_POOL_EXHAUSTION === "true") {
+    const error = new Error("timeout acquiring a client");
+    (error as { code?: string }).code = "ETIMEDOUT";
+    throw error;
+  }
+  const { delayMs, timeoutMs } = getTestQueryControls(queryText);
+  const execute = async (): Promise<Awaited<ReturnType<Pool["query"]>>> => {
+    if (delayMs > 0) {
+      await sleep(delayMs);
+    }
+    return queryFn(...args);
+  };
+  if (timeoutMs <= 0) {
+    return execute();
+  }
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(createTimeoutError(timeoutMs)), timeoutMs);
+    execute()
+      .then((result) => {
+        clearTimeout(timer);
+        resolve(result);
+      })
+      .catch((error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+  });
 }
 
 export async function waitForDatabaseReady(): Promise<void> {
