@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { checkDb, pool } from "../db";
+import { assertPoolHealthy, checkDb, pool } from "../db";
 import { assertEnv, getBuildInfo } from "../config";
 import { assertMigrationsTableExists } from "../migrations";
 import { listKillSwitches } from "../modules/ops/ops.service";
@@ -23,6 +23,7 @@ router.get("/ready", async (_req, res) => {
     assertEnv();
     assertAuthSubsystem();
     await checkDb();
+    assertPoolHealthy();
     await assertMigrationsTableExists();
     res.json({ ok: true });
   } catch (err) {

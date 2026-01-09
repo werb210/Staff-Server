@@ -79,6 +79,38 @@ describe("auth", () => {
     expect(user).toBeDefined();
   });
 
+  it("normalizes email before login", async () => {
+    await createUserAccount({
+      email: "Casey@Example.com",
+      password: "Password123!",
+      role: ROLES.ADMIN,
+    });
+
+    const res = await postWithRequestId("/api/auth/login").send({
+      email: "  CASEY@EXAMPLE.COM ",
+      password: "Password123!",
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.accessToken).toBeDefined();
+  });
+
+  it("rejects empty password early", async () => {
+    await createUserAccount({
+      email: "blank-password@example.com",
+      password: "Password123!",
+      role: ROLES.ADMIN,
+    });
+
+    const res = await postWithRequestId("/api/auth/login").send({
+      email: "blank-password@example.com",
+      password: "   ",
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("missing_credentials");
+  });
+
   it("login returns usable access token", async () => {
     await createUserAccount({
       email: "token-check@example.com",
@@ -192,6 +224,43 @@ describe("auth", () => {
     expect(res.status).toBe(401);
     expect(res.body.code).toBe("password_mismatch");
     expect(res.body.requestId).toBeDefined();
+  });
+
+  it("fails login when password hash is invalid", async () => {
+    const user = await createUserAccount({
+      email: "bad-hash@example.com",
+      password: "Password123!",
+      role: ROLES.STAFF,
+    });
+
+    await pool.query(
+      "update users set password_hash = $1 where id = $2",
+      ["short-hash", user.id]
+    );
+
+    const res = await postWithRequestId("/api/auth/login").send({
+      email: "bad-hash@example.com",
+      password: "Password123!",
+    });
+
+    expect(res.status).toBe(503);
+    expect(res.body.code).toBe("invalid_password_hash");
+  });
+
+  it("returns 503 when auth lookup fails due to db outage", async () => {
+    const spy = jest
+      .spyOn(pool, "query")
+      .mockImplementationOnce(() => Promise.reject(new Error("db down")));
+
+    const res = await postWithRequestId("/api/auth/login").send({
+      email: "db-down@example.com",
+      password: "Password123!",
+    });
+
+    expect(res.status).toBe(503);
+    expect(res.body.code).toBe("service_unavailable");
+
+    spy.mockRestore();
   });
 
   it("blocks login when password is expired", async () => {
@@ -329,6 +398,19 @@ describe("auth", () => {
     expect(res.body.code).toBe("service_unavailable");
 
     process.env.JWT_SECRET = original;
+  });
+
+  it("fails readiness when database is unavailable", async () => {
+    const spy = jest
+      .spyOn(pool, "query")
+      .mockImplementationOnce(() => Promise.reject(new Error("db down")));
+
+    const res = await request(app).get("/api/_int/ready");
+
+    expect(res.status).toBe(503);
+    expect(res.body.code).toBe("service_unavailable");
+
+    spy.mockRestore();
   });
 
   it("rotates refresh tokens", async () => {

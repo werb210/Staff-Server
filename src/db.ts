@@ -1,14 +1,61 @@
-import { Pool } from "pg";
-import {
-  getDbPoolConnectionTimeoutMs,
-  getDbPoolIdleTimeoutMs,
-  getDbPoolMax,
-} from "./config";
+import { Pool, type PoolClient, type PoolConfig } from "pg";
 import { logError, logInfo, logWarn } from "./observability/logger";
+import { trackDependency } from "./observability/appInsights";
 
 export const isPgMem =
   process.env.NODE_ENV === "test" &&
   (!process.env.DATABASE_URL || process.env.DATABASE_URL === "pg-mem");
+
+const poolConfig: PoolConfig = {
+  max: 2,
+  min: 0,
+  idleTimeoutMillis: 30_000,
+  connectionTimeoutMillis: 5_000,
+};
+
+type DbMetadata = {
+  host: string;
+  port?: number;
+  sslEnabled: boolean;
+};
+
+function maskHost(host: string): string {
+  if (host.length <= 4) {
+    return "*".repeat(host.length);
+  }
+  return `${host.slice(0, 2)}***${host.slice(-2)}`;
+}
+
+function resolveDbMetadata(): DbMetadata {
+  const connectionString = process.env.DATABASE_URL;
+  if (isPgMem) {
+    return { host: "pg-mem", sslEnabled: false };
+  }
+  if (connectionString) {
+    try {
+      const url = new URL(connectionString);
+      const port = url.port ? Number(url.port) : undefined;
+      return {
+        host: url.hostname,
+        port,
+        sslEnabled: true,
+      };
+    } catch {
+      return {
+        host: process.env.PGHOST ?? "unknown",
+        port: process.env.PGPORT ? Number(process.env.PGPORT) : undefined,
+        sslEnabled: true,
+      };
+    }
+  }
+  return {
+    host: process.env.PGHOST ?? "unknown",
+    port: process.env.PGPORT ? Number(process.env.PGPORT) : undefined,
+    sslEnabled: false,
+  };
+}
+
+const dbMetadata = resolveDbMetadata();
 
 function createPool(): Pool {
   if (isPgMem) {
@@ -16,19 +63,85 @@ function createPool(): Pool {
     const { newDb } = require("pg-mem") as typeof import("pg-mem");
     const db = newDb({ autoCreateForeignKeyIndices: false });
     const adapter = db.adapters.createPg();
-    return new adapter.Pool();
+    return new adapter.Pool(poolConfig);
   }
 
   return new Pool({
+    ...poolConfig,
     connectionString: process.env.DATABASE_URL,
     ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : undefined,
-    max: getDbPoolMax(),
-    idleTimeoutMillis: getDbPoolIdleTimeoutMs(),
-    connectionTimeoutMillis: getDbPoolConnectionTimeoutMs(),
   });
 }
 
 export const pool = createPool();
+
+const poolTarget = `${dbMetadata.host}${dbMetadata.port ? `:${dbMetadata.port}` : ""}`;
+
+function getQueryText(args: unknown[]): string {
+  const [first] = args;
+  if (typeof first === "string") {
+    return first;
+  }
+  if (first && typeof first === "object" && "text" in (first as Record<string, unknown>)) {
+    const text = (first as { text?: string }).text;
+    return text ?? "prepared_statement";
+  }
+  return "unknown_query";
+}
+
+function wrapQuery<T extends { query: Pool["query"] }>(
+  runner: T
+): void {
+  const originalQuery = runner.query.bind(runner);
+  runner.query = (async (...args: Parameters<Pool["query"]>) => {
+    const start = Date.now();
+    try {
+      const result = await originalQuery(...args);
+      trackDependency({
+        name: "postgres.query",
+        target: poolTarget,
+        data: getQueryText(args),
+        duration: Date.now() - start,
+        success: true,
+        dependencyTypeName: "postgresql",
+      });
+      return result;
+    } catch (error) {
+      trackDependency({
+        name: "postgres.query",
+        target: poolTarget,
+        data: getQueryText(args),
+        duration: Date.now() - start,
+        success: false,
+        dependencyTypeName: "postgresql",
+      });
+      throw error;
+    }
+  }) as Pool["query"];
+}
+
+const originalConnect = pool.connect.bind(pool);
+pool.connect = (async () => {
+  const client = (await originalConnect()) as PoolClient;
+  wrapQuery(client);
+  return client;
+}) as Pool["connect"];
+
+wrapQuery(pool);
+
+export function logDbMetadata(): void {
+  logInfo("db_connection_metadata", {
+    host: maskHost(dbMetadata.host),
+    port: dbMetadata.port ?? "unknown",
+    sslEnabled: dbMetadata.sslEnabled,
+    pool: {
+      max: poolConfig.max,
+      min: poolConfig.min,
+      idleTimeoutMillis: poolConfig.idleTimeoutMillis,
+      connectionTimeoutMillis: poolConfig.connectionTimeoutMillis,
+    },
+  });
+}
 
 export async function checkDb(): Promise<void> {
   try {
@@ -37,6 +150,21 @@ export async function checkDb(): Promise<void> {
     const message = err instanceof Error ? err.message : "unknown";
     logError("db_unavailable", { error: message });
     throw err;
+  }
+}
+
+export async function warmUpDatabase(): Promise<void> {
+  logDbMetadata();
+  await checkDb();
+}
+
+export function assertPoolHealthy(): void {
+  const poolOptions = (pool as { options?: PoolConfig }).options;
+  const max = poolOptions?.max ?? poolConfig.max ?? 0;
+  const waitingCount = pool.waitingCount ?? 0;
+  const totalCount = pool.totalCount ?? 0;
+  if (waitingCount > 0 && totalCount >= max) {
+    throw new Error("db_pool_exhausted");
   }
 }
 

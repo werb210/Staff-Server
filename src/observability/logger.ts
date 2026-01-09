@@ -12,7 +12,7 @@ type LogFields = {
 function buildPayload(level: LogLevel, event: string, fields: LogFields = {}): Record<string, unknown> {
   const requestId = fields.requestId ?? getRequestId() ?? "unknown";
   const route = fields.route ?? getRequestRoute() ?? "unknown";
-  const durationMs = fields.durationMs ?? null;
+  const durationMs = fields.durationMs ?? 0;
   const { requestId: _req, route: _route, durationMs: _duration, ...rest } = fields;
 
   return {
