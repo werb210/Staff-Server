@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { checkDb } from "../db";
 import { assertEnv, getBuildInfo } from "../config";
 import { assertMigrationsTableExists } from "../migrations";
@@ -9,11 +9,11 @@ import { assertAuthSubsystem } from "../modules/auth/auth.service";
 
 const router = Router();
 
-router.get("/health", (_req, res) => {
+router.get("/health", (_req: Request, res: Response) => {
   res.json({ ok: true });
 });
 
-router.get("/ready", async (_req, res) => {
+router.get("/ready", async (_req: Request, res: Response) => {
   try {
     assertEnv();
     assertAuthSubsystem();
@@ -34,12 +34,12 @@ router.get("/ready", async (_req, res) => {
   }
 });
 
-router.get("/version", (_req, res) => {
+router.get("/version", (_req: Request, res: Response) => {
   const { commitHash, buildTimestamp } = getBuildInfo();
   res.json({ commitHash, buildTimestamp });
 });
 
-router.get("/ops", async (_req, res, next) => {
+router.get("/ops", async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const switches = await listKillSwitches();
     res.json({ switches });
@@ -48,7 +48,7 @@ router.get("/ops", async (_req, res, next) => {
   }
 });
 
-router.get("/jobs", async (_req, res, next) => {
+router.get("/jobs", async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const jobs = await listActiveReplayJobs();
     res.json({ jobs });
@@ -57,7 +57,7 @@ router.get("/jobs", async (_req, res, next) => {
   }
 });
 
-router.get("/exports/recent", async (_req, res, next) => {
+router.get("/exports/recent", async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const exports = await listRecentExports();
     res.json({ exports });

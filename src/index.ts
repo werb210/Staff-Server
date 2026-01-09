@@ -1,4 +1,4 @@
-import express from "express";
+import express, { Request, Response } from "express";
 import cors from "cors";
 
 import apiRouter from "./api";
@@ -31,11 +31,11 @@ app.use(requestContext);
 // --------------------
 // Health (must be JSON)
 // --------------------
-app.get("/health", (_req, res) => {
+app.get("/health", (_req: Request, res: Response) => {
   res.json({ ok: true });
 });
 
-app.get("/", (_req, res) => {
+app.get("/", (_req: Request, res: Response) => {
   res.json({ status: "ok" });
 });
 

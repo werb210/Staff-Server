@@ -1,18 +1,14 @@
-import { Router } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { AppError } from "../../middleware/errors";
 import { listAuditEvents } from "./audit.repo";
 import { recordAuditEvent } from "./audit.service";
 
 const router = Router();
 
-router.get("/events", async (req, res, next) => {
+router.get("/events", async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { actorUserId, targetUserId, action, from, to, limit, offset } =
-      req.query ?? {};
-    const parsedLimit = Math.min(
-      200,
-      Math.max(1, Number(limit ?? 50) || 50)
-    );
+    const { actorUserId, targetUserId, action, from, to, limit, offset } = req.query ?? {};
+    const parsedLimit = Math.min(200, Math.max(1, Number(limit ?? 50) || 50));
     const parsedOffset = Math.max(0, Number(offset ?? 0) || 0);
     const fromDate = typeof from === "string" ? new Date(from) : null;
     const toDate = typeof to === "string" ? new Date(to) : null;

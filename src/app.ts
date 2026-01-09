@@ -1,5 +1,5 @@
 import cors from "cors";
-import express from "express";
+import express, { Request, Response } from "express";
 
 import apiRouter from "./api";
 import { printRoutes } from "./debug/printRoutes";
@@ -19,11 +19,11 @@ export function buildApp(): express.Express {
   app.use(express.json({ limit: "10mb" }));
   app.use(express.urlencoded({ extended: true }));
 
-  app.get("/health", (_req, res) => {
+  app.get("/health", (_req: Request, res: Response) => {
     res.json({ ok: true });
   });
 
-  app.get("/", (_req, res) => {
+  app.get("/", (_req: Request, res: Response) => {
     res.json({ status: "ok" });
   });
 

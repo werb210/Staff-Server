@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { AppError } from "../../middleware/errors";
 import {
   changePipelineState,
@@ -17,7 +17,7 @@ router.post(
   "/",
   requireAuth,
   requireCapability([CAPABILITIES.APPLICATION_CREATE]),
-  async (req, res, next) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { name, metadata, productType, idempotencyKey } = req.body ?? {};
       if (!req.user) {
@@ -49,7 +49,7 @@ router.post(
   requireAuth,
   requireCapability([CAPABILITIES.DOCUMENT_UPLOAD]),
   documentUploadRateLimit(),
-  async (req, res, next) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user) {
         throw new AppError("missing_token", "Authorization token is required.", 401);
@@ -57,11 +57,7 @@ router.post(
       const { title, metadata, content, documentId, documentType, idempotencyKey } =
         req.body ?? {};
       if (!title || !metadata || !content) {
-        throw new AppError(
-          "missing_fields",
-          "title, metadata, and content are required.",
-          400
-        );
+        throw new AppError("missing_fields", "title, metadata, and content are required.", 400);
       }
       const result = await uploadDocument({
         applicationId: req.params.id,
@@ -87,7 +83,7 @@ router.post(
   "/:id/pipeline",
   requireAuth,
   requireCapability([CAPABILITIES.PIPELINE_MANAGE]),
-  async (req, res, next) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user) {
         throw new AppError("missing_token", "Authorization token is required.", 401);
@@ -119,7 +115,7 @@ router.post(
   "/:id/documents/:documentId/versions/:versionId/accept",
   requireAuth,
   requireCapability([CAPABILITIES.DOCUMENT_REVIEW]),
-  async (req, res, next) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user) {
         throw new AppError("missing_token", "Authorization token is required.", 401);
@@ -144,7 +140,7 @@ router.post(
   "/:id/documents/:documentId/versions/:versionId/reject",
   requireAuth,
   requireCapability([CAPABILITIES.DOCUMENT_REVIEW]),
-  async (req, res, next) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user) {
         throw new AppError("missing_token", "Authorization token is required.", 401);

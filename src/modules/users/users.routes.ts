@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { AppError } from "../../middleware/errors";
 import {
   createUserAccount,
@@ -11,15 +11,11 @@ import { CAPABILITIES } from "../../auth/capabilities";
 
 const router = Router();
 
-router.post("/", async (req, res, next) => {
+router.post("/", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { email, password, role } = req.body;
     if (!email || !password || !role) {
-      throw new AppError(
-        "missing_fields",
-        "Email, password, and role are required.",
-        400
-      );
+      throw new AppError("missing_fields", "Email, password, and role are required.", 400);
     }
     if (typeof role !== "string" || !isRole(role)) {
       throw new AppError("invalid_role", "Role is invalid.", 400);
@@ -38,7 +34,7 @@ router.post("/", async (req, res, next) => {
   }
 });
 
-router.post("/:id/role", async (req, res, next) => {
+router.post("/:id/role", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const actorId = req.user?.userId;
     if (!actorId) {
@@ -61,7 +57,7 @@ router.post("/:id/role", async (req, res, next) => {
   }
 });
 
-router.post("/:id/disable", async (req, res, next) => {
+router.post("/:id/disable", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const actorId = req.user?.userId;
     if (!actorId) {
@@ -80,7 +76,7 @@ router.post("/:id/disable", async (req, res, next) => {
   }
 });
 
-router.post("/:id/enable", async (req, res, next) => {
+router.post("/:id/enable", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const actorId = req.user?.userId;
     if (!actorId) {
@@ -99,25 +95,28 @@ router.post("/:id/enable", async (req, res, next) => {
   }
 });
 
-router.post("/:id/force-password-reset", async (req, res, next) => {
-  try {
-    const actorId = req.user?.userId;
-    if (!actorId) {
-      throw new AppError("missing_token", "Authorization token is required.", 401);
+router.post(
+  "/:id/force-password-reset",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const actorId = req.user?.userId;
+      if (!actorId) {
+        throw new AppError("missing_token", "Authorization token is required.", 401);
+      }
+      const token = await requestPasswordReset({
+        userId: req.params.id,
+        actorUserId: actorId,
+        ip: req.ip,
+        userAgent: req.get("user-agent"),
+      });
+      res.json({ token });
+    } catch (err) {
+      next(err);
     }
-    const token = await requestPasswordReset({
-      userId: req.params.id,
-      actorUserId: actorId,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
-    });
-    res.json({ token });
-  } catch (err) {
-    next(err);
   }
-});
+);
 
-router.post("/:id/unlock", async (req, res, next) => {
+router.post("/:id/unlock", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const actorId = req.user?.userId;
     if (!actorId) {
