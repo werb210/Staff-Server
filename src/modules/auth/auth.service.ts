@@ -1,4 +1,4 @@
-import bcrypt from "bcryptjs";
+import bcrypt from 'bcrypt';
 import jwt, { type SignOptions } from "jsonwebtoken";
 import { createHash, randomBytes, timingSafeEqual } from "crypto";
 import {
