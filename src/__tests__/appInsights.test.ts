@@ -82,20 +82,28 @@ describe("application insights telemetry", () => {
 
   it("emits dependency telemetry for auth queries", async () => {
     const originalConnectionString = process.env.APPINSIGHTS_CONNECTION_STRING;
+    const originalDatabaseUrl = process.env.DATABASE_URL;
+    const originalNodeEnv = process.env.NODE_ENV;
 
     process.env.APPINSIGHTS_CONNECTION_STRING = "InstrumentationKey=fake";
+    process.env.DATABASE_URL = "pg-mem";
+    process.env.NODE_ENV = "test";
 
     const { initializeAppInsights } = await import(
       "../observability/appInsights"
     );
     const { buildAppWithApiRoutes } = await import("../app");
+    const { runMigrations } = await import("../migrations");
     const { createUserAccount } = await import(
       "../modules/auth/auth.service"
     );
+    const { ensureAuditEventSchema } = await import("./helpers/auditSchema");
 
     initializeAppInsights();
 
     const app = buildAppWithApiRoutes();
+    await runMigrations();
+    await ensureAuditEventSchema();
     await createUserAccount({
       email: "telemetry-auth@example.com",
       password: "Password123!",
@@ -110,5 +118,7 @@ describe("application insights telemetry", () => {
     expect(trackDependency).toHaveBeenCalled();
 
     process.env.APPINSIGHTS_CONNECTION_STRING = originalConnectionString;
+    process.env.DATABASE_URL = originalDatabaseUrl;
+    process.env.NODE_ENV = originalNodeEnv;
   });
 });
