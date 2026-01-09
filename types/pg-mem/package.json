@@ -1,0 +1,7 @@
+{
+  "name": "@types/pg-mem",
+  "version": "0.0.0",
+  "description": "Local type declarations for pg-mem",
+  "types": "index.d.ts",
+  "private": true
+}
