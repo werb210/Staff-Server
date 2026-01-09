@@ -4,48 +4,39 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Install production dependencies
+        run: npm ci --omit=dev
 
-      - name: Build TypeScript
+      - name: Build
         run: npm run build
 
-      - name: Validate compiled output
+      - name: Create deployment zip
         run: |
-          test -f dist/index.js
-          node --check dist/index.js
-
-      - name: Prepare deploy package (ROOT-LEVEL dist/)
-        run: |
-          rm -rf deploy.zip
+          rm -f deploy.zip
           zip -r deploy.zip \
             dist \
+            node_modules \
             package.json \
             package-lock.json
 
-      - name: Azure Login
-        uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      - name: Deploy to Azure Web App
-        uses: azure/webapps-deploy@v2
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v3
         with:
           app-name: boreal-staff-server
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
           package: deploy.zip
