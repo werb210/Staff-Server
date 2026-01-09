@@ -4,6 +4,8 @@ import express from "express";
 import apiRouter from "./api";
 import { printRoutes } from "./debug/printRoutes";
 import { runMigrations } from "./migrations";
+import { requestId } from "./middleware/requestId";
+import { requestLogger } from "./middleware/requestLogger";
 
 export function buildApp(): express.Express {
   const app = express();
@@ -12,6 +14,9 @@ export function buildApp(): express.Express {
     console.log("[REQ]", req.method, req.originalUrl);
     next();
   });
+
+  app.use(requestId);
+  app.use(requestLogger);
 
   app.use(
     cors({

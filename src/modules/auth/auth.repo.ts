@@ -56,6 +56,7 @@ export async function findAuthUserByEmail(
   email: string
 ): Promise<AuthUser | null> {
   const hasPasswordChangedAt = await hasPasswordChangedAtColumn();
+  const normalizedEmail = email.trim().toLowerCase();
 
   const columns = hasPasswordChangedAt
     ? `
@@ -69,9 +70,16 @@ export async function findAuthUserByEmail(
     `;
 
   const res = await pool.query<AuthUser>(
-    `select ${columns} from users where email = $1 limit 1`,
-    [email]
+    `select ${columns}
+     from users
+     where lower(email) = $1
+     order by id asc`,
+    [normalizedEmail]
   );
+
+  if (res.rows.length > 1) {
+    throw new Error("duplicate_email");
+  }
 
   return res.rows[0] ?? null;
 }

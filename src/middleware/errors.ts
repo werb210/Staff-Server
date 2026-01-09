@@ -1,5 +1,6 @@
 import { type NextFunction, type Request, type Response } from "express";
 import { logError, logWarn } from "../observability/logger";
+import { trackException } from "../observability/appInsights";
 
 export class AppError extends Error {
   status: number;
@@ -25,7 +26,7 @@ export function errorHandler(
   const requestId = res.locals.requestId ?? "unknown";
   const durationMs = res.locals.requestStart
     ? Date.now() - Number(res.locals.requestStart)
-    : null;
+    : 0;
   if (err instanceof AppError) {
     logWarn("request_error", {
       requestId,
@@ -34,6 +35,15 @@ export function errorHandler(
       code: err.code,
       message: err.message,
       status: err.status,
+    });
+    trackException({
+      exception: err,
+      properties: {
+        requestId,
+        route: req.originalUrl,
+        status: err.status,
+        code: err.code,
+      },
     });
     res.status(err.status).json({
       code: err.code,
@@ -49,6 +59,15 @@ export function errorHandler(
     durationMs,
     message: err.message,
     stack: err.stack,
+  });
+
+  trackException({
+    exception: err,
+    properties: {
+      requestId,
+      route: req.originalUrl,
+      status: 500,
+    },
   });
 
   res.status(500).json({

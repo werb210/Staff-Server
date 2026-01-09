@@ -1,5 +1,6 @@
 import { type NextFunction, type Request, type Response } from "express";
 import { logInfo } from "../observability/logger";
+import { trackRequest } from "../observability/appInsights";
 
 const SENSITIVE_FIELD_PATTERN = /(token|password|secret)/i;
 
@@ -40,6 +41,15 @@ export function requestLogger(
     return originalJson(body);
   };
 
+  const requestId = res.locals.requestId ?? "unknown";
+  logInfo("request_started", {
+    requestId,
+    route: req.originalUrl,
+    method: req.method,
+    path: req.originalUrl,
+    durationMs: 0,
+  });
+
   res.on("finish", () => {
     const durationMs = Date.now() - start;
     const requestId = res.locals.requestId ?? "unknown";
@@ -53,6 +63,19 @@ export function requestLogger(
       ip,
       durationMs,
       responseBody: res.locals.responseBody,
+    });
+
+    trackRequest({
+      name: `${req.method} ${req.originalUrl}`,
+      url: `${req.protocol}://${req.get("host") ?? "unknown"}${req.originalUrl}`,
+      duration: durationMs,
+      resultCode: res.statusCode,
+      success: res.statusCode < 500,
+      properties: {
+        requestId,
+        route: req.originalUrl,
+        method: req.method,
+      },
     });
   });
   next();
