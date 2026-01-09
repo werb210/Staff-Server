@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs";
 import request from "supertest";
-import { buildApp } from "../app";
+import { buildAppWithApiRoutes } from "../app";
 import { pool } from "../db";
 import { createUserAccount, requestPasswordReset } from "../modules/auth/auth.service";
 import { findAuthUserByEmail } from "../modules/auth/auth.repo";
@@ -10,7 +10,7 @@ import { ROLES } from "../auth/roles";
 import { runMigrations } from "../migrations";
 import { ensureAuditEventSchema } from "./helpers/auditSchema";
 
-const app = buildApp();
+const app = buildAppWithApiRoutes();
 
 async function resetDb(): Promise<void> {
   await pool.query("delete from client_submissions");
@@ -102,17 +102,17 @@ describe("recovery integration", () => {
     expect(res.body.accessToken).toBeDefined();
   });
 
-  it("returns user_not_found when the user does not exist", async () => {
+  it("returns invalid_credentials when the user does not exist", async () => {
     const res = await request(app).post("/api/auth/login").send({
       email: "missing@example.com",
       password: "Password123!",
     });
 
     expect(res.status).toBe(401);
-    expect(res.body.code).toBe("user_not_found");
+    expect(res.body.code).toBe("invalid_credentials");
   });
 
-  it("returns password_mismatch when the password is wrong", async () => {
+  it("returns invalid_credentials when the password is wrong", async () => {
     await createUserAccount({
       email: "mismatch@example.com",
       password: "Password123!",
@@ -125,7 +125,7 @@ describe("recovery integration", () => {
     });
 
     expect(res.status).toBe(401);
-    expect(res.body.code).toBe("password_mismatch");
+    expect(res.body.code).toBe("invalid_credentials");
   });
 
   it("returns account_disabled when the user is disabled", async () => {

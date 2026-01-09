@@ -1,11 +1,9 @@
 import { Router } from "express";
-import { assertPoolHealthy, checkDb, pool } from "../db";
-import { assertEnv, getBuildInfo } from "../config";
-import { assertMigrationsTableExists } from "../migrations";
+import { pool } from "../db";
+import { getBuildInfo } from "../config";
 import { listKillSwitches } from "../modules/ops/ops.service";
 import { listActiveReplayJobs } from "../modules/ops/replay.service";
 import { listRecentExports } from "../modules/exports/export.service";
-import { assertAuthSubsystem } from "../modules/auth/auth.service";
 import { createUserAccount } from "../modules/auth/auth.service";
 import { ROLES } from "../auth/roles";
 import { AppError } from "../middleware/errors";
@@ -13,32 +11,6 @@ import { logInfo, logWarn } from "../observability/logger";
 
 const router = Router();
 let bootstrapAdminDisabled = false;
-
-router.get("/health", (_req, res) => {
-  res.json({ ok: true });
-});
-
-router.get("/ready", async (_req, res) => {
-  try {
-    assertEnv();
-    assertAuthSubsystem();
-    await checkDb();
-    assertPoolHealthy();
-    await assertMigrationsTableExists();
-    res.json({ ok: true });
-  } catch (err) {
-    const requestId = res.locals.requestId ?? "unknown";
-    const reason =
-      err instanceof Error && err.message
-        ? ` Service not ready: ${err.message}`
-        : " Service not ready.";
-    res.status(503).json({
-      code: "service_unavailable",
-      message: reason.trim(),
-      requestId,
-    });
-  }
-});
 
 router.get("/version", (_req, res) => {
   const { commitHash, buildTimestamp } = getBuildInfo();

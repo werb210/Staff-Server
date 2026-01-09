@@ -5,7 +5,8 @@ import {
   createPasswordReset,
   createUser,
   consumeRefreshToken,
-  findAuthUserByEmail,
+  findAuthPasswordMetadata,
+  findAuthUserByEmailBase,
   findAuthUserById,
   findPasswordReset,
   hasActivePasswordReset,
@@ -28,9 +29,10 @@ import {
 } from "../../config";
 import { AppError } from "../../middleware/errors";
 import { recordAuditEvent } from "../audit/audit.service";
-import { pool } from "../../db";
+import { isDbConnectionFailure, pool } from "../../db";
 import { type Role } from "../../auth/roles";
 import { logError, logInfo, logWarn } from "../../observability/logger";
+import { getStartupState } from "../../startupState";
 
 type AccessTokenPayload = {
   userId: string;
@@ -157,14 +159,17 @@ export async function loginUser(
   }
 
   try {
+    if (!getStartupState().dbConnected) {
+      throw new AppError("db_unavailable", "Database unavailable.", 503);
+    }
     logInfo("auth_login_received", { email: normalizedEmail });
-    const user = await findAuthUserByEmail(normalizedEmail);
+    const user = await findAuthUserByEmailBase(normalizedEmail);
     logInfo("auth_login_user_lookup", {
       email: normalizedEmail,
       userExists: Boolean(user),
     });
 
-    if (!user || !user.password_hash || !user.role || !user.email) {
+    if (!user || !user.role || !user.email) {
       logWarn("auth_login_failed", {
         email: normalizedEmail,
         reason: "user_not_found",
@@ -177,16 +182,34 @@ export async function loginUser(
         userAgent,
         success: false,
       });
-      throw new AppError("user_not_found", "User not found.", 401);
+      throw new AppError(
+        "invalid_credentials",
+        "Invalid credentials.",
+        401
+      );
     }
 
-    const hashPrefix = resolveHashPrefix(user.password_hash);
+    const passwordMetadata = await findAuthPasswordMetadata(user.id);
+    if (!passwordMetadata?.password_hash) {
+      logWarn("auth_login_failed", {
+        email: normalizedEmail,
+        userId: user.id,
+        reason: "password_missing",
+      });
+      throw new AppError(
+        "invalid_credentials",
+        "Invalid credentials.",
+        401
+      );
+    }
+
+    const hashPrefix = resolveHashPrefix(passwordMetadata.password_hash);
     logInfo("auth_login_password_hash", {
       email: normalizedEmail,
       userId: user.id,
       algorithm: "bcrypt",
       prefix: hashPrefix,
-      length: user.password_hash.length,
+      length: passwordMetadata.password_hash.length,
     });
 
     if (!hashPrefix.startsWith("$2a$") && !hashPrefix.startsWith("$2b$")) {
@@ -202,7 +225,7 @@ export async function loginUser(
       );
     }
 
-    if (user.password_hash.length < 60) {
+    if (passwordMetadata.password_hash.length < 60) {
       logWarn("auth_login_failed", {
         email: normalizedEmail,
         userId: user.id,
@@ -291,7 +314,7 @@ export async function loginUser(
       );
     }
 
-    const ok = await bcrypt.compare(password, user.password_hash);
+    const ok = await bcrypt.compare(password, passwordMetadata.password_hash);
     logInfo("auth_login_password_check", {
       email: normalizedEmail,
       userId: user.id,
@@ -334,12 +357,16 @@ export async function loginUser(
         userId: user.id,
         reason: "password_mismatch",
       });
-      throw new AppError("password_mismatch", "Password mismatch.", 401);
+      throw new AppError(
+        "invalid_credentials",
+        "Invalid credentials.",
+        401
+      );
     }
 
     await resetLoginFailures(user.id);
 
-    if (isPasswordExpired(user.password_changed_at)) {
+    if (isPasswordExpired(passwordMetadata.password_changed_at)) {
       logWarn("auth_login_failed", {
         email: normalizedEmail,
         userId: user.id,
@@ -406,6 +433,13 @@ export async function loginUser(
   } catch (err) {
     if (err instanceof AppError) {
       throw err;
+    }
+    if (isDbConnectionFailure(err)) {
+      logError("auth_login_db_unavailable", {
+        email: normalizedEmail,
+        error: err instanceof Error ? err.message : "unknown_error",
+      });
+      throw new AppError("db_unavailable", "Database unavailable.", 503);
     }
     logError("auth_login_error", {
       email: normalizedEmail,

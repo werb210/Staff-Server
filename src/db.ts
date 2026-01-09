@@ -1,4 +1,9 @@
 import { Pool, type PoolClient, type PoolConfig } from "pg";
+import {
+  getDbPoolConnectionTimeoutMs,
+  getDbPoolIdleTimeoutMs,
+  getDbPoolMax,
+} from "./config";
 import { logError, logInfo, logWarn } from "./observability/logger";
 import { trackDependency } from "./observability/appInsights";
 
@@ -7,10 +12,10 @@ export const isPgMem =
   (!process.env.DATABASE_URL || process.env.DATABASE_URL === "pg-mem");
 
 const poolConfig: PoolConfig = {
-  max: 2,
+  max: getDbPoolMax(),
   min: 0,
-  idleTimeoutMillis: 30_000,
-  connectionTimeoutMillis: 5_000,
+  idleTimeoutMillis: getDbPoolIdleTimeoutMs(),
+  connectionTimeoutMillis: getDbPoolConnectionTimeoutMs(),
 };
 
 type DbMetadata = {
@@ -35,27 +40,65 @@ function resolveDbMetadata(): DbMetadata {
     try {
       const url = new URL(connectionString);
       const port = url.port ? Number(url.port) : undefined;
+      const hostname = url.hostname.toLowerCase();
+      const sslEnabled =
+        url.searchParams.get("sslmode") === "require" ||
+        hostname.endsWith(".postgres.database.azure.com") ||
+        hostname.endsWith(".postgres.database.usgovcloudapi.net");
       return {
         host: url.hostname,
         port,
-        sslEnabled: true,
+        sslEnabled,
       };
     } catch {
+      const hostname = (process.env.PGHOST ?? "unknown").toLowerCase();
+      const sslEnabled =
+        (process.env.PGSSLMODE ?? "").toLowerCase() === "require" ||
+        hostname.endsWith(".postgres.database.azure.com") ||
+        hostname.endsWith(".postgres.database.usgovcloudapi.net");
       return {
         host: process.env.PGHOST ?? "unknown",
         port: process.env.PGPORT ? Number(process.env.PGPORT) : undefined,
-        sslEnabled: true,
+        sslEnabled,
       };
     }
   }
+  const hostname = (process.env.PGHOST ?? "unknown").toLowerCase();
+  const sslEnabled =
+    (process.env.PGSSLMODE ?? "").toLowerCase() === "require" ||
+    hostname.endsWith(".postgres.database.azure.com") ||
+    hostname.endsWith(".postgres.database.usgovcloudapi.net");
   return {
     host: process.env.PGHOST ?? "unknown",
     port: process.env.PGPORT ? Number(process.env.PGPORT) : undefined,
-    sslEnabled: false,
+    sslEnabled,
   };
 }
 
 const dbMetadata = resolveDbMetadata();
+
+function resolveSslConfig(): PoolConfig["ssl"] {
+  if (isPgMem) {
+    return undefined;
+  }
+
+  const connectionString = process.env.DATABASE_URL ?? "";
+  const sslMode = process.env.PGSSLMODE ?? "";
+  const hostname = dbMetadata.host.toLowerCase();
+  const isAzure =
+    hostname.endsWith(".postgres.database.azure.com") ||
+    hostname.endsWith(".postgres.database.usgovcloudapi.net");
+  const requiresSsl =
+    sslMode.toLowerCase() === "require" ||
+    connectionString.toLowerCase().includes("sslmode=require") ||
+    isAzure;
+
+  if (!requiresSsl) {
+    return undefined;
+  }
+
+  return { rejectUnauthorized: false };
+}
 
 function createPool(): Pool {
   if (isPgMem) {
@@ -69,7 +112,7 @@ function createPool(): Pool {
   return new Pool({
     ...poolConfig,
     connectionString: process.env.DATABASE_URL,
-    ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : undefined,
+    ssl: resolveSslConfig(),
   });
 }
 
@@ -143,6 +186,15 @@ export function logDbMetadata(): void {
   });
 }
 
+export function logPoolStats(context: string): void {
+  logInfo("db_pool_stats", {
+    context,
+    total: pool.totalCount ?? 0,
+    idle: pool.idleCount ?? 0,
+    waiting: pool.waitingCount ?? 0,
+  });
+}
+
 export async function checkDb(): Promise<void> {
   try {
     await pool.query("select 1");
@@ -153,9 +205,52 @@ export async function checkDb(): Promise<void> {
   }
 }
 
-export async function warmUpDatabase(): Promise<void> {
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export async function waitForDatabaseReady(): Promise<void> {
+  const maxAttempts = Math.max(
+    5,
+    Number(process.env.DB_READY_ATTEMPTS ?? 5)
+  );
+  const baseDelayMs = Math.max(
+    100,
+    Number(process.env.DB_READY_BASE_DELAY_MS ?? 250)
+  );
+
   logDbMetadata();
-  await checkDb();
+  logPoolStats("startup");
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const start = Date.now();
+    try {
+      await pool.query("select 1");
+      logInfo("db_ready", {
+        attempt,
+        durationMs: Date.now() - start,
+      });
+      return;
+    } catch (err) {
+      const durationMs = Date.now() - start;
+      const message = err instanceof Error ? err.message : "unknown";
+      logWarn("db_ready_attempt_failed", {
+        attempt,
+        durationMs,
+        error: message,
+      });
+      if (attempt >= maxAttempts) {
+        throw err;
+      }
+      const delayMs = baseDelayMs * 2 ** (attempt - 1);
+      await sleep(delayMs);
+    }
+  }
+}
+
+export async function warmUpDatabase(): Promise<void> {
+  await pool.query("select 1");
+  logPoolStats("warm_up");
 }
 
 export function assertPoolHealthy(): void {
@@ -190,6 +285,41 @@ export async function logBackupStatus(): Promise<void> {
     const message = err instanceof Error ? err.message : "unknown";
     logWarn("backup_retention_check_failed", { error: message });
   }
+}
+
+export function isDbConnectionFailure(error: unknown): boolean {
+  if (!error) {
+    return false;
+  }
+  const message =
+    error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  const code = (error as { code?: string }).code?.toLowerCase();
+
+  const knownCodes = new Set([
+    "ecconnrefused",
+    "econnrefused",
+    "etimedout",
+    "econnreset",
+    "57p01",
+    "57p02",
+    "57p03",
+    "53300",
+  ]);
+
+  if (code && knownCodes.has(code)) {
+    return true;
+  }
+
+  return (
+    message.includes("timeout") ||
+    message.includes("timed out") ||
+    message.includes("connection terminated") ||
+    message.includes("connection refused") ||
+    message.includes("could not connect") ||
+    message.includes("terminating connection") ||
+    message.includes("db down") ||
+    message.includes("db unavailable")
+  );
 }
 
 type RequiredColumn = {

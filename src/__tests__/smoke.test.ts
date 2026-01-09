@@ -1,7 +1,7 @@
 import request from "supertest";
-import { buildApp } from "../app";
+import { buildAppWithApiRoutes } from "../app";
 
-const app = buildApp();
+const app = buildAppWithApiRoutes();
 
 describe("smoke", () => {
   it("responds to health checks", async () => {

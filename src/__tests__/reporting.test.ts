@@ -1,6 +1,6 @@
 import request from "supertest";
 import { randomUUID } from "crypto";
-import { buildApp } from "../app";
+import { buildAppWithApiRoutes } from "../app";
 import { pool } from "../db";
 import { runMigrations } from "../migrations";
 import { createUserAccount } from "../modules/auth/auth.service";
@@ -21,7 +21,7 @@ import {
 } from "../modules/reporting/reporting.jobs";
 import { ensureAuditEventSchema } from "./helpers/auditSchema";
 
-const app = buildApp();
+const app = buildAppWithApiRoutes();
 const requestId = "test-request-id";
 const postWithRequestId = (url: string) =>
   request(app).post(url).set("x-request-id", requestId);
