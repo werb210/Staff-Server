@@ -1,4 +1,10 @@
-import { assertPoolHealthy, checkDb, pool, warmUpDatabase } from "../db";
+import {
+  assertPoolHealthy,
+  checkDb,
+  pool,
+  setDbTestPoolMetricsOverride,
+  warmUpDatabase,
+} from "../db";
 
 describe("database connectivity", () => {
   it("runs a simple connection check", async () => {
@@ -25,21 +31,14 @@ describe("database connectivity", () => {
   });
 
   it("detects pool exhaustion", () => {
-    const poolState = pool as unknown as {
-      waitingCount?: number;
-      totalCount?: number;
-      options?: { max?: number };
-    };
-    const previousWaiting = poolState.waitingCount;
-    const previousTotal = poolState.totalCount;
-    const max = poolState.options?.max ?? 2;
-
-    poolState.waitingCount = 1;
-    poolState.totalCount = max;
+    setDbTestPoolMetricsOverride({
+      waitingCount: 1,
+      totalCount: 2,
+      max: 2,
+    });
 
     expect(() => assertPoolHealthy()).toThrow("db_pool_exhausted");
 
-    poolState.waitingCount = previousWaiting;
-    poolState.totalCount = previousTotal;
+    setDbTestPoolMetricsOverride(null);
   });
 });

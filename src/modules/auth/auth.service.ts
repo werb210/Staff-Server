@@ -158,9 +158,13 @@ export async function loginUser(
     );
   }
 
-  try {
+  const attemptLogin = async (): Promise<{ accessToken: string }> => {
     if (!getStartupState().dbConnected) {
-      throw new AppError("db_unavailable", "Database unavailable.", 503);
+      throw new AppError(
+        "service_unavailable",
+        "Authentication service unavailable.",
+        503
+      );
     }
     logInfo("auth_login_received", { email: normalizedEmail });
     const user = await findAuthUserByEmailBase(normalizedEmail);
@@ -430,26 +434,51 @@ export async function loginUser(
     });
 
     return { accessToken };
-  } catch (err) {
-    if (err instanceof AppError) {
-      throw err;
-    }
-    if (isDbConnectionFailure(err)) {
-      logError("auth_login_db_unavailable", {
+  };
+
+  let retryAttempted = false;
+
+  while (true) {
+    try {
+      const result = await attemptLogin();
+      if (retryAttempted) {
+        logInfo("auth_db_retry_succeeded", { email: normalizedEmail });
+      }
+      return result;
+    } catch (err) {
+      if (err instanceof AppError) {
+        throw err;
+      }
+      if (isDbConnectionFailure(err)) {
+        if (!retryAttempted) {
+          retryAttempted = true;
+          logInfo("auth_db_retry_attempted", { email: normalizedEmail });
+          continue;
+        }
+        logWarn("auth_db_retry_failed", {
+          email: normalizedEmail,
+          error: err instanceof Error ? err.message : "unknown_error",
+        });
+        logError("auth_login_db_unavailable", {
+          email: normalizedEmail,
+          error: err instanceof Error ? err.message : "unknown_error",
+        });
+        throw new AppError(
+          "service_unavailable",
+          "Authentication service unavailable.",
+          503
+        );
+      }
+      logError("auth_login_error", {
         email: normalizedEmail,
         error: err instanceof Error ? err.message : "unknown_error",
       });
-      throw new AppError("db_unavailable", "Database unavailable.", 503);
+      throw new AppError(
+        "service_unavailable",
+        "Authentication service unavailable.",
+        503
+      );
     }
-    logError("auth_login_error", {
-      email: normalizedEmail,
-      error: err instanceof Error ? err.message : "unknown_error",
-    });
-    throw new AppError(
-      "service_unavailable",
-      "Authentication service unavailable.",
-      503
-    );
   }
 }
 

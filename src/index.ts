@@ -2,16 +2,11 @@ import { buildApp, registerApiRoutes } from "./app";
 import { pool, waitForDatabaseReady, warmUpDatabase } from "./db";
 import { logError, logInfo, logWarn } from "./observability/logger";
 import { initializeAppInsights } from "./observability/appInsights";
+import { installProcessHandlers } from "./observability/processHandlers";
 import { setDbConnected } from "./startupState";
 
 initializeAppInsights();
-
-process.on("unhandledRejection", (reason) => {
-  logError("unhandled_rejection", {
-    error: reason instanceof Error ? reason.message : String(reason),
-  });
-  process.exit(1);
-});
+installProcessHandlers();
 
 async function logStartupStatus(): Promise<void> {
   await waitForDatabaseReady();

@@ -1,4 +1,5 @@
 import { type NextFunction, type Request, type Response } from "express";
+import { isDbConnectionFailure } from "../db";
 import { logError, logWarn } from "../observability/logger";
 import { trackException } from "../observability/appInsights";
 
@@ -48,6 +49,30 @@ export function errorHandler(
     res.status(err.status).json({
       code: err.code,
       message: err.message,
+      requestId,
+    });
+    return;
+  }
+
+  if (isDbConnectionFailure(err)) {
+    logError("request_error", {
+      requestId,
+      route: req.originalUrl,
+      durationMs,
+      message: err.message,
+    });
+    trackException({
+      exception: err,
+      properties: {
+        requestId,
+        route: req.originalUrl,
+        status: 503,
+        code: "service_unavailable",
+      },
+    });
+    res.status(503).json({
+      code: "service_unavailable",
+      message: "Service unavailable.",
       requestId,
     });
     return;

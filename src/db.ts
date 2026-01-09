@@ -235,6 +235,44 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+export type DbTestFailureMode =
+  | "connection_timeout"
+  | "pool_exhaustion"
+  | "connection_reset";
+
+type DbTestFailureInjection = {
+  mode: DbTestFailureMode;
+  remaining: number;
+  matchQuery?: string;
+};
+
+let dbTestFailureInjection: DbTestFailureInjection | null = null;
+
+export function setDbTestFailureInjection(
+  config: { mode: DbTestFailureMode; remaining?: number; matchQuery?: string } | null
+): void {
+  if (!isTestEnvironment()) {
+    return;
+  }
+  if (!config) {
+    dbTestFailureInjection = null;
+    return;
+  }
+  const remaining = Math.max(1, config.remaining ?? 1);
+  dbTestFailureInjection = {
+    mode: config.mode,
+    remaining,
+    matchQuery: config.matchQuery?.toLowerCase(),
+  };
+}
+
+export function clearDbTestFailureInjection(): void {
+  if (!isTestEnvironment()) {
+    return;
+  }
+  dbTestFailureInjection = null;
+}
+
 type TestQueryControls = {
   delayMs: number;
   timeoutMs: number;
@@ -259,6 +297,42 @@ function createTimeoutError(timeoutMs: number): Error {
   return error;
 }
 
+function createInjectedFailure(mode: DbTestFailureMode): Error {
+  switch (mode) {
+    case "connection_timeout": {
+      const error = new Error("db_connection_timeout");
+      (error as { code?: string }).code = "ETIMEDOUT";
+      return error;
+    }
+    case "pool_exhaustion": {
+      const error = new Error("db_pool_exhausted");
+      (error as { code?: string }).code = "53300";
+      return error;
+    }
+    case "connection_reset": {
+      const error = new Error("db_connection_reset");
+      (error as { code?: string }).code = "ECONNRESET";
+      return error;
+    }
+  }
+}
+
+function shouldInjectFailure(queryText: string): DbTestFailureMode | null {
+  if (!isTestEnvironment() || !dbTestFailureInjection) {
+    return null;
+  }
+  if (dbTestFailureInjection.remaining <= 0) {
+    return null;
+  }
+  if (
+    dbTestFailureInjection.matchQuery &&
+    !queryText.toLowerCase().includes(dbTestFailureInjection.matchQuery)
+  ) {
+    return null;
+  }
+  return dbTestFailureInjection.mode;
+}
+
 async function runQueryWithTestControls(
   queryFn: (...args: Parameters<Pool["query"]>) => ReturnType<Pool["query"]>,
   args: Parameters<Pool["query"]>,
@@ -268,6 +342,19 @@ async function runQueryWithTestControls(
     const error = new Error("timeout acquiring a client");
     (error as { code?: string }).code = "ETIMEDOUT";
     throw error;
+  }
+  const injectedFailure = shouldInjectFailure(queryText);
+  if (injectedFailure) {
+    dbTestFailureInjection = dbTestFailureInjection
+      ? {
+          ...dbTestFailureInjection,
+          remaining: dbTestFailureInjection.remaining - 1,
+        }
+      : null;
+    if (dbTestFailureInjection && dbTestFailureInjection.remaining <= 0) {
+      dbTestFailureInjection = null;
+    }
+    throw createInjectedFailure(injectedFailure);
   }
   const { delayMs, timeoutMs } = getTestQueryControls(queryText);
   const execute = async (): Promise<Awaited<ReturnType<Pool["query"]>>> => {
@@ -338,12 +425,53 @@ export async function warmUpDatabase(): Promise<void> {
 }
 
 export function assertPoolHealthy(): void {
-  const poolOptions = (pool as { options?: PoolConfig }).options;
-  const max = poolOptions?.max ?? poolConfig.max ?? 0;
-  const waitingCount = pool.waitingCount ?? 0;
-  const totalCount = pool.totalCount ?? 0;
+  const { max, waitingCount, totalCount } = getPoolMetrics();
   if (waitingCount > 0 && totalCount >= max) {
     throw new Error("db_pool_exhausted");
+  }
+}
+
+type PoolMetrics = {
+  totalCount: number;
+  idleCount: number;
+  waitingCount: number;
+  max: number;
+};
+
+let testPoolMetricsOverride: Partial<PoolMetrics> | null = null;
+
+export function setDbTestPoolMetricsOverride(
+  override: Partial<PoolMetrics> | null
+): void {
+  if (!isTestEnvironment()) {
+    return;
+  }
+  testPoolMetricsOverride = override ? { ...override } : null;
+}
+
+function getPoolMetrics(): PoolMetrics {
+  const poolState = pool as {
+    totalCount?: number;
+    idleCount?: number;
+    waitingCount?: number;
+    options?: PoolConfig;
+  };
+  const metrics: PoolMetrics = {
+    totalCount: poolState.totalCount ?? 0,
+    idleCount: poolState.idleCount ?? 0,
+    waitingCount: poolState.waitingCount ?? 0,
+    max: poolState.options?.max ?? poolConfig.max ?? 0,
+  };
+  if (isTestEnvironment() && testPoolMetricsOverride) {
+    return { ...metrics, ...testPoolMetricsOverride };
+  }
+  return metrics;
+}
+
+export function assertPoolHasFreeClient(): void {
+  const { idleCount } = getPoolMetrics();
+  if (idleCount < 1) {
+    throw new Error("db_pool_no_free_client");
   }
 }
 

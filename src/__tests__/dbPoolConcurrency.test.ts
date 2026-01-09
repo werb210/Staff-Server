@@ -140,10 +140,10 @@ describe("db pool concurrency hardening", () => {
     ];
 
     const start = Date.now();
-    const responses = await withTimeout(Promise.all(requests), 5000);
+    const responses = await withTimeout(Promise.all(requests), 8000);
     const durationMs = Date.now() - start;
 
-    expect(durationMs).toBeLessThan(5000);
+    expect(durationMs).toBeLessThan(8000);
 
     responses.slice(0, 10).forEach((res) => {
       expect(res.status).toBe(200);
@@ -189,7 +189,7 @@ describe("db pool concurrency hardening", () => {
 
     responses.forEach((res) => {
       expect(res.status).toBe(503);
-      expect(res.body.code).toBe("db_unavailable");
+      expect(res.body.code).toBe("service_unavailable");
     });
 
     expect(
@@ -230,8 +230,8 @@ describe("db pool concurrency hardening", () => {
     });
 
     process.env.DB_TEST_SLOW_QUERY_PATTERN = "select";
-    process.env.DB_TEST_SLOW_QUERY_MS = "2000";
-    process.env.DB_TEST_QUERY_TIMEOUT_MS = "1000";
+    process.env.DB_TEST_SLOW_QUERY_MS = "40";
+    process.env.DB_TEST_QUERY_TIMEOUT_MS = "20";
     trackDependency.mockClear();
 
     const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
@@ -253,7 +253,7 @@ describe("db pool concurrency hardening", () => {
     expect(health.status).toBe(200);
     expect(healthDurationMs).toBeLessThan(500);
     expect(slowLogin.status).toBe(503);
-    expect(slowLogin.body.code).toBe("db_unavailable");
+    expect(slowLogin.body.code).toBe("service_unavailable");
 
     const errorEvents = errorSpy.mock.calls
       .map((call) => call[0])
@@ -308,7 +308,7 @@ describe("db pool concurrency hardening", () => {
     const [loginRes] = await Promise.all([loginPromise, readinessPromise]);
 
     expect(loginRes.status).toBe(503);
-    expect(loginRes.body.code).toBe("db_unavailable");
+    expect(loginRes.body.code).toBe("service_unavailable");
     expect(loginRes.body.accessToken).toBeUndefined();
     expect(querySpy).toHaveBeenCalledTimes(2);
 

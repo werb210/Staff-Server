@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { assertPoolHealthy, checkDb } from "../db";
+import { assertPoolHasFreeClient, assertPoolHealthy, checkDb } from "../db";
 import { assertEnv } from "../config";
 import { assertMigrationsTableExists } from "../migrations";
 import { assertAuthSubsystem } from "../modules/auth/auth.service";
@@ -29,6 +29,7 @@ router.get("/ready", async (_req, res) => {
     assertAuthSubsystem();
     await checkDb();
     assertPoolHealthy();
+    assertPoolHasFreeClient();
     await assertMigrationsTableExists();
     res.json({ ok: true });
   } catch (err) {

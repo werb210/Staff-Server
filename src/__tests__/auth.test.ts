@@ -55,6 +55,10 @@ beforeAll(async () => {
 beforeEach(async () => {
   await resetDb();
   resetLoginRateLimit();
+  const { clearDbTestFailureInjection, setDbTestPoolMetricsOverride } =
+    await import("../db");
+  clearDbTestFailureInjection();
+  setDbTestPoolMetricsOverride(null);
 });
 
 afterAll(async () => {
@@ -248,9 +252,12 @@ describe("auth", () => {
   });
 
   it("returns 503 when auth lookup fails due to db outage", async () => {
-    const spy = jest
-      .spyOn(pool, "query")
-      .mockImplementationOnce(() => Promise.reject(new Error("db down")));
+    const { setDbTestFailureInjection } = await import("../db");
+    setDbTestFailureInjection({
+      mode: "connection_reset",
+      remaining: 2,
+      matchQuery: "from users",
+    });
 
     const res = await postWithRequestId("/api/auth/login").send({
       email: "db-down@example.com",
@@ -258,9 +265,7 @@ describe("auth", () => {
     });
 
     expect(res.status).toBe(503);
-    expect(res.body.code).toBe("db_unavailable");
-
-    spy.mockRestore();
+    expect(res.body.code).toBe("service_unavailable");
   });
 
   it("rejects login before database readiness", async () => {
@@ -273,7 +278,7 @@ describe("auth", () => {
     });
 
     expect(res.status).toBe(503);
-    expect(res.body.code).toBe("db_unavailable");
+    expect(res.body.code).toBe("service_unavailable");
 
     setDbConnected(true);
   });
@@ -281,11 +286,12 @@ describe("auth", () => {
   it("does not log invalid credentials when db times out", async () => {
     const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
     const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
-    const spy = jest
-      .spyOn(pool, "query")
-      .mockImplementationOnce(() =>
-        Promise.reject(new Error("timeout while connecting"))
-      );
+    const { setDbTestFailureInjection } = await import("../db");
+    setDbTestFailureInjection({
+      mode: "connection_timeout",
+      remaining: 2,
+      matchQuery: "from users",
+    });
 
     const res = await postWithRequestId("/api/auth/login").send({
       email: "timeout@example.com",
@@ -293,7 +299,7 @@ describe("auth", () => {
     });
 
     expect(res.status).toBe(503);
-    expect(res.body.code).toBe("db_unavailable");
+    expect(res.body.code).toBe("service_unavailable");
 
     const warnings = warnSpy.mock.calls
       .map((call) => call[0])
@@ -313,7 +319,6 @@ describe("auth", () => {
 
     warnSpy.mockRestore();
     errorSpy.mockRestore();
-    spy.mockRestore();
   });
 
   it("logs in successfully after database warm-up", async () => {
@@ -964,11 +969,15 @@ describe("auth", () => {
     );
     fs.writeFileSync(migrationPath, "select 1;");
     try {
+      const { setDbTestPoolMetricsOverride } = await import("../db");
+      setDbTestPoolMetricsOverride({ idleCount: 1 });
       await expect(initializeServer()).resolves.toBeUndefined();
       const res = await request(app).get("/api/_int/ready");
       expect(res.status).toBe(200);
       expect(res.body.ok).toBe(true);
     } finally {
+      const { setDbTestPoolMetricsOverride } = await import("../db");
+      setDbTestPoolMetricsOverride(null);
       fs.unlinkSync(migrationPath);
     }
   });
