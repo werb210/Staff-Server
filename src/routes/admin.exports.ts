@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { AppError } from "../middleware/errors";
 import { requireAuth, requireCapability } from "../middleware/auth";
 import { CAPABILITIES } from "../auth/capabilities";
@@ -86,7 +86,7 @@ async function handleExport(params: {
   });
 }
 
-router.post("/pipeline", async (req, res, next) => {
+router.post("/pipeline", async (req: Request, res: Response, next: NextFunction) => {
   try {
     await assertExportsEnabled();
     const format = parseFormat(req.body?.format);
@@ -154,7 +154,7 @@ router.post("/pipeline", async (req, res, next) => {
   }
 });
 
-router.post("/lenders", async (req, res, next) => {
+router.post("/lenders", async (req: Request, res: Response, next: NextFunction) => {
   try {
     await assertExportsEnabled();
     const format = parseFormat(req.body?.format);
@@ -222,7 +222,7 @@ router.post("/lenders", async (req, res, next) => {
   }
 });
 
-router.post("/applications", async (req, res, next) => {
+router.post("/applications", async (req: Request, res: Response, next: NextFunction) => {
   try {
     await assertExportsEnabled();
     const format = parseFormat(req.body?.format);

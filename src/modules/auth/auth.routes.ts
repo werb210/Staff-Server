@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { AppError } from "../../middleware/errors";
 import {
   loginRateLimit,
@@ -19,71 +19,54 @@ import {
 
 const router = Router();
 
-router.post("/login", loginRateLimit(), async (req, res, next) => {
-  try {
-    const { email, password } = req.body ?? {};
+router.post(
+  "/login",
+  loginRateLimit(),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { email, password } = req.body ?? {};
 
-    if (!email || !password) {
-      throw new AppError(
-        "missing_credentials",
-        "Email and password are required.",
-        400
-      );
+      if (!email || !password) {
+        throw new AppError("missing_credentials", "Email and password are required.", 400);
+      }
+
+      const result = await loginUser(email, password, req.ip, req.get("user-agent"));
+      res.status(200).json(result);
+    } catch (err) {
+      next(err);
     }
-
-    const result = await loginUser(
-      email,
-      password,
-      req.ip,
-      req.get("user-agent")
-    );
-    res.status(200).json(result);
-  } catch (err) {
-    next(err);
   }
-});
+);
 
-router.post("/refresh", refreshRateLimit(), async (req, res, next) => {
-  try {
-    const { refreshToken } = req.body ?? {};
-    if (!refreshToken) {
-      throw new AppError(
-        "missing_token",
-        "Refresh token is required.",
-        400
-      );
+router.post(
+  "/refresh",
+  refreshRateLimit(),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { refreshToken } = req.body ?? {};
+      if (!refreshToken) {
+        throw new AppError("missing_token", "Refresh token is required.", 400);
+      }
+      const session = await refreshSession(refreshToken, req.ip, req.get("user-agent"));
+      res.json(session);
+    } catch (err) {
+      next(err);
     }
-    const session = await refreshSession(
-      refreshToken,
-      req.ip,
-      req.get("user-agent")
-    );
-    res.json(session);
-  } catch (err) {
-    next(err);
   }
-});
+);
 
 router.post(
   "/logout",
   requireAuth,
   requireCapability([CAPABILITIES.AUTH_SESSION]),
-  async (req, res, next) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { refreshToken } = req.body ?? {};
       if (!refreshToken) {
-        throw new AppError(
-          "missing_token",
-          "Refresh token is required.",
-          400
-        );
+        throw new AppError("missing_token", "Refresh token is required.", 400);
       }
       if (!req.user) {
-        throw new AppError(
-          "missing_token",
-          "Authorization token is required.",
-          401
-        );
+        throw new AppError("missing_token", "Authorization token is required.", 401);
       }
       await logoutUser({
         userId: req.user.userId,
@@ -102,14 +85,10 @@ router.post(
   "/logout-all",
   requireAuth,
   requireCapability([CAPABILITIES.AUTH_SESSION]),
-  async (req, res, next) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user) {
-        throw new AppError(
-          "missing_token",
-          "Authorization token is required.",
-          401
-        );
+        throw new AppError("missing_token", "Authorization token is required.", 401);
       }
       await logoutAll({
         userId: req.user.userId,
@@ -127,15 +106,15 @@ router.get(
   "/me",
   requireAuth,
   requireCapability([CAPABILITIES.AUTH_SESSION]),
-  async (req, res, next) => {
-  try {
-    if (!req.user) {
-      throw new AppError("missing_token", "Authorization token is required.", 401);
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) {
+        throw new AppError("missing_token", "Authorization token is required.", 401);
+      }
+      res.json({ user: req.user });
+    } catch (err) {
+      next(err);
     }
-    res.json({ user: req.user });
-  } catch (err) {
-    next(err);
-  }
   }
 );
 
@@ -144,7 +123,7 @@ router.post(
   requireAuth,
   requireCapability([CAPABILITIES.USER_MANAGE]),
   passwordResetRateLimit(),
-  async (req, res, next) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { userId } = req.body ?? {};
       if (!userId) {
@@ -166,15 +145,11 @@ router.post(
 router.post(
   "/password-reset/confirm",
   passwordResetRateLimit(),
-  async (req, res, next) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { token, newPassword } = req.body ?? {};
       if (!token || !newPassword) {
-        throw new AppError(
-          "missing_fields",
-          "Token and newPassword are required.",
-          400
-        );
+        throw new AppError("missing_fields", "Token and newPassword are required.", 400);
       }
       await confirmPasswordReset({
         token,
@@ -193,22 +168,14 @@ router.post(
   "/password-change",
   requireAuth,
   requireCapability([CAPABILITIES.AUTH_SESSION]),
-  async (req, res, next) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { currentPassword, newPassword } = req.body ?? {};
       if (!currentPassword || !newPassword) {
-        throw new AppError(
-          "missing_fields",
-          "currentPassword and newPassword are required.",
-          400
-        );
+        throw new AppError("missing_fields", "currentPassword and newPassword are required.", 400);
       }
       if (!req.user) {
-        throw new AppError(
-          "missing_token",
-          "Authorization token is required.",
-          401
-        );
+        throw new AppError("missing_token", "Authorization token is required.", 401);
       }
       await changePassword({
         userId: req.user.userId,

@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { AppError } from "../middleware/errors";
 import { requireAuth, requireCapability } from "../middleware/auth";
 import { CAPABILITIES } from "../auth/capabilities";
@@ -28,7 +28,7 @@ function assertKillSwitchKey(key: string): asserts key is OpsKillSwitchKey {
   }
 }
 
-router.get("/kill-switches", async (req, res, next) => {
+router.get("/kill-switches", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const switches = await listKillSwitches();
     await recordAuditEvent({
@@ -47,49 +47,55 @@ router.get("/kill-switches", async (req, res, next) => {
   }
 });
 
-router.post("/kill-switches/:key/enable", async (req, res, next) => {
-  try {
-    const key = req.params.key ?? "";
-    assertKillSwitchKey(key);
-    await setKillSwitch(key, true);
-    await recordAuditEvent({
-      action: "ops_kill_switch_enabled",
-      actorUserId: req.user?.userId ?? null,
-      targetUserId: null,
-      targetType: "ops_kill_switch",
-      targetId: key,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
-      success: true,
-    });
-    res.json({ key, enabled: true });
-  } catch (err) {
-    next(err);
+router.post(
+  "/kill-switches/:key/enable",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const key = req.params.key ?? "";
+      assertKillSwitchKey(key);
+      await setKillSwitch(key, true);
+      await recordAuditEvent({
+        action: "ops_kill_switch_enabled",
+        actorUserId: req.user?.userId ?? null,
+        targetUserId: null,
+        targetType: "ops_kill_switch",
+        targetId: key,
+        ip: req.ip,
+        userAgent: req.get("user-agent"),
+        success: true,
+      });
+      res.json({ key, enabled: true });
+    } catch (err) {
+      next(err);
+    }
   }
-});
+);
 
-router.post("/kill-switches/:key/disable", async (req, res, next) => {
-  try {
-    const key = req.params.key ?? "";
-    assertKillSwitchKey(key);
-    await setKillSwitch(key, false);
-    await recordAuditEvent({
-      action: "ops_kill_switch_disabled",
-      actorUserId: req.user?.userId ?? null,
-      targetUserId: null,
-      targetType: "ops_kill_switch",
-      targetId: key,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
-      success: true,
-    });
-    res.json({ key, enabled: false });
-  } catch (err) {
-    next(err);
+router.post(
+  "/kill-switches/:key/disable",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const key = req.params.key ?? "";
+      assertKillSwitchKey(key);
+      await setKillSwitch(key, false);
+      await recordAuditEvent({
+        action: "ops_kill_switch_disabled",
+        actorUserId: req.user?.userId ?? null,
+        targetUserId: null,
+        targetType: "ops_kill_switch",
+        targetId: key,
+        ip: req.ip,
+        userAgent: req.get("user-agent"),
+        success: true,
+      });
+      res.json({ key, enabled: false });
+    } catch (err) {
+      next(err);
+    }
   }
-});
+);
 
-router.post("/replay/:scope", async (req, res, next) => {
+router.post("/replay/:scope", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const scope = req.params.scope ?? "";
     if (!REPLAY_SCOPES.includes(scope as (typeof REPLAY_SCOPES)[number])) {
@@ -118,26 +124,29 @@ router.post("/replay/:scope", async (req, res, next) => {
   }
 });
 
-router.get("/replay/:id/status", async (req, res, next) => {
-  try {
-    const job = await getReplayJobStatus(req.params.id);
-    if (!job) {
-      throw new AppError("not_found", "Replay job not found.", 404);
+router.get(
+  "/replay/:id/status",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const job = await getReplayJobStatus(req.params.id);
+      if (!job) {
+        throw new AppError("not_found", "Replay job not found.", 404);
+      }
+      await recordAuditEvent({
+        action: "ops_replay_status_viewed",
+        actorUserId: req.user?.userId ?? null,
+        targetUserId: null,
+        targetType: "ops_replay",
+        targetId: job.id,
+        ip: req.ip,
+        userAgent: req.get("user-agent"),
+        success: true,
+      });
+      res.json({ job });
+    } catch (err) {
+      next(err);
     }
-    await recordAuditEvent({
-      action: "ops_replay_status_viewed",
-      actorUserId: req.user?.userId ?? null,
-      targetUserId: null,
-      targetType: "ops_replay",
-      targetId: job.id,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
-      success: true,
-    });
-    res.json({ job });
-  } catch (err) {
-    next(err);
   }
-});
+);
 
 export default router;
