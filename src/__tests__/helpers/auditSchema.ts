@@ -28,8 +28,10 @@ export async function ensureAuditEventSchema(): Promise<void> {
     }
   }
 
+  await pool.query("alter table audit_events alter column action drop not null");
+  await pool.query("create sequence if not exists audit_events_id_seq");
   await pool.query(
-    "alter table audit_events alter column id set default md5(random()::text)"
+    "alter table audit_events alter column id set default nextval('audit_events_id_seq')::text"
   );
   await pool.query(
     "alter table audit_events alter column created_at set default now()"

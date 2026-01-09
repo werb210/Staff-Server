@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { pool } from "../../db";
+import { isPgMem, pool } from "../../db";
 import { type PoolClient } from "pg";
 import { type Role } from "../../auth/roles";
 
@@ -28,7 +28,7 @@ let cachedHasPasswordChangedAt: boolean | null = null;
 async function hasPasswordChangedAtColumn(
   client?: Queryable
 ): Promise<boolean> {
-  if (cachedHasPasswordChangedAt !== null) {
+  if (cachedHasPasswordChangedAt !== null && !isPgMem) {
     return cachedHasPasswordChangedAt;
   }
 
@@ -45,8 +45,11 @@ async function hasPasswordChangedAtColumn(
     `
   );
 
-  cachedHasPasswordChangedAt = (res.rowCount ?? 0) > 0;
-  return cachedHasPasswordChangedAt;
+  const hasColumn = (res.rowCount ?? 0) > 0;
+  if (!isPgMem) {
+    cachedHasPasswordChangedAt = hasColumn;
+  }
+  return hasColumn;
 }
 
 export async function findAuthUserByEmail(
@@ -171,6 +174,22 @@ export interface PasswordResetRecord {
   created_at: Date;
 }
 
+export async function hasActivePasswordReset(
+  userId: string,
+  client?: Queryable
+): Promise<boolean> {
+  const runner = client ?? pool;
+  const res = await runner.query(
+    `select 1 from password_resets
+     where user_id = $1
+       and used_at is null
+       and expires_at > now()::timestamp
+     limit 1`,
+    [userId]
+  );
+  return (res.rowCount ?? 0) > 0;
+}
+
 export async function storeRefreshToken(params: {
   userId: string;
   tokenHash: string;
@@ -179,13 +198,12 @@ export async function storeRefreshToken(params: {
 }): Promise<void> {
   const runner = params.client ?? pool;
   await runner.query(
+    `delete from auth_refresh_tokens where user_id = $1`,
+    [params.userId]
+  );
+  await runner.query(
     `insert into auth_refresh_tokens (id, user_id, token_hash, expires_at, revoked_at, created_at)
-     values ($1, $2, $3, $4, null, now())
-     on conflict (user_id)
-     do update set token_hash = excluded.token_hash,
-                   expires_at = excluded.expires_at,
-                   revoked_at = null,
-                   created_at = excluded.created_at`,
+     values ($1, $2, $3, $4, null, now())`,
     [randomUUID(), params.userId, params.tokenHash, params.expiresAt]
   );
 }

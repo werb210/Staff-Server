@@ -190,7 +190,7 @@ describe("auth", () => {
     });
 
     expect(res.status).toBe(401);
-    expect(res.body.code).toBe("invalid_credentials");
+    expect(res.body.code).toBe("password_mismatch");
     expect(res.body.requestId).toBeDefined();
   });
 
@@ -260,7 +260,7 @@ describe("auth", () => {
     });
 
     expect(res.status).toBe(403);
-    expect(res.body.code).toBe("user_disabled");
+    expect(res.body.code).toBe("account_disabled");
     expect(res.body.requestId).toBeDefined();
   });
 
