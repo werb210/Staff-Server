@@ -7,9 +7,6 @@ import { installProcessHandlers } from "./observability/processHandlers";
 import { setDbConnected, setSchemaReady } from "./startupState";
 import { runStartupConsistencyCheck } from "./startup/consistencyCheck";
 
-initializeAppInsights();
-installProcessHandlers();
-
 const logger = {
   info: (fields: { event: string; [key: string]: unknown }): void => {
     const { event, ...rest } = fields;
@@ -54,6 +51,28 @@ const server = app.listen(PORT, "0.0.0.0", () => {
     pid: process.pid,
   });
 });
+
+const startupWatchdogMs = Number(process.env.STARTUP_WATCHDOG_MS ?? 15000);
+const watchdog = setTimeout(() => {
+  if (!server.listening) {
+    logError("startup_timeout", {
+      message: "Server did not start listening before watchdog timeout.",
+      timeoutMs: startupWatchdogMs,
+    });
+    process.exit(1);
+  }
+}, startupWatchdogMs);
+
+server.once("listening", () => {
+  clearTimeout(watchdog);
+});
+
+server.once("error", () => {
+  clearTimeout(watchdog);
+});
+
+initializeAppInsights();
+installProcessHandlers();
 
 if (!isTestEnvironment()) {
   void logStartupStatus();

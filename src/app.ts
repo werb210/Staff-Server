@@ -2,7 +2,7 @@ import cors from "cors";
 import express from "express";
 
 import apiRouter from "./api";
-import readyRoutes from "./routes/ready";
+import readyRoutes, { healthHandler, readyHandler } from "./routes/ready";
 import { printRoutes } from "./debug/printRoutes";
 import { runMigrations } from "./migrations";
 import { requestId } from "./middleware/requestId";
@@ -28,9 +28,8 @@ export function buildApp(): express.Express {
   app.use(express.json({ limit: "10mb" }));
   app.use(express.urlencoded({ extended: true }));
 
-  app.get("/health", (_req, res) => {
-    res.json({ ok: true });
-  });
+  app.get("/health", healthHandler);
+  app.get("/ready", readyHandler);
 
   app.get("/", (_req, res) => {
     res.json({ status: "ok" });

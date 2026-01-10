@@ -1,13 +1,24 @@
+import type { Request, Response } from "express";
 import { Router } from "express";
+import { getStartupState } from "../startupState";
 
 const router = Router();
 
-router.get("/health", (_req, res) => {
-  res.json({ ok: true });
-});
+export function healthHandler(_req: Request, res: Response): void {
+  res.status(200).json({ ok: true });
+}
 
-router.get("/ready", (_req, res) => {
-  res.json({ ok: true });
-});
+export function readyHandler(_req: Request, res: Response): void {
+  const { dbConnected, schemaReady } = getStartupState();
+  const ready = dbConnected && schemaReady;
+  if (!ready) {
+    res.status(503).json({ ok: false });
+    return;
+  }
+  res.status(200).json({ ok: true });
+}
+
+router.get("/health", healthHandler);
+router.get("/ready", readyHandler);
 
 export default router;
