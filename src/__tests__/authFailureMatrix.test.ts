@@ -25,6 +25,8 @@ let pool: Pool;
 let createUserAccount: CreateUserAccount;
 
 const loginPassword = "Password123!";
+let idempotencyCounter = 0;
+const nextIdempotencyKey = (): string => `idem-auth-failure-${idempotencyCounter++}`;
 
 async function resetDb(): Promise<void> {
   await pool.query("delete from client_submissions");
@@ -89,6 +91,7 @@ beforeEach(async () => {
   trackRequest.mockClear();
   trackDependency.mockClear();
   trackException.mockClear();
+  idempotencyCounter = 0;
   const { clearDbTestFailureInjection, setDbTestPoolMetricsOverride } =
     await import("../db");
   clearDbTestFailureInjection();
@@ -120,6 +123,7 @@ describe("auth failure matrix", () => {
     const requestId = "matrix-db-down";
     const res = await request(app)
       .post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("x-request-id", requestId)
       .send({ email: "down-before@example.com", password: loginPassword });
 
@@ -146,6 +150,7 @@ describe("auth failure matrix", () => {
     const requestId = "matrix-db-timeout";
     const res = await request(app)
       .post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("x-request-id", requestId)
       .send({ email: "timeout-password@example.com", password: loginPassword });
 
@@ -172,6 +177,7 @@ describe("auth failure matrix", () => {
     const requestId = "matrix-db-retry";
     const res = await request(app)
       .post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("x-request-id", requestId)
       .send({ email: "retry-once@example.com", password: loginPassword });
 
@@ -198,6 +204,7 @@ describe("auth failure matrix", () => {
     const requestId = "matrix-invalid";
     const res = await request(app)
       .post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("x-request-id", requestId)
       .send({ email: "invalid-password@example.com", password: "bad" });
 
@@ -220,6 +227,7 @@ describe("auth failure matrix", () => {
     const requestId = "matrix-slow";
     const res = await request(app)
       .post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("x-request-id", requestId)
       .send({ email: "slow-db@example.com", password: "bad" });
 
@@ -245,6 +253,7 @@ describe("auth failure matrix", () => {
     const requestId = "matrix-expired";
     const res = await request(app)
       .post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("x-request-id", requestId)
       .send({ email: "expired-password@example.com", password: loginPassword });
 
@@ -277,6 +286,7 @@ describe("auth failure matrix", () => {
     const requestId = "matrix-expired-down";
     const res = await request(app)
       .post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("x-request-id", requestId)
       .send({ email: "expired-db-down@example.com", password: loginPassword });
 

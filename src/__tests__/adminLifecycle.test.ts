@@ -9,6 +9,8 @@ import { ensureAuditEventSchema } from "./helpers/auditSchema";
 
 const app = buildAppWithApiRoutes();
 const requestId = "test-request-id";
+let idempotencyCounter = 0;
+const nextIdempotencyKey = (): string => `idem-admin-${idempotencyCounter++}`;
 
 async function resetDb(): Promise<void> {
   await pool.query("delete from client_submissions");
@@ -43,6 +45,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await resetDb();
+  idempotencyCounter = 0;
 });
 
 afterAll(async () => {
@@ -58,6 +61,7 @@ describe("admin lifecycle", () => {
     });
     const staffLogin = await request(app)
       .post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("x-request-id", requestId)
       .send({
       email: "staff@example.com",
@@ -66,6 +70,7 @@ describe("admin lifecycle", () => {
 
     const res = await request(app)
       .post("/api/users")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${staffLogin.body.accessToken}`)
       .set("x-request-id", requestId)
       .send({
@@ -92,6 +97,7 @@ describe("admin lifecycle", () => {
 
     const adminLogin = await request(app)
       .post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("x-request-id", requestId)
       .send({
       email: admin.email,
@@ -99,6 +105,7 @@ describe("admin lifecycle", () => {
     });
     const userLogin = await request(app)
       .post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("x-request-id", requestId)
       .send({
       email: user.email,
@@ -107,12 +114,14 @@ describe("admin lifecycle", () => {
 
     const disable = await request(app)
       .post(`/api/users/${user.id}/disable`)
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${adminLogin.body.accessToken}`)
       .set("x-request-id", requestId);
     expect(disable.status).toBe(200);
 
     const refresh = await request(app)
       .post("/api/auth/refresh")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("x-request-id", requestId)
       .send({
       refreshToken: await issueRefreshTokenForUser(user.id),
@@ -135,6 +144,7 @@ describe("admin lifecycle", () => {
     });
     const adminLogin = await request(app)
       .post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("x-request-id", requestId)
       .send({
       email: admin.email,
@@ -143,6 +153,7 @@ describe("admin lifecycle", () => {
 
     const created = await request(app)
       .post("/api/users")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${adminLogin.body.accessToken}`)
       .set("x-request-id", requestId)
       .send({
@@ -155,18 +166,21 @@ describe("admin lifecycle", () => {
 
     const disable = await request(app)
       .post(`/api/users/${userId}/disable`)
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${adminLogin.body.accessToken}`)
       .set("x-request-id", requestId);
     expect(disable.status).toBe(200);
 
     const enable = await request(app)
       .post(`/api/users/${userId}/enable`)
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${adminLogin.body.accessToken}`)
       .set("x-request-id", requestId);
     expect(enable.status).toBe(200);
 
     const roleChange = await request(app)
       .post(`/api/users/${userId}/role`)
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${adminLogin.body.accessToken}`)
       .set("x-request-id", requestId)
       .send({ role: ROLES.ADMIN });

@@ -6,6 +6,8 @@ import { ensureAuditEventSchema } from "./helpers/auditSchema";
 
 const app = buildAppWithApiRoutes();
 const requestId = "test-request-id";
+let idempotencyCounter = 0;
+const nextIdempotencyKey = (): string => `idem-client-${idempotencyCounter++}`;
 
 async function resetDb(): Promise<void> {
   await pool.query("delete from client_submissions");
@@ -40,6 +42,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await resetDb();
+  idempotencyCounter = 0;
 });
 
 afterAll(async () => {
@@ -87,6 +90,7 @@ describe("client submissions", () => {
 
     const res = await request(app)
       .post("/api/client/submissions")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("x-request-id", requestId)
       .send(payload);
 
@@ -141,6 +145,7 @@ describe("client submissions", () => {
 
     const res = await request(app)
       .post("/api/client/submissions")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("x-request-id", requestId)
       .send(payload);
 

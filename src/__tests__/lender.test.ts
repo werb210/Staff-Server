@@ -8,6 +8,8 @@ import { ensureAuditEventSchema } from "./helpers/auditSchema";
 
 const app = buildAppWithApiRoutes();
 const requestId = "test-request-id";
+let idempotencyCounter = 0;
+const nextIdempotencyKey = (): string => `idem-lender-${idempotencyCounter++}`;
 
 async function resetDb(): Promise<void> {
   await pool.query("delete from client_submissions");
@@ -42,6 +44,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await resetDb();
+  idempotencyCounter = 0;
 });
 
 afterAll(async () => {
@@ -58,6 +61,7 @@ describe("lender submissions", () => {
 
     const login = await request(app)
       .post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("x-request-id", requestId)
       .send({
       email: "lender@apps.com",
@@ -66,6 +70,7 @@ describe("lender submissions", () => {
 
     const appRes = await request(app)
       .post("/api/applications")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
       .send({ name: "Lender Application", productType: "standard" });
@@ -74,6 +79,7 @@ describe("lender submissions", () => {
 
     const bank = await request(app)
       .post(`/api/applications/${applicationId}/documents`)
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
       .send({
@@ -84,6 +90,7 @@ describe("lender submissions", () => {
       });
     const idDoc = await request(app)
       .post(`/api/applications/${applicationId}/documents`)
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
       .send({
@@ -97,6 +104,7 @@ describe("lender submissions", () => {
       .post(
         `/api/applications/${applicationId}/documents/${bank.body.document.documentId}/versions/${bank.body.document.versionId}/accept`
       )
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId);
 
@@ -104,22 +112,26 @@ describe("lender submissions", () => {
       .post(
         `/api/applications/${applicationId}/documents/${idDoc.body.document.documentId}/versions/${idDoc.body.document.versionId}/accept`
       )
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId);
 
+    const idempotencyKey = nextIdempotencyKey();
     const submission1 = await request(app)
       .post("/api/lender/submissions")
+      .set("Idempotency-Key", idempotencyKey)
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
-      .send({ applicationId, idempotencyKey: "key-123" });
+      .send({ applicationId });
     expect(submission1.status).toBe(201);
 
     const submission2 = await request(app)
       .post("/api/lender/submissions")
+      .set("Idempotency-Key", idempotencyKey)
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
-      .send({ applicationId, idempotencyKey: "key-123" });
-    expect(submission2.status).toBe(200);
+      .send({ applicationId });
+    expect(submission2.status).toBe(submission1.status);
     expect(submission2.body.submission.id).toBe(submission1.body.submission.id);
 
     const status = await request(app)
@@ -136,7 +148,6 @@ describe("lender submissions", () => {
     );
     expect(audit.rows.map((row) => row.action)).toEqual([
       "lender_submission_created",
-      "lender_submission_retried",
     ]);
   });
 
@@ -149,6 +160,7 @@ describe("lender submissions", () => {
 
     const login = await request(app)
       .post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("x-request-id", requestId)
       .send({
       email: "lender2@apps.com",
@@ -157,12 +169,14 @@ describe("lender submissions", () => {
 
     const appRes = await request(app)
       .post("/api/applications")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
       .send({ name: "Blocked Application", productType: "standard" });
 
     const submission = await request(app)
       .post("/api/lender/submissions")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
       .send({ applicationId: appRes.body.application.id });
@@ -181,6 +195,7 @@ describe("lender submissions", () => {
 
     const login = await request(app)
       .post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("x-request-id", requestId)
       .send({
         email: "retry@apps.com",
@@ -189,6 +204,7 @@ describe("lender submissions", () => {
 
     const appRes = await request(app)
       .post("/api/applications")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
       .send({ name: "Retry Application", productType: "standard" });
@@ -197,6 +213,12 @@ describe("lender submissions", () => {
 
     const bank = await request(app)
       .post(`/api/applications/${applicationId}/documents`)
+      .set("Idempotency-Key", nextIdempotencyKey())
+      .set("Idempotency-Key", nextIdempotencyKey())
+      .set("Idempotency-Key", nextIdempotencyKey())
+      .set("Idempotency-Key", nextIdempotencyKey())
+      .set("Idempotency-Key", nextIdempotencyKey())
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
       .send({
@@ -207,6 +229,7 @@ describe("lender submissions", () => {
       });
     const idDoc = await request(app)
       .post(`/api/applications/${applicationId}/documents`)
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
       .send({
@@ -220,6 +243,7 @@ describe("lender submissions", () => {
       .post(
         `/api/applications/${applicationId}/documents/${bank.body.document.documentId}/versions/${bank.body.document.versionId}/accept`
       )
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId);
 
@@ -227,11 +251,13 @@ describe("lender submissions", () => {
       .post(
         `/api/applications/${applicationId}/documents/${idDoc.body.document.documentId}/versions/${idDoc.body.document.versionId}/accept`
       )
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId);
 
     const submission = await request(app)
       .post("/api/lender/submissions")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
       .send({ applicationId, lenderId: "timeout" });
@@ -240,6 +266,7 @@ describe("lender submissions", () => {
 
     const retry = await request(app)
       .post(`/api/admin/transmissions/${submission.body.submission.id}/retry`)
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId);
     expect(retry.status).toBe(200);

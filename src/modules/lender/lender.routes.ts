@@ -17,7 +17,7 @@ router.post(
       if (!req.user) {
         throw new AppError("missing_token", "Authorization token is required.", 401);
       }
-      const { applicationId, idempotencyKey, lenderId } = req.body ?? {};
+      const { applicationId, lenderId } = req.body ?? {};
       if (!applicationId) {
         throw new AppError(
           "missing_fields",
@@ -27,7 +27,7 @@ router.post(
       }
       const submission = await submitApplication({
         applicationId,
-        idempotencyKey: idempotencyKey ?? null,
+        idempotencyKey: req.get("idempotency-key") ?? null,
         lenderId: lenderId ?? "default",
         actorUserId: req.user.userId,
         ip: req.ip,

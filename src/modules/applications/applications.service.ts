@@ -18,7 +18,6 @@ import {
 import { pool } from "../../db";
 import { type Role, ROLES } from "../../auth/roles";
 import { type PoolClient } from "pg";
-import { createIdempotencyRecord, findIdempotencyRecord } from "../idempotency/idempotency.repo";
 import { getDocumentCategory, getRequirements, isSupportedProductType } from "./documentRequirements";
 import {
   PIPELINE_STATES,
@@ -27,9 +26,7 @@ import {
   type PipelineState,
 } from "./pipelineState";
 import { getDocumentAllowedMimeTypes, getDocumentMaxSizeBytes } from "../../config";
-
-const IDEMPOTENCY_SCOPE_APPLICATION = "application_create";
-const IDEMPOTENCY_SCOPE_DOCUMENT = "document_upload";
+import { recordTransactionRollback } from "../../observability/transactionTelemetry";
 
 export type ApplicationResponse = {
   id: string;
@@ -257,7 +254,6 @@ export async function createApplicationForUser(params: {
   name: string;
   metadata: unknown | null;
   productType?: string | null;
-  idempotencyKey?: string | null;
   actorUserId: string | null;
   actorRole?: Role | null;
   ip?: string;
@@ -266,23 +262,9 @@ export async function createApplicationForUser(params: {
   const client = await pool.connect();
   try {
     await client.query("begin");
-    if (params.idempotencyKey && params.actorUserId) {
-      const existing = await findIdempotencyRecord({
-        actorUserId: params.actorUserId,
-        scope: IDEMPOTENCY_SCOPE_APPLICATION,
-        idempotencyKey: params.idempotencyKey,
-        client,
-      });
-      if (existing) {
-        await client.query("commit");
-        return {
-          status: existing.status_code,
-          value: (existing.response_body as { application: ApplicationResponse })
-            .application,
-          idempotent: true,
-        };
-      }
-    }
+    await client.query("select id from users where id = $1 for update", [
+      params.ownerUserId,
+    ]);
 
     const application = await createApplication({
       ownerUserId: params.ownerUserId,
@@ -326,20 +308,10 @@ export async function createApplicationForUser(params: {
       updatedAt: updated.updated_at,
     };
 
-    if (params.idempotencyKey && params.actorUserId) {
-      await createIdempotencyRecord({
-        actorUserId: params.actorUserId,
-        scope: IDEMPOTENCY_SCOPE_APPLICATION,
-        idempotencyKey: params.idempotencyKey,
-        statusCode: 201,
-        responseBody: { application: response },
-        client,
-      });
-    }
-
     await client.query("commit");
     return { status: 201, value: response, idempotent: false };
   } catch (err) {
+    recordTransactionRollback(err);
     await client.query("rollback");
     throw err;
   } finally {
@@ -354,7 +326,6 @@ export async function uploadDocument(params: {
   documentType?: string | null;
   metadata: unknown;
   content: string;
-  idempotencyKey?: string | null;
   actorUserId: string;
   actorRole: Role;
   ip?: string;
@@ -445,24 +416,6 @@ export async function uploadDocument(params: {
   const client = await pool.connect();
   try {
     await client.query("begin");
-    if (params.idempotencyKey) {
-      const existing = await findIdempotencyRecord({
-        actorUserId: params.actorUserId,
-        scope: IDEMPOTENCY_SCOPE_DOCUMENT,
-        idempotencyKey: params.idempotencyKey,
-        client,
-      });
-      if (existing) {
-        await client.query("commit");
-        return {
-          status: existing.status_code,
-          value: (existing.response_body as { document: DocumentUploadResponse })
-            .document,
-          idempotent: true,
-        };
-      }
-    }
-
     let documentId = params.documentId ?? null;
     if (documentId) {
       const existingDoc = await findDocumentById(documentId, client);
@@ -561,21 +514,11 @@ export async function uploadDocument(params: {
       version: version.version,
     };
 
-    if (params.idempotencyKey) {
-      await createIdempotencyRecord({
-        actorUserId: params.actorUserId,
-        scope: IDEMPOTENCY_SCOPE_DOCUMENT,
-        idempotencyKey: params.idempotencyKey,
-        statusCode: 201,
-        responseBody: { document: response },
-        client,
-      });
-    }
-
     await client.query("commit");
 
     return { status: 201, value: response, idempotent: false };
   } catch (err) {
+    recordTransactionRollback(err);
     try {
       await client.query("rollback");
     } catch {
@@ -653,6 +596,9 @@ export async function acceptDocumentVersion(params: {
     if (!document || document.application_id !== params.applicationId) {
       throw new AppError("not_found", "Document not found.", 404);
     }
+    await client.query("select id from document_versions where id = $1 for update", [
+      params.documentVersionId,
+    ]);
     const version = await findDocumentVersionById(params.documentVersionId, client);
     if (!version || version.document_id !== params.documentId) {
       throw new AppError("not_found", "Document version not found.", 404);
@@ -662,12 +608,19 @@ export async function acceptDocumentVersion(params: {
       throw new AppError("version_reviewed", "Document version already reviewed.", 409);
     }
 
-    await createDocumentVersionReview({
-      documentVersionId: params.documentVersionId,
-      status: "accepted",
-      reviewedByUserId: params.actorUserId,
-      client,
-    });
+    try {
+      await createDocumentVersionReview({
+        documentVersionId: params.documentVersionId,
+        status: "accepted",
+        reviewedByUserId: params.actorUserId,
+        client,
+      });
+    } catch (error) {
+      if ((error as { code?: string }).code === "23505") {
+        throw new AppError("version_reviewed", "Document version already reviewed.", 409);
+      }
+      throw error;
+    }
 
     await recordAuditEvent({
       action: "document_accepted",
@@ -741,6 +694,9 @@ export async function rejectDocumentVersion(params: {
     if (!document || document.application_id !== params.applicationId) {
       throw new AppError("not_found", "Document not found.", 404);
     }
+    await client.query("select id from document_versions where id = $1 for update", [
+      params.documentVersionId,
+    ]);
     const version = await findDocumentVersionById(params.documentVersionId, client);
     if (!version || version.document_id !== params.documentId) {
       throw new AppError("not_found", "Document version not found.", 404);
@@ -750,12 +706,19 @@ export async function rejectDocumentVersion(params: {
       throw new AppError("version_reviewed", "Document version already reviewed.", 409);
     }
 
-    await createDocumentVersionReview({
-      documentVersionId: params.documentVersionId,
-      status: "rejected",
-      reviewedByUserId: params.actorUserId,
-      client,
-    });
+    try {
+      await createDocumentVersionReview({
+        documentVersionId: params.documentVersionId,
+        status: "rejected",
+        reviewedByUserId: params.actorUserId,
+        client,
+      });
+    } catch (error) {
+      if ((error as { code?: string }).code === "23505") {
+        throw new AppError("version_reviewed", "Document version already reviewed.", 409);
+      }
+      throw error;
+    }
 
     await recordAuditEvent({
       action: "document_rejected",

@@ -158,6 +158,10 @@ export function getLenderRetryMaxCount(): number {
   return parsePositiveInt(process.env.LENDER_RETRY_MAX_COUNT, 5);
 }
 
+export function getRequestTimeoutMs(): number {
+  return parsePositiveInt(process.env.REQUEST_TIMEOUT_MS, 10_000);
+}
+
 export function getOcrLockTimeoutMinutes(): number {
   return parsePositiveInt(process.env.OCR_LOCK_TIMEOUT_MINUTES, 15);
 }

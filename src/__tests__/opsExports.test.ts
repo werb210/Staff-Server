@@ -9,6 +9,8 @@ import { ensureAuditEventSchema } from "./helpers/auditSchema";
 
 const app = buildAppWithApiRoutes();
 const requestId = "test-request-id";
+let idempotencyCounter = 0;
+const nextIdempotencyKey = (): string => `idem-ops-${idempotencyCounter++}`;
 
 async function resetDb(): Promise<void> {
   await pool.query("delete from ops_replay_events");
@@ -60,6 +62,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await resetDb();
+  idempotencyCounter = 0;
 });
 
 afterAll(async () => {
@@ -76,6 +79,7 @@ describe("ops + exports", () => {
 
     const login = await request(app)
       .post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("x-request-id", requestId)
       .send({ email: "staff@example.com", password: "Password123!" });
 
@@ -96,6 +100,7 @@ describe("ops + exports", () => {
     });
     const login = await request(app)
       .post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("x-request-id", requestId)
       .send({ email: admin.email, password: "Password123!" });
 
@@ -106,6 +111,7 @@ describe("ops + exports", () => {
 
     const res = await request(app)
       .post("/api/admin/exports/pipeline")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
       .send({ format: "json" });
@@ -125,6 +131,7 @@ describe("ops + exports", () => {
     });
     const login = await request(app)
       .post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("x-request-id", requestId)
       .send({ email: admin.email, password: "Password123!" });
 
@@ -137,6 +144,7 @@ describe("ops + exports", () => {
 
     const res = await request(app)
       .post("/api/admin/exports/pipeline")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
       .send({ format: "csv" });
@@ -157,6 +165,7 @@ describe("ops + exports", () => {
     });
     const login = await request(app)
       .post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("x-request-id", requestId)
       .send({ email: admin.email, password: "Password123!" });
 
@@ -180,6 +189,7 @@ describe("ops + exports", () => {
 
     const first = await request(app)
       .post("/api/admin/ops/replay/audit_events")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId);
     const firstJobId = first.body.job.id;
@@ -193,6 +203,7 @@ describe("ops + exports", () => {
 
     const second = await request(app)
       .post("/api/admin/ops/replay/audit_events")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId);
     const secondJobId = second.body.job.id;

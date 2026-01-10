@@ -23,8 +23,10 @@ import { ensureAuditEventSchema } from "./helpers/auditSchema";
 
 const app = buildAppWithApiRoutes();
 const requestId = "test-request-id";
+let idempotencyCounter = 0;
+const nextIdempotencyKey = (): string => `idem-reporting-${idempotencyCounter++}`;
 const postWithRequestId = (url: string) =>
-  request(app).post(url).set("x-request-id", requestId);
+  request(app).post(url).set("x-request-id", requestId).set("Idempotency-Key", nextIdempotencyKey());
 
 async function resetDb(): Promise<void> {
   await pool.query("delete from reporting_lender_funnel_daily");
@@ -67,6 +69,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await resetDb();
+  idempotencyCounter = 0;
 });
 
 afterAll(async () => {

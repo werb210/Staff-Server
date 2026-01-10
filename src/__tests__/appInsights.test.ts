@@ -5,6 +5,8 @@ import { ROLES } from "../auth/roles";
 const trackRequest = jest.fn();
 const trackDependency = jest.fn();
 const trackException = jest.fn();
+let idempotencyCounter = 0;
+const nextIdempotencyKey = (): string => `idem-insights-${idempotencyCounter++}`;
 
 jest.mock("applicationinsights", () => {
   const chain = {
@@ -110,7 +112,8 @@ describe("application insights telemetry", () => {
       role: ROLES.STAFF,
     });
 
-    await request(app).post("/api/auth/login").send({
+    await request(app).post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey()).send({
       email: "telemetry-auth@example.com",
       password: "Password123!",
     });
