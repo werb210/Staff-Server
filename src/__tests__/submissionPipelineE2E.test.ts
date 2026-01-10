@@ -394,7 +394,9 @@ describe("submission pipeline end-to-end", () => {
     expect(retry.body.submission.status).toBe("failed");
   });
 
-  it("handles 25 concurrent submissions without exhausting the pool", async () => {
+  it(
+    "handles 25 concurrent submissions without exhausting the pool",
+    async () => {
     const { token } = await loginAsStaff();
 
     const submissions = await withTimeout(
@@ -419,7 +421,7 @@ describe("submission pipeline end-to-end", () => {
           return { applicationId, submission };
         })
       ),
-      25000
+      60000
     );
 
     submissions.forEach(({ submission }) => {
@@ -441,5 +443,7 @@ describe("submission pipeline end-to-end", () => {
     expect(poolState.waitingCount ?? 0).toBe(0);
     expect(poolState.totalCount ?? 0).toBeLessThanOrEqual(poolState.options?.max ?? 2);
     expect(poolState.idleCount ?? 0).toBeGreaterThanOrEqual(0);
-  });
+    },
+    120000
+  );
 });

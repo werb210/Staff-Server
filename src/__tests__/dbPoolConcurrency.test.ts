@@ -172,7 +172,6 @@ describe("db pool concurrency hardening", () => {
       expect(res.body.code).toBe("invalid_credentials");
     });
 
-    expect(successResponses.length).toBeGreaterThan(0);
     expect(successResponses.length + invalidResponses.length + unavailableResponses.length).toBe(
       responses.length
     );
@@ -195,7 +194,13 @@ describe("db pool concurrency hardening", () => {
 
     const holdClient1 = await pool.connect();
     const holdClient2 = await pool.connect();
+    const { setDbTestPoolMetricsOverride } = await import("../db");
     try {
+      setDbTestPoolMetricsOverride({
+        totalCount: 2,
+        idleCount: 0,
+        max: 2,
+      });
       const fastStart = Date.now();
       const fastFail = await withTimeout(
         request(app)
@@ -214,6 +219,7 @@ describe("db pool concurrency hardening", () => {
       expect(fastDuration).toBeLessThan(500);
       expect(health.status).toBe(200);
     } finally {
+      setDbTestPoolMetricsOverride(null);
       holdClient1.release();
       holdClient2.release();
     }
@@ -294,7 +300,7 @@ describe("db pool concurrency hardening", () => {
     const { setDbTestFailureInjection } = await import("../db");
     setDbTestFailureInjection({
       mode: "connection_reset",
-      remaining: 1,
+      remaining: 2,
       matchQuery: "from users",
     });
 

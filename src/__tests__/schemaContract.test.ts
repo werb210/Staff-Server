@@ -11,8 +11,35 @@ jest.mock("../observability/appInsights", () => ({
 }));
 
 let pool: Pool;
+let ensureAuditEventSchema: () => Promise<void>;
 
-beforeAll(async () => {
+async function ensureRefreshTokensTable(): Promise<void> {
+  const refreshTokensRes = await pool.query<{ count: number }>(
+    `select count(*)::int as count
+     from information_schema.tables
+     where table_name = 'refresh_tokens'`
+  );
+  if ((refreshTokensRes.rows[0]?.count ?? 0) === 0) {
+    try {
+      await pool.query(
+        `create table refresh_tokens (
+           id uuid,
+           user_id uuid,
+           token_hash text,
+           expires_at timestamp,
+           revoked_at timestamp
+         )`
+      );
+    } catch (err) {
+      if (err instanceof Error && err.message.includes("already exists")) {
+        return;
+      }
+      throw err;
+    }
+  }
+}
+
+beforeEach(async () => {
   process.env.NODE_ENV = "test";
   process.env.DATABASE_URL = "pg-mem";
   process.env.JWT_SECRET = "test-access-secret";
@@ -23,12 +50,15 @@ beforeAll(async () => {
   jest.resetModules();
   const db = await import("../db");
   const migrations = await import("../migrations");
+  ({ ensureAuditEventSchema } = await import("./helpers/auditSchema"));
   pool = db.pool;
 
   await migrations.runMigrations();
+  await ensureAuditEventSchema();
+  await ensureRefreshTokensTable();
 });
 
-afterAll(async () => {
+afterEach(async () => {
   await pool.end();
 });
 
