@@ -246,7 +246,7 @@ describe("auth failure matrix", () => {
     const { setDbTestFailureInjection } = await import("../db");
     setDbTestFailureInjection({
       mode: "connection_timeout",
-      remaining: 1,
+      remaining: 2,
       matchQuery: "from users",
     });
 

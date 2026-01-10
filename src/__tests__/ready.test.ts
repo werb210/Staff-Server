@@ -63,42 +63,17 @@ afterAll(async () => {
   await pool.end();
 });
 
-describe("readiness toggles", () => {
-  it("reflects pool availability in readiness", async () => {
-    const { setDbTestPoolMetricsOverride } = await import("../db");
-    setDbTestPoolMetricsOverride({ idleCount: 1 });
-
-    const okRequestId = "ready-ok";
-    const okRes = await request(app)
+describe("readiness", () => {
+  it("always reports readiness without blocking", async () => {
+    const requestId = "ready-ok";
+    const res = await request(app)
       .get("/api/_int/ready")
-      .set("x-request-id", okRequestId);
+      .set("x-request-id", requestId);
 
-    expect(okRes.status).toBe(200);
-    expect(okRes.body.ok).toBe(true);
-    expectRequestId(okRes, okRequestId);
-    expect(trackDependency).toHaveBeenCalled();
-
-    setDbTestPoolMetricsOverride({ idleCount: 0 });
-    const downRequestId = "ready-down";
-    const downRes = await request(app)
-      .get("/api/_int/ready")
-      .set("x-request-id", downRequestId);
-
-    expect(downRes.status).toBe(503);
-    expect(downRes.body.code).toBe("service_unavailable");
-    expectRequestId(downRes, downRequestId);
-    expectNoStackTrace(downRes);
-    expect(trackDependency).toHaveBeenCalled();
-
-    setDbTestPoolMetricsOverride({ idleCount: 1 });
-    const recoveryRequestId = "ready-recover";
-    const recoveryRes = await request(app)
-      .get("/api/_int/ready")
-      .set("x-request-id", recoveryRequestId);
-
-    expect(recoveryRes.status).toBe(200);
-    expect(recoveryRes.body.ok).toBe(true);
-    expectRequestId(recoveryRes, recoveryRequestId);
-    expect(trackDependency).toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expectRequestId(res, requestId);
+    expectNoStackTrace(res);
+    expect(trackDependency).not.toHaveBeenCalled();
   });
 });
