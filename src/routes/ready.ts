@@ -9,8 +9,8 @@ export function healthHandler(_req: Request, res: Response): void {
 }
 
 export function readyHandler(_req: Request, res: Response): void {
-  const { dbConnected, schemaReady } = getStartupState();
-  const ready = dbConnected && schemaReady;
+  const { dbConnected, migrationsHealthy, schemaReady, criticalServicesReady } = getStartupState();
+  const ready = dbConnected && schemaReady && migrationsHealthy && criticalServicesReady;
   if (!ready) {
     res.status(503).json({ ok: false });
     return;

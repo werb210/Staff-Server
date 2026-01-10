@@ -1,7 +1,13 @@
 import request from "supertest";
 import { EventEmitter } from "events";
 import { buildApp } from "../app";
-import { resetStartupState, setDbConnected, setSchemaReady } from "../startupState";
+import {
+  resetStartupState,
+  setCriticalServicesReady,
+  setDbConnected,
+  setMigrationsState,
+  setSchemaReady,
+} from "../startupState";
 
 type MockServer = EventEmitter & {
   listening: boolean;
@@ -31,7 +37,9 @@ describe("azure health endpoints", () => {
     expect(before.status).toBe(503);
 
     setDbConnected(true);
+    setMigrationsState([]);
     setSchemaReady(true);
+    setCriticalServicesReady(true);
 
     const after = await request(app).get("/ready");
     expect(after.status).toBe(200);

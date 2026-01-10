@@ -32,6 +32,28 @@ const authFailureCodes = new Set([
 ]);
 
 const constraintViolationCodes = new Set(["23502", "23503", "23505"]);
+const normalizedAuthCodes = new Set([
+  "invalid_credentials",
+  "user_disabled",
+  "password_expired",
+  "account_locked",
+]);
+
+const authCodeMap = new Map<string, string>([
+  ["account_disabled", "user_disabled"],
+  ["user_disabled", "user_disabled"],
+  ["password_expired", "password_expired"],
+  ["password_reset_required", "password_expired"],
+  ["account_locked", "account_locked"],
+  ["invalid_credentials", "invalid_credentials"],
+  ["invalid_token", "invalid_credentials"],
+  ["missing_token", "invalid_credentials"],
+  ["missing_credentials", "invalid_credentials"],
+  ["user_misconfigured", "invalid_credentials"],
+  ["auth_misconfigured", "invalid_credentials"],
+  ["auth_unavailable", "invalid_credentials"],
+  ["service_unavailable", "invalid_credentials"],
+]);
 
 function isConstraintViolation(err: Error): boolean {
   const code = (err as { code?: string }).code;
@@ -60,6 +82,24 @@ function resolveFailureReason(err: Error): string {
   return "server_error";
 }
 
+function isAuthRoute(req: Request): boolean {
+  const path = req.originalUrl.split("?")[0];
+  return path.startsWith("/api/auth/");
+}
+
+function normalizeAuthError(err: Error): { code: string; message: string } {
+  if (err instanceof AppError) {
+    const mapped = authCodeMap.get(err.code);
+    if (mapped && normalizedAuthCodes.has(mapped)) {
+      return { code: mapped, message: err.message };
+    }
+  }
+  return {
+    code: "invalid_credentials",
+    message: err instanceof AppError ? err.message : "Authentication failed.",
+  };
+}
+
 export function errorHandler(
   err: Error,
   req: Request,
@@ -70,6 +110,39 @@ export function errorHandler(
   const durationMs = res.locals.requestStart
     ? Date.now() - Number(res.locals.requestStart)
     : 0;
+  if (isAuthRoute(req)) {
+    const normalized = normalizeAuthError(err);
+    const status = err instanceof AppError
+      ? err.status
+      : isDbConnectionFailure(err)
+        ? 503
+        : 500;
+    logWarn("request_error", {
+      requestId,
+      route: req.originalUrl,
+      durationMs,
+      code: normalized.code,
+      message: normalized.message,
+      status,
+      failure_reason: "auth_failure",
+    });
+    trackException({
+      exception: err,
+      properties: {
+        requestId,
+        route: req.originalUrl,
+        status,
+        code: normalized.code,
+        failure_reason: "auth_failure",
+      },
+    });
+    res.status(status).json({
+      code: normalized.code,
+      message: normalized.message,
+      requestId,
+    });
+    return;
+  }
   const failureReason = resolveFailureReason(err);
   if (err instanceof AppError) {
     logWarn("request_error", {

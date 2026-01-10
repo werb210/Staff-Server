@@ -4,8 +4,10 @@ import { assertSchema, pool, waitForDatabaseReady, warmUpDatabase } from "./db";
 import { logError, logInfo, logWarn } from "./observability/logger";
 import { initializeAppInsights } from "./observability/appInsights";
 import { installProcessHandlers } from "./observability/processHandlers";
-import { setDbConnected, setSchemaReady } from "./startupState";
+import { setCriticalServicesReady, setDbConnected, setMigrationsState, setSchemaReady } from "./startupState";
 import { runStartupConsistencyCheck } from "./startup/consistencyCheck";
+import { validateCorsConfig } from "./startup/corsValidation";
+import { getPendingMigrations } from "./migrations";
 
 const logger = {
   info: (fields: { event: string; [key: string]: unknown }): void => {
@@ -14,6 +16,10 @@ const logger = {
   },
 };
 
+if (!isTestEnvironment()) {
+  validateCorsConfig();
+}
+
 async function logStartupStatus(): Promise<void> {
   try {
     await waitForDatabaseReady();
@@ -21,8 +27,11 @@ async function logStartupStatus(): Promise<void> {
     await warmUpDatabase();
     await assertSchema();
     setSchemaReady(true);
+    const pendingMigrations = await getPendingMigrations();
+    setMigrationsState(pendingMigrations);
     logInfo("db_connected");
     await runStartupConsistencyCheck();
+    setCriticalServicesReady(true);
 
     const userCountResult = await pool.query<{ count: number }>(
       "select count(*)::int as count from users"

@@ -3,6 +3,7 @@ export type StartupState = {
   dbConnected: boolean;
   migrationsHealthy: boolean;
   schemaReady: boolean;
+  criticalServicesReady: boolean;
   pendingMigrations: string[];
 };
 
@@ -11,6 +12,7 @@ const state: StartupState = {
   dbConnected: false,
   migrationsHealthy: false,
   schemaReady: false,
+  criticalServicesReady: false,
   pendingMigrations: [],
 };
 
@@ -31,6 +33,10 @@ export function setSchemaReady(ready: boolean): void {
   state.schemaReady = ready;
 }
 
+export function setCriticalServicesReady(ready: boolean): void {
+  state.criticalServicesReady = ready;
+}
+
 export function getStartupState(): StartupState {
   return { ...state, pendingMigrations: [...state.pendingMigrations] };
 }
@@ -40,5 +46,6 @@ export function resetStartupState(): void {
   state.dbConnected = false;
   state.migrationsHealthy = false;
   state.schemaReady = false;
+  state.criticalServicesReady = false;
   state.pendingMigrations = [];
 }

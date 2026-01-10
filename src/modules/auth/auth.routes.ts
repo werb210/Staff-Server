@@ -132,7 +132,12 @@ router.get(
     if (!req.user) {
       throw new AppError("missing_token", "Authorization token is required.", 401);
     }
-    res.json({ user: req.user });
+    res.json({
+      id: req.user.userId,
+      email: req.user.email,
+      role: req.user.role,
+      permissions: req.user.capabilities,
+    });
   } catch (err) {
     next(err);
   }
