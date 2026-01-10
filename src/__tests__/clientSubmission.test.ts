@@ -21,7 +21,7 @@ async function resetDb(): Promise<void> {
   await pool.query("delete from auth_refresh_tokens");
   await pool.query("delete from password_resets");
   await pool.query("delete from audit_events");
-  await pool.query("delete from users where id <> 'client-submission-system'");
+  await pool.query("delete from users where id <> '00000000-0000-0000-0000-000000000001'");
 }
 
 beforeAll(async () => {

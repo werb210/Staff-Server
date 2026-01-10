@@ -17,34 +17,23 @@ export interface AuthUser {
   token_version: number;
 }
 
-export interface AuthUserBase {
-  id: string;
-  email: string;
-  role: Role;
-  active: boolean;
-  failed_login_attempts: number;
-  locked_until: Date | null;
-  token_version: number;
-}
-
-export interface AuthPasswordMetadata {
-  password_hash: string;
-  password_changed_at: Date | null;
-}
-
 export async function findAuthUserByEmail(
-  email: string
+  email: string,
+  client?: Queryable,
+  options?: { forUpdate?: boolean }
 ): Promise<AuthUser | null> {
   const normalizedEmail = email.trim().toLowerCase();
+  const runner = client ?? pool;
+  const forUpdate = options?.forUpdate ? " for update" : "";
 
   const res = await runAuthQuery<AuthUser>(
-    pool,
+    runner,
     `select id, email, password_hash, role, active,
             password_changed_at, failed_login_attempts,
             locked_until, token_version
      from users
      where lower(email) = $1
-     order by id asc`,
+     order by id asc${forUpdate}`,
     [normalizedEmail]
   );
 
@@ -53,45 +42,6 @@ export async function findAuthUserByEmail(
   }
 
   return res.rows[0] ?? null;
-}
-
-export async function findAuthUserByEmailBase(
-  email: string
-): Promise<AuthUserBase | null> {
-  const normalizedEmail = email.trim().toLowerCase();
-
-  const res = await runAuthQuery<AuthUserBase>(
-    pool,
-    `select id, email, role, active, failed_login_attempts, locked_until, token_version
-     from users
-     where lower(email) = $1
-     order by id asc`,
-    [normalizedEmail]
-  );
-
-  if (res.rows.length > 1) {
-    throw new Error("duplicate_email");
-  }
-
-  return res.rows[0] ?? null;
-}
-
-export async function findAuthPasswordMetadata(
-  userId: string,
-  client?: Queryable
-): Promise<AuthPasswordMetadata | null> {
-  const runner = client ?? pool;
-  const res = await runAuthQuery<AuthPasswordMetadata>(
-    runner,
-    `select password_hash, password_changed_at from users where id = $1 limit 1`,
-    [userId]
-  );
-
-  if (!res.rows[0]) {
-    return null;
-  }
-
-  return res.rows[0];
 }
 
 export async function findAuthUserById(

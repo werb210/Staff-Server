@@ -35,7 +35,7 @@ async function resetDb(): Promise<void> {
   await pool.query("delete from auth_refresh_tokens");
   await pool.query("delete from password_resets");
   await pool.query("delete from audit_events");
-  await pool.query("delete from users where id <> 'client-submission-system'");
+  await pool.query("delete from users where id <> '00000000-0000-0000-0000-000000000001'");
 }
 
 beforeAll(async () => {
@@ -227,8 +227,8 @@ describe("auth", () => {
       password: "Password123!",
     });
 
-    expect(res.status).toBe(500);
-    expect(res.body.code).toBe("invalid_password_state");
+    expect(res.status).toBe(403);
+    expect(res.body.code).toBe("user_misconfigured");
 
     const audit = await pool.query(
       `select event_action as action, success
@@ -258,8 +258,8 @@ describe("auth", () => {
         password: "Password123!",
       });
 
-      expect(res.status).toBe(500);
-      expect(res.body.code).toBe("invalid_password_state");
+      expect(res.status).toBe(403);
+      expect(res.body.code).toBe("user_misconfigured");
 
       const audit = await pool.query(
         `select event_action as action, success
@@ -275,6 +275,50 @@ describe("auth", () => {
         user.id,
       ]);
       await pool.query("alter table users alter column password_hash set not null");
+    }
+  });
+
+  it("returns 503 when login exceeds the auth timeout", async () => {
+    await createUserAccount({
+      email: "timeout-login@example.com",
+      password: "Password123!",
+      role: ROLES.STAFF,
+    });
+
+    process.env.LOGIN_TIMEOUT_MS = "20";
+    process.env.DB_TEST_SLOW_QUERY_PATTERN = "from users";
+    process.env.DB_TEST_SLOW_QUERY_MS = "40";
+
+    try {
+      const loginPromise = postWithRequestId("/api/auth/login").send({
+        email: "timeout-login@example.com",
+        password: "Password123!",
+      });
+      const res = await Promise.race([
+        loginPromise,
+        new Promise<never>((_resolve, reject) =>
+          setTimeout(() => reject(new Error("login_timeout")), 50)
+        ),
+      ]);
+
+      expect(res.status).toBe(503);
+      expect(res.body.code).toBe("auth_unavailable");
+
+      const poolState = pool as unknown as {
+        totalCount?: number;
+        idleCount?: number;
+        waitingCount?: number;
+        options?: { max?: number };
+      };
+      expect(poolState.waitingCount ?? 0).toBe(0);
+      expect(poolState.totalCount ?? 0).toBeLessThanOrEqual(
+        poolState.options?.max ?? 2
+      );
+      expect(poolState.idleCount ?? 0).toBeGreaterThanOrEqual(0);
+    } finally {
+      delete process.env.LOGIN_TIMEOUT_MS;
+      delete process.env.DB_TEST_SLOW_QUERY_PATTERN;
+      delete process.env.DB_TEST_SLOW_QUERY_MS;
     }
   });
 

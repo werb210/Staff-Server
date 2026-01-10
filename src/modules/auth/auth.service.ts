@@ -5,8 +5,7 @@ import {
   createPasswordReset,
   createUser,
   consumeRefreshToken,
-  findAuthPasswordMetadata,
-  findAuthUserByEmailBase,
+  findAuthUserByEmail,
   findAuthUserById,
   findPasswordReset,
   hasActivePasswordReset,
@@ -22,6 +21,7 @@ import {
 import {
   getAccessTokenExpiresIn,
   getAccessTokenSecret,
+  getLoginTimeoutMs,
   getLoginLockoutMinutes,
   getLoginLockoutThreshold,
   getPasswordMaxAgeDays,
@@ -29,7 +29,7 @@ import {
 } from "../../config";
 import { AppError } from "../../middleware/errors";
 import { recordAuditEvent } from "../audit/audit.service";
-import { getDbFailureCategory, isDbConnectionFailure, pool } from "../../db";
+import { cancelDbWork, getDbFailureCategory, isDbConnectionFailure, pool } from "../../db";
 import { type Role } from "../../auth/roles";
 import { logError, logInfo, logWarn } from "../../observability/logger";
 import { recordTransactionRollback } from "../../observability/transactionTelemetry";
@@ -260,278 +260,379 @@ export async function loginUser(
         503
       );
     }
-    logInfo("auth_login_received", { email: normalizedEmail });
-    const user = await findAuthUserByEmailBase(normalizedEmail);
-    logInfo("auth_login_user_lookup", {
-      email: normalizedEmail,
-      userExists: Boolean(user),
+    const client = await pool.connect();
+    const loginTimeoutMs = getLoginTimeoutMs();
+    let timeoutId: NodeJS.Timeout | null = null;
+    let completed = false;
+
+    const timeoutPromise = new Promise<never>((_resolve, reject) => {
+      timeoutId = setTimeout(async () => {
+        if (completed) {
+          return;
+        }
+        const processId = client.processID;
+        if (processId) {
+          try {
+            await cancelDbWork([processId]);
+          } catch {
+            // ignore cancel failures
+          }
+        }
+        logWarn("auth_login_timeout", { email: normalizedEmail, durationMs: loginTimeoutMs });
+        reject(
+          new AppError(
+            "auth_unavailable",
+            "Authentication service unavailable.",
+            503
+          )
+        );
+      }, loginTimeoutMs);
     });
 
-    if (!user || !user.role || !user.email) {
-      logWarn("auth_login_failed", {
-        email: normalizedEmail,
-        reason: "user_not_found",
-      });
-      await recordAuditEvent({
-        action: "login",
-        actorUserId: user?.id ?? null,
-        targetUserId: user?.id ?? null,
-        ip,
-        userAgent,
-        success: false,
-      });
-      trackAuthEvent("auth_invalid_credentials", {
-        action: "login",
-        reason: "user_not_found",
-      });
-      throw new AppError(
-        "invalid_credentials",
-        "Invalid credentials.",
-        401
-      );
-    }
+    const loginPromise = (async (): Promise<{ accessToken: string }> => {
+      let committed = false;
+      try {
+        await client.query("begin");
+        logInfo("auth_login_received", { email: normalizedEmail });
+        const user = await findAuthUserByEmail(normalizedEmail, client, { forUpdate: true });
+        logInfo("auth_login_user_lookup", {
+          email: normalizedEmail,
+          userExists: Boolean(user),
+        });
 
-    const passwordMetadata = await findAuthPasswordMetadata(user.id);
-    const passwordHash = passwordMetadata?.password_hash;
-    const trimmedPasswordHash =
-      typeof passwordHash === "string" ? passwordHash.trim() : "";
-    if (!trimmedPasswordHash || !isValidBcryptHash(trimmedPasswordHash)) {
-      const reason = !trimmedPasswordHash
-        ? "password_hash_missing"
-        : "password_hash_invalid_format";
-      logError("invalid_password_state", {
-        email: normalizedEmail,
-        userId: user.id,
-        reason,
-      });
-      await recordAuditEvent({
-        action: "invalid_password_state",
-        actorUserId: user.id,
-        targetUserId: user.id,
-        ip,
-        userAgent,
-        success: false,
-        metadata: { reason },
-      });
-      trackAuthEvent("invalid_password_state", {
-        action: "login",
-        reason,
-      });
-      throw new AppError(
-        "invalid_password_state",
-        "Invalid password state.",
-        500
-      );
-    }
+        if (!user || !user.role || !user.email) {
+          logWarn("auth_login_failed", {
+            email: normalizedEmail,
+            reason: "user_not_found",
+          });
+          await recordAuditEvent({
+            action: "login",
+            actorUserId: user?.id ?? null,
+            targetUserId: user?.id ?? null,
+            ip,
+            userAgent,
+            success: false,
+            client,
+          });
+          await client.query("commit");
+          committed = true;
+          trackAuthEvent("auth_invalid_credentials", {
+            action: "login",
+            reason: "user_not_found",
+          });
+          throw new AppError(
+            "invalid_credentials",
+            "Invalid credentials.",
+            401
+          );
+        }
 
-    logInfo("auth_login_password_hash", {
-      email: normalizedEmail,
-      userId: user.id,
-      algorithm: "bcrypt",
-      cost: 12,
-    });
+        const passwordHash = user.password_hash;
+        const trimmedPasswordHash =
+          typeof passwordHash === "string" ? passwordHash.trim() : "";
+        if (!trimmedPasswordHash || !trimmedPasswordHash.startsWith("$2")) {
+          const reason = !trimmedPasswordHash
+            ? "password_hash_missing"
+            : "password_hash_invalid_format";
+          logError("invalid_password_state", {
+            email: normalizedEmail,
+            userId: user.id,
+            reason,
+          });
+          await recordAuditEvent({
+            action: "invalid_password_state",
+            actorUserId: user.id,
+            targetUserId: user.id,
+            ip,
+            userAgent,
+            success: false,
+            metadata: { reason },
+            client,
+          });
+          await client.query("commit");
+          committed = true;
+          trackAuthEvent("auth_password_hash_invalid", {
+            action: "login",
+            reason,
+          });
+          throw new AppError(
+            "user_misconfigured",
+            "User is misconfigured.",
+            403
+          );
+        }
 
-    const now = Date.now();
-    const isLocked = Boolean(
-      user.locked_until && user.locked_until.getTime() > now
-    );
-    const forceReset = await hasActivePasswordReset(user.id);
-    logInfo("auth_login_flags", {
-      email: normalizedEmail,
-      userId: user.id,
-      disabled: !user.active,
-      locked: isLocked,
-      force_reset: forceReset,
-    });
+        if (!isValidBcryptHash(trimmedPasswordHash)) {
+          logError("invalid_password_state", {
+            email: normalizedEmail,
+            userId: user.id,
+            reason: "password_hash_invalid_format",
+          });
+          await recordAuditEvent({
+            action: "invalid_password_state",
+            actorUserId: user.id,
+            targetUserId: user.id,
+            ip,
+            userAgent,
+            success: false,
+            metadata: { reason: "password_hash_invalid_format" },
+            client,
+          });
+          await client.query("commit");
+          committed = true;
+          trackAuthEvent("auth_password_hash_invalid", {
+            action: "login",
+            reason: "password_hash_invalid_format",
+          });
+          throw new AppError(
+            "user_misconfigured",
+            "User is misconfigured.",
+            403
+          );
+        }
 
-    if (!user.active) {
-      logWarn("auth_login_failed", {
-        email: normalizedEmail,
-        userId: user.id,
-        reason: "account_disabled",
-      });
-      await recordAuditEvent({
-        action: "login",
-        actorUserId: user.id,
-        targetUserId: user.id,
-        ip,
-        userAgent,
-        success: false,
-      });
-      throw new AppError("account_disabled", "Account is disabled.", 403);
-    }
+        logInfo("auth_login_password_hash", {
+          email: normalizedEmail,
+          userId: user.id,
+          algorithm: "bcrypt",
+          cost: 12,
+        });
 
-    if (isLocked) {
-      logWarn("auth_login_failed", {
-        email: normalizedEmail,
-        userId: user.id,
-        reason: "account_locked",
-      });
-      await recordAuditEvent({
-        action: "login",
-        actorUserId: user.id,
-        targetUserId: user.id,
-        ip,
-        userAgent,
-        success: false,
-      });
-      throw new AppError(
-        "account_locked",
-        "Account is locked. Try again later.",
-        423
-      );
-    }
+        const now = Date.now();
+        const isLocked = Boolean(
+          user.locked_until && user.locked_until.getTime() > now
+        );
+        const forceReset = await hasActivePasswordReset(user.id, client);
+        logInfo("auth_login_flags", {
+          email: normalizedEmail,
+          userId: user.id,
+          disabled: !user.active,
+          locked: isLocked,
+          force_reset: forceReset,
+        });
 
-    if (user.locked_until && user.locked_until.getTime() <= now) {
-      await resetLoginFailures(user.id);
-    }
+        if (!user.active) {
+          logWarn("auth_login_failed", {
+            email: normalizedEmail,
+            userId: user.id,
+            reason: "account_disabled",
+          });
+          await recordAuditEvent({
+            action: "login",
+            actorUserId: user.id,
+            targetUserId: user.id,
+            ip,
+            userAgent,
+            success: false,
+            client,
+          });
+          await client.query("commit");
+          committed = true;
+          throw new AppError("account_disabled", "Account is disabled.", 403);
+        }
 
-    if (forceReset) {
-      logWarn("auth_login_failed", {
-        email: normalizedEmail,
-        userId: user.id,
-        reason: "password_reset_required",
-      });
-      await recordAuditEvent({
-        action: "login",
-        actorUserId: user.id,
-        targetUserId: user.id,
-        ip,
-        userAgent,
-        success: false,
-      });
-      throw new AppError(
-        "password_reset_required",
-        "Password reset required.",
-        403
-      );
-    }
+        if (isLocked) {
+          logWarn("auth_login_failed", {
+            email: normalizedEmail,
+            userId: user.id,
+            reason: "account_locked",
+          });
+          await recordAuditEvent({
+            action: "login",
+            actorUserId: user.id,
+            targetUserId: user.id,
+            ip,
+            userAgent,
+            success: false,
+            client,
+          });
+          await client.query("commit");
+          committed = true;
+          throw new AppError(
+            "account_locked",
+            "Account is locked. Try again later.",
+            423
+          );
+        }
 
-    trackAuthEvent("auth_determinism_check_passed", {
-      action: "login",
-      userId: user.id,
-    });
+        if (forceReset) {
+          logWarn("auth_login_failed", {
+            email: normalizedEmail,
+            userId: user.id,
+            reason: "password_reset_required",
+          });
+          await recordAuditEvent({
+            action: "login",
+            actorUserId: user.id,
+            targetUserId: user.id,
+            ip,
+            userAgent,
+            success: false,
+            client,
+          });
+          await client.query("commit");
+          committed = true;
+          throw new AppError(
+            "password_reset_required",
+            "Password reset required.",
+            403
+          );
+        }
 
-    const ok = await bcrypt.compare(password, trimmedPasswordHash);
-    logInfo("auth_login_password_check", {
-      email: normalizedEmail,
-      userId: user.id,
-      algorithm: "bcrypt",
-      match: ok,
-    });
+        trackAuthEvent("auth_determinism_check_passed", {
+          action: "login",
+          userId: user.id,
+        });
 
-    if (!ok) {
-      const lockoutThreshold = getLoginLockoutThreshold();
-      const lockoutMinutes = getLoginLockoutMinutes();
-      const nextFailures = user.failed_login_attempts + 1;
-      const shouldLock = nextFailures >= lockoutThreshold;
-      const lockMultiplier = shouldLock
-        ? Math.max(1, Math.ceil(nextFailures / lockoutThreshold))
-        : 0;
-      const lockUntil = shouldLock
-        ? new Date(Date.now() + lockoutMinutes * lockMultiplier * 60 * 1000)
-        : null;
-      await recordFailedLogin(user.id, lockUntil);
-      if (shouldLock) {
+        const ok = await bcrypt.compare(password, trimmedPasswordHash);
+        logInfo("auth_login_password_check", {
+          email: normalizedEmail,
+          userId: user.id,
+          algorithm: "bcrypt",
+          match: ok,
+        });
+
+        if (!ok) {
+          const lockoutThreshold = getLoginLockoutThreshold();
+          const lockoutMinutes = getLoginLockoutMinutes();
+          const nextFailures = user.failed_login_attempts + 1;
+          const shouldLock = nextFailures >= lockoutThreshold;
+          const lockUntil = shouldLock
+            ? new Date(Date.now() + lockoutMinutes * 60 * 1000)
+            : null;
+          await recordFailedLogin(user.id, lockUntil, client);
+          if (shouldLock) {
+            await recordAuditEvent({
+              action: "account_lockout",
+              actorUserId: user.id,
+              targetUserId: user.id,
+              ip,
+              userAgent,
+              success: true,
+              client,
+            });
+          }
+          await recordAuditEvent({
+            action: "login",
+            actorUserId: user.id,
+            targetUserId: user.id,
+            ip,
+            userAgent,
+            success: false,
+            client,
+          });
+          await client.query("commit");
+          committed = true;
+          trackAuthEvent("auth_invalid_credentials", {
+            action: "login",
+            reason: "password_mismatch",
+          });
+          logWarn("auth_login_failed", {
+            email: normalizedEmail,
+            userId: user.id,
+            reason: "password_mismatch",
+          });
+          throw new AppError(
+            "invalid_credentials",
+            "Invalid credentials.",
+            401
+          );
+        }
+
+        await resetLoginFailures(user.id, client);
+
+        if (isPasswordExpired(user.password_changed_at)) {
+          logWarn("auth_login_failed", {
+            email: normalizedEmail,
+            userId: user.id,
+            reason: "password_expired",
+          });
+          await recordAuditEvent({
+            action: "login",
+            actorUserId: user.id,
+            targetUserId: user.id,
+            ip,
+            userAgent,
+            success: false,
+            client,
+          });
+          await client.query("commit");
+          committed = true;
+          throw new AppError(
+            "password_expired",
+            "Password has expired. Reset your password.",
+            403
+          );
+        }
+
+        const payload = {
+          userId: user.id,
+          role: user.role,
+          tokenVersion: user.token_version,
+        };
+        const accessToken = issueAccessToken(payload);
+        const refreshToken = issueRefreshToken(payload);
+        const tokenHash = hashToken(refreshToken);
+
+        const refreshExpires = new Date();
+        refreshExpires.setSeconds(
+          refreshExpires.getSeconds() + msToSeconds(getRefreshTokenExpiresIn())
+        );
+
+        await revokeRefreshTokensForUser(user.id, client);
         await recordAuditEvent({
-          action: "account_lockout",
+          action: "token_revoke",
           actorUserId: user.id,
           targetUserId: user.id,
           ip,
           userAgent,
           success: true,
+          client,
         });
+        await storeRefreshToken({
+          userId: user.id,
+          tokenHash,
+          expiresAt: refreshExpires,
+          client,
+        });
+
+        await recordAuditEvent({
+          action: "login",
+          actorUserId: user.id,
+          targetUserId: user.id,
+          ip,
+          userAgent,
+          success: true,
+          client,
+        });
+        logInfo("auth_login_succeeded", {
+          userId: user.id,
+          email: user.email,
+        });
+
+        await client.query("commit");
+        committed = true;
+        return { accessToken };
+      } catch (err) {
+        if (!committed) {
+          try {
+            await client.query("rollback");
+          } catch {
+            // ignore rollback errors
+          }
+        }
+        throw err;
+      } finally {
+        completed = true;
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+        client.release();
       }
-      await recordAuditEvent({
-        action: "login",
-        actorUserId: user.id,
-        targetUserId: user.id,
-        ip,
-        userAgent,
-        success: false,
-      });
-      trackAuthEvent("auth_invalid_credentials", {
-        action: "login",
-        reason: "password_mismatch",
-      });
-      logWarn("auth_login_failed", {
-        email: normalizedEmail,
-        userId: user.id,
-        reason: "password_mismatch",
-      });
-      throw new AppError(
-        "invalid_credentials",
-        "Invalid credentials.",
-        401
-      );
-    }
+    })();
 
-    await resetLoginFailures(user.id);
-
-    if (isPasswordExpired(passwordMetadata.password_changed_at)) {
-      logWarn("auth_login_failed", {
-        email: normalizedEmail,
-        userId: user.id,
-        reason: "password_expired",
-      });
-      await recordAuditEvent({
-        action: "login",
-        actorUserId: user.id,
-        targetUserId: user.id,
-        ip,
-        userAgent,
-        success: false,
-      });
-      throw new AppError(
-        "password_expired",
-        "Password has expired. Reset your password.",
-        403
-      );
-    }
-
-    const payload = {
-      userId: user.id,
-      role: user.role,
-      tokenVersion: user.token_version,
-    };
-    const accessToken = issueAccessToken(payload);
-    const refreshToken = issueRefreshToken(payload);
-    const tokenHash = hashToken(refreshToken);
-
-    const refreshExpires = new Date();
-    refreshExpires.setSeconds(
-      refreshExpires.getSeconds() + msToSeconds(getRefreshTokenExpiresIn())
-    );
-
-    await revokeRefreshTokensForUser(user.id);
-    await recordAuditEvent({
-      action: "token_revoke",
-      actorUserId: user.id,
-      targetUserId: user.id,
-      ip,
-      userAgent,
-      success: true,
-    });
-    await storeRefreshToken({
-      userId: user.id,
-      tokenHash,
-      expiresAt: refreshExpires,
-    });
-
-    await recordAuditEvent({
-      action: "login",
-      actorUserId: user.id,
-      targetUserId: user.id,
-      ip,
-      userAgent,
-      success: true,
-    });
-    logInfo("auth_login_succeeded", {
-      userId: user.id,
-      email: user.email,
-    });
-
-    return { accessToken };
+    loginPromise.catch(() => {});
+    return Promise.race([loginPromise, timeoutPromise]);
   };
   return withAuthDbRetry("login", attemptLogin);
 }

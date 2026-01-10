@@ -34,7 +34,7 @@ create table if not exists reporting_document_metrics_daily (
 create table if not exists reporting_staff_activity_daily (
   id text primary key,
   metric_date date not null,
-  staff_user_id text not null references users(id) on delete cascade,
+  staff_user_id uuid not null references users(id) on delete cascade,
   action text not null,
   activity_count integer not null,
   created_at timestamp not null,
