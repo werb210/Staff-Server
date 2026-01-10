@@ -40,6 +40,15 @@ type TelemetryClient = {
 let telemetryClient: TelemetryClient | null = null;
 let initialized = false;
 
+function isValidConnectionString(connectionString: string): boolean {
+  const match = connectionString.match(/InstrumentationKey=([0-9a-fA-F-]{36})/);
+  if (!match) {
+    return false;
+  }
+  const guidPattern = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+  return guidPattern.test(match[1]);
+}
+
 export function initializeAppInsights(): void {
   if (initialized) {
     return;
@@ -56,6 +65,14 @@ export function initializeAppInsights(): void {
         reason: "missing_connection_string",
         testEnvironment: isTestEnvironment(),
       });
+      return;
+    }
+
+    if (!isValidConnectionString(connectionString)) {
+      logWarn("appinsights_disabled", {
+        reason: "invalid_connection_string",
+      });
+      telemetryClient = null;
       return;
     }
 

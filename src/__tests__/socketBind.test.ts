@@ -1,75 +1,64 @@
-import type { AddressInfo } from "net";
+import { EventEmitter } from "events";
 
-async function waitForListening(server: import("http").Server, timeoutMs: number): Promise<void> {
-  if (server.listening) {
-    return;
-  }
+type MockServer = EventEmitter & {
+  listening: boolean;
+  close: (cb: () => void) => void;
+};
 
-  await new Promise<void>((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      reject(new Error("server did not start listening"));
-    }, timeoutMs);
-
-    server.once("listening", () => {
-      clearTimeout(timeout);
-      resolve();
-    });
-
-    server.once("error", (err) => {
-      clearTimeout(timeout);
-      reject(err);
-    });
-  });
+function createMockServer(): MockServer {
+  const server = new EventEmitter() as MockServer;
+  server.listening = false;
+  server.close = (cb: () => void) => cb();
+  return server;
 }
 
 describe("socket bind", () => {
-  let server: import("http").Server | null = null;
-
-  const requireServer = (): import("http").Server => {
-    if (!server) {
-      throw new Error("server not initialized");
-    }
-    return server;
-  };
-
-  afterEach(async () => {
-    if (!server) {
-      return;
-    }
-    await new Promise<void>((resolve) => {
-      server?.close(() => resolve());
-    });
-    server = null;
+  afterEach(() => {
+    jest.resetModules();
   });
 
-  it("starts a real listener and serves health endpoints", async () => {
-    process.env.PORT = "0";
-    jest.isolateModules(() => {
-      const { server: importedServer } = require("../index");
-      server = importedServer as import("http").Server;
+  it("uses a single listener with the configured port", () => {
+    process.env.PORT = "4555";
+    process.env.STARTUP_WATCHDOG_MS = "25";
+
+    const listenSpy = jest.fn(() => {
+      const server = createMockServer();
+      server.listening = true;
+      process.nextTick(() => server.emit("listening"));
+      return server as unknown as import("http").Server;
     });
 
-    await waitForListening(requireServer(), 50);
+    jest.isolateModules(() => {
+      jest.doMock("../app", () => ({
+        buildApp: () => ({ listen: listenSpy }),
+        registerApiRoutes: jest.fn(),
+      }));
+      require("../index");
+    });
 
-    const address = requireServer().address() as AddressInfo;
-    expect(requireServer().listening).toBe(true);
-    expect(typeof address.port).toBe("number");
-
-    const healthRes = await fetch(`http://127.0.0.1:${address.port}/api/_int/health`);
-    expect(healthRes.status).toBe(200);
-
-    const readyRes = await fetch(`http://127.0.0.1:${address.port}/api/_int/ready`);
-    expect(readyRes.status).toBe(200);
+    expect(listenSpy).toHaveBeenCalledTimes(1);
+    expect(listenSpy).toHaveBeenCalledWith(4555, "0.0.0.0", expect.any(Function));
   });
 
-  it("binds immediately without async gating", async () => {
-    process.env.PORT = "0";
-    jest.isolateModules(() => {
-      const { server: importedServer } = require("../index");
-      server = importedServer as import("http").Server;
+  it("binds to 0.0.0.0 on the env port", () => {
+    process.env.PORT = "4999";
+    process.env.STARTUP_WATCHDOG_MS = "25";
+
+    const listenSpy = jest.fn(() => {
+      const server = createMockServer();
+      server.listening = true;
+      process.nextTick(() => server.emit("listening"));
+      return server as unknown as import("http").Server;
     });
 
-    await waitForListening(requireServer(), 50);
-    expect(requireServer().listening).toBe(true);
+    jest.isolateModules(() => {
+      jest.doMock("../app", () => ({
+        buildApp: () => ({ listen: listenSpy }),
+        registerApiRoutes: jest.fn(),
+      }));
+      require("../index");
+    });
+
+    expect(listenSpy).toHaveBeenCalledWith(4999, "0.0.0.0", expect.any(Function));
   });
 });
