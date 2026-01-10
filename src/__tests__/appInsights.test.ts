@@ -7,6 +7,7 @@ const trackDependency = jest.fn();
 const trackException = jest.fn();
 let idempotencyCounter = 0;
 const nextIdempotencyKey = (): string => `idem-insights-${idempotencyCounter++}`;
+const validConnectionString = "InstrumentationKey=00000000-0000-0000-0000-000000000000";
 
 jest.mock("applicationinsights", () => {
   const chain = {
@@ -43,7 +44,7 @@ describe("application insights telemetry", () => {
     const originalConnectionString = process.env.APPINSIGHTS_CONNECTION_STRING;
 
     process.env.NODE_ENV = "production";
-    process.env.APPINSIGHTS_CONNECTION_STRING = "InstrumentationKey=fake";
+    process.env.APPINSIGHTS_CONNECTION_STRING = validConnectionString;
 
     const { initializeAppInsights } = await import(
       "../observability/appInsights"
@@ -87,7 +88,7 @@ describe("application insights telemetry", () => {
     const originalDatabaseUrl = process.env.DATABASE_URL;
     const originalNodeEnv = process.env.NODE_ENV;
 
-    process.env.APPINSIGHTS_CONNECTION_STRING = "InstrumentationKey=fake";
+    process.env.APPINSIGHTS_CONNECTION_STRING = validConnectionString;
     process.env.DATABASE_URL = "pg-mem";
     process.env.NODE_ENV = "test";
 

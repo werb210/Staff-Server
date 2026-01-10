@@ -3,6 +3,7 @@ import { createHash } from "crypto";
 import { type PoolClient } from "pg";
 import { isPgMemRuntime, pool } from "../db";
 import { AppError } from "./errors";
+import { isProductionEnvironment } from "../config";
 import { createIdempotencyRecord, findIdempotencyRecord } from "../modules/idempotency/idempotency.repo";
 import { logWarn } from "../observability/logger";
 import { trackEvent } from "../observability/appInsights";
@@ -91,6 +92,13 @@ export function idempotencyMiddleware(
   const key = req.get(IDEMPOTENCY_HEADER);
   const trimmedKey = key ? key.trim() : "";
   if (!trimmedKey) {
+    if (!isProductionEnvironment()) {
+      logWarn("idempotency_key_missing", {
+        route: getRequestRoute(req),
+        method: req.method,
+        requestId: res.locals.requestId ?? "unknown",
+      });
+    }
     next(new AppError("missing_idempotency_key", "Idempotency-Key header is required.", 400));
     return;
   }
