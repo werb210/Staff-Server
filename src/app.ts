@@ -2,7 +2,7 @@ import cors from "cors";
 import express from "express";
 
 import apiRouter from "./api";
-import readyRoutes, { healthHandler, readyHandler } from "./routes/ready";
+import readyRoutes, { healthHandler } from "./routes/ready";
 import { printRoutes } from "./debug/printRoutes";
 import { getPendingMigrations, runMigrations } from "./migrations";
 import { requestId } from "./middleware/requestId";
@@ -40,7 +40,18 @@ export function buildApp(): express.Express {
   app.use(express.urlencoded({ extended: true }));
 
   app.get("/health", healthHandler);
-  app.get("/ready", readyHandler);
+  app.get("/ready", healthHandler);
+  app.get("/__boot", (req, res) => {
+    const appPort = req.app.get("port");
+    res.status(200).json({
+      pid: process.pid,
+      uptime: process.uptime(),
+      port: typeof appPort === "number" ? appPort : Number(process.env.PORT ?? 8080),
+      nodeVersion: process.version,
+      envKeys: Object.keys(process.env).sort(),
+      timestamp: new Date().toISOString(),
+    });
+  });
 
   app.get("/", (_req, res) => {
     res.json({ status: "ok" });

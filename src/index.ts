@@ -16,10 +16,6 @@ const logger = {
   },
 };
 
-if (!isTestEnvironment()) {
-  validateCorsConfig();
-}
-
 async function logStartupStatus(): Promise<void> {
   try {
     await waitForDatabaseReady();
@@ -54,9 +50,13 @@ registerApiRoutes(app);
 const PORT = Number(process.env.PORT ?? 8080);
 
 const server = app.listen(PORT, "0.0.0.0", () => {
+  const address = server.address();
+  const boundPort = typeof address === "object" && address ? address.port : PORT;
+  app.set("port", boundPort);
+  console.log("SERVER_LISTENING");
   logger.info({
     event: "server_listening",
-    port: PORT,
+    port: boundPort,
     pid: process.pid,
   });
 });
@@ -68,7 +68,6 @@ const watchdog = setTimeout(() => {
       message: "Server did not start listening before watchdog timeout.",
       timeoutMs: startupWatchdogMs,
     });
-    process.exit(1);
   }
 }, startupWatchdogMs);
 
@@ -80,11 +79,41 @@ server.once("error", () => {
   clearTimeout(watchdog);
 });
 
-initializeAppInsights();
-installProcessHandlers();
-
-if (!isTestEnvironment()) {
-  void logStartupStatus();
+function handleStartupException(error: unknown, context: string): void {
+  const err = error instanceof Error ? error : new Error(String(error));
+  logError("startup_exception", {
+    context,
+    error: err.message,
+    stack: err.stack,
+  });
 }
+
+function safeStartupStep(context: string, action: () => void): void {
+  try {
+    action();
+  } catch (error) {
+    handleStartupException(error, context);
+  }
+}
+
+safeStartupStep("cors_validation", () => {
+  if (!isTestEnvironment()) {
+    validateCorsConfig();
+  }
+});
+
+safeStartupStep("app_insights_init", () => {
+  initializeAppInsights();
+});
+
+safeStartupStep("process_handlers", () => {
+  installProcessHandlers();
+});
+
+safeStartupStep("startup_status", () => {
+  if (!isTestEnvironment()) {
+    void logStartupStatus().catch((error) => handleStartupException(error, "startup_status_async"));
+  }
+});
 
 export { app, server };

@@ -12,7 +12,7 @@ export function validateCorsConfig(): void {
     logError("cors_validation_failed", {
       reason: "missing_cors_allowed_origins",
     });
-    process.exit(1);
+    return;
   }
   const origins = rawOrigins
     .split(",")
@@ -22,7 +22,7 @@ export function validateCorsConfig(): void {
     logError("cors_validation_failed", {
       reason: "empty_cors_allowed_origins",
     });
-    process.exit(1);
+    return;
   }
   const hasStaffOrigin = origins.some((origin) =>
     origin.includes("staff.boreal.financial")
@@ -32,7 +32,7 @@ export function validateCorsConfig(): void {
       reason: "staff_origin_missing",
       origins,
     });
-    process.exit(1);
+    return;
   }
 
   const allowedHeaders = getCorsAllowedHeaders();
@@ -47,6 +47,6 @@ export function validateCorsConfig(): void {
       reason: "required_headers_missing",
       missingHeaders,
     });
-    process.exit(1);
+    return;
   }
 }
