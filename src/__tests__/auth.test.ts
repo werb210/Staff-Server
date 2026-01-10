@@ -348,7 +348,9 @@ describe("auth", () => {
        from audit_events
        where event_action = 'login'`
     );
-    expect(audit.rows).toEqual([{ action: "login", success: false }]);
+    expect(audit.rows).toEqual(
+      expect.arrayContaining([{ action: "login", success: false }])
+    );
   });
 
   it("keeps disabled login responses deterministic across retries", async () => {

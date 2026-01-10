@@ -187,35 +187,67 @@ function getAuthQueryTimeoutMs(): number {
   );
 }
 
+type PoolExhaustionReason = "waiting_clients" | "no_idle_clients";
+
+function buildPoolExhaustionError(
+  message: string,
+  reason: PoolExhaustionReason,
+  metrics: { totalCount: number; waitingCount?: number; idleCount?: number; max: number },
+  context: "auth" | "request"
+): Error {
+  trackEvent({
+    name: "db_pool_exhaustion_prevented",
+    properties: buildTelemetryProperties({
+      totalCount: metrics.totalCount,
+      waitingCount: metrics.waitingCount,
+      idleCount: metrics.idleCount,
+      max: metrics.max,
+      reason,
+      context,
+    }),
+  });
+  const error = new Error(message);
+  (error as { code?: string }).code = "53300";
+  return error;
+}
+
 function assertAuthPoolAvailability(): void {
   const { idleCount, totalCount, waitingCount, max } = getPoolMetrics();
   if (waitingCount > 0 && totalCount >= max) {
-    const error = new Error("db_pool_exhausted");
-    (error as { code?: string }).code = "53300";
-    trackEvent({
-      name: "db_pool_exhaustion_prevented",
-      properties: buildTelemetryProperties({
-        totalCount,
-        waitingCount,
-        max,
-        reason: "waiting_clients",
-      }),
-    });
-    throw error;
+    throw buildPoolExhaustionError(
+      "db_pool_exhausted",
+      "waiting_clients",
+      { totalCount, waitingCount, max },
+      "auth"
+    );
   }
   if (idleCount < 1 && totalCount >= max) {
-    const error = new Error("db_pool_no_free_client");
-    (error as { code?: string }).code = "53300";
-    trackEvent({
-      name: "db_pool_exhaustion_prevented",
-      properties: buildTelemetryProperties({
-        totalCount,
-        idleCount,
-        max,
-        reason: "no_idle_clients",
-      }),
-    });
-    throw error;
+    throw buildPoolExhaustionError(
+      "db_pool_no_free_client",
+      "no_idle_clients",
+      { totalCount, idleCount, max },
+      "auth"
+    );
+  }
+}
+
+function assertPoolAvailability(): void {
+  const { idleCount, totalCount, waitingCount, max } = getPoolMetrics();
+  if (waitingCount > 0 && totalCount >= max) {
+    throw buildPoolExhaustionError(
+      "db_pool_exhausted",
+      "waiting_clients",
+      { totalCount, waitingCount, max },
+      "request"
+    );
+  }
+  if (idleCount < 1 && totalCount >= max) {
+    throw buildPoolExhaustionError(
+      "db_pool_no_free_client",
+      "no_idle_clients",
+      { totalCount, idleCount, max },
+      "request"
+    );
   }
 }
 
@@ -239,7 +271,9 @@ export async function runAuthQuery<T extends QueryResultRow = QueryResultRow>(
   text: string,
   values?: unknown[]
 ): Promise<QueryResult<T>> {
-  assertAuthPoolAvailability();
+  if (runner === pool) {
+    assertAuthPoolAvailability();
+  }
   const queryConfig = buildAuthQueryConfig(text, values);
   return runner.query(
     queryConfig as unknown as Parameters<Pool["query"]>[0]
@@ -261,10 +295,14 @@ function getQueryText(args: unknown[]): string {
 }
 
 function wrapQuery<T extends { query: Pool["query"] }>(
-  runner: T
+  runner: T,
+  options?: { checkPoolAvailability?: boolean }
 ): void {
   const originalQuery = runner.query.bind(runner);
   runner.query = (async (...args: Parameters<Pool["query"]>) => {
+    if (options?.checkPoolAvailability) {
+      assertPoolAvailability();
+    }
     const queryText = getQueryText(args);
     const start = Date.now();
     const processId = (runner as { processID?: number }).processID;
@@ -302,12 +340,13 @@ function wrapQuery<T extends { query: Pool["query"] }>(
 
 const originalConnect = pool.connect.bind(pool);
 pool.connect = (async () => {
+  assertPoolAvailability();
   const client = (await originalConnect()) as PoolClient;
   wrapQuery(client);
   return client;
 }) as Pool["connect"];
 
-wrapQuery(pool);
+wrapQuery(pool, { checkPoolAvailability: true });
 
 export function logDbMetadata(): void {
   logInfo("db_connection_metadata", {
@@ -450,9 +489,13 @@ async function runQueryWithTestControls(
   queryText: string
 ): Promise<Awaited<ReturnType<Pool["query"]>>> {
   if (isTestEnvironment() && process.env.DB_TEST_FORCE_POOL_EXHAUSTION === "true") {
-    const error = new Error("timeout acquiring a client");
-    (error as { code?: string }).code = "ETIMEDOUT";
-    throw error;
+    const { totalCount, waitingCount, idleCount, max } = getPoolMetrics();
+    throw buildPoolExhaustionError(
+      "db_pool_exhausted",
+      idleCount < 1 ? "no_idle_clients" : "waiting_clients",
+      { totalCount, waitingCount, idleCount, max },
+      "request"
+    );
   }
   const injectedFailure = shouldInjectFailure(queryText);
   if (injectedFailure) {

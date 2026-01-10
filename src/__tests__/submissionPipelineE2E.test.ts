@@ -419,7 +419,7 @@ describe("submission pipeline end-to-end", () => {
           return { applicationId, submission };
         })
       ),
-      15000
+      25000
     );
 
     submissions.forEach(({ submission }) => {

@@ -15,7 +15,7 @@ import {
   getLatestDocumentVersion,
   updateApplicationPipelineState,
 } from "./applications.repo";
-import { pool } from "../../db";
+import { isPgMemRuntime, pool } from "../../db";
 import { type Role, ROLES } from "../../auth/roles";
 import { type PoolClient } from "pg";
 import { getDocumentCategory, getRequirements, isSupportedProductType } from "./documentRequirements";
@@ -414,9 +414,9 @@ export async function uploadDocument(params: {
   }
 
   const client = await pool.connect();
+  let documentId: string | null = params.documentId ?? null;
   try {
     await client.query("begin");
-    let documentId = params.documentId ?? null;
     if (documentId) {
       const existingDoc = await findDocumentById(documentId, client);
       if (!existingDoc || existingDoc.application_id !== params.applicationId) {
@@ -523,6 +523,16 @@ export async function uploadDocument(params: {
       await client.query("rollback");
     } catch {
       // ignore rollback
+    }
+    if (isPgMemRuntime() && documentId) {
+      try {
+        await pool.query("delete from document_versions where document_id = $1", [
+          documentId,
+        ]);
+        await pool.query("delete from documents where id = $1", [documentId]);
+      } catch {
+        // ignore cleanup errors in test runtime
+      }
     }
     throw err;
   } finally {

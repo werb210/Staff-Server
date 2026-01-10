@@ -1,4 +1,5 @@
 import type { Express } from "express";
+import { logInfo } from "../observability/logger";
 
 type RouteEntry = { method: string; path: string };
 
@@ -90,10 +91,5 @@ export function printRoutes(app: Express) {
   }
 
   routes.sort((a, b) => a.path.localeCompare(b.path) || a.method.localeCompare(b.method));
-  console.log(
-    JSON.stringify({
-      type: "routes",
-      routes,
-    })
-  );
+  logInfo("routes_registered", { routes });
 }

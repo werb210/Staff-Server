@@ -13,11 +13,6 @@ import { runStartupConsistencyCheck } from "./startup/consistencyCheck";
 export function buildApp(): express.Express {
   const app = express();
 
-  app.use((req, _res, next) => {
-    console.log("[REQ]", req.method, req.originalUrl);
-    next();
-  });
-
   app.use(requestId);
   app.use(requestLogger);
   app.use(requestTimeout);
@@ -53,7 +48,9 @@ export async function initializeServer(): Promise<void> {
 
 export function registerApiRoutes(app: express.Express): void {
   app.use("/api", apiRouter);
-  printRoutes(app);
+  if (process.env.PRINT_ROUTES === "true") {
+    printRoutes(app);
+  }
 }
 
 export function buildAppWithApiRoutes(): express.Express {

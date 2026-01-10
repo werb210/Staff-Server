@@ -175,12 +175,26 @@ describe("recovery integration", () => {
   });
 
   it("logs requests for telemetry", async () => {
-    const logSpy = jest.spyOn(console, "log").mockImplementation(() => {});
+    const logSpy = jest.spyOn(console, "info").mockImplementation(() => {});
     await request(app).get("/health");
 
-    const hasRequestLog = logSpy.mock.calls.some(
-      (call) => call[0] === "[REQ]" && call[1] === "GET" && call[2] === "/health"
-    );
+    const hasRequestLog = logSpy.mock.calls
+      .map((call) => call[0])
+      .filter(Boolean)
+      .map((entry) => {
+        try {
+          return JSON.parse(String(entry));
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean)
+      .some(
+        (payload) =>
+          payload.event === "request_started" &&
+          payload.route === "/health" &&
+          payload.method === "GET"
+      );
     logSpy.mockRestore();
 
     expect(hasRequestLog).toBe(true);

@@ -45,6 +45,29 @@ async function resetDb(): Promise<void> {
   await pool.query("delete from users where id <> '00000000-0000-0000-0000-000000000001'");
 }
 
+async function fetchLatestLoginAudit(): Promise<{ success: boolean } | null> {
+  const res = await pool.query<{ success: boolean }>(
+    `select success
+     from audit_events
+     where event_action = 'login'
+     order by created_at desc
+     limit 1`
+  );
+  return res.rows[0] ?? null;
+}
+
+function expectPoolReleased(): void {
+  const poolState = pool as unknown as {
+    totalCount?: number;
+    idleCount?: number;
+    waitingCount?: number;
+    options?: { max?: number };
+  };
+  expect(poolState.waitingCount ?? 0).toBe(0);
+  expect(poolState.totalCount ?? 0).toBeLessThanOrEqual(poolState.options?.max ?? 2);
+  expect(poolState.idleCount ?? 0).toBeGreaterThanOrEqual(0);
+}
+
 function expectRequestId(
   res: request.Response,
   requestId: string
@@ -110,6 +133,166 @@ afterAll(async () => {
 });
 
 describe("auth failure matrix", () => {
+  it("logs audit and releases connections on successful login", async () => {
+    await createUserAccount({
+      email: "audit-success@example.com",
+      password: loginPassword,
+      role: ROLES.STAFF,
+    });
+
+    const res = await request(app)
+      .post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey())
+      .set("x-request-id", "audit-success")
+      .send({ email: "audit-success@example.com", password: loginPassword });
+
+    expect(res.status).toBe(200);
+    const audit = await fetchLatestLoginAudit();
+    expect(audit?.success).toBe(true);
+    expectPoolReleased();
+  });
+
+  it("logs audit and releases connections on invalid password", async () => {
+    await createUserAccount({
+      email: "audit-invalid@example.com",
+      password: loginPassword,
+      role: ROLES.STAFF,
+    });
+
+    const res = await request(app)
+      .post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey())
+      .set("x-request-id", "audit-invalid")
+      .send({ email: "audit-invalid@example.com", password: "bad" });
+
+    expect(res.status).toBe(401);
+    const audit = await fetchLatestLoginAudit();
+    expect(audit?.success).toBe(false);
+    expectPoolReleased();
+  });
+
+  it("logs audit and releases connections on locked account", async () => {
+    const user = await createUserAccount({
+      email: "audit-locked@example.com",
+      password: loginPassword,
+      role: ROLES.STAFF,
+    });
+    await pool.query("update users set locked_until = $1 where id = $2", [
+      new Date(Date.now() + 60 * 60 * 1000),
+      user.id,
+    ]);
+
+    const res = await request(app)
+      .post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey())
+      .set("x-request-id", "audit-locked")
+      .send({ email: "audit-locked@example.com", password: loginPassword });
+
+    expect(res.status).toBe(423);
+    const audit = await fetchLatestLoginAudit();
+    expect(audit?.success).toBe(false);
+    expectPoolReleased();
+  });
+
+  it("logs audit and releases connections on disabled account", async () => {
+    const user = await createUserAccount({
+      email: "audit-disabled@example.com",
+      password: loginPassword,
+      role: ROLES.STAFF,
+    });
+    await pool.query("update users set active = false where id = $1", [user.id]);
+
+    const res = await request(app)
+      .post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey())
+      .set("x-request-id", "audit-disabled")
+      .send({ email: "audit-disabled@example.com", password: loginPassword });
+
+    expect(res.status).toBe(403);
+    const audit = await fetchLatestLoginAudit();
+    expect(audit?.success).toBe(false);
+    expectPoolReleased();
+  });
+
+  it("logs audit and releases connections on expired password", async () => {
+    const user = await createUserAccount({
+      email: "audit-expired@example.com",
+      password: loginPassword,
+      role: ROLES.STAFF,
+    });
+    await pool.query("update users set password_changed_at = $1 where id = $2", [
+      new Date(Date.now() - 40 * 24 * 60 * 60 * 1000),
+      user.id,
+    ]);
+
+    const res = await request(app)
+      .post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey())
+      .set("x-request-id", "audit-expired")
+      .send({ email: "audit-expired@example.com", password: loginPassword });
+
+    expect(res.status).toBe(403);
+    const audit = await fetchLatestLoginAudit();
+    expect(audit?.success).toBe(false);
+    expectPoolReleased();
+  });
+
+  it("logs audit and releases connections on db timeout", async () => {
+    await createUserAccount({
+      email: "audit-timeout@example.com",
+      password: loginPassword,
+      role: ROLES.STAFF,
+    });
+    const { setDbTestFailureInjection } = await import("../db");
+    setDbTestFailureInjection({
+      mode: "connection_timeout",
+      remaining: 1,
+      matchQuery: "from users",
+    });
+
+    const res = await request(app)
+      .post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey())
+      .set("x-request-id", "audit-timeout")
+      .send({ email: "audit-timeout@example.com", password: loginPassword });
+
+    expect(res.status).toBe(503);
+    const audit = await fetchLatestLoginAudit();
+    expect(audit?.success).toBe(false);
+    expectPoolReleased();
+  });
+
+  it("handles repeated failed logins without deadlocking the database", async () => {
+    await createUserAccount({
+      email: "repeat-fail@example.com",
+      password: loginPassword,
+      role: ROLES.STAFF,
+    });
+
+    const failures = await Promise.all(
+      Array.from({ length: 6 }, (_, index) =>
+        request(app)
+          .post("/api/auth/login")
+          .set("Idempotency-Key", nextIdempotencyKey())
+          .set("x-request-id", `repeat-fail-${index}`)
+          .send({ email: "repeat-fail@example.com", password: "bad" })
+      )
+    );
+
+    failures.forEach((res) => {
+      expect(res.status).toBe(401);
+    });
+
+    const recovery = await request(app)
+      .post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey())
+      .set("x-request-id", "repeat-recover")
+      .send({ email: "repeat-fail@example.com", password: loginPassword });
+
+    expect(recovery.status).toBe(200);
+    expectPoolReleased();
+  });
+
   it("returns 503 when db is down before user lookup", async () => {
     await createUserAccount({
       email: "down-before@example.com",

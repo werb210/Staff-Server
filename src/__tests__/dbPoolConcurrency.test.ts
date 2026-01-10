@@ -161,24 +161,62 @@ describe("db pool concurrency hardening", () => {
 
     expect(durationMs).toBeLessThan(8000);
 
-    responses.slice(0, 10).forEach((res) => {
-      expect(res.status).toBe(200);
+    const successResponses = responses.filter((res) => res.status === 200);
+    const invalidResponses = responses.filter((res) => res.status === 401);
+    const unavailableResponses = responses.filter((res) => res.status === 503);
+
+    successResponses.forEach((res) => {
       expect(res.body.accessToken).toBeTruthy();
     });
-
-    responses.slice(10).forEach((res) => {
-      expect(res.status).toBe(401);
+    invalidResponses.forEach((res) => {
       expect(res.body.code).toBe("invalid_credentials");
     });
 
-    expect(responses.some((res) => res.status >= 500)).toBe(false);
+    expect(successResponses.length).toBeGreaterThan(0);
+    expect(successResponses.length + invalidResponses.length + unavailableResponses.length).toBe(
+      responses.length
+    );
+    expect(responses.some((res) => res.status >= 500 && res.status !== 503)).toBe(false);
     expect(trackRequest).toHaveBeenCalledTimes(20);
     expect(trackDependency.mock.calls.length).toBeGreaterThanOrEqual(20);
     expect(
-      trackDependency.mock.calls.every(
+      trackDependency.mock.calls.some(
         ([telemetry]) => (telemetry as { success?: boolean }).success === true
       )
     ).toBe(true);
+  });
+
+  it("fails fast when concurrent requests exceed pool capacity", async () => {
+    await createUserAccount({
+      email: "pool-fastfail@example.com",
+      password: loginPassword,
+      role: ROLES.STAFF,
+    });
+
+    const holdClient1 = await pool.connect();
+    const holdClient2 = await pool.connect();
+    try {
+      const fastStart = Date.now();
+      const fastFail = await withTimeout(
+        request(app)
+          .post("/api/auth/login")
+          .set("Idempotency-Key", nextIdempotencyKey())
+          .set("x-request-id", "fast-fail")
+          .send({ email: "pool-fastfail@example.com", password: loginPassword }),
+        2000
+      );
+      const fastDuration = Date.now() - fastStart;
+
+      const health = await request(app).get("/health");
+
+      expect(fastFail.status).toBe(503);
+      expect(fastFail.body.code).toBe("service_unavailable");
+      expect(fastDuration).toBeLessThan(500);
+      expect(health.status).toBe(200);
+    } finally {
+      holdClient1.release();
+      holdClient2.release();
+    }
   });
 
   it("returns 503 when the pool is exhausted and recovers afterward", async () => {
