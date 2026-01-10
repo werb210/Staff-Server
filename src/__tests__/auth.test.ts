@@ -162,29 +162,6 @@ describe("auth", () => {
     expect(me.status).toBe(200);
   });
 
-  it("logs in when password_changed_at is missing", async () => {
-    await pool.query(`alter table users drop column password_changed_at`);
-    try {
-      await createUserAccount({
-        email: "missing-password-changed@example.com",
-        password: "Password123!",
-        role: ROLES.ADMIN,
-      });
-
-      const res = await postWithRequestId("/api/auth/login").send({
-        email: "missing-password-changed@example.com",
-        password: "Password123!",
-      });
-
-      expect(res.status).toBe(200);
-      expect(res.body.accessToken).toBeDefined();
-    } finally {
-      await pool.query(
-        `alter table users add column password_changed_at timestamp null`
-      );
-    }
-  });
-
   it("writes audit events for login success and failure", async () => {
     await createUserAccount({
       email: "audit-login@example.com",
@@ -250,8 +227,111 @@ describe("auth", () => {
       password: "Password123!",
     });
 
-    expect(res.status).toBe(503);
-    expect(res.body.code).toBe("invalid_password_hash");
+    expect(res.status).toBe(500);
+    expect(res.body.code).toBe("invalid_password_state");
+
+    const audit = await pool.query(
+      `select event_action as action, success
+       from audit_events
+       where event_action = 'invalid_password_state'`
+    );
+    expect(audit.rows).toEqual([{ action: "invalid_password_state", success: false }]);
+  });
+
+  it("fails login when password hash is null", async () => {
+    const user = await createUserAccount({
+      email: "null-hash@example.com",
+      password: "Password123!",
+      role: ROLES.STAFF,
+    });
+    const originalHash = await pool.query<{ password_hash: string }>(
+      "select password_hash from users where id = $1",
+      [user.id]
+    );
+
+    await pool.query("alter table users alter column password_hash drop not null");
+    try {
+      await pool.query("update users set password_hash = null where id = $1", [user.id]);
+
+      const res = await postWithRequestId("/api/auth/login").send({
+        email: "null-hash@example.com",
+        password: "Password123!",
+      });
+
+      expect(res.status).toBe(500);
+      expect(res.body.code).toBe("invalid_password_state");
+
+      const audit = await pool.query(
+        `select event_action as action, success
+         from audit_events
+         where event_action = 'invalid_password_state'`
+      );
+      expect(audit.rows).toEqual([
+        { action: "invalid_password_state", success: false },
+      ]);
+    } finally {
+      await pool.query("update users set password_hash = $1 where id = $2", [
+        originalHash.rows[0]?.password_hash ?? "",
+        user.id,
+      ]);
+      await pool.query("alter table users alter column password_hash set not null");
+    }
+  });
+
+  it("blocks login when locked_until is in the future", async () => {
+    const user = await createUserAccount({
+      email: "locked-future@example.com",
+      password: "Password123!",
+      role: ROLES.STAFF,
+    });
+
+    const lockUntil = new Date(Date.now() + 60 * 60 * 1000);
+    await pool.query("update users set locked_until = $1 where id = $2", [
+      lockUntil,
+      user.id,
+    ]);
+
+    const res = await postWithRequestId("/api/auth/login").send({
+      email: "locked-future@example.com",
+      password: "Password123!",
+    });
+
+    expect(res.status).toBe(423);
+    expect(res.body.code).toBe("account_locked");
+
+    const audit = await pool.query(
+      `select event_action as action, success
+       from audit_events
+       where event_action = 'login'`
+    );
+    expect(audit.rows).toEqual([{ action: "login", success: false }]);
+  });
+
+  it("keeps disabled login responses deterministic across retries", async () => {
+    const user = await createUserAccount({
+      email: "disabled-repeat@example.com",
+      password: "Password123!",
+      role: ROLES.STAFF,
+    });
+    await setUserStatus({
+      userId: user.id,
+      active: false,
+      actorId: user.id,
+    });
+
+    const first = await postWithRequestId("/api/auth/login").send({
+      email: "disabled-repeat@example.com",
+      password: "Password123!",
+    });
+    const second = await postWithRequestId("/api/auth/login").send({
+      email: "disabled-repeat@example.com",
+      password: "Password123!",
+    });
+
+    expect(first.status).toBe(403);
+    expect(second.status).toBe(403);
+    expect(first.body.code).toBe("account_disabled");
+    expect(second.body.code).toBe("account_disabled");
   });
 
   it("returns 503 when auth lookup fails due to db outage", async () => {
@@ -411,6 +491,13 @@ describe("auth", () => {
     expect(res.status).toBe(403);
     expect(res.body.code).toBe("account_disabled");
     expect(res.body.requestId).toBeDefined();
+
+    const audit = await pool.query(
+      `select event_action as action, success
+       from audit_events
+       where event_action = 'login'`
+    );
+    expect(audit.rows).toEqual([{ action: "login", success: false }]);
   });
 
   it("verifies access token", async () => {

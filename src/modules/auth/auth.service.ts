@@ -31,9 +31,10 @@ import { AppError } from "../../middleware/errors";
 import { recordAuditEvent } from "../audit/audit.service";
 import { getDbFailureCategory, isDbConnectionFailure, pool } from "../../db";
 import { type Role } from "../../auth/roles";
-import { logInfo, logWarn } from "../../observability/logger";
+import { logError, logInfo, logWarn } from "../../observability/logger";
 import { recordTransactionRollback } from "../../observability/transactionTelemetry";
 import { trackEvent } from "../../observability/appInsights";
+import { buildTelemetryProperties } from "../../observability/telemetry";
 import { getStartupState } from "../../startupState";
 
 type AccessTokenPayload = {
@@ -95,7 +96,7 @@ function trackAuthEvent(
   name: string,
   properties?: Record<string, unknown>
 ): void {
-  trackEvent({ name, properties });
+  trackEvent({ name, properties: buildTelemetryProperties(properties) });
 }
 
 function trackAuthDbFailure(action: AuthDbAction, error: unknown): void {
@@ -156,8 +157,15 @@ async function withAuthDbRetry<T>(
   }
 }
 
-function resolveHashPrefix(hash: string): string {
-  return hash.slice(0, 4);
+const bcryptHashPattern = /^\$2[aby]\$(\d{2})\$[./A-Za-z0-9]{53}$/;
+
+function isValidBcryptHash(hash: string): boolean {
+  const match = bcryptHashPattern.exec(hash);
+  if (!match) {
+    return false;
+  }
+  const cost = Number(match[1]);
+  return cost === 12;
 }
 
 async function handleRefreshReuse(
@@ -284,57 +292,44 @@ export async function loginUser(
     }
 
     const passwordMetadata = await findAuthPasswordMetadata(user.id);
-    if (!passwordMetadata?.password_hash) {
-      logWarn("auth_login_failed", {
+    const passwordHash = passwordMetadata?.password_hash;
+    const trimmedPasswordHash =
+      typeof passwordHash === "string" ? passwordHash.trim() : "";
+    if (!trimmedPasswordHash || !isValidBcryptHash(trimmedPasswordHash)) {
+      const reason = !trimmedPasswordHash
+        ? "password_hash_missing"
+        : "password_hash_invalid_format";
+      logError("invalid_password_state", {
         email: normalizedEmail,
         userId: user.id,
-        reason: "password_missing",
+        reason,
       });
-      trackAuthEvent("auth_invalid_credentials", {
+      await recordAuditEvent({
+        action: "invalid_password_state",
+        actorUserId: user.id,
+        targetUserId: user.id,
+        ip,
+        userAgent,
+        success: false,
+        metadata: { reason },
+      });
+      trackAuthEvent("invalid_password_state", {
         action: "login",
-        reason: "password_missing",
+        reason,
       });
       throw new AppError(
-        "invalid_credentials",
-        "Invalid credentials.",
-        401
+        "invalid_password_state",
+        "Invalid password state.",
+        500
       );
     }
 
-    const hashPrefix = resolveHashPrefix(passwordMetadata.password_hash);
     logInfo("auth_login_password_hash", {
       email: normalizedEmail,
       userId: user.id,
       algorithm: "bcrypt",
-      prefix: hashPrefix,
-      length: passwordMetadata.password_hash.length,
+      cost: 12,
     });
-
-    if (!hashPrefix.startsWith("$2a$") && !hashPrefix.startsWith("$2b$")) {
-      logWarn("auth_login_failed", {
-        email: normalizedEmail,
-        userId: user.id,
-        reason: "password_hash_prefix_invalid",
-      });
-      throw new AppError(
-        "invalid_password_hash",
-        "Password hash is invalid.",
-        503
-      );
-    }
-
-    if (passwordMetadata.password_hash.length < 60) {
-      logWarn("auth_login_failed", {
-        email: normalizedEmail,
-        userId: user.id,
-        reason: "password_hash_length_invalid",
-      });
-      throw new AppError(
-        "invalid_password_hash",
-        "Password hash is invalid.",
-        503
-      );
-    }
 
     const now = Date.now();
     const isLocked = Boolean(
@@ -412,7 +407,12 @@ export async function loginUser(
       );
     }
 
-    const ok = await bcrypt.compare(password, passwordMetadata.password_hash);
+    trackAuthEvent("auth_determinism_check_passed", {
+      action: "login",
+      userId: user.id,
+    });
+
+    const ok = await bcrypt.compare(password, trimmedPasswordHash);
     logInfo("auth_login_password_check", {
       email: normalizedEmail,
       userId: user.id,

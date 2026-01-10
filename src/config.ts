@@ -291,7 +291,12 @@ export function getDbPoolIdleTimeoutMs(): number {
 }
 
 export function getDbPoolConnectionTimeoutMs(): number {
-  return parsePositiveInt(process.env.DB_POOL_CONNECTION_TIMEOUT_MS, 10_000);
+  const requestTimeoutMs = getRequestTimeoutMs();
+  const configured = parsePositiveInt(process.env.DB_POOL_CONNECTION_TIMEOUT_MS, 10_000);
+  if (configured < requestTimeoutMs) {
+    return configured;
+  }
+  return Math.max(1, requestTimeoutMs - 100);
 }
 
 export function shouldRunMigrations(): boolean {

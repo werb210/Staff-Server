@@ -6,11 +6,13 @@ import { ROLES } from "../auth/roles";
 const trackRequest = jest.fn();
 const trackDependency = jest.fn();
 const trackException = jest.fn();
+const trackEvent = jest.fn();
 
 jest.mock("../observability/appInsights", () => ({
   trackRequest: (telemetry: unknown) => trackRequest(telemetry),
   trackDependency: (telemetry: unknown) => trackDependency(telemetry),
   trackException: (telemetry: unknown) => trackException(telemetry),
+  trackEvent: (telemetry: unknown) => trackEvent(telemetry),
   initializeAppInsights: jest.fn(),
 }));
 
@@ -91,6 +93,7 @@ beforeEach(async () => {
   trackRequest.mockClear();
   trackDependency.mockClear();
   trackException.mockClear();
+  trackEvent.mockClear();
   idempotencyCounter = 0;
   const { clearDbTestFailureInjection, setDbTestPoolMetricsOverride } =
     await import("../db");
@@ -213,6 +216,52 @@ describe("auth failure matrix", () => {
     expectRequestId(res, requestId);
     expectNoStackTrace(res);
     expect(trackDependency).toHaveBeenCalled();
+  });
+
+  it("emits determinism telemetry on successful login", async () => {
+    await createUserAccount({
+      email: "determinism-success@example.com",
+      password: loginPassword,
+      role: ROLES.STAFF,
+    });
+
+    const res = await request(app)
+      .post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey())
+      .set("x-request-id", "determinism-success")
+      .send({ email: "determinism-success@example.com", password: loginPassword });
+
+    expect(res.status).toBe(200);
+    const eventNames = trackEvent.mock.calls.map(
+      ([telemetry]) => (telemetry as { name?: string }).name
+    );
+    expect(eventNames).toContain("auth_determinism_check_passed");
+  });
+
+  it("emits telemetry for invalid password state", async () => {
+    const user = await createUserAccount({
+      email: "invalid-state@example.com",
+      password: loginPassword,
+      role: ROLES.STAFF,
+    });
+
+    await pool.query(
+      "update users set password_hash = $1 where id = $2",
+      ["not-a-bcrypt-hash", user.id]
+    );
+
+    const res = await request(app)
+      .post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey())
+      .set("x-request-id", "invalid-state")
+      .send({ email: "invalid-state@example.com", password: loginPassword });
+
+    expect(res.status).toBe(500);
+    expect(res.body.code).toBe("invalid_password_state");
+    const eventNames = trackEvent.mock.calls.map(
+      ([telemetry]) => (telemetry as { name?: string }).name
+    );
+    expect(eventNames).toContain("invalid_password_state");
   });
 
   it("returns 401 for invalid password when db is slow", async () => {

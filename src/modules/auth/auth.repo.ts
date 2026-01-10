@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { isPgMem, pool, runAuthQuery } from "../../db";
+import { pool, runAuthQuery } from "../../db";
 import { type PoolClient } from "pg";
 import { type Role } from "../../auth/roles";
 
@@ -11,7 +11,7 @@ export interface AuthUser {
   password_hash: string;
   role: Role;
   active: boolean;
-  password_changed_at?: Date | null;
+  password_changed_at: Date | null;
   failed_login_attempts: number;
   locked_until: Date | null;
   token_version: number;
@@ -29,65 +29,19 @@ export interface AuthUserBase {
 
 export interface AuthPasswordMetadata {
   password_hash: string;
-  password_changed_at?: Date | null;
-}
-
-/**
- * IMPORTANT:
- * - information_schema is schema-wide
- * - Azure Postgres WILL lie unless schema is constrained
- * - Cache result to avoid per-request metadata scans
- */
-let cachedHasPasswordChangedAt: boolean | null = null;
-
-async function hasPasswordChangedAtColumn(
-  client?: Queryable
-): Promise<boolean> {
-  if (cachedHasPasswordChangedAt !== null && !isPgMem) {
-    return cachedHasPasswordChangedAt;
-  }
-
-  const runner = client ?? pool;
-
-  const res = await runAuthQuery(
-    runner,
-    `
-    select 1
-    from information_schema.columns
-    where table_schema = 'public'
-      and table_name = 'users'
-      and column_name = 'password_changed_at'
-    limit 1
-    `
-  );
-
-  const hasColumn = (res.rowCount ?? 0) > 0;
-  if (!isPgMem) {
-    cachedHasPasswordChangedAt = hasColumn;
-  }
-  return hasColumn;
+  password_changed_at: Date | null;
 }
 
 export async function findAuthUserByEmail(
   email: string
 ): Promise<AuthUser | null> {
-  const hasPasswordChangedAt = await hasPasswordChangedAtColumn();
   const normalizedEmail = email.trim().toLowerCase();
-
-  const columns = hasPasswordChangedAt
-    ? `
-      id, email, password_hash, role, active,
-      password_changed_at, failed_login_attempts,
-      locked_until, token_version
-    `
-    : `
-      id, email, password_hash, role, active,
-      failed_login_attempts, locked_until, token_version
-    `;
 
   const res = await runAuthQuery<AuthUser>(
     pool,
-    `select ${columns}
+    `select id, email, password_hash, role, active,
+            password_changed_at, failed_login_attempts,
+            locked_until, token_version
      from users
      where lower(email) = $1
      order by id asc`,
@@ -127,23 +81,14 @@ export async function findAuthPasswordMetadata(
   client?: Queryable
 ): Promise<AuthPasswordMetadata | null> {
   const runner = client ?? pool;
-  const hasPasswordChangedAt = await hasPasswordChangedAtColumn(runner);
-  const columns = hasPasswordChangedAt
-    ? "password_hash, password_changed_at"
-    : "password_hash";
-
   const res = await runAuthQuery<AuthPasswordMetadata>(
     runner,
-    `select ${columns} from users where id = $1 limit 1`,
+    `select password_hash, password_changed_at from users where id = $1 limit 1`,
     [userId]
   );
 
   if (!res.rows[0]) {
     return null;
-  }
-
-  if (!hasPasswordChangedAt) {
-    return { ...res.rows[0], password_changed_at: null };
   }
 
   return res.rows[0];
@@ -153,23 +98,14 @@ export async function findAuthUserById(
   id: string,
   client?: Queryable
 ): Promise<AuthUser | null> {
-  const hasPasswordChangedAt = await hasPasswordChangedAtColumn();
   const runner = client ?? pool;
-
-  const columns = hasPasswordChangedAt
-    ? `
-      id, email, password_hash, role, active,
-      password_changed_at, failed_login_attempts,
-      locked_until, token_version
-    `
-    : `
-      id, email, password_hash, role, active,
-      failed_login_attempts, locked_until, token_version
-    `;
 
   const res = await runAuthQuery<AuthUser>(
     runner,
-    `select ${columns} from users where id = $1 limit 1`,
+    `select id, email, password_hash, role, active,
+            password_changed_at, failed_login_attempts,
+            locked_until, token_version
+     from users where id = $1 limit 1`,
     [id]
   );
 
@@ -183,32 +119,14 @@ export async function createUser(params: {
   client?: Queryable;
 }): Promise<AuthUser> {
   const runner = params.client ?? pool;
-  const hasPasswordChangedAt = await hasPasswordChangedAtColumn(runner);
-
-  const columns = hasPasswordChangedAt
-    ? `(id, email, password_hash, role, active, password_changed_at)`
-    : `(id, email, password_hash, role, active)`;
-
-  const values = hasPasswordChangedAt
-    ? `($1, $2, $3, $4, true, now())`
-    : `($1, $2, $3, $4, true)`;
-
-  const returning = hasPasswordChangedAt
-    ? `
-      id, email, password_hash, role, active,
-      password_changed_at, failed_login_attempts,
-      locked_until, token_version
-    `
-    : `
-      id, email, password_hash, role, active,
-      failed_login_attempts, locked_until, token_version
-    `;
 
   const res = await runAuthQuery<AuthUser>(
     runner,
-    `insert into users ${columns}
-     values ${values}
-     returning ${returning}`,
+    `insert into users (id, email, password_hash, role, active, password_changed_at)
+     values ($1, $2, $3, $4, true, now())
+     returning id, email, password_hash, role, active,
+               password_changed_at, failed_login_attempts,
+               locked_until, token_version`,
     [randomUUID(), params.email, params.passwordHash, params.role]
   );
 
@@ -221,15 +139,10 @@ export async function updatePassword(
   client?: Queryable
 ): Promise<void> {
   const runner = client ?? pool;
-  const hasPasswordChangedAt = await hasPasswordChangedAtColumn(runner);
-
-  const setClause = hasPasswordChangedAt
-    ? `password_hash = $1, password_changed_at = now()`
-    : `password_hash = $1`;
 
   await runAuthQuery(
     runner,
-    `update users set ${setClause} where id = $2`,
+    `update users set password_hash = $1, password_changed_at = now() where id = $2`,
     [passwordHash, userId]
   );
 }

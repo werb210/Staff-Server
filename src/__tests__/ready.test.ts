@@ -5,11 +5,13 @@ import type { Pool } from "pg";
 const trackRequest = jest.fn();
 const trackDependency = jest.fn();
 const trackException = jest.fn();
+const trackEvent = jest.fn();
 
 jest.mock("../observability/appInsights", () => ({
   trackRequest: (telemetry: unknown) => trackRequest(telemetry),
   trackDependency: (telemetry: unknown) => trackDependency(telemetry),
   trackException: (telemetry: unknown) => trackException(telemetry),
+  trackEvent: (telemetry: unknown) => trackEvent(telemetry),
   initializeAppInsights: jest.fn(),
 }));
 
@@ -54,6 +56,7 @@ beforeEach(() => {
   trackRequest.mockClear();
   trackDependency.mockClear();
   trackException.mockClear();
+  trackEvent.mockClear();
 });
 
 afterAll(async () => {

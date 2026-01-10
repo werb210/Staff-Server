@@ -12,7 +12,8 @@ import {
   isTestEnvironment,
 } from "./config";
 import { logError, logInfo, logWarn } from "./observability/logger";
-import { trackDependency } from "./observability/appInsights";
+import { trackDependency, trackEvent } from "./observability/appInsights";
+import { buildTelemetryProperties } from "./observability/telemetry";
 import { addRequestDbProcessId, removeRequestDbProcessId } from "./middleware/requestContext";
 
 export const isPgMem =
@@ -191,11 +192,29 @@ function assertAuthPoolAvailability(): void {
   if (waitingCount > 0 && totalCount >= max) {
     const error = new Error("db_pool_exhausted");
     (error as { code?: string }).code = "53300";
+    trackEvent({
+      name: "db_pool_exhaustion_prevented",
+      properties: buildTelemetryProperties({
+        totalCount,
+        waitingCount,
+        max,
+        reason: "waiting_clients",
+      }),
+    });
     throw error;
   }
   if (idleCount < 1 && totalCount >= max) {
     const error = new Error("db_pool_no_free_client");
     (error as { code?: string }).code = "53300";
+    trackEvent({
+      name: "db_pool_exhaustion_prevented",
+      properties: buildTelemetryProperties({
+        totalCount,
+        idleCount,
+        max,
+        reason: "no_idle_clients",
+      }),
+    });
     throw error;
   }
 }
@@ -671,6 +690,8 @@ const requiredColumns: RequiredColumn[] = [
   { table: "users", column: "failed_login_attempts" },
   { table: "users", column: "locked_until" },
   { table: "users", column: "token_version" },
+  { table: "users", column: "created_at" },
+  { table: "users", column: "updated_at" },
 
   // auth
   { table: "auth_refresh_tokens", column: "id" },
@@ -679,6 +700,11 @@ const requiredColumns: RequiredColumn[] = [
   { table: "auth_refresh_tokens", column: "expires_at" },
   { table: "auth_refresh_tokens", column: "revoked_at" },
   { table: "auth_refresh_tokens", column: "created_at" },
+  { table: "refresh_tokens", column: "id" },
+  { table: "refresh_tokens", column: "user_id" },
+  { table: "refresh_tokens", column: "token_hash" },
+  { table: "refresh_tokens", column: "expires_at" },
+  { table: "refresh_tokens", column: "revoked_at" },
 
   { table: "password_resets", column: "id" },
   { table: "password_resets", column: "user_id" },
@@ -710,6 +736,7 @@ const requiredColumns: RequiredColumn[] = [
   { table: "applications", column: "metadata" },
   { table: "applications", column: "product_type" },
   { table: "applications", column: "pipeline_state" },
+  { table: "applications", column: "status" },
   { table: "applications", column: "created_at" },
   { table: "applications", column: "updated_at" },
 
@@ -719,6 +746,8 @@ const requiredColumns: RequiredColumn[] = [
   { table: "documents", column: "owner_user_id" },
   { table: "documents", column: "title" },
   { table: "documents", column: "document_type" },
+  { table: "documents", column: "version" },
+  { table: "documents", column: "status" },
   { table: "documents", column: "created_at" },
 
   { table: "document_versions", column: "id" },
@@ -751,6 +780,15 @@ export async function assertSchema(): Promise<void> {
   );
 
   if (missing.length > 0) {
+    logError("schema_contract_violation", {
+      missingColumns: missing.map((item) => `${item.table}.${item.column}`),
+    });
+    trackEvent({
+      name: "schema_contract_violation",
+      properties: buildTelemetryProperties({
+        missingColumns: missing.map((item) => `${item.table}.${item.column}`),
+      }),
+    });
     throw new Error(
       `schema_mismatch_missing_columns:${missing
         .map((m) => `${m.table}.${m.column}`)
