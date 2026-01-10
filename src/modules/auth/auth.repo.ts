@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { isPgMem, pool } from "../../db";
+import { isPgMem, pool, runAuthQuery } from "../../db";
 import { type PoolClient } from "pg";
 import { type Role } from "../../auth/roles";
 
@@ -49,7 +49,8 @@ async function hasPasswordChangedAtColumn(
 
   const runner = client ?? pool;
 
-  const res = await runner.query(
+  const res = await runAuthQuery(
+    runner,
     `
     select 1
     from information_schema.columns
@@ -84,7 +85,8 @@ export async function findAuthUserByEmail(
       failed_login_attempts, locked_until, token_version
     `;
 
-  const res = await pool.query<AuthUser>(
+  const res = await runAuthQuery<AuthUser>(
+    pool,
     `select ${columns}
      from users
      where lower(email) = $1
@@ -104,7 +106,8 @@ export async function findAuthUserByEmailBase(
 ): Promise<AuthUserBase | null> {
   const normalizedEmail = email.trim().toLowerCase();
 
-  const res = await pool.query<AuthUserBase>(
+  const res = await runAuthQuery<AuthUserBase>(
+    pool,
     `select id, email, role, active, failed_login_attempts, locked_until, token_version
      from users
      where lower(email) = $1
@@ -129,7 +132,8 @@ export async function findAuthPasswordMetadata(
     ? "password_hash, password_changed_at"
     : "password_hash";
 
-  const res = await runner.query<AuthPasswordMetadata>(
+  const res = await runAuthQuery<AuthPasswordMetadata>(
+    runner,
     `select ${columns} from users where id = $1 limit 1`,
     [userId]
   );
@@ -146,9 +150,11 @@ export async function findAuthPasswordMetadata(
 }
 
 export async function findAuthUserById(
-  id: string
+  id: string,
+  client?: Queryable
 ): Promise<AuthUser | null> {
   const hasPasswordChangedAt = await hasPasswordChangedAtColumn();
+  const runner = client ?? pool;
 
   const columns = hasPasswordChangedAt
     ? `
@@ -161,7 +167,8 @@ export async function findAuthUserById(
       failed_login_attempts, locked_until, token_version
     `;
 
-  const res = await pool.query<AuthUser>(
+  const res = await runAuthQuery<AuthUser>(
+    runner,
     `select ${columns} from users where id = $1 limit 1`,
     [id]
   );
@@ -197,7 +204,8 @@ export async function createUser(params: {
       failed_login_attempts, locked_until, token_version
     `;
 
-  const res = await runner.query<AuthUser>(
+  const res = await runAuthQuery<AuthUser>(
+    runner,
     `insert into users ${columns}
      values ${values}
      returning ${returning}`,
@@ -219,7 +227,8 @@ export async function updatePassword(
     ? `password_hash = $1, password_changed_at = now()`
     : `password_hash = $1`;
 
-  await runner.query(
+  await runAuthQuery(
+    runner,
     `update users set ${setClause} where id = $2`,
     [passwordHash, userId]
   );
@@ -248,7 +257,8 @@ export async function hasActivePasswordReset(
   client?: Queryable
 ): Promise<boolean> {
   const runner = client ?? pool;
-  const res = await runner.query(
+  const res = await runAuthQuery(
+    runner,
     `select 1 from password_resets
      where user_id = $1
        and used_at is null
@@ -266,11 +276,13 @@ export async function storeRefreshToken(params: {
   client?: Queryable;
 }): Promise<void> {
   const runner = params.client ?? pool;
-  await runner.query(
+  await runAuthQuery(
+    runner,
     `delete from auth_refresh_tokens where user_id = $1`,
     [params.userId]
   );
-  await runner.query(
+  await runAuthQuery(
+    runner,
     `insert into auth_refresh_tokens (id, user_id, token_hash, expires_at, revoked_at, created_at)
      values ($1, $2, $3, $4, null, now())`,
     [randomUUID(), params.userId, params.tokenHash, params.expiresAt]
@@ -282,7 +294,8 @@ export async function consumeRefreshToken(
   client?: Queryable
 ): Promise<RefreshTokenRecord | null> {
   const runner = client ?? pool;
-  const res = await runner.query<RefreshTokenRecord>(
+  const res = await runAuthQuery<RefreshTokenRecord>(
+    runner,
     `update auth_refresh_tokens
      set revoked_at = now()
      where token_hash = $1
@@ -298,7 +311,8 @@ export async function revokeRefreshToken(
   client?: Queryable
 ): Promise<void> {
   const runner = client ?? pool;
-  await runner.query(
+  await runAuthQuery(
+    runner,
     `update auth_refresh_tokens
      set revoked_at = now()
      where token_hash = $1
@@ -312,7 +326,8 @@ export async function revokeRefreshTokensForUser(
   client?: Queryable
 ): Promise<void> {
   const runner = client ?? pool;
-  await runner.query(
+  await runAuthQuery(
+    runner,
     `update auth_refresh_tokens
      set revoked_at = now()
      where user_id = $1
@@ -328,7 +343,8 @@ export async function createPasswordReset(params: {
   client?: Queryable;
 }): Promise<void> {
   const runner = params.client ?? pool;
-  await runner.query(
+  await runAuthQuery(
+    runner,
     `insert into password_resets (id, user_id, token_hash, expires_at, used_at, created_at)
      values ($1, $2, $3, $4, null, now())`,
     [randomUUID(), params.userId, params.tokenHash, params.expiresAt]
@@ -340,7 +356,8 @@ export async function findPasswordReset(
   client?: Queryable
 ): Promise<PasswordResetRecord | null> {
   const runner = client ?? pool;
-  const res = await runner.query<PasswordResetRecord>(
+  const res = await runAuthQuery<PasswordResetRecord>(
+    runner,
     `select id, user_id, token_hash, expires_at, used_at, created_at
      from password_resets
      where token_hash = $1
@@ -355,7 +372,8 @@ export async function markPasswordResetUsed(
   client?: Queryable
 ): Promise<void> {
   const runner = client ?? pool;
-  await runner.query(
+  await runAuthQuery(
+    runner,
     `update password_resets set used_at = now() where id = $1`,
     [id]
   );
@@ -366,7 +384,8 @@ export async function incrementTokenVersion(
   client?: Queryable
 ): Promise<void> {
   const runner = client ?? pool;
-  await runner.query(
+  await runAuthQuery(
+    runner,
     `update users set token_version = token_version + 1 where id = $1`,
     [userId]
   );
@@ -378,7 +397,8 @@ export async function recordFailedLogin(
   client?: Queryable
 ): Promise<void> {
   const runner = client ?? pool;
-  await runner.query(
+  await runAuthQuery(
+    runner,
     `update users
      set failed_login_attempts = failed_login_attempts + 1,
          locked_until = $2
@@ -392,7 +412,8 @@ export async function resetLoginFailures(
   client?: Queryable
 ): Promise<void> {
   const runner = client ?? pool;
-  await runner.query(
+  await runAuthQuery(
+    runner,
     `update users
      set failed_login_attempts = 0,
          locked_until = null
@@ -407,10 +428,14 @@ export async function setUserActive(
   client?: Queryable
 ): Promise<void> {
   const runner = client ?? pool;
-  await runner.query(`update users set active = $2 where id = $1`, [
+  await runAuthQuery(
+    runner,
+    `update users set active = $2 where id = $1`,
+    [
     userId,
     active,
-  ]);
+    ]
+  );
 }
 
 export async function updateUserRole(
@@ -419,5 +444,9 @@ export async function updateUserRole(
   client?: Queryable
 ): Promise<void> {
   const runner = client ?? pool;
-  await runner.query(`update users set role = $2 where id = $1`, [userId, role]);
+  await runAuthQuery(
+    runner,
+    `update users set role = $2 where id = $1`,
+    [userId, role]
+  );
 }
