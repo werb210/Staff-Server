@@ -19,7 +19,7 @@ router.post(
   requireCapability([CAPABILITIES.APPLICATION_CREATE]),
   async (req, res, next) => {
     try {
-      const { name, metadata, productType, idempotencyKey } = req.body ?? {};
+      const { name, metadata, productType } = req.body ?? {};
       if (!req.user) {
         throw new AppError("missing_token", "Authorization token is required.", 401);
       }
@@ -31,7 +31,6 @@ router.post(
         name,
         metadata: metadata ?? null,
         productType: productType ?? null,
-        idempotencyKey: idempotencyKey ?? null,
         actorUserId: req.user.userId,
         actorRole: req.user.role,
         ip: req.ip,
@@ -54,8 +53,7 @@ router.post(
       if (!req.user) {
         throw new AppError("missing_token", "Authorization token is required.", 401);
       }
-      const { title, metadata, content, documentId, documentType, idempotencyKey } =
-        req.body ?? {};
+      const { title, metadata, content, documentId, documentType } = req.body ?? {};
       if (!title || !metadata || !content) {
         throw new AppError(
           "missing_fields",
@@ -70,7 +68,6 @@ router.post(
         documentType: documentType ?? null,
         metadata,
         content,
-        idempotencyKey: idempotencyKey ?? null,
         actorUserId: req.user.userId,
         actorRole: req.user.role,
         ip: req.ip,

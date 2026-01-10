@@ -6,12 +6,16 @@ type Store = {
   requestId: string;
   route?: string;
   start: number;
+  dbProcessIds: Set<number>;
+  idempotencyKeyHash?: string;
 };
 
 export type RequestContext = {
   requestId: string;
   route?: string;
   start?: number;
+  dbProcessIds?: Set<number>;
+  idempotencyKeyHash?: string;
 };
 
 const storage = new AsyncLocalStorage<Store>();
@@ -29,6 +33,7 @@ export function requestContext(
       requestId,
       route: req.originalUrl,
       start: Date.now(),
+      dbProcessIds: new Set<number>(),
     },
     () => {
       res.locals.requestId = requestId;
@@ -47,6 +52,10 @@ export function getRequestRoute(): string | undefined {
   return storage.getStore()?.route;
 }
 
+export function getRequestIdempotencyKeyHash(): string | undefined {
+  return storage.getStore()?.idempotencyKeyHash;
+}
+
 export function runWithRequestContext<T>(
   ctx: RequestContext,
   fn: () => T
@@ -56,6 +65,8 @@ export function runWithRequestContext<T>(
     requestId: ctx.requestId,
     route: ctx.route,
     start: ctx.start ?? Date.now(),
+    dbProcessIds: ctx.dbProcessIds ?? new Set<number>(),
+    idempotencyKeyHash: ctx.idempotencyKeyHash,
   };
   const restore = (): void => {
     if (previous) {
@@ -68,4 +79,36 @@ export function runWithRequestContext<T>(
   }
   restore();
   return result;
+}
+
+export function addRequestDbProcessId(processId: number): void {
+  const store = storage.getStore();
+  if (!store) {
+    return;
+  }
+  store.dbProcessIds.add(processId);
+}
+
+export function removeRequestDbProcessId(processId: number): void {
+  const store = storage.getStore();
+  if (!store) {
+    return;
+  }
+  store.dbProcessIds.delete(processId);
+}
+
+export function getRequestDbProcessIds(): number[] {
+  const store = storage.getStore();
+  if (!store) {
+    return [];
+  }
+  return Array.from(store.dbProcessIds);
+}
+
+export function setRequestIdempotencyKeyHash(value: string): void {
+  const store = storage.getStore();
+  if (!store) {
+    return;
+  }
+  store.idempotencyKeyHash = value;
 }

@@ -7,6 +7,7 @@ import { printRoutes } from "./debug/printRoutes";
 import { runMigrations } from "./migrations";
 import { requestId } from "./middleware/requestId";
 import { requestLogger } from "./middleware/requestLogger";
+import { requestTimeout } from "./middleware/requestTimeout";
 
 export function buildApp(): express.Express {
   const app = express();
@@ -18,12 +19,13 @@ export function buildApp(): express.Express {
 
   app.use(requestId);
   app.use(requestLogger);
+  app.use(requestTimeout);
 
   app.use(
     cors({
       origin: true,
       credentials: false,
-      allowedHeaders: ["Authorization", "Content-Type", "X-Request-Id"],
+      allowedHeaders: ["Authorization", "Content-Type", "X-Request-Id", "Idempotency-Key"],
       exposedHeaders: ["x-request-id"],
     })
   );

@@ -12,11 +12,13 @@ import staffRoutes from "./routes/staff";
 import usersRoutes from "./routes/users";
 import { errorHandler, notFoundHandler } from "./middleware/errors";
 import { enforceSecureCookies, requireHttps } from "./middleware/security";
+import { idempotencyMiddleware } from "./middleware/idempotency";
 
 const router = Router();
 
 router.use(requireHttps);
 router.use(enforceSecureCookies);
+router.use(idempotencyMiddleware);
 
 router.use("/_int", internalRoutes);
 router.use("/auth", authRoutes);

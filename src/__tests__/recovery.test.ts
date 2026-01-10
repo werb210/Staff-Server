@@ -11,6 +11,8 @@ import { runMigrations } from "../migrations";
 import { ensureAuditEventSchema } from "./helpers/auditSchema";
 
 const app = buildAppWithApiRoutes();
+let idempotencyCounter = 0;
+const nextIdempotencyKey = (): string => `idem-recovery-${idempotencyCounter++}`;
 
 async function resetDb(): Promise<void> {
   await pool.query("delete from client_submissions");
@@ -45,6 +47,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await resetDb();
+  idempotencyCounter = 0;
   resetLoginRateLimit();
 });
 
@@ -93,7 +96,8 @@ describe("recovery integration", () => {
       role: ROLES.ADMIN,
     });
 
-    const res = await request(app).post("/api/auth/login").send({
+    const res = await request(app).post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey()).send({
       email: "login-success@example.com",
       password: "Password123!",
     });
@@ -103,7 +107,8 @@ describe("recovery integration", () => {
   });
 
   it("returns invalid_credentials when the user does not exist", async () => {
-    const res = await request(app).post("/api/auth/login").send({
+    const res = await request(app).post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey()).send({
       email: "missing@example.com",
       password: "Password123!",
     });
@@ -119,7 +124,8 @@ describe("recovery integration", () => {
       role: ROLES.STAFF,
     });
 
-    const res = await request(app).post("/api/auth/login").send({
+    const res = await request(app).post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey()).send({
       email: "mismatch@example.com",
       password: "WrongPassword!",
     });
@@ -140,7 +146,8 @@ describe("recovery integration", () => {
       actorId: user.id,
     });
 
-    const res = await request(app).post("/api/auth/login").send({
+    const res = await request(app).post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey()).send({
       email: "disabled-recovery@example.com",
       password: "Password123!",
     });
@@ -157,7 +164,8 @@ describe("recovery integration", () => {
     });
     await requestPasswordReset({ userId: user.id });
 
-    const res = await request(app).post("/api/auth/login").send({
+    const res = await request(app).post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey()).send({
       email: "reset-required@example.com",
       password: "Password123!",
     });

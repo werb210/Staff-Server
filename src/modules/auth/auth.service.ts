@@ -32,6 +32,7 @@ import { recordAuditEvent } from "../audit/audit.service";
 import { isDbConnectionFailure, pool } from "../../db";
 import { type Role } from "../../auth/roles";
 import { logError, logInfo, logWarn } from "../../observability/logger";
+import { recordTransactionRollback } from "../../observability/transactionTelemetry";
 import { getStartupState } from "../../startupState";
 
 type AccessTokenPayload = {
@@ -688,6 +689,7 @@ export async function createUserAccount(params: {
     await client.query("commit");
     return { id: user.id, email: user.email, role: user.role };
   } catch (err) {
+    recordTransactionRollback(err);
     await client.query("rollback");
     await recordAuditEvent({
       action: "user_created",
@@ -804,52 +806,67 @@ export async function confirmPasswordReset(params: {
   userAgent?: string;
 }): Promise<void> {
   const tokenHash = hashToken(params.token);
-  const record = await findPasswordReset(tokenHash);
-  if (!record || record.used_at || record.expires_at.getTime() < Date.now()) {
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const record = await findPasswordReset(tokenHash, client);
+    if (!record || record.used_at || record.expires_at.getTime() < Date.now()) {
+      await recordAuditEvent({
+        action: "password_reset_completed",
+        actorUserId: null,
+        targetUserId: record?.user_id ?? null,
+        ip: params.ip,
+        userAgent: params.userAgent,
+        success: false,
+        client,
+      });
+      throw new AppError("invalid_token", "Invalid reset token.", 401);
+    }
+
+    if (!timingSafeTokenCompare(record.token_hash, tokenHash)) {
+      await recordAuditEvent({
+        action: "password_reset_completed",
+        actorUserId: null,
+        targetUserId: record.user_id,
+        ip: params.ip,
+        userAgent: params.userAgent,
+        success: false,
+        client,
+      });
+      throw new AppError("invalid_token", "Invalid reset token.", 401);
+    }
+
+    const passwordHash = await bcrypt.hash(params.newPassword, 12);
+    await updatePassword(record.user_id, passwordHash, client);
+    await incrementTokenVersion(record.user_id, client);
+    await revokeRefreshTokensForUser(record.user_id, client);
+    await markPasswordResetUsed(record.id, client);
     await recordAuditEvent({
-      action: "password_reset_completed",
+      action: "token_revoke",
       actorUserId: null,
-      targetUserId: record?.user_id ?? null,
+      targetUserId: record.user_id,
       ip: params.ip,
       userAgent: params.userAgent,
-      success: false,
+      success: true,
+      client,
     });
-    throw new AppError("invalid_token", "Invalid reset token.", 401);
-  }
-
-  if (!timingSafeTokenCompare(record.token_hash, tokenHash)) {
     await recordAuditEvent({
       action: "password_reset_completed",
       actorUserId: null,
       targetUserId: record.user_id,
       ip: params.ip,
       userAgent: params.userAgent,
-      success: false,
+      success: true,
+      client,
     });
-    throw new AppError("invalid_token", "Invalid reset token.", 401);
+    await client.query("commit");
+  } catch (err) {
+    recordTransactionRollback(err);
+    await client.query("rollback");
+    throw err;
+  } finally {
+    client.release();
   }
-
-  const passwordHash = await bcrypt.hash(params.newPassword, 12);
-  await updatePassword(record.user_id, passwordHash);
-  await incrementTokenVersion(record.user_id);
-  await revokeRefreshTokensForUser(record.user_id);
-  await markPasswordResetUsed(record.id);
-  await recordAuditEvent({
-    action: "token_revoke",
-    actorUserId: null,
-    targetUserId: record.user_id,
-    ip: params.ip,
-    userAgent: params.userAgent,
-    success: true,
-  });
-  await recordAuditEvent({
-    action: "password_reset_completed",
-    actorUserId: null,
-    targetUserId: record.user_id,
-    ip: params.ip,
-    userAgent: params.userAgent,
-    success: true,
-  });
 }
 
 export async function unlockUserAccount(params: {

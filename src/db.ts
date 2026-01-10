@@ -7,10 +7,18 @@ import {
 } from "./config";
 import { logError, logInfo, logWarn } from "./observability/logger";
 import { trackDependency } from "./observability/appInsights";
+import { addRequestDbProcessId, removeRequestDbProcessId } from "./middleware/requestContext";
 
 export const isPgMem =
   process.env.NODE_ENV === "test" &&
   (!process.env.DATABASE_URL || process.env.DATABASE_URL === "pg-mem");
+
+export function isPgMemRuntime(): boolean {
+  return (
+    process.env.NODE_ENV === "test" &&
+    (!process.env.DATABASE_URL || process.env.DATABASE_URL === "pg-mem")
+  );
+}
 
 const basePoolConfig: PoolConfig = {
   max: getDbPoolMax(),
@@ -139,6 +147,21 @@ function createPool(): Pool {
 
 export const pool = createPool();
 
+export async function cancelDbWork(processIds: number[]): Promise<void> {
+  if (processIds.length === 0) {
+    return;
+  }
+  await Promise.all(
+    processIds.map(async (processId) => {
+      try {
+        await pool.query("select pg_cancel_backend($1)", [processId]);
+      } catch {
+        // ignore cancel errors
+      }
+    })
+  );
+}
+
 export function getPoolConfig(): PoolConfig {
   return { ...poolConfig };
 }
@@ -164,7 +187,11 @@ function wrapQuery<T extends { query: Pool["query"] }>(
   runner.query = (async (...args: Parameters<Pool["query"]>) => {
     const queryText = getQueryText(args);
     const start = Date.now();
+    const processId = (runner as { processID?: number }).processID;
     try {
+      if (processId) {
+        addRequestDbProcessId(processId);
+      }
       const result = await runQueryWithTestControls(originalQuery, args, queryText);
       trackDependency({
         name: "postgres.query",
@@ -185,6 +212,10 @@ function wrapQuery<T extends { query: Pool["query"] }>(
         dependencyTypeName: "postgres",
       });
       throw error;
+    } finally {
+      if (processId) {
+        removeRequestDbProcessId(processId);
+      }
     }
   }) as Pool["query"];
 }

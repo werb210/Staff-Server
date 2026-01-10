@@ -8,6 +8,8 @@ import { ensureAuditEventSchema } from "./helpers/auditSchema";
 
 const app = buildAppWithApiRoutes();
 const requestId = "test-request-id";
+let idempotencyCounter = 0;
+const nextIdempotencyKey = (): string => `idem-app-${idempotencyCounter++}`;
 
 async function resetDb(): Promise<void> {
   await pool.query("delete from client_submissions");
@@ -42,6 +44,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await resetDb();
+  idempotencyCounter = 0;
 });
 
 afterAll(async () => {
@@ -58,6 +61,7 @@ describe("applications and documents", () => {
 
     const login = await request(app)
       .post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("x-request-id", requestId)
       .send({
       email: "user@apps.com",
@@ -66,6 +70,7 @@ describe("applications and documents", () => {
 
     const appRes = await request(app)
       .post("/api/applications")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
       .send({
@@ -79,6 +84,7 @@ describe("applications and documents", () => {
 
     const upload1 = await request(app)
       .post(`/api/applications/${applicationId}/documents`)
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
       .send({
@@ -92,6 +98,7 @@ describe("applications and documents", () => {
 
     const upload2 = await request(app)
       .post(`/api/applications/${applicationId}/documents`)
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
       .send({
@@ -119,6 +126,7 @@ describe("applications and documents", () => {
 
     const ownerLogin = await request(app)
       .post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("x-request-id", requestId)
       .send({
       email: "owner@apps.com",
@@ -126,6 +134,7 @@ describe("applications and documents", () => {
     });
     const otherLogin = await request(app)
       .post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("x-request-id", requestId)
       .send({
       email: "other@apps.com",
@@ -134,6 +143,7 @@ describe("applications and documents", () => {
 
     const appRes = await request(app)
       .post("/api/applications")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${ownerLogin.body.accessToken}`)
       .set("x-request-id", requestId)
       .send({ name: "Owner Application", productType: "standard" });
@@ -141,6 +151,7 @@ describe("applications and documents", () => {
 
     const upload = await request(app)
       .post(`/api/applications/${appRes.body.application.id}/documents`)
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${otherLogin.body.accessToken}`)
       .set("x-request-id", requestId)
       .send({
@@ -162,6 +173,7 @@ describe("applications and documents", () => {
 
     const login = await request(app)
       .post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("x-request-id", requestId)
       .send({
       email: "staff@apps.com",
@@ -170,12 +182,14 @@ describe("applications and documents", () => {
 
     const appRes = await request(app)
       .post("/api/applications")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
       .send({ name: "Pipeline Application", productType: "standard" });
 
     const transition = await request(app)
       .post(`/api/applications/${appRes.body.application.id}/pipeline`)
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
       .send({ state: "LENDER_SUBMITTED" });
@@ -193,6 +207,7 @@ describe("applications and documents", () => {
 
     const login = await request(app)
       .post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("x-request-id", requestId)
       .send({
       email: "override@apps.com",
@@ -201,6 +216,7 @@ describe("applications and documents", () => {
 
     const appRes = await request(app)
       .post("/api/applications")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
       .send({ name: "Override Application", productType: "standard" });
@@ -209,6 +225,7 @@ describe("applications and documents", () => {
 
     const bank = await request(app)
       .post(`/api/applications/${applicationId}/documents`)
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
       .send({
@@ -220,6 +237,7 @@ describe("applications and documents", () => {
 
     const idDoc = await request(app)
       .post(`/api/applications/${applicationId}/documents`)
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
       .send({
@@ -233,6 +251,7 @@ describe("applications and documents", () => {
       .post(
         `/api/applications/${applicationId}/documents/${bank.body.document.documentId}/versions/${bank.body.document.versionId}/accept`
       )
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId);
 
@@ -240,11 +259,13 @@ describe("applications and documents", () => {
       .post(
         `/api/applications/${applicationId}/documents/${idDoc.body.document.documentId}/versions/${idDoc.body.document.versionId}/accept`
       )
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId);
 
     const transition = await request(app)
       .post(`/api/applications/${applicationId}/pipeline`)
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
       .send({ state: "LENDER_SUBMITTED", override: true });
@@ -267,6 +288,7 @@ describe("applications and documents", () => {
 
     const login = await request(app)
       .post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("x-request-id", requestId)
       .send({
       email: "requirements@apps.com",
@@ -275,6 +297,7 @@ describe("applications and documents", () => {
 
     const appRes = await request(app)
       .post("/api/applications")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
       .send({ name: "Requirement App", productType: "standard" });
@@ -291,6 +314,7 @@ describe("applications and documents", () => {
 
     const login = await request(app)
       .post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("x-request-id", requestId)
       .send({
       email: "accept@apps.com",
@@ -299,6 +323,7 @@ describe("applications and documents", () => {
 
     const appRes = await request(app)
       .post("/api/applications")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
       .send({ name: "Acceptance App", productType: "standard" });
@@ -307,6 +332,7 @@ describe("applications and documents", () => {
 
     const bank = await request(app)
       .post(`/api/applications/${applicationId}/documents`)
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
       .send({
@@ -318,6 +344,7 @@ describe("applications and documents", () => {
 
     const idDoc = await request(app)
       .post(`/api/applications/${applicationId}/documents`)
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
       .send({
@@ -331,6 +358,7 @@ describe("applications and documents", () => {
       .post(
         `/api/applications/${applicationId}/documents/${bank.body.document.documentId}/versions/${bank.body.document.versionId}/accept`
       )
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId);
 
@@ -338,6 +366,7 @@ describe("applications and documents", () => {
       .post(
         `/api/applications/${applicationId}/documents/${idDoc.body.document.documentId}/versions/${idDoc.body.document.versionId}/accept`
       )
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId);
 
@@ -365,6 +394,7 @@ describe("applications and documents", () => {
 
     const login = await request(app)
       .post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("x-request-id", requestId)
       .send({
       email: "review@apps.com",
@@ -373,6 +403,7 @@ describe("applications and documents", () => {
 
     const appRes = await request(app)
       .post("/api/applications")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
       .send({ name: "Review App", productType: "standard" });
@@ -381,6 +412,7 @@ describe("applications and documents", () => {
 
     const bank = await request(app)
       .post(`/api/applications/${applicationId}/documents`)
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
       .send({
@@ -393,6 +425,7 @@ describe("applications and documents", () => {
 
     const idDoc = await request(app)
       .post(`/api/applications/${applicationId}/documents`)
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
       .send({
@@ -407,6 +440,7 @@ describe("applications and documents", () => {
       .post(
         `/api/applications/${applicationId}/documents/${bank.body.document.documentId}/versions/${bank.body.document.versionId}/reject`
       )
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId);
     expect(reject.status).toBe(200);
@@ -427,6 +461,7 @@ describe("applications and documents", () => {
 
     const login = await request(app)
       .post("/api/auth/login")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("x-request-id", requestId)
       .send({
         email: "invalidmime@apps.com",
@@ -435,12 +470,14 @@ describe("applications and documents", () => {
 
     const appRes = await request(app)
       .post("/api/applications")
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
       .send({ name: "Mime App", productType: "standard" });
 
     const upload = await request(app)
       .post(`/api/applications/${appRes.body.application.id}/documents`)
+      .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
       .send({

@@ -1,6 +1,7 @@
 import { AppError } from "../../middleware/errors";
+import { createHash } from "crypto";
 import { recordAuditEvent } from "../audit/audit.service";
-import { pool } from "../../db";
+import { isPgMemRuntime, pool } from "../../db";
 import { type PoolClient } from "pg";
 import {
   findApplicationById,
@@ -9,7 +10,6 @@ import {
 import { getRequirements } from "../applications/documentRequirements";
 import { isPipelineState } from "../applications/pipelineState";
 import { transitionPipelineState } from "../applications/applications.service";
-import { createIdempotencyRecord, findIdempotencyRecord } from "../idempotency/idempotency.repo";
 import {
   createSubmission,
   findLatestSubmissionByApplicationId,
@@ -25,11 +25,14 @@ import {
   getLenderRetryMaxCount,
   getLenderRetryMaxDelayMs,
 } from "../../config";
-import { createHash } from "crypto";
 import { isKillSwitchEnabled } from "../ops/ops.service";
 import { logInfo, logWarn } from "../../observability/logger";
+import { recordTransactionRollback } from "../../observability/transactionTelemetry";
 
-const IDEMPOTENCY_SCOPE_LENDER = "lender_submission";
+function createAdvisoryLockKey(value: string): [number, number] {
+  const hash = createHash("sha256").update(value).digest();
+  return [hash.readInt32BE(0), hash.readInt32BE(4)];
+}
 
 type IdempotentResult<T> = {
   statusCode: number;
@@ -552,6 +555,13 @@ export async function submitApplication(params: {
   try {
     await client.query("begin");
 
+    if (!isPgMemRuntime()) {
+      const lockKey = createAdvisoryLockKey(
+        `transmission:${params.applicationId}:${params.lenderId}`
+      );
+      await client.query("select pg_advisory_xact_lock($1, $2)", lockKey);
+    }
+
     await client.query("select id from applications where id = $1 for update", [
       params.applicationId,
     ]);
@@ -581,30 +591,6 @@ export async function submitApplication(params: {
         };
       }
 
-      const existing = await findIdempotencyRecord({
-        actorUserId: params.actorUserId,
-        scope: IDEMPOTENCY_SCOPE_LENDER,
-        idempotencyKey: params.idempotencyKey,
-        client,
-      });
-      if (existing) {
-        await recordAuditEvent({
-          action: "lender_submission_retried",
-          actorUserId: params.actorUserId,
-          targetUserId: null,
-          ip: params.ip,
-          userAgent: params.userAgent,
-          success: true,
-          client,
-        });
-        await client.query("commit");
-        return {
-          statusCode: existing.status_code,
-          value: (existing.response_body as { submission: { id: string; status: string } })
-            .submission,
-          idempotent: true,
-        };
-      }
     }
 
     const existingSubmission = await findSubmissionByApplicationAndLender(
@@ -642,20 +628,10 @@ export async function submitApplication(params: {
       client,
     });
 
-    if (params.idempotencyKey) {
-      await createIdempotencyRecord({
-        actorUserId: params.actorUserId,
-        scope: IDEMPOTENCY_SCOPE_LENDER,
-        idempotencyKey: params.idempotencyKey,
-        statusCode: result.statusCode,
-        responseBody: { submission: result.value },
-        client,
-      });
-    }
-
     await client.query("commit");
     return result;
   } catch (err) {
+    recordTransactionRollback(err);
     await client.query("rollback");
     throw err;
   } finally {

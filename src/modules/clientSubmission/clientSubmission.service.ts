@@ -11,6 +11,7 @@ import {
 import { getDocumentAllowedMimeTypes, getDocumentMaxSizeBytes, getClientSubmissionOwnerUserId } from "../../config";
 import { createClientSubmission, findClientSubmissionByKey } from "./clientSubmission.repo";
 import { logInfo, logWarn } from "../../observability/logger";
+import { recordTransactionRollback } from "../../observability/transactionTelemetry";
 
 export type ClientSubmissionResponse = {
   applicationId: string;
@@ -317,6 +318,7 @@ export async function submitClientApplication(params: {
       idempotent: false,
     };
   } catch (err) {
+    recordTransactionRollback(err);
     await client.query("rollback");
     await recordAuditEvent({
       action: "client_submission_failed",

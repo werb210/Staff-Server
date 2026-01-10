@@ -25,10 +25,16 @@ type ExceptionTelemetry = {
   properties?: Record<string, unknown>;
 };
 
+type EventTelemetry = {
+  name: string;
+  properties?: Record<string, unknown>;
+};
+
 type TelemetryClient = {
   trackRequest: (telemetry: RequestTelemetry) => void;
   trackDependency: (telemetry: DependencyTelemetry) => void;
   trackException: (telemetry: ExceptionTelemetry) => void;
+  trackEvent?: (telemetry: EventTelemetry) => void;
 };
 
 let telemetryClient: TelemetryClient | null = null;
@@ -97,4 +103,10 @@ export function trackException(
   telemetry: ExceptionTelemetry
 ): void {
   telemetryClient?.trackException(telemetry);
+}
+
+export function trackEvent(
+  telemetry: EventTelemetry
+): void {
+  telemetryClient?.trackEvent?.(telemetry);
 }

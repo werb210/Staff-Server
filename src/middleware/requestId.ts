@@ -20,7 +20,7 @@ export function requestId(
   res.locals.requestId = id;
   res.locals.requestRoute = req.originalUrl;
   res.setHeader("x-request-id", id);
-  runWithRequestContext({ requestId: id, route: req.originalUrl }, () => {
+  runWithRequestContext({ requestId: id, route: req.originalUrl, dbProcessIds: new Set() }, () => {
     if (requiresRequestId && !hasHeader) {
       next(
         new AppError(
