@@ -8,6 +8,7 @@ import { runMigrations } from "./migrations";
 import { requestId } from "./middleware/requestId";
 import { requestLogger } from "./middleware/requestLogger";
 import { requestTimeout } from "./middleware/requestTimeout";
+import { runStartupConsistencyCheck } from "./startup/consistencyCheck";
 
 export function buildApp(): express.Express {
   const app = express();
@@ -47,6 +48,7 @@ export function buildApp(): express.Express {
 
 export async function initializeServer(): Promise<void> {
   await runMigrations();
+  await runStartupConsistencyCheck();
 }
 
 export function registerApiRoutes(app: express.Express): void {

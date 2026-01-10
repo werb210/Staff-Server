@@ -4,6 +4,7 @@ import { logError, logInfo, logWarn } from "./observability/logger";
 import { initializeAppInsights } from "./observability/appInsights";
 import { installProcessHandlers } from "./observability/processHandlers";
 import { setDbConnected, setSchemaReady } from "./startupState";
+import { runStartupConsistencyCheck } from "./startup/consistencyCheck";
 
 initializeAppInsights();
 installProcessHandlers();
@@ -15,6 +16,7 @@ async function logStartupStatus(): Promise<void> {
   await assertSchema();
   setSchemaReady(true);
   logInfo("db_connected");
+  await runStartupConsistencyCheck();
 
   const userCountResult = await pool.query<{ count: number }>(
     "select count(*)::int as count from users"
