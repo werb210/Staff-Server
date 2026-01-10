@@ -8,7 +8,6 @@ import {
   findAuthUserByEmail,
   findAuthUserById,
   findPasswordReset,
-  hasActivePasswordReset,
   incrementTokenVersion,
   markPasswordResetUsed,
   recordFailedLogin,
@@ -270,7 +269,7 @@ export async function loginUser(
         if (completed) {
           return;
         }
-        const processId = client.processID;
+        const processId = (client as { processID?: number }).processID;
         if (processId) {
           try {
             await cancelDbWork([processId]);
@@ -402,13 +401,12 @@ export async function loginUser(
         const isLocked = Boolean(
           user.locked_until && user.locked_until.getTime() > now
         );
-        const forceReset = await hasActivePasswordReset(user.id, client);
         logInfo("auth_login_flags", {
           email: normalizedEmail,
           userId: user.id,
           disabled: !user.active,
           locked: isLocked,
-          force_reset: forceReset,
+          force_reset: user.password_reset_required,
         });
 
         if (!user.active) {
@@ -455,7 +453,7 @@ export async function loginUser(
           );
         }
 
-        if (forceReset) {
+        if (user.password_reset_required) {
           logWarn("auth_login_failed", {
             email: normalizedEmail,
             userId: user.id,
@@ -634,7 +632,26 @@ export async function loginUser(
     loginPromise.catch(() => {});
     return Promise.race([loginPromise, timeoutPromise]);
   };
-  return withAuthDbRetry("login", attemptLogin);
+  try {
+    return await withAuthDbRetry("login", attemptLogin);
+  } catch (err) {
+    if (err instanceof AppError && err.code === "service_unavailable") {
+      try {
+        await recordAuditEvent({
+          action: "login",
+          actorUserId: null,
+          targetUserId: null,
+          ip,
+          userAgent,
+          success: false,
+          metadata: { reason: "db_unavailable" },
+        });
+      } catch {
+        // ignore audit failures when auth is unavailable
+      }
+    }
+    throw err;
+  }
 }
 
 export async function refreshSession(

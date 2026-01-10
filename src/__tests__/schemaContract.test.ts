@@ -49,4 +49,9 @@ describe("schema contract enforcement", () => {
       await pool.query("alter table users add column email text");
     }
   });
+
+  it("passes when required columns are present", async () => {
+    const { assertSchema } = await import("../db");
+    await expect(assertSchema()).resolves.toBeUndefined();
+  });
 });

@@ -15,6 +15,7 @@ export interface AuthUser {
   failed_login_attempts: number;
   locked_until: Date | null;
   token_version: number;
+  password_reset_required: boolean;
 }
 
 export async function findAuthUserByEmail(
@@ -28,12 +29,20 @@ export async function findAuthUserByEmail(
 
   const res = await runAuthQuery<AuthUser>(
     runner,
-    `select id, email, password_hash, role, active,
-            password_changed_at, failed_login_attempts,
-            locked_until, token_version
-     from users
-     where lower(email) = $1
-     order by id asc${forUpdate}`,
+    `select u.id, u.email, u.password_hash, u.role, u.active,
+            u.password_changed_at, u.failed_login_attempts,
+            u.locked_until, u.token_version,
+            coalesce(
+              bool_or(pr.used_at is null and pr.expires_at > now()),
+              false
+            ) as password_reset_required
+     from users u
+     left join password_resets pr on pr.user_id = u.id
+     where lower(u.email) = $1
+     group by u.id, u.email, u.password_hash, u.role, u.active,
+              u.password_changed_at, u.failed_login_attempts,
+              u.locked_until, u.token_version
+     order by u.id asc${forUpdate}`,
     [normalizedEmail]
   );
 
@@ -52,10 +61,20 @@ export async function findAuthUserById(
 
   const res = await runAuthQuery<AuthUser>(
     runner,
-    `select id, email, password_hash, role, active,
-            password_changed_at, failed_login_attempts,
-            locked_until, token_version
-     from users where id = $1 limit 1`,
+    `select u.id, u.email, u.password_hash, u.role, u.active,
+            u.password_changed_at, u.failed_login_attempts,
+            u.locked_until, u.token_version,
+            coalesce(
+              bool_or(pr.used_at is null and pr.expires_at > now()),
+              false
+            ) as password_reset_required
+     from users u
+     left join password_resets pr on pr.user_id = u.id
+     where u.id = $1
+     group by u.id, u.email, u.password_hash, u.role, u.active,
+              u.password_changed_at, u.failed_login_attempts,
+              u.locked_until, u.token_version
+     limit 1`,
     [id]
   );
 
@@ -75,8 +94,9 @@ export async function createUser(params: {
     `insert into users (id, email, password_hash, role, active, password_changed_at)
      values ($1, $2, $3, $4, true, now())
      returning id, email, password_hash, role, active,
-               password_changed_at, failed_login_attempts,
-               locked_until, token_version`,
+              password_changed_at, failed_login_attempts,
+               locked_until, token_version,
+               false as password_reset_required`,
     [randomUUID(), params.email, params.passwordHash, params.role]
   );
 
@@ -113,23 +133,6 @@ export interface PasswordResetRecord {
   expires_at: Date;
   used_at: Date | null;
   created_at: Date;
-}
-
-export async function hasActivePasswordReset(
-  userId: string,
-  client?: Queryable
-): Promise<boolean> {
-  const runner = client ?? pool;
-  const res = await runAuthQuery(
-    runner,
-    `select 1 from password_resets
-     where user_id = $1
-       and used_at is null
-       and expires_at > now()::timestamp
-     limit 1`,
-    [userId]
-  );
-  return (res.rowCount ?? 0) > 0;
 }
 
 export async function storeRefreshToken(params: {

@@ -18,6 +18,48 @@ export function forbiddenError(): AppError {
   return new AppError("forbidden", "Access denied.", 403);
 }
 
+const authFailureCodes = new Set([
+  "invalid_credentials",
+  "account_locked",
+  "account_disabled",
+  "password_expired",
+  "password_reset_required",
+  "user_misconfigured",
+  "invalid_token",
+  "missing_token",
+  "user_disabled",
+  "auth_unavailable",
+]);
+
+const constraintViolationCodes = new Set(["23502", "23503", "23505"]);
+
+function isConstraintViolation(err: Error): boolean {
+  const code = (err as { code?: string }).code;
+  return typeof code === "string" && constraintViolationCodes.has(code);
+}
+
+function isTimeoutError(err: Error): boolean {
+  const code = (err as { code?: string }).code?.toLowerCase() ?? "";
+  const message = err.message.toLowerCase();
+  return code === "etimedout" || message.includes("timeout");
+}
+
+function resolveFailureReason(err: Error): string {
+  if (err instanceof AppError) {
+    if (authFailureCodes.has(err.code)) {
+      return "auth_failure";
+    }
+    return "request_error";
+  }
+  if (isConstraintViolation(err)) {
+    return "constraint_violation";
+  }
+  if (isDbConnectionFailure(err)) {
+    return isTimeoutError(err) ? "db_timeout" : "db_unavailable";
+  }
+  return "server_error";
+}
+
 export function errorHandler(
   err: Error,
   req: Request,
@@ -28,6 +70,7 @@ export function errorHandler(
   const durationMs = res.locals.requestStart
     ? Date.now() - Number(res.locals.requestStart)
     : 0;
+  const failureReason = resolveFailureReason(err);
   if (err instanceof AppError) {
     logWarn("request_error", {
       requestId,
@@ -36,6 +79,7 @@ export function errorHandler(
       code: err.code,
       message: err.message,
       status: err.status,
+      failure_reason: failureReason,
     });
     trackException({
       exception: err,
@@ -44,6 +88,7 @@ export function errorHandler(
         route: req.originalUrl,
         status: err.status,
         code: err.code,
+        failure_reason: failureReason,
       },
     });
     res.status(err.status).json({
@@ -54,12 +99,39 @@ export function errorHandler(
     return;
   }
 
+  if (isConstraintViolation(err)) {
+    logWarn("request_error", {
+      requestId,
+      route: req.originalUrl,
+      durationMs,
+      code: "constraint_violation",
+      status: 409,
+      failure_reason: failureReason,
+    });
+    trackException({
+      exception: err,
+      properties: {
+        requestId,
+        route: req.originalUrl,
+        status: 409,
+        code: "constraint_violation",
+        failure_reason: failureReason,
+      },
+    });
+    res.status(409).json({
+      code: "constraint_violation",
+      message: "Request violates a database constraint.",
+      requestId,
+    });
+    return;
+  }
+
   if (isDbConnectionFailure(err)) {
     logError("request_error", {
       requestId,
       route: req.originalUrl,
       durationMs,
-      message: err.message,
+      failure_reason: failureReason,
     });
     trackException({
       exception: err,
@@ -68,6 +140,7 @@ export function errorHandler(
         route: req.originalUrl,
         status: 503,
         code: "service_unavailable",
+        failure_reason: failureReason,
       },
     });
     res.status(503).json({
@@ -82,7 +155,7 @@ export function errorHandler(
     requestId,
     route: req.originalUrl,
     durationMs,
-    message: err.message,
+    failure_reason: failureReason,
     stack: err.stack,
   });
 

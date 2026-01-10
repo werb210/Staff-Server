@@ -25,6 +25,7 @@ export function requestTimeout(
       requestId,
       route,
       durationMs: timeoutMs,
+      failure_reason: "request_timeout",
     });
     trackEvent({
       name: "request_timeout",

@@ -175,6 +175,46 @@ describe("idempotency enforcement", () => {
     expect(second.body).toEqual(first.body);
   });
 
+  it("keeps data consistent when a restart occurs mid-request", async () => {
+    const token = await loginUser("idem-mid-request@example.com");
+    const key = "idem-mid-request-key";
+    const payload = {
+      name: "Mid Request App",
+      metadata: { source: "web" },
+      productType: "standard",
+    };
+
+    process.env.DB_TEST_SLOW_QUERY_PATTERN = "insert into applications";
+    process.env.DB_TEST_SLOW_QUERY_MS = "80";
+
+    const firstRequest = request(app)
+      .post("/api/applications")
+      .set("Authorization", `Bearer ${token}`)
+      .set("x-request-id", requestId)
+      .set("Idempotency-Key", key)
+      .send(payload);
+
+    const restartedApp = buildAppWithApiRoutes();
+    const secondRequest = request(restartedApp)
+      .post("/api/applications")
+      .set("Authorization", `Bearer ${token}`)
+      .set("x-request-id", requestId)
+      .set("Idempotency-Key", key)
+      .send(payload);
+
+    const [first, second] = await Promise.all([firstRequest, secondRequest]);
+
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(201);
+    expect(second.body).toEqual(first.body);
+
+    const count = await pool.query("select count(*)::int as count from applications");
+    expect(count.rows[0].count).toBe(1);
+
+    delete process.env.DB_TEST_SLOW_QUERY_PATTERN;
+    delete process.env.DB_TEST_SLOW_QUERY_MS;
+  });
+
   it("rejects missing idempotency keys", async () => {
     const token = await loginUser("idem-missing@example.com");
     const res = await request(app)
