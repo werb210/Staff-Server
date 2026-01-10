@@ -23,7 +23,7 @@ create table if not exists ops_replay_events (
 
 create table if not exists export_audit (
   id text primary key,
-  actor_user_id text null,
+  actor_user_id uuid null,
   export_type text not null,
   filters jsonb not null,
   created_at timestamp not null

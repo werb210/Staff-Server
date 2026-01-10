@@ -795,4 +795,87 @@ export async function assertSchema(): Promise<void> {
         .join(",")}`
     );
   }
+
+  const usersColumns = await pool.query<{
+    column_name: string;
+    data_type: string;
+    is_nullable: string;
+  }>(
+    `select column_name, data_type, is_nullable
+     from information_schema.columns
+     where table_schema = 'public' and table_name = 'users'`
+  );
+
+  const usersContract = [
+    { column: "id", dataType: "uuid", nullable: false },
+    { column: "email", dataType: "text", nullable: false },
+    { column: "password_hash", dataType: "text", nullable: false },
+    { column: "role", dataType: "text", nullable: false },
+    { column: "active", dataType: "boolean", nullable: false },
+    { column: "failed_login_attempts", dataType: "integer", nullable: false },
+    { column: "locked_until", dataType: "timestamp with time zone", nullable: true },
+    { column: "password_changed_at", dataType: "timestamp with time zone", nullable: true },
+    { column: "token_version", dataType: "integer", nullable: false },
+  ];
+
+  const usersColumnMap = new Map(
+    usersColumns.rows.map((row) => [row.column_name, row])
+  );
+  const mismatchedUsersColumns = usersContract.flatMap((expected) => {
+    const actual = usersColumnMap.get(expected.column);
+    if (!actual) {
+      return [`users.${expected.column}:missing`];
+    }
+    const nullable = actual.is_nullable === "YES";
+    const reasons: string[] = [];
+    if (actual.data_type !== expected.dataType) {
+      reasons.push(`type:${actual.data_type}`);
+    }
+    if (nullable !== expected.nullable) {
+      reasons.push(`nullable:${actual.is_nullable}`);
+    }
+    if (reasons.length === 0) {
+      return [];
+    }
+    return [`users.${expected.column}:${reasons.join(",")}`];
+  });
+
+  const userConstraints = await pool.query<{
+    constraint_type: string;
+    column_name: string;
+  }>(
+    `select tc.constraint_type, kcu.column_name
+     from information_schema.table_constraints tc
+     join information_schema.key_column_usage kcu
+       on tc.constraint_name = kcu.constraint_name
+      and tc.table_schema = kcu.table_schema
+     where tc.table_schema = 'public'
+       and tc.table_name = 'users'`
+  );
+
+  const hasPrimaryKeyId = userConstraints.rows.some(
+    (row) => row.constraint_type === "PRIMARY KEY" && row.column_name === "id"
+  );
+  const hasUniqueEmail = userConstraints.rows.some(
+    (row) => row.constraint_type === "UNIQUE" && row.column_name === "email"
+  );
+
+  const usersConstraintIssues = [
+    hasPrimaryKeyId ? null : "users.id:missing_primary_key",
+    hasUniqueEmail ? null : "users.email:missing_unique",
+  ].filter(Boolean) as string[];
+
+  if (mismatchedUsersColumns.length > 0 || usersConstraintIssues.length > 0) {
+    const details = [...mismatchedUsersColumns, ...usersConstraintIssues];
+    logError("schema_contract_violation", {
+      mismatchedColumns: details,
+    });
+    trackEvent({
+      name: "schema_contract_violation",
+      properties: buildTelemetryProperties({
+        mismatchedColumns: details,
+      }),
+    });
+    throw new Error(`schema_mismatch_users_contract:${details.join(",")}`);
+  }
 }

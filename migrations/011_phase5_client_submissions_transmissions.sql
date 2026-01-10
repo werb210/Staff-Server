@@ -37,7 +37,7 @@ create unique index if not exists lender_submissions_idempotency_key_unique
 
 insert into users (id, email, password_hash, role, active, password_changed_at)
 values (
-  'client-submission-system',
+  '00000000-0000-0000-0000-000000000001',
   'client-submission@system.local',
   '$2a$10$w6mUovSd.4MYgYusN4uT0.oVpi9oyaylVv4QOM4bLIKO7iHuUWLZa',
   'user',

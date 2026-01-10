@@ -42,7 +42,7 @@ async function resetDb(): Promise<void> {
   await pool.query("delete from auth_refresh_tokens");
   await pool.query("delete from password_resets");
   await pool.query("delete from audit_events");
-  await pool.query("delete from users where id <> 'client-submission-system'");
+  await pool.query("delete from users where id <> '00000000-0000-0000-0000-000000000001'");
 }
 
 function expectRequestId(
@@ -256,12 +256,12 @@ describe("auth failure matrix", () => {
       .set("x-request-id", "invalid-state")
       .send({ email: "invalid-state@example.com", password: loginPassword });
 
-    expect(res.status).toBe(500);
-    expect(res.body.code).toBe("invalid_password_state");
+    expect(res.status).toBe(403);
+    expect(res.body.code).toBe("user_misconfigured");
     const eventNames = trackEvent.mock.calls.map(
       ([telemetry]) => (telemetry as { name?: string }).name
     );
-    expect(eventNames).toContain("invalid_password_state");
+    expect(eventNames).toContain("auth_password_hash_invalid");
   });
 
   it("returns 401 for invalid password when db is slow", async () => {

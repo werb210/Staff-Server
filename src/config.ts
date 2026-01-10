@@ -98,6 +98,11 @@ export function getLoginLockoutMinutes(): number {
   return parsePositiveInt(process.env.LOGIN_LOCKOUT_MINUTES, 15);
 }
 
+export function getLoginTimeoutMs(): number {
+  const configured = parsePositiveInt(process.env.LOGIN_TIMEOUT_MS, 5000);
+  return Math.min(configured, 5000);
+}
+
 export function getPasswordMaxAgeDays(): number {
   return parsePositiveInt(process.env.PASSWORD_MAX_AGE_DAYS, 90);
 }
@@ -115,7 +120,10 @@ export function getDocumentMaxSizeBytes(): number {
 }
 
 export function getClientSubmissionOwnerUserId(): string {
-  return process.env.CLIENT_SUBMISSION_OWNER_USER_ID ?? "client-submission-system";
+  return (
+    process.env.CLIENT_SUBMISSION_OWNER_USER_ID ??
+    "00000000-0000-0000-0000-000000000001"
+  );
 }
 
 export function getReportingJobsEnabled(): boolean {

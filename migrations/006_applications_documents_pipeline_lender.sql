@@ -1,6 +1,6 @@
 create table if not exists applications (
   id text primary key,
-  owner_user_id text not null references users(id) on delete cascade,
+  owner_user_id uuid not null references users(id) on delete cascade,
   name text not null,
   metadata jsonb null,
   pipeline_state text not null,
@@ -11,7 +11,7 @@ create table if not exists applications (
 create table if not exists documents (
   id text primary key,
   application_id text not null references applications(id) on delete cascade,
-  owner_user_id text not null references users(id) on delete cascade,
+  owner_user_id uuid not null references users(id) on delete cascade,
   title text not null,
   created_at timestamp not null
 );
