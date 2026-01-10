@@ -41,7 +41,7 @@ describe("startup behavior", () => {
     const healthRes = await fetch(`http://127.0.0.1:${address.port}/health`);
     expect(healthRes.status).toBe(200);
 
-    const readyRes = await fetch(`http://127.0.0.1:${address.port}/ready`);
+    const readyRes = await fetch(`http://127.0.0.1:${address.port}/api/_int/ready`);
     expect(readyRes.status).toBe(503);
   });
 

@@ -1,4 +1,5 @@
 import dotenv from "dotenv";
+import { logError, logWarn } from "../observability/logger";
 
 dotenv.config();
 
@@ -46,7 +47,9 @@ export function getAccessTokenSecret(): string | undefined {
   const jwtSecret = getEnvValue("JWT_SECRET");
   const authJwtSecret = getEnvValue("AUTH_JWT_SECRET");
   if (jwtSecret && authJwtSecret && jwtSecret !== authJwtSecret) {
-    throw new Error("conflicting_env:JWT_SECRET,AUTH_JWT_SECRET");
+    logError("env_conflict", {
+      keys: ["JWT_SECRET", "AUTH_JWT_SECRET"],
+    });
   }
   return jwtSecret ?? authJwtSecret;
 }
@@ -56,14 +59,16 @@ function parsePositiveInt(value: string | undefined, fallback?: number): number 
     if (fallback !== undefined) {
       return fallback;
     }
-    throw new Error("env_value_missing");
+    logWarn("env_value_missing", { value: "missing" });
+    return 0;
   }
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) {
     if (fallback !== undefined) {
       return fallback;
     }
-    throw new Error("env_value_invalid");
+    logWarn("env_value_invalid", { value });
+    return 0;
   }
   return Math.floor(parsed);
 }
@@ -90,14 +95,14 @@ export function assertEnv(): void {
     missing.push("JWT_SECRET");
   }
   if (missing.length > 0) {
-    throw new Error(`missing_env:${missing.join(",")}`);
+    logError("missing_env", { keys: missing });
   }
   const allowlist = parseCsv(
     getEnvValue("CORS_ALLOWED_ORIGINS") ?? getEnvValue("CORS_ALLOWLIST"),
     []
   );
   if (allowlist.includes("*")) {
-    throw new Error("cors_allowlist_wildcard_not_allowed");
+    logError("cors_allowlist_wildcard_not_allowed");
   }
 }
 
@@ -137,15 +142,18 @@ export function getEnvConfig(): EnvConfig {
     (treatAsTest ? testDefaults.jwtRefreshExpiresIn : "");
   const corsAllowlist = parseCsv(
     getEnvValue("CORS_ALLOWED_ORIGINS") ?? getEnvValue("CORS_ALLOWLIST"),
-    treatAsTest ? testDefaults.corsAllowlist : []
+    testDefaults.corsAllowlist
   );
+  if (!treatAsTest && corsAllowlist.includes("*")) {
+    logWarn("cors_allowlist_fallback", { corsAllowlist });
+  }
   const rateLimitWindowMs = parsePositiveInt(
     getEnvValue("RATE_LIMIT_WINDOW_MS"),
-    treatAsTest ? testDefaults.rateLimitWindowMs : undefined
+    testDefaults.rateLimitWindowMs
   );
   const rateLimitMax = parsePositiveInt(
     getEnvValue("RATE_LIMIT_MAX"),
-    treatAsTest ? testDefaults.rateLimitMax : undefined
+    testDefaults.rateLimitMax
   );
   const appInsightsConnectionString =
     getEnvValue("APPINSIGHTS_CONNECTION_STRING") ??

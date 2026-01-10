@@ -33,7 +33,7 @@ describe("azure health endpoints", () => {
     resetStartupState();
     const app = buildApp();
 
-    const before = await request(app).get("/ready");
+    const before = await request(app).get("/api/_int/ready");
     expect(before.status).toBe(503);
 
     setDbConnected(true);
@@ -41,7 +41,7 @@ describe("azure health endpoints", () => {
     setSchemaReady(true);
     setCriticalServicesReady(true);
 
-    const after = await request(app).get("/ready");
+    const after = await request(app).get("/api/_int/ready");
     expect(after.status).toBe(200);
   });
 
