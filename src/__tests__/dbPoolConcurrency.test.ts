@@ -6,11 +6,13 @@ import { ROLES } from "../auth/roles";
 const trackRequest = jest.fn();
 const trackDependency = jest.fn();
 const trackException = jest.fn();
+const trackEvent = jest.fn();
 
 jest.mock("../observability/appInsights", () => ({
   trackRequest: (telemetry: unknown) => trackRequest(telemetry),
   trackDependency: (telemetry: unknown) => trackDependency(telemetry),
   trackException: (telemetry: unknown) => trackException(telemetry),
+  trackEvent: (telemetry: unknown) => trackEvent(telemetry),
   initializeAppInsights: jest.fn(),
 }));
 
@@ -91,6 +93,7 @@ beforeEach(async () => {
   trackRequest.mockClear();
   trackDependency.mockClear();
   trackException.mockClear();
+  trackEvent.mockClear();
   idempotencyCounter = 0;
   await resetDb();
 });
@@ -112,6 +115,14 @@ describe("db pool concurrency hardening", () => {
     const poolConfig = getPoolConfig();
     expect(poolConfig.max).toBe(2);
     expect(poolConfig.idleTimeoutMillis).toBe(1000);
+  });
+
+  it("keeps connection timeout below request timeout", () => {
+    const { getPoolConfig } = require("../db") as typeof import("../db");
+    const { getRequestTimeoutMs } = require("../config") as typeof import("../config");
+    const poolConfig = getPoolConfig();
+    const requestTimeout = getRequestTimeoutMs();
+    expect(poolConfig.connectionTimeoutMillis).toBeLessThan(requestTimeout);
   });
 
   it("handles concurrent login attempts without errors or hangs", async () => {
@@ -199,6 +210,11 @@ describe("db pool concurrency hardening", () => {
       expect(res.body.code).toBe("service_unavailable");
     });
 
+    const eventNames = trackEvent.mock.calls.map(
+      ([telemetry]) => (telemetry as { name?: string }).name
+    );
+    expect(eventNames).toContain("db_pool_exhaustion_prevented");
+
     expect(
       trackDependency.mock.calls.some(
         ([telemetry]) =>
@@ -228,6 +244,53 @@ describe("db pool concurrency hardening", () => {
     expect(poolState.waitingCount ?? 0).toBe(0);
     expect(poolState.totalCount ?? 0).toBeLessThanOrEqual(poolState.options?.max ?? 2);
     expect(poolState.idleCount ?? 0).toBeGreaterThanOrEqual(0);
+  });
+
+  it("releases pool connections after failed queries", async () => {
+    await createUserAccount({
+      email: "failure-release@example.com",
+      password: loginPassword,
+      role: ROLES.STAFF,
+    });
+
+    const { setDbTestFailureInjection } = await import("../db");
+    setDbTestFailureInjection({
+      mode: "connection_reset",
+      remaining: 1,
+      matchQuery: "from users",
+    });
+
+    const failed = await withTimeout(
+      request(app)
+        .post("/api/auth/login")
+        .set("Idempotency-Key", nextIdempotencyKey())
+        .set("x-request-id", "failed-release")
+        .send({ email: "failure-release@example.com", password: loginPassword }),
+      5000
+    );
+
+    expect(failed.status).toBe(503);
+    expect(failed.body.code).toBe("service_unavailable");
+
+    const recovered = await withTimeout(
+      request(app)
+        .post("/api/auth/login")
+        .set("Idempotency-Key", nextIdempotencyKey())
+        .set("x-request-id", "released")
+        .send({ email: "failure-release@example.com", password: loginPassword }),
+      5000
+    );
+
+    expect(recovered.status).toBe(200);
+
+    const poolState = pool as unknown as {
+      totalCount?: number;
+      idleCount?: number;
+      waitingCount?: number;
+      options?: { max?: number };
+    };
+    expect(poolState.waitingCount ?? 0).toBe(0);
+    expect(poolState.totalCount ?? 0).toBeLessThanOrEqual(poolState.options?.max ?? 2);
   });
 
   it("times out slow queries without blocking unrelated requests", async () => {

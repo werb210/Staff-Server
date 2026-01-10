@@ -1,9 +1,9 @@
 import { buildApp, registerApiRoutes } from "./app";
-import { pool, waitForDatabaseReady, warmUpDatabase } from "./db";
+import { assertSchema, pool, waitForDatabaseReady, warmUpDatabase } from "./db";
 import { logError, logInfo, logWarn } from "./observability/logger";
 import { initializeAppInsights } from "./observability/appInsights";
 import { installProcessHandlers } from "./observability/processHandlers";
-import { setDbConnected } from "./startupState";
+import { setDbConnected, setSchemaReady } from "./startupState";
 
 initializeAppInsights();
 installProcessHandlers();
@@ -12,6 +12,8 @@ async function logStartupStatus(): Promise<void> {
   await waitForDatabaseReady();
   setDbConnected(true);
   await warmUpDatabase();
+  await assertSchema();
+  setSchemaReady(true);
   logInfo("db_connected");
 
   const userCountResult = await pool.query<{ count: number }>(
