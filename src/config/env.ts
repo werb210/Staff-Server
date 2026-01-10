@@ -8,7 +8,7 @@ const requiredRuntimeEnv = [
   "JWT_REFRESH_SECRET",
   "JWT_EXPIRES_IN",
   "JWT_REFRESH_EXPIRES_IN",
-  "CORS_ALLOWLIST",
+  "CORS_ALLOWED_ORIGINS",
   "RATE_LIMIT_WINDOW_MS",
   "RATE_LIMIT_MAX",
   "APPINSIGHTS_CONNECTION_STRING",
@@ -92,7 +92,10 @@ export function assertEnv(): void {
   if (missing.length > 0) {
     throw new Error(`missing_env:${missing.join(",")}`);
   }
-  const allowlist = parseCsv(getEnvValue("CORS_ALLOWLIST"), []);
+  const allowlist = parseCsv(
+    getEnvValue("CORS_ALLOWED_ORIGINS") ?? getEnvValue("CORS_ALLOWLIST"),
+    []
+  );
   if (allowlist.includes("*")) {
     throw new Error("cors_allowlist_wildcard_not_allowed");
   }
@@ -133,7 +136,7 @@ export function getEnvConfig(): EnvConfig {
     getEnvValue("JWT_REFRESH_EXPIRES_IN") ??
     (treatAsTest ? testDefaults.jwtRefreshExpiresIn : "");
   const corsAllowlist = parseCsv(
-    getEnvValue("CORS_ALLOWLIST"),
+    getEnvValue("CORS_ALLOWED_ORIGINS") ?? getEnvValue("CORS_ALLOWLIST"),
     treatAsTest ? testDefaults.corsAllowlist : []
   );
   const rateLimitWindowMs = parsePositiveInt(

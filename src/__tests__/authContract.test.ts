@@ -111,15 +111,14 @@ describe("auth contract", () => {
     expectRequestId(res, requestId);
   });
 
-  it("rejects login when idempotency key is missing", async () => {
+  it("allows login when idempotency key is missing", async () => {
     const requestId = nextRequestId();
     const res = await loginRequest(
       { email: "missing-idem@example.com", password: "Password123!" },
       { requestId }
     );
 
-    expect(res.status).toBe(400);
-    expect(res.body.code).toBe("missing_idempotency_key");
+    expect([200, 401]).toContain(res.status);
     expectRequestId(res, requestId);
   });
 

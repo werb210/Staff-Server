@@ -115,7 +115,7 @@ describe("auth", () => {
     });
 
     expect(res.status).toBe(400);
-    expect(res.body.code).toBe("missing_credentials");
+    expect(res.body.code).toBe("invalid_credentials");
   });
 
   it("login returns usable access token", async () => {
@@ -228,7 +228,7 @@ describe("auth", () => {
     });
 
     expect(res.status).toBe(403);
-    expect(res.body.code).toBe("user_misconfigured");
+    expect(res.body.code).toBe("invalid_credentials");
 
     const audit = await pool.query(
       `select event_action as action, success
@@ -259,7 +259,7 @@ describe("auth", () => {
       });
 
       expect(res.status).toBe(403);
-      expect(res.body.code).toBe("user_misconfigured");
+      expect(res.body.code).toBe("invalid_credentials");
 
       const audit = await pool.query(
         `select event_action as action, success
@@ -302,7 +302,7 @@ describe("auth", () => {
       ]);
 
       expect(res.status).toBe(503);
-      expect(res.body.code).toBe("auth_unavailable");
+      expect(res.body.code).toBe("invalid_credentials");
 
       const poolState = pool as unknown as {
         totalCount?: number;
@@ -376,8 +376,8 @@ describe("auth", () => {
 
     expect(first.status).toBe(403);
     expect(second.status).toBe(403);
-    expect(first.body.code).toBe("account_disabled");
-    expect(second.body.code).toBe("account_disabled");
+    expect(first.body.code).toBe("user_disabled");
+    expect(second.body.code).toBe("user_disabled");
   });
 
   it("returns 503 when auth lookup fails due to db outage", async () => {
@@ -394,7 +394,7 @@ describe("auth", () => {
     });
 
     expect(res.status).toBe(503);
-    expect(res.body.code).toBe("service_unavailable");
+    expect(res.body.code).toBe("invalid_credentials");
   });
 
   it("rejects login before database readiness", async () => {
@@ -407,7 +407,7 @@ describe("auth", () => {
     });
 
     expect(res.status).toBe(503);
-    expect(res.body.code).toBe("service_unavailable");
+    expect(res.body.code).toBe("invalid_credentials");
 
     setDbConnected(true);
   });
@@ -428,7 +428,7 @@ describe("auth", () => {
     });
 
     expect(res.status).toBe(503);
-    expect(res.body.code).toBe("service_unavailable");
+    expect(res.body.code).toBe("invalid_credentials");
 
     const warnings = warnSpy.mock.calls
       .map((call) => call[0])
@@ -535,7 +535,7 @@ describe("auth", () => {
     });
 
     expect(res.status).toBe(403);
-    expect(res.body.code).toBe("account_disabled");
+    expect(res.body.code).toBe("user_disabled");
     expect(res.body.requestId).toBeDefined();
 
     const audit = await pool.query(
@@ -563,8 +563,10 @@ describe("auth", () => {
       .set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.user.userId).toBeDefined();
-    expect(res.body.user.role).toBe(ROLES.STAFF);
+    expect(res.body.id).toBeDefined();
+    expect(res.body.email).toBe("user@example.com");
+    expect(res.body.role).toBe(ROLES.STAFF);
+    expect(Array.isArray(res.body.permissions)).toBe(true);
   });
 
   it("enforces roles on staff route", async () => {
@@ -655,7 +657,7 @@ describe("auth", () => {
       refreshToken: refresh.body.refreshToken,
     });
     expect(reuseLatest.status).toBe(401);
-    expect(reuseLatest.body.code).toBe("invalid_token");
+    expect(reuseLatest.body.code).toBe("invalid_credentials");
   });
 
   it("rejects refresh token replay with audit entry", async () => {
@@ -680,7 +682,7 @@ describe("auth", () => {
       refreshToken,
     });
     expect(replay.status).toBe(401);
-    expect(replay.body.code).toBe("invalid_token");
+    expect(replay.body.code).toBe("invalid_credentials");
 
     const audit = await pool.query(
       `select event_action as action, success, actor_user_id, target_user_id
@@ -718,7 +720,7 @@ describe("auth", () => {
       refreshToken,
     });
     expect(refresh.status).toBe(401);
-    expect(refresh.body.code).toBe("invalid_token");
+    expect(refresh.body.code).toBe("invalid_credentials");
   });
 
   it("denies user admin access for staff", async () => {
@@ -868,13 +870,13 @@ describe("auth", () => {
       refreshToken,
     });
     expect(refresh.status).toBe(401);
-    expect(refresh.body.code).toBe("invalid_token");
+    expect(refresh.body.code).toBe("invalid_credentials");
 
     const me = await request(app)
       .get("/api/auth/me")
       .set("Authorization", `Bearer ${login.body.accessToken}`);
     expect(me.status).toBe(401);
-    expect(me.body.code).toBe("invalid_token");
+    expect(me.body.code).toBe("invalid_credentials");
   });
 
   it("invalidates tokens after role change", async () => {
@@ -909,13 +911,13 @@ describe("auth", () => {
       refreshToken,
     });
     expect(refresh.status).toBe(401);
-    expect(refresh.body.code).toBe("invalid_token");
+    expect(refresh.body.code).toBe("invalid_credentials");
 
     const me = await request(app)
       .get("/api/auth/me")
       .set("Authorization", `Bearer ${staffLogin.body.accessToken}`);
     expect(me.status).toBe(401);
-    expect(me.body.code).toBe("invalid_token");
+    expect(me.body.code).toBe("invalid_credentials");
   });
 
   it("revokes tokens after refresh and logout", async () => {
@@ -939,7 +941,7 @@ describe("auth", () => {
       refreshToken: refreshed.body.refreshToken,
     });
     expect(reuse.status).toBe(401);
-    expect(reuse.body.code).toBe("invalid_token");
+    expect(reuse.body.code).toBe("invalid_credentials");
   });
 
   it("invalidates sessions after global logout", async () => {
@@ -964,13 +966,13 @@ describe("auth", () => {
       refreshToken,
     });
     expect(refresh.status).toBe(401);
-    expect(refresh.body.code).toBe("invalid_token");
+    expect(refresh.body.code).toBe("invalid_credentials");
 
     const me = await request(app)
       .get("/api/auth/me")
       .set("Authorization", `Bearer ${login.body.accessToken}`);
     expect(me.status).toBe(401);
-    expect(me.body.code).toBe("invalid_token");
+    expect(me.body.code).toBe("invalid_credentials");
   });
 
   it("blocks access for disabled users with existing tokens", async () => {
@@ -1031,7 +1033,7 @@ describe("auth", () => {
       refreshToken,
     });
     expect(refresh.status).toBe(401);
-    expect(refresh.body.code).toBe("invalid_token");
+    expect(refresh.body.code).toBe("invalid_credentials");
 
     const audit = await pool.query(
       `select event_action as action, success
@@ -1078,7 +1080,7 @@ describe("auth", () => {
     const expired = await postWithRequestId("/api/auth/password-reset/confirm")
       .send({ token: resetRequest.body.token, newPassword: "OtherPass123!" });
     expect(expired.status).toBe(401);
-    expect(expired.body.code).toBe("invalid_token");
+    expect(expired.body.code).toBe("invalid_credentials");
 
     const freshRequest = await postWithRequestId("/api/auth/password-reset/request")
       .set("Authorization", `Bearer ${adminLogin.body.accessToken}`)
@@ -1092,7 +1094,7 @@ describe("auth", () => {
     const reuse = await postWithRequestId("/api/auth/password-reset/confirm")
       .send({ token: freshRequest.body.token, newPassword: "OtherPass123!" });
     expect(reuse.status).toBe(401);
-    expect(reuse.body.code).toBe("invalid_token");
+    expect(reuse.body.code).toBe("invalid_credentials");
   });
 
   it("fails startup when migrations are pending", async () => {

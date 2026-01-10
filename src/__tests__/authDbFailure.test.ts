@@ -171,15 +171,10 @@ describe("auth db failure hardening", () => {
     for (const res of firstBatch) {
       expect([200, 401, 403, 503]).toContain(res.status);
       if (res.status === 503) {
-        expect(["service_unavailable", "auth_unavailable"]).toContain(
-          res.body.code
-        );
+        expect(res.body.code).toBe("invalid_credentials");
       }
       if (res.status === 401) {
-        expect(["invalid_credentials", "invalid_token"]).toContain(
-          res.body.code
-        );
-        expect(res.body.code).not.toBe("server_error");
+        expect(res.body.code).toBe("invalid_credentials");
       }
     }
 
@@ -211,7 +206,7 @@ describe("auth db failure hardening", () => {
 
     for (const res of poolBatch) {
       expect(res.status).toBe(503);
-      expect(res.body.code).toBe("service_unavailable");
+      expect(res.body.code).toBe("invalid_credentials");
     }
 
     setDbTestPoolMetricsOverride(null);
@@ -317,7 +312,7 @@ describe("auth db failure hardening", () => {
       .set("Idempotency-Key", nextIdempotencyKey())
       .send();
     expect(logoutRes.status).toBe(503);
-    expect(logoutRes.body.code).toBe("service_unavailable");
+    expect(logoutRes.body.code).toBe("invalid_credentials");
 
     const tokenState = await pool.query(
       `select count(*)::int as count

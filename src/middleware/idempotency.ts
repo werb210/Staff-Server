@@ -84,17 +84,25 @@ export function idempotencyMiddleware(
   res: Response,
   next: NextFunction
 ): void {
-  if (req.method.toUpperCase() !== "POST") {
+  const method = req.method.toUpperCase();
+  const enforceMethods = ["POST", "PUT", "PATCH", "DELETE"];
+  if (!enforceMethods.includes(method)) {
     next();
     return;
   }
 
+  const route = getRequestRoute(req);
+  const isLoginRoute = method === "POST" && route === "/api/auth/login";
   const key = req.get(IDEMPOTENCY_HEADER);
   const trimmedKey = key ? key.trim() : "";
   if (!trimmedKey) {
+    if (isLoginRoute) {
+      next();
+      return;
+    }
     if (!isProductionEnvironment()) {
       logWarn("idempotency_key_missing", {
-        route: getRequestRoute(req),
+        route,
         method: req.method,
         requestId: res.locals.requestId ?? "unknown",
       });
@@ -107,7 +115,6 @@ export function idempotencyMiddleware(
     return;
   }
 
-  const route = getRequestRoute(req);
   const requestId = res.locals.requestId ?? "unknown";
   const requestHash = hashValue(stableStringify(req.body ?? {}));
   const keyHash = hashValue(trimmedKey);

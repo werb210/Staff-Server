@@ -4,14 +4,19 @@ import express from "express";
 import apiRouter from "./api";
 import readyRoutes, { healthHandler, readyHandler } from "./routes/ready";
 import { printRoutes } from "./debug/printRoutes";
-import { runMigrations } from "./migrations";
+import { getPendingMigrations, runMigrations } from "./migrations";
 import { requestId } from "./middleware/requestId";
 import { requestLogger } from "./middleware/requestLogger";
 import { requestTimeout } from "./middleware/requestTimeout";
 import { runStartupConsistencyCheck } from "./startup/consistencyCheck";
+import { getCorsAllowlist } from "./config/env";
+import { getCorsAllowedHeaders } from "./startup/corsValidation";
+import { setCriticalServicesReady, setMigrationsState } from "./startupState";
 
 export function buildApp(): express.Express {
   const app = express();
+  const corsAllowlist = getCorsAllowlist();
+  const allowAnyOrigin = corsAllowlist.includes("*");
 
   app.use(requestId);
   app.use(requestLogger);
@@ -19,9 +24,15 @@ export function buildApp(): express.Express {
 
   app.use(
     cors({
-      origin: true,
+      origin: (origin, callback) => {
+        if (!origin || allowAnyOrigin || corsAllowlist.includes(origin)) {
+          callback(null, true);
+          return;
+        }
+        callback(new Error("cors_origin_not_allowed"));
+      },
       credentials: false,
-      allowedHeaders: ["Authorization", "Content-Type", "X-Request-Id", "Idempotency-Key"],
+      allowedHeaders: getCorsAllowedHeaders(),
       exposedHeaders: ["x-request-id"],
     })
   );
@@ -42,7 +53,10 @@ export function buildApp(): express.Express {
 
 export async function initializeServer(): Promise<void> {
   await runMigrations();
+  const pendingMigrations = await getPendingMigrations();
+  setMigrationsState(pendingMigrations);
   await runStartupConsistencyCheck();
+  setCriticalServicesReady(true);
 }
 
 export function registerApiRoutes(app: express.Express): void {
