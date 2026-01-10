@@ -29,10 +29,11 @@ import {
 } from "../../config";
 import { AppError } from "../../middleware/errors";
 import { recordAuditEvent } from "../audit/audit.service";
-import { isDbConnectionFailure, pool } from "../../db";
+import { getDbFailureCategory, isDbConnectionFailure, pool } from "../../db";
 import { type Role } from "../../auth/roles";
-import { logError, logInfo, logWarn } from "../../observability/logger";
+import { logInfo, logWarn } from "../../observability/logger";
 import { recordTransactionRollback } from "../../observability/transactionTelemetry";
+import { trackEvent } from "../../observability/appInsights";
 import { getStartupState } from "../../startupState";
 
 type AccessTokenPayload = {
@@ -44,6 +45,23 @@ type AccessTokenPayload = {
 type RefreshTokenPayload = AccessTokenPayload & {
   tokenId: string;
 };
+
+const refreshLocks = new Set<string>();
+
+async function withRefreshLock<T>(
+  userId: string,
+  operation: () => Promise<T>
+): Promise<T> {
+  if (refreshLocks.has(userId)) {
+    throw new AppError("invalid_token", "Invalid refresh token.", 401);
+  }
+  refreshLocks.add(userId);
+  try {
+    return await operation();
+  } finally {
+    refreshLocks.delete(userId);
+  }
+}
 
 function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
@@ -69,6 +87,73 @@ function isPasswordExpired(passwordChangedAt?: Date | null): boolean {
 
 function normalizeEmail(input: string): string {
   return input.trim().toLowerCase();
+}
+
+type AuthDbAction = "login" | "refresh" | "logout_all";
+
+function trackAuthEvent(
+  name: string,
+  properties?: Record<string, unknown>
+): void {
+  trackEvent({ name, properties });
+}
+
+function trackAuthDbFailure(action: AuthDbAction, error: unknown): void {
+  const category = getDbFailureCategory(error);
+  const name =
+    category === "pool_exhausted"
+      ? "auth_pool_exhausted"
+      : "auth_db_unavailable";
+  trackAuthEvent(name, { action, category: category ?? "unavailable" });
+}
+
+async function withAuthDbRetry<T>(
+  action: AuthDbAction,
+  operation: () => Promise<T>
+): Promise<T> {
+  let retryAttempted = false;
+  while (true) {
+    try {
+      const result = await operation();
+      if (retryAttempted) {
+        trackAuthEvent("auth_db_retry_succeeded", { action });
+      }
+      return result;
+    } catch (err) {
+      if (err instanceof AppError) {
+        throw err;
+      }
+      if (isDbConnectionFailure(err)) {
+        const category = getDbFailureCategory(err);
+        if (category === "pool_exhausted") {
+          trackAuthDbFailure(action, err);
+          throw new AppError(
+            "service_unavailable",
+            "Authentication service unavailable.",
+            503
+          );
+        }
+        if (!retryAttempted) {
+          retryAttempted = true;
+          trackAuthEvent("auth_db_retry_attempt", { action });
+          continue;
+        }
+        trackAuthEvent("auth_db_retry_failed", { action });
+        trackAuthDbFailure(action, err);
+        throw new AppError(
+          "service_unavailable",
+          "Authentication service unavailable.",
+          503
+        );
+      }
+      trackAuthEvent("auth_unexpected_error", { action });
+      throw new AppError(
+        "service_unavailable",
+        "Authentication service unavailable.",
+        503
+      );
+    }
+  }
 }
 
 function resolveHashPrefix(hash: string): string {
@@ -187,6 +272,10 @@ export async function loginUser(
         userAgent,
         success: false,
       });
+      trackAuthEvent("auth_invalid_credentials", {
+        action: "login",
+        reason: "user_not_found",
+      });
       throw new AppError(
         "invalid_credentials",
         "Invalid credentials.",
@@ -199,6 +288,10 @@ export async function loginUser(
       logWarn("auth_login_failed", {
         email: normalizedEmail,
         userId: user.id,
+        reason: "password_missing",
+      });
+      trackAuthEvent("auth_invalid_credentials", {
+        action: "login",
         reason: "password_missing",
       });
       throw new AppError(
@@ -357,6 +450,10 @@ export async function loginUser(
         userAgent,
         success: false,
       });
+      trackAuthEvent("auth_invalid_credentials", {
+        action: "login",
+        reason: "password_mismatch",
+      });
       logWarn("auth_login_failed", {
         email: normalizedEmail,
         userId: user.id,
@@ -436,51 +533,7 @@ export async function loginUser(
 
     return { accessToken };
   };
-
-  let retryAttempted = false;
-
-  while (true) {
-    try {
-      const result = await attemptLogin();
-      if (retryAttempted) {
-        logInfo("auth_db_retry_succeeded", { email: normalizedEmail });
-      }
-      return result;
-    } catch (err) {
-      if (err instanceof AppError) {
-        throw err;
-      }
-      if (isDbConnectionFailure(err)) {
-        if (!retryAttempted) {
-          retryAttempted = true;
-          logInfo("auth_db_retry_attempted", { email: normalizedEmail });
-          continue;
-        }
-        logWarn("auth_db_retry_failed", {
-          email: normalizedEmail,
-          error: err instanceof Error ? err.message : "unknown_error",
-        });
-        logError("auth_login_db_unavailable", {
-          email: normalizedEmail,
-          error: err instanceof Error ? err.message : "unknown_error",
-        });
-        throw new AppError(
-          "service_unavailable",
-          "Authentication service unavailable.",
-          503
-        );
-      }
-      logError("auth_login_error", {
-        email: normalizedEmail,
-        error: err instanceof Error ? err.message : "unknown_error",
-      });
-      throw new AppError(
-        "service_unavailable",
-        "Authentication service unavailable.",
-        503
-      );
-    }
-  }
+  return withAuthDbRetry("login", attemptLogin);
 }
 
 export async function refreshSession(
@@ -496,116 +549,126 @@ export async function refreshSession(
   const decoded = jwt.decode(refreshToken) as RefreshTokenPayload | null;
   const actorUserId = decoded?.userId ?? null;
 
-  try {
-    const payload = jwt.verify(refreshToken, secret) as RefreshTokenPayload;
-    if (
-      !payload.userId ||
-      !payload.role ||
-      typeof payload.tokenVersion !== "number" ||
-      !payload.tokenId
-    ) {
-      throw new AppError("invalid_token", "Invalid refresh token.", 401);
-    }
-
-    const client = await pool.connect();
+  return withAuthDbRetry("refresh", async () => {
     try {
-      await client.query("begin");
-      const tokenHash = hashToken(refreshToken);
-      const record = await consumeRefreshToken(tokenHash, client);
-      if (!record) {
-        await client.query("rollback");
-        await handleRefreshReuse(payload.userId, ip, userAgent);
-        throw new AppError("invalid_token", "Invalid refresh token.", 401);
-      }
-      if (record.user_id !== payload.userId) {
-        await client.query("commit");
-        await handleRefreshReuse(payload.userId, ip, userAgent);
-        throw new AppError("invalid_token", "Invalid refresh token.", 401);
-      }
-      if (record.expires_at.getTime() < Date.now()) {
-        await client.query("commit");
+      const payload = jwt.verify(refreshToken, secret) as RefreshTokenPayload;
+      if (
+        !payload.userId ||
+        !payload.role ||
+        typeof payload.tokenVersion !== "number" ||
+        !payload.tokenId
+      ) {
         throw new AppError("invalid_token", "Invalid refresh token.", 401);
       }
 
-      const user = await findAuthUserById(payload.userId);
-      if (!user || !user.active) {
-        await client.query("commit");
-        throw new AppError("invalid_token", "Invalid refresh token.", 401);
-      }
-      if (isPasswordExpired(user.password_changed_at)) {
-        await client.query("commit");
-        throw new AppError(
-          "password_expired",
-          "Password has expired. Reset your password.",
-          403
-        );
-      }
-      if (user.token_version !== payload.tokenVersion) {
-        await client.query("commit");
-        throw new AppError("invalid_token", "Invalid refresh token.", 401);
-      }
+      return await withRefreshLock(payload.userId, async () => {
+        const client = await pool.connect();
+        try {
+          await client.query("begin");
+          const tokenHash = hashToken(refreshToken);
+          const record = await consumeRefreshToken(tokenHash, client);
+          if (!record) {
+            await client.query("rollback");
+            await handleRefreshReuse(payload.userId, ip, userAgent);
+            throw new AppError("invalid_token", "Invalid refresh token.", 401);
+          }
+          if (record.user_id !== payload.userId) {
+            await client.query("commit");
+            await handleRefreshReuse(payload.userId, ip, userAgent);
+            throw new AppError("invalid_token", "Invalid refresh token.", 401);
+          }
+          if (record.expires_at.getTime() < Date.now()) {
+            await client.query("commit");
+            throw new AppError("invalid_token", "Invalid refresh token.", 401);
+          }
 
-      const newAccessToken = issueAccessToken({
-        userId: user.id,
-        role: user.role,
-        tokenVersion: user.token_version,
+          const user = await findAuthUserById(payload.userId, client);
+          if (!user || !user.active) {
+            await client.query("commit");
+            throw new AppError("invalid_token", "Invalid refresh token.", 401);
+          }
+          if (isPasswordExpired(user.password_changed_at)) {
+            await client.query("commit");
+            throw new AppError(
+              "password_expired",
+              "Password has expired. Reset your password.",
+              403
+            );
+          }
+          if (user.token_version !== payload.tokenVersion) {
+            await client.query("commit");
+            throw new AppError("invalid_token", "Invalid refresh token.", 401);
+          }
+
+          const newAccessToken = issueAccessToken({
+            userId: user.id,
+            role: user.role,
+            tokenVersion: user.token_version,
+          });
+          const newRefreshToken = issueRefreshToken({
+            userId: user.id,
+            role: user.role,
+            tokenVersion: user.token_version,
+          });
+          const newHash = hashToken(newRefreshToken);
+          const refreshExpires = new Date();
+          refreshExpires.setSeconds(
+            refreshExpires.getSeconds() + msToSeconds(getRefreshTokenExpiresIn())
+          );
+
+          await storeRefreshToken({
+            userId: user.id,
+            tokenHash: newHash,
+            expiresAt: refreshExpires,
+            client,
+          });
+
+          await recordAuditEvent({
+            action: "token_refresh",
+            actorUserId: user.id,
+            targetUserId: user.id,
+            ip,
+            userAgent,
+            success: true,
+            client,
+          });
+          logInfo("auth_refresh_succeeded", { userId: user.id });
+          await client.query("commit");
+
+          return { accessToken: newAccessToken, refreshToken: newRefreshToken };
+        } catch (err) {
+          try {
+            await client.query("rollback");
+          } catch {
+            // ignore rollback errors
+          }
+          throw err;
+        } finally {
+          client.release();
+        }
       });
-      const newRefreshToken = issueRefreshToken({
-        userId: user.id,
-        role: user.role,
-        tokenVersion: user.token_version,
-      });
-      const newHash = hashToken(newRefreshToken);
-      const refreshExpires = new Date();
-      refreshExpires.setSeconds(
-        refreshExpires.getSeconds() + msToSeconds(getRefreshTokenExpiresIn())
-      );
-
-      await storeRefreshToken({
-        userId: user.id,
-        tokenHash: newHash,
-        expiresAt: refreshExpires,
-        client,
-      });
-
+    } catch (err) {
       await recordAuditEvent({
         action: "token_refresh",
-        actorUserId: user.id,
-        targetUserId: user.id,
+        actorUserId,
+        targetUserId: actorUserId,
         ip,
         userAgent,
-        success: true,
-        client,
+        success: false,
       });
-      logInfo("auth_refresh_succeeded", { userId: user.id });
-      await client.query("commit");
-
-      return { accessToken: newAccessToken, refreshToken: newRefreshToken };
-    } catch (err) {
-      try {
-        await client.query("rollback");
-      } catch {
-        // ignore rollback errors
+      logWarn("auth_refresh_failed", {
+        userId: actorUserId,
+        error: err instanceof Error ? err.message : "unknown_error",
+      });
+      if (err instanceof AppError) {
+        if (err.code === "invalid_token") {
+          trackAuthEvent("auth_invalid_token", { action: "refresh" });
+        }
+        throw err;
       }
       throw err;
-    } finally {
-      client.release();
     }
-  } catch (err) {
-    await recordAuditEvent({
-      action: "token_refresh",
-      actorUserId,
-      targetUserId: actorUserId,
-      ip,
-      userAgent,
-      success: false,
-    });
-    logWarn("auth_refresh_failed", {
-      userId: actorUserId,
-      error: err instanceof Error ? err.message : "unknown_error",
-    });
-    throw err;
-  }
+  });
 }
 
 export async function logoutUser(params: {
@@ -639,23 +702,41 @@ export async function logoutAll(params: {
   ip?: string;
   userAgent?: string;
 }): Promise<void> {
-  await revokeRefreshTokensForUser(params.userId);
-  await incrementTokenVersion(params.userId);
-  await recordAuditEvent({
-    action: "token_revoke",
-    actorUserId: params.userId,
-    targetUserId: params.userId,
-    ip: params.ip,
-    userAgent: params.userAgent,
-    success: true,
-  });
-  await recordAuditEvent({
-    action: "logout_all",
-    actorUserId: params.userId,
-    targetUserId: params.userId,
-    ip: params.ip,
-    userAgent: params.userAgent,
-    success: true,
+  await withAuthDbRetry("logout_all", async () => {
+    const client = await pool.connect();
+    try {
+      await client.query("begin");
+      await incrementTokenVersion(params.userId, client);
+      await revokeRefreshTokensForUser(params.userId, client);
+      await recordAuditEvent({
+        action: "token_revoke",
+        actorUserId: params.userId,
+        targetUserId: params.userId,
+        ip: params.ip,
+        userAgent: params.userAgent,
+        success: true,
+        client,
+      });
+      await recordAuditEvent({
+        action: "logout_all",
+        actorUserId: params.userId,
+        targetUserId: params.userId,
+        ip: params.ip,
+        userAgent: params.userAgent,
+        success: true,
+        client,
+      });
+      await client.query("commit");
+    } catch (err) {
+      try {
+        await client.query("rollback");
+      } catch {
+        // ignore rollback errors
+      }
+      throw err;
+    } finally {
+      client.release();
+    }
   });
 }
 

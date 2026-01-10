@@ -1,4 +1,10 @@
-import { Pool, type PoolClient, type PoolConfig } from "pg";
+import {
+  Pool,
+  type PoolClient,
+  type PoolConfig,
+  type QueryResult,
+  type QueryResultRow,
+} from "pg";
 import {
   getDbPoolConnectionTimeoutMs,
   getDbPoolIdleTimeoutMs,
@@ -164,6 +170,61 @@ export async function cancelDbWork(processIds: number[]): Promise<void> {
 
 export function getPoolConfig(): PoolConfig {
   return { ...poolConfig };
+}
+
+type AuthQueryable = Pick<PoolClient, "query">;
+
+const defaultAuthQueryTimeoutMs = Math.max(
+  250,
+  Number(process.env.AUTH_DB_QUERY_TIMEOUT_MS ?? 2500)
+);
+
+function getAuthQueryTimeoutMs(): number {
+  return Math.max(
+    250,
+    Number(process.env.AUTH_DB_QUERY_TIMEOUT_MS ?? defaultAuthQueryTimeoutMs)
+  );
+}
+
+function assertAuthPoolAvailability(): void {
+  const { idleCount, totalCount, waitingCount, max } = getPoolMetrics();
+  if (waitingCount > 0 && totalCount >= max) {
+    const error = new Error("db_pool_exhausted");
+    (error as { code?: string }).code = "53300";
+    throw error;
+  }
+  if (idleCount < 1 && totalCount >= max) {
+    const error = new Error("db_pool_no_free_client");
+    (error as { code?: string }).code = "53300";
+    throw error;
+  }
+}
+
+function buildAuthQueryConfig(
+  text: string,
+  values?: unknown[]
+): {
+  text: string;
+  values?: unknown[];
+  query_timeout: number;
+} {
+  return {
+    text,
+    values,
+    query_timeout: getAuthQueryTimeoutMs(),
+  };
+}
+
+export async function runAuthQuery<T extends QueryResultRow = QueryResultRow>(
+  runner: AuthQueryable,
+  text: string,
+  values?: unknown[]
+): Promise<QueryResult<T>> {
+  assertAuthPoolAvailability();
+  const queryConfig = buildAuthQueryConfig(text, values);
+  return runner.query(
+    queryConfig as unknown as Parameters<Pool["query"]>[0]
+  ) as Promise<QueryResult<T>>;
 }
 
 const poolTarget = `${dbMetadata.host}${dbMetadata.port ? `:${dbMetadata.port}` : ""}`;
@@ -561,8 +622,37 @@ export function isDbConnectionFailure(error: unknown): boolean {
     message.includes("could not connect") ||
     message.includes("terminating connection") ||
     message.includes("db down") ||
-    message.includes("db unavailable")
+    message.includes("db unavailable") ||
+    message.includes("db_pool_exhausted") ||
+    message.includes("db_pool_no_free_client")
   );
+}
+
+export function getDbFailureCategory(
+  error: unknown
+): "pool_exhausted" | "unavailable" | null {
+  if (!error) {
+    return null;
+  }
+  const message =
+    error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  const code = (error as { code?: string }).code?.toLowerCase();
+  const poolSignals = new Set(["53300"]);
+
+  if (code && poolSignals.has(code)) {
+    return "pool_exhausted";
+  }
+  if (
+    message.includes("db_pool_exhausted") ||
+    message.includes("db_pool_no_free_client") ||
+    message.includes("timeout acquiring a client")
+  ) {
+    return "pool_exhausted";
+  }
+  if (isDbConnectionFailure(error)) {
+    return "unavailable";
+  }
+  return null;
 }
 
 type RequiredColumn = {
