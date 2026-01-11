@@ -2,7 +2,7 @@ import jwt, { type SignOptions } from "jsonwebtoken";
 import { createHash, randomBytes } from "crypto";
 import { type PoolClient } from "pg";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
-import { Twilio } from "twilio";
+import twilio from "twilio";
 import RestException from "twilio/lib/base/RestException";
 import {
   createUser,
@@ -220,7 +220,7 @@ type TwilioVerifyConfig = {
   serviceSid: string;
 };
 
-let twilioClient: Twilio | null = null;
+let twilioClient: ReturnType<typeof twilio> | null = null;
 
 function getTwilioVerifyConfig(): TwilioVerifyConfig {
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -244,9 +244,9 @@ export function assertTwilioVerifyEnv(): void {
   }
 }
 
-function getTwilioClient(config: TwilioVerifyConfig): Twilio {
+function getTwilioClient(config: TwilioVerifyConfig): ReturnType<typeof twilio> {
   if (!twilioClient) {
-    twilioClient = new Twilio(config.accountSid, config.authToken);
+    twilioClient = twilio(config.accountSid, config.authToken);
   }
   return twilioClient;
 }
@@ -271,12 +271,14 @@ function resolveTwilioErrorDetails(error: unknown): {
   message: string;
   status?: number;
   code?: number;
+  requestId?: string;
 } {
   if (error instanceof RestException) {
     return {
       message: error.message,
       status: error.status,
       code: error.code,
+      requestId: error.requestId,
     };
   }
   if (error instanceof Error) {
@@ -374,6 +376,7 @@ export async function startOtpVerification(params: {
       status: details.status,
       code: details.code,
       message: details.message,
+      requestId: details.requestId,
     });
     if (isAuthFailure) {
       throw new AppError(
@@ -414,6 +417,7 @@ export async function verifyOtpCode(params: {
       status: details.status,
       code: details.code,
       message: details.message,
+      requestId: details.requestId,
     });
     if (isAuthFailure) {
       throw new AppError(
