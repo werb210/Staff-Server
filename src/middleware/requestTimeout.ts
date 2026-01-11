@@ -1,5 +1,5 @@
 import { type NextFunction, type Request, type Response } from "express";
-import { cancelDbWork } from "../db";
+import { cancelDbWork } from "../dbRuntime";
 import { getRequestTimeoutMs } from "../config";
 import { getRequestDbProcessIds } from "./requestContext";
 import { logWarn } from "../observability/logger";

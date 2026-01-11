@@ -1,7 +1,8 @@
 import { AppError } from "../../middleware/errors";
 import { createHash } from "crypto";
 import { recordAuditEvent } from "../audit/audit.service";
-import { isPgMemRuntime, pool } from "../../db";
+import { pool } from "../../db";
+import { isPgMemRuntime } from "../../dbRuntime";
 import { type PoolClient } from "pg";
 import {
   findApplicationById,

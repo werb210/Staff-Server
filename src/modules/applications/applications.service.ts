@@ -15,7 +15,8 @@ import {
   getLatestDocumentVersion,
   updateApplicationPipelineState,
 } from "./applications.repo";
-import { isPgMemRuntime, pool } from "../../db";
+import { pool } from "../../db";
+import { isPgMemRuntime } from "../../dbRuntime";
 import { type Role, ROLES } from "../../auth/roles";
 import { type PoolClient } from "pg";
 import { getDocumentCategory, getRequirements, isSupportedProductType } from "./documentRequirements";

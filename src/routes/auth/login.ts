@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
-import { db } from "../../db";
+import { dbQuery } from "../../db";
 
 export async function login(req: Request, res: Response) {
   try {
@@ -10,25 +10,29 @@ export async function login(req: Request, res: Response) {
       return res.status(400).json({ code: "missing_credentials" });
     }
 
-    const user = await db.query.users.findFirst({
-      where: (u, { eq }) => eq(u.email, email),
-    });
+    const result = await dbQuery(
+      "SELECT id, email, password_hash FROM users WHERE email = $1",
+      [email]
+    );
 
-    if (!user || !user.passwordHash) {
+    const user = result.rows[0];
+
+    if (!user) {
       return res.status(401).json({ code: "invalid_credentials" });
     }
 
-    const ok = await bcrypt.compare(password, user.passwordHash);
-    if (!ok) {
+    const valid = await bcrypt.compare(password, user.password_hash);
+
+    if (!valid) {
       return res.status(401).json({ code: "invalid_credentials" });
     }
 
-    return res.status(200).json({
-      userId: user.id,
+    return res.json({
+      id: user.id,
       email: user.email,
     });
   } catch (err) {
-    console.error("LOGIN_FAILED", err);
-    return res.status(500).json({ code: "auth_error" });
+    console.error("[LOGIN ERROR]", err);
+    return res.status(500).json({ code: "server_error" });
   }
 }

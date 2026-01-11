@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
-import { isPgMem, pool } from "./db";
+import { pool } from "./db";
+import { isPgMem } from "./dbRuntime";
 
 const migrationsDir = path.join(process.cwd(), "migrations");
 

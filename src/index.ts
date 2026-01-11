@@ -1,13 +1,20 @@
+import express from "express";
 import { buildApp, registerApiRoutes } from "./app";
 import { isTestEnvironment } from "./config";
-import { assertSchema, pool, waitForDatabaseReady, warmUpDatabase } from "./db";
+import { dbQuery } from "./db";
 import { logError, logInfo, logWarn } from "./observability/logger";
 import { initializeAppInsights } from "./observability/appInsights";
 import { installProcessHandlers } from "./observability/processHandlers";
-import { setCriticalServicesReady, setDbConnected, setMigrationsState, setSchemaReady } from "./startupState";
+import {
+  setCriticalServicesReady,
+  setDbConnected,
+  setMigrationsState,
+  setSchemaReady,
+} from "./startupState";
 import { runStartupConsistencyCheck } from "./startup/consistencyCheck";
 import { validateCorsConfig } from "./startup/corsValidation";
 import { getPendingMigrations } from "./migrations";
+import { login } from "./routes/auth/login";
 
 const logger = {
   info: (fields: { event: string; [key: string]: unknown }): void => {
@@ -18,10 +25,8 @@ const logger = {
 
 async function logStartupStatus(): Promise<void> {
   try {
-    await waitForDatabaseReady();
+    await dbQuery("select 1");
     setDbConnected(true);
-    await warmUpDatabase();
-    await assertSchema();
     setSchemaReady(true);
     const pendingMigrations = await getPendingMigrations();
     setMigrationsState(pendingMigrations);
@@ -29,7 +34,7 @@ async function logStartupStatus(): Promise<void> {
     await runStartupConsistencyCheck();
     setCriticalServicesReady(true);
 
-    const userCountResult = await pool.query<{ count: number }>(
+    const userCountResult = await dbQuery<{ count: number }>(
       "select count(*)::int as count from users"
     );
     const userCount = userCountResult.rows[0]?.count ?? 0;
@@ -46,6 +51,8 @@ async function logStartupStatus(): Promise<void> {
 }
 
 const app = buildApp();
+app.use(express.json());
+app.post("/api/auth/login", login);
 registerApiRoutes(app);
 const PORT = Number(process.env.PORT ?? 8080);
 

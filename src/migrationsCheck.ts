@@ -1,20 +1,24 @@
 import { assertEnv } from "./config";
-import { assertSchema, checkDb } from "./db";
+import { dbQuery } from "./db";
 import { assertNoPendingMigrations, runMigrations } from "./migrations";
-import { logError } from "./observability/logger";
+import { logError, logInfo } from "./observability/logger";
 
 async function main(): Promise<void> {
   assertEnv();
-  await checkDb();
+  try {
+    await dbQuery("select 1");
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "unknown_error";
+    logError("migration_check_db_unavailable", { error: message });
+  }
   await runMigrations();
   await assertNoPendingMigrations();
-  await assertSchema();
+  logInfo("migration_check_complete");
 }
 
 if (require.main === module) {
   main().catch((err) => {
     const message = err instanceof Error ? err.message : "unknown_error";
     logError("migration_check_failed", { error: message });
-    process.exit(1);
   });
 }

@@ -15,7 +15,7 @@ export function installProcessHandlers(): void {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { trackException } = require("./appInsights") as typeof import("./appInsights");
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { isDbConnectionFailure } = require("../db") as typeof import("../db");
+    const { isDbConnectionFailure } = require("../dbRuntime") as typeof import("../dbRuntime");
     const classification = isDbConnectionFailure(error)
       ? "db_unavailable"
       : "unknown";
