@@ -16,6 +16,17 @@ async function logCheckResult(params: {
   logInfo(params.event, { count: params.count });
 }
 
+async function hasColumn(table: string, column: string): Promise<boolean> {
+  const res = await pool.query<{ count: number }>(
+    `select count(*)::int as count
+     from information_schema.columns
+     where table_name = $1
+       and column_name = $2`,
+    [table, column]
+  );
+  return (res.rows[0]?.count ?? 0) > 0;
+}
+
 export async function runStartupConsistencyCheck(): Promise<void> {
   try {
     const orphanDocumentsCount = await pool.query<{ count: number }>(
@@ -39,26 +50,33 @@ export async function runStartupConsistencyCheck(): Promise<void> {
       sample: orphanDocumentsSample.rows,
     });
 
-    const orphanApplicationsCount = await pool.query<{ count: number }>(
-      `select count(*)::int as count
-       from applications a
-       where not exists (
-         select 1 from users u where u.id = a.owner_user_id
-       )`
-    );
-    const orphanApplicationsSample = await pool.query<SampleRow>(
-      `select a.id, a.owner_user_id
-       from applications a
-       where not exists (
-         select 1 from users u where u.id = a.owner_user_id
-       )
-       limit 10`
-    );
-    await logCheckResult({
-      event: "startup_orphaned_applications",
-      count: orphanApplicationsCount.rows[0]?.count ?? 0,
-      sample: orphanApplicationsSample.rows,
-    });
+    const hasOwnerUserId = await hasColumn("applications", "owner_user_id");
+    if (!hasOwnerUserId) {
+      logInfo("startup_orphaned_applications_skipped", {
+        reason: "missing_owner_user_id",
+      });
+    } else {
+      const orphanApplicationsCount = await pool.query<{ count: number }>(
+        `select count(*)::int as count
+         from applications a
+         where not exists (
+           select 1 from users u where u.id = a.owner_user_id
+         )`
+      );
+      const orphanApplicationsSample = await pool.query<SampleRow>(
+        `select a.id, a.owner_user_id
+         from applications a
+         where not exists (
+           select 1 from users u where u.id = a.owner_user_id
+         )
+         limit 10`
+      );
+      await logCheckResult({
+        event: "startup_orphaned_applications",
+        count: orphanApplicationsCount.rows[0]?.count ?? 0,
+        sample: orphanApplicationsSample.rows,
+      });
+    }
 
     const invalidPipelineCount = await pool.query<{ count: number }>(
       `select count(*)::int as count

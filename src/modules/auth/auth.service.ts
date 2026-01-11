@@ -157,14 +157,37 @@ async function withAuthDbRetry<T>(
 }
 
 const bcryptHashPattern = /^\$2[aby]\$(\d{2})\$[./A-Za-z0-9]{53}$/;
+const argon2HashPattern = /^\$argon2(id|i|d)\$[^\s]+$/;
 
-function isValidBcryptHash(hash: string): boolean {
-  const match = bcryptHashPattern.exec(hash);
-  if (!match) {
-    return false;
+type PasswordHashEvaluation =
+  | { status: "missing" }
+  | { status: "bcrypt"; cost: number; needsRehash: boolean }
+  | { status: "argon2" }
+  | { status: "invalid" };
+
+function evaluatePasswordHash(hash?: string | null): PasswordHashEvaluation {
+  const trimmed = typeof hash === "string" ? hash.trim() : "";
+  if (!trimmed) {
+    return { status: "missing" };
   }
-  const cost = Number(match[1]);
-  return cost === 12;
+  const bcryptMatch = bcryptHashPattern.exec(trimmed);
+  if (bcryptMatch) {
+    const cost = Number(bcryptMatch[1]);
+    const boundedCost = Number.isFinite(cost) ? cost : 0;
+    const validCost = boundedCost >= 4 && boundedCost <= 31;
+    if (!validCost) {
+      return { status: "invalid" };
+    }
+    return {
+      status: "bcrypt",
+      cost: boundedCost,
+      needsRehash: boundedCost !== 12,
+    };
+  }
+  if (argon2HashPattern.test(trimmed)) {
+    return { status: "argon2" };
+  }
+  return { status: "invalid" };
 }
 
 async function handleRefreshReuse(
@@ -320,12 +343,11 @@ export async function loginUser(
         }
 
         const passwordHash = user.passwordHash;
+        const passwordHashState = evaluatePasswordHash(passwordHash);
         const trimmedPasswordHash =
           typeof passwordHash === "string" ? passwordHash.trim() : "";
-        if (!trimmedPasswordHash || !trimmedPasswordHash.startsWith("$2")) {
-          const reason = !trimmedPasswordHash
-            ? "password_hash_missing"
-            : "password_hash_invalid_format";
+        if (passwordHashState.status === "missing") {
+          const reason = "password_hash_missing";
           logError("invalid_password_state", {
             email: normalizedEmail,
             userId: user.id,
@@ -354,11 +376,12 @@ export async function loginUser(
           );
         }
 
-        if (!isValidBcryptHash(trimmedPasswordHash)) {
+        if (passwordHashState.status === "invalid") {
+          const reason = "password_hash_invalid_format";
           logError("invalid_password_state", {
             email: normalizedEmail,
             userId: user.id,
-            reason: "password_hash_invalid_format",
+            reason,
           });
           await recordAuditEvent({
             action: "invalid_password_state",
@@ -367,14 +390,14 @@ export async function loginUser(
             ip,
             userAgent,
             success: false,
-            metadata: { reason: "password_hash_invalid_format" },
+            metadata: { reason },
             client,
           });
           await client.query("commit");
           committed = true;
           trackAuthEvent("auth_password_hash_invalid", {
             action: "login",
-            reason: "password_hash_invalid_format",
+            reason,
           });
           throw new AppError(
             "user_misconfigured",
@@ -383,11 +406,42 @@ export async function loginUser(
           );
         }
 
+        if (passwordHashState.status === "argon2") {
+          const reason = "password_hash_legacy_format";
+          logWarn("legacy_password_state", {
+            email: normalizedEmail,
+            userId: user.id,
+            reason,
+          });
+          await recordAuditEvent({
+            action: "invalid_password_state",
+            actorUserId: user.id,
+            targetUserId: user.id,
+            ip,
+            userAgent,
+            success: false,
+            metadata: { reason },
+            client,
+          });
+          await client.query("commit");
+          committed = true;
+          trackAuthEvent("auth_password_hash_legacy", {
+            action: "login",
+            reason,
+          });
+          throw new AppError(
+            "password_reset_required",
+            "Password reset required.",
+            403
+          );
+        }
+
         logInfo("auth_login_password_hash", {
           email: normalizedEmail,
           userId: user.id,
           algorithm: "bcrypt",
-          cost: 12,
+          cost: passwordHashState.cost,
+          legacy: passwordHashState.needsRehash,
         });
 
         const now = Date.now();
@@ -529,6 +583,17 @@ export async function loginUser(
             "Password has expired. Reset your password.",
             403
           );
+        }
+
+        if (passwordHashState.needsRehash) {
+          const upgradedHash = await bcrypt.hash(password, 12);
+          await updatePassword(user.id, upgradedHash, client);
+          logInfo("auth_password_hash_upgraded", {
+            userId: user.id,
+            email: normalizedEmail,
+            previousCost: passwordHashState.cost,
+            newCost: 12,
+          });
         }
 
         const payload = {
