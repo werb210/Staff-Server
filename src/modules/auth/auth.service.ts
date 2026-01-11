@@ -35,7 +35,6 @@ import { logError, logInfo, logWarn } from "../../observability/logger";
 import { recordTransactionRollback } from "../../observability/transactionTelemetry";
 import { trackEvent } from "../../observability/appInsights";
 import { buildTelemetryProperties } from "../../observability/telemetry";
-import { getStartupState } from "../../startupState";
 
 type AccessTokenPayload = {
   userId: string;
@@ -253,13 +252,6 @@ export async function loginUser(
   }
 
   const attemptLogin = async (): Promise<{ accessToken: string }> => {
-    if (!getStartupState().dbConnected) {
-      throw new AppError(
-        "service_unavailable",
-        "Authentication service unavailable.",
-        503
-      );
-    }
     const client = await pool.connect();
     const loginTimeoutMs = getLoginTimeoutMs();
     let timeoutId: NodeJS.Timeout | null = null;
