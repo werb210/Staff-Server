@@ -2,7 +2,7 @@ import jwt, { type SignOptions } from "jsonwebtoken";
 import { createHash, randomBytes } from "crypto";
 import { type PoolClient } from "pg";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
-import twilio from "twilio";
+import Twilio from "twilio";
 import RestException from "twilio/lib/base/RestException";
 import {
   createUser,
@@ -25,7 +25,7 @@ import { recordAuditEvent } from "../audit/audit.service";
 import { pool } from "../../db";
 import { getDbFailureCategory, isDbConnectionFailure } from "../../dbRuntime";
 import { type Role, ROLES } from "../../auth/roles";
-import { logError, logInfo, logWarn } from "../../observability/logger";
+import { logInfo, logWarn } from "../../observability/logger";
 import { trackEvent } from "../../observability/appInsights";
 import { buildTelemetryProperties } from "../../observability/telemetry";
 
@@ -214,41 +214,27 @@ export function assertAuthSubsystem(): void {
   }
 }
 
-type TwilioVerifyConfig = {
-  accountSid: string;
-  authToken: string;
-  serviceSid: string;
-};
+export const twilioClient = new Twilio(
+  process.env.TWILIO_ACCOUNT_SID!,
+  process.env.TWILIO_AUTH_TOKEN!
+);
 
-let twilioClient: ReturnType<typeof twilio> | null = null;
-
-function getTwilioVerifyConfig(): TwilioVerifyConfig {
-  const accountSid = process.env.TWILIO_ACCOUNT_SID;
-  const authToken = process.env.TWILIO_AUTH_TOKEN;
+function getTwilioVerifyServiceSid(): string {
   const serviceSid = process.env.TWILIO_VERIFY_SERVICE_SID;
-  if (!accountSid || !authToken || !serviceSid) {
+  if (!serviceSid) {
     throw new AppError("auth_misconfigured", "Auth is not configured.", 503);
   }
-  return { accountSid, authToken, serviceSid };
+  return serviceSid;
 }
 
 export function assertTwilioVerifyEnv(): void {
-  const missing = [
-    "TWILIO_ACCOUNT_SID",
-    "TWILIO_AUTH_TOKEN",
-    "TWILIO_VERIFY_SERVICE_SID",
-  ].filter((key) => !process.env[key] || process.env[key]?.trim().length === 0);
-  if (missing.length > 0) {
-    logError("twilio_verify_env_missing", { missing });
-    throw new Error(`Missing Twilio configuration: ${missing.join(", ")}`);
-  }
-}
-
-function getTwilioClient(config: TwilioVerifyConfig): ReturnType<typeof twilio> {
-  if (!twilioClient) {
-    twilioClient = twilio(config.accountSid, config.authToken);
-  }
-  return twilioClient;
+  ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_VERIFY_SERVICE_SID"].forEach(
+    (key) => {
+      if (!process.env[key]) {
+        throw new Error(`Missing ${key}`);
+      }
+    }
+  );
 }
 
 function isTwilioAuthFailure(error: {
@@ -278,7 +264,7 @@ function resolveTwilioErrorDetails(error: unknown): {
       message: error.message,
       status: error.status,
       code: error.code,
-      requestId: error.requestId,
+      requestId: (error as any)?.requestId,
     };
   }
   if (error instanceof Error) {
@@ -291,10 +277,9 @@ async function requestTwilioVerification(
   phoneE164: string,
   channel: "sms"
 ): Promise<void> {
-  const config = getTwilioVerifyConfig();
-  const client = getTwilioClient(config);
-  await client.verify.v2
-    .services(config.serviceSid)
+  const serviceSid = getTwilioVerifyServiceSid();
+  await twilioClient.verify
+    .services(serviceSid)
     .verifications.create({ to: phoneE164, channel });
 }
 
@@ -302,10 +287,9 @@ async function requestTwilioVerificationCheck(
   phoneE164: string,
   code: string
 ): Promise<string | undefined> {
-  const config = getTwilioVerifyConfig();
-  const client = getTwilioClient(config);
-  const result = await client.verify.v2
-    .services(config.serviceSid)
+  const serviceSid = getTwilioVerifyServiceSid();
+  const result = await twilioClient.verify
+    .services(serviceSid)
     .verificationChecks.create({ to: phoneE164, code });
   return result.status;
 }
