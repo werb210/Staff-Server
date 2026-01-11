@@ -90,6 +90,7 @@ export async function initializeServer(): Promise<void> {
 }
 
 export function registerApiRoutes(app: express.Express): void {
+  // Ensure API routes are registered before any auth guards are applied.
   app.use("/api", apiRouter);
   if (process.env.PRINT_ROUTES === "true") {
     printRoutes(app);

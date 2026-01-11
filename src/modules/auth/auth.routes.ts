@@ -24,7 +24,7 @@ router.post("/otp/start", otpRateLimit(), async (req, res, next) => {
       ip: req.ip,
       userAgent: req.get("user-agent"),
     });
-    res.json({ success: true });
+    res.json({ status: "sent" });
   } catch (err) {
     next(err);
   }
