@@ -1,5 +1,6 @@
 import jwt, { type SignOptions } from "jsonwebtoken";
 import { createHash, randomBytes } from "crypto";
+import { type PoolClient } from "pg";
 import {
   createUser,
   consumeRefreshToken,
@@ -127,13 +128,16 @@ async function withAuthDbRetry<T>(
   }
 }
 
+type Queryable = Pick<PoolClient, "query">;
+
 async function handleRefreshReuse(
   userId: string,
+  db: Queryable,
   ip?: string,
   userAgent?: string
 ): Promise<void> {
-  await revokeRefreshTokensForUser(userId);
-  await incrementTokenVersion(userId);
+  await revokeRefreshTokensForUser(userId, db);
+  await incrementTokenVersion(userId, db);
   await recordAuditEvent({
     action: "token_revoke",
     actorUserId: userId,
@@ -141,6 +145,7 @@ async function handleRefreshReuse(
     ip,
     userAgent,
     success: true,
+    client: db,
   });
   await recordAuditEvent({
     action: "token_reuse",
@@ -149,6 +154,7 @@ async function handleRefreshReuse(
     ip,
     userAgent,
     success: false,
+    client: db,
   });
 }
 
@@ -250,15 +256,15 @@ async function callTwilioVerify(
 
 async function findOrCreateUserByPhone(
   phoneNumber: string,
-  client: Awaited<ReturnType<typeof pool.connect>>
+  db: Queryable
 ): Promise<{ userId: string; email: string | null; role: Role; tokenVersion: number }> {
-  let user = await findAuthUserByPhone(phoneNumber, client, { forUpdate: true });
+  let user = await findAuthUserByPhone(phoneNumber, db, { forUpdate: true });
   if (!user) {
     const created = await createUser({
       email: null,
       phoneNumber,
       role: ROLES.USER,
-      client,
+      client: db,
     });
     await recordAuditEvent({
       action: "user_created",
@@ -267,7 +273,7 @@ async function findOrCreateUserByPhone(
       ip: null,
       userAgent: null,
       success: true,
-      client,
+      client: db,
     });
     user = created;
   }
@@ -291,9 +297,10 @@ export async function startOtpVerification(params: {
 
   await withAuthDbRetry("otp_start", async () => {
     const client = await pool.connect();
+    const db = client;
     try {
       await client.query("begin");
-      await findOrCreateUserByPhone(phone, client);
+      await findOrCreateUserByPhone(phone, db);
       await client.query("commit");
     } catch (err) {
       await client.query("rollback");
@@ -328,16 +335,17 @@ export async function verifyOtpCode(params: {
 
   return withAuthDbRetry("otp_verify", async () => {
     const client = await pool.connect();
+    const db = client;
     try {
       await client.query("begin");
-      const user = await findOrCreateUserByPhone(phone, client);
-      const userRecord = await findAuthUserById(user.userId, client);
+      const user = await findOrCreateUserByPhone(phone, db);
+      const userRecord = await findAuthUserById(user.userId, db);
       if (!userRecord || !userRecord.active) {
         await client.query("commit");
         throw new AppError("account_disabled", "Account is disabled.", 403);
       }
 
-      await setPhoneVerified(user.userId, true, client);
+      await setPhoneVerified(user.userId, true, db);
 
       const payload = {
         userId: user.userId,
@@ -351,12 +359,12 @@ export async function verifyOtpCode(params: {
       refreshExpires.setSeconds(
         refreshExpires.getSeconds() + msToSeconds(getRefreshTokenExpiresIn())
       );
-      await revokeRefreshTokensForUser(user.userId, client);
+      await revokeRefreshTokensForUser(user.userId, db);
       await storeRefreshToken({
         userId: user.userId,
         tokenHash,
         expiresAt: refreshExpires,
-        client,
+        client: db,
       });
       await recordAuditEvent({
         action: "login",
@@ -365,7 +373,7 @@ export async function verifyOtpCode(params: {
         ip: params.ip,
         userAgent: params.userAgent,
         success: true,
-        client,
+        client: db,
       });
 
       await client.query("commit");
@@ -406,18 +414,19 @@ export async function refreshSession(
 
       return await withRefreshLock(payload.userId, async () => {
         const client = await pool.connect();
+        const db = client;
         try {
           await client.query("begin");
           const tokenHash = hashToken(refreshToken);
-          const record = await consumeRefreshToken(tokenHash, client);
+          const record = await consumeRefreshToken(tokenHash, db);
           if (!record) {
             await client.query("rollback");
-            await handleRefreshReuse(payload.userId, ip, userAgent);
+            await handleRefreshReuse(payload.userId, pool, ip, userAgent);
             throw new AppError("invalid_token", "Invalid refresh token.", 401);
           }
           if (record.userId !== payload.userId) {
             await client.query("commit");
-            await handleRefreshReuse(payload.userId, ip, userAgent);
+            await handleRefreshReuse(payload.userId, pool, ip, userAgent);
             throw new AppError("invalid_token", "Invalid refresh token.", 401);
           }
           if (record.expiresAt.getTime() < Date.now()) {
@@ -425,7 +434,7 @@ export async function refreshSession(
             throw new AppError("invalid_token", "Invalid refresh token.", 401);
           }
 
-          const user = await findAuthUserById(payload.userId, client);
+          const user = await findAuthUserById(payload.userId, db);
           if (!user || !user.active) {
             await client.query("commit");
             throw new AppError("invalid_token", "Invalid refresh token.", 401);
@@ -455,7 +464,7 @@ export async function refreshSession(
             userId: user.id,
             tokenHash: newHash,
             expiresAt: refreshExpires,
-            client,
+            client: db,
           });
 
           await recordAuditEvent({
@@ -465,7 +474,7 @@ export async function refreshSession(
             ip,
             userAgent,
             success: true,
-            client,
+            client: db,
           });
           logInfo("auth_refresh_succeeded", { userId: user.id });
           await client.query("commit");
@@ -483,6 +492,7 @@ export async function refreshSession(
         }
       });
     } catch (err) {
+      const db = pool;
       await recordAuditEvent({
         action: "token_refresh",
         actorUserId,
@@ -490,6 +500,7 @@ export async function refreshSession(
         ip,
         userAgent,
         success: false,
+        client: db,
       });
       logWarn("auth_refresh_failed", {
         userId: actorUserId,
@@ -513,7 +524,8 @@ export async function logoutUser(params: {
   userAgent?: string;
 }): Promise<void> {
   const tokenHash = hashToken(params.refreshToken);
-  await revokeRefreshToken(tokenHash);
+  const db = pool;
+  await revokeRefreshToken(tokenHash, db);
   await recordAuditEvent({
     action: "token_revoke",
     actorUserId: params.userId,
@@ -521,6 +533,7 @@ export async function logoutUser(params: {
     ip: params.ip,
     userAgent: params.userAgent,
     success: true,
+    client: db,
   });
   await recordAuditEvent({
     action: "logout",
@@ -529,6 +542,7 @@ export async function logoutUser(params: {
     ip: params.ip,
     userAgent: params.userAgent,
     success: true,
+    client: db,
   });
 }
 
@@ -539,10 +553,11 @@ export async function logoutAll(params: {
 }): Promise<void> {
   await withAuthDbRetry("logout_all", async () => {
     const client = await pool.connect();
+    const db = client;
     try {
       await client.query("begin");
-      await incrementTokenVersion(params.userId, client);
-      await revokeRefreshTokensForUser(params.userId, client);
+      await incrementTokenVersion(params.userId, db);
+      await revokeRefreshTokensForUser(params.userId, db);
       await recordAuditEvent({
         action: "token_revoke",
         actorUserId: params.userId,
@@ -550,7 +565,7 @@ export async function logoutAll(params: {
         ip: params.ip,
         userAgent: params.userAgent,
         success: true,
-        client,
+        client: db,
       });
       await recordAuditEvent({
         action: "logout_all",
@@ -559,7 +574,7 @@ export async function logoutAll(params: {
         ip: params.ip,
         userAgent: params.userAgent,
         success: true,
-        client,
+        client: db,
       });
       await client.query("commit");
     } catch (err) {
@@ -584,13 +599,14 @@ export async function createUserAccount(params: {
   userAgent?: string;
 }): Promise<{ id: string; email: string | null; role: Role }> {
   const client = await pool.connect();
+  const db = client;
   try {
     await client.query("begin");
     const user = await createUser({
       email: params.email,
       phoneNumber: params.phoneNumber,
       role: params.role,
-      client,
+      client: db,
     });
     await recordAuditEvent({
       action: "user_created",
@@ -599,7 +615,7 @@ export async function createUserAccount(params: {
       ip: params.ip,
       userAgent: params.userAgent,
       success: true,
-      client,
+      client: db,
     });
     await client.query("commit");
     return { id: user.id, email: user.email, role: user.role };
@@ -612,6 +628,7 @@ export async function createUserAccount(params: {
       ip: params.ip,
       userAgent: params.userAgent,
       success: false,
+      client: db,
     });
     throw err;
   } finally {
