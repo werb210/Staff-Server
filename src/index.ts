@@ -14,7 +14,6 @@ import {
 import { runStartupConsistencyCheck } from "./startup/consistencyCheck";
 import { validateCorsConfig } from "./startup/corsValidation";
 import { getPendingMigrations } from "./migrations";
-import { login } from "./routes/auth/login";
 
 const logger = {
   info: (fields: { event: string; [key: string]: unknown }): void => {
@@ -52,7 +51,6 @@ async function logStartupStatus(): Promise<void> {
 
 const app = buildApp();
 app.use(express.json());
-app.post("/api/auth/login", login);
 registerApiRoutes(app);
 const PORT = Number(process.env.PORT ?? 8080);
 
