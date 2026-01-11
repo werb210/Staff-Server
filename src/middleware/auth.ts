@@ -69,7 +69,7 @@ export function requireAuth(
           return;
         }
         if (
-          user.token_version !== payload.tokenVersion ||
+          user.tokenVersion !== payload.tokenVersion ||
           user.role !== payload.role
         ) {
           next(new AppError("invalid_token", "Invalid access token.", 401));

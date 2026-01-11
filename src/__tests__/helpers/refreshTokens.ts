@@ -41,7 +41,7 @@ export async function issueRefreshTokenForUser(userId: string): Promise<string> 
   const refreshPayload = {
     userId: user.id,
     role: user.role,
-    tokenVersion: user.token_version,
+    tokenVersion: user.tokenVersion,
     tokenId: randomBytes(16).toString("hex"),
   };
   const refreshToken = jwt.sign(refreshPayload, secret, options);
