@@ -1,12 +1,12 @@
 import { Router } from "express";
 import { AppError } from "../../middleware/errors";
 import {
-  loginRateLimit,
   otpRateLimit,
   refreshRateLimit,
 } from "../../middleware/rateLimit";
 import { requireAuth, requireCapability } from "../../middleware/auth";
 import { CAPABILITIES } from "../../auth/capabilities";
+import { logInfo } from "../../observability/logger";
 import {
   startOtpVerification,
   verifyOtpCode,
@@ -17,12 +17,12 @@ import {
 
 const router = Router();
 
-router.post("/login", loginRateLimit(), async (_req, res) => {
-  res.status(403).json({ error: "password_auth_disabled" });
-});
-
 router.post("/otp/start", otpRateLimit(), async (req, res, next) => {
   try {
+    logInfo("otp_start_request", {
+      contentType: req.headers["content-type"],
+      body: req.body,
+    });
     const { phone } = req.body ?? {};
     await startOtpVerification({
       phone,

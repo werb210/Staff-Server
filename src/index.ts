@@ -1,10 +1,10 @@
-import express from "express";
 import { buildApp, registerApiRoutes } from "./app";
 import { isTestEnvironment } from "./config";
 import { dbQuery } from "./db";
 import { logError, logInfo, logWarn } from "./observability/logger";
 import { initializeAppInsights } from "./observability/appInsights";
 import { installProcessHandlers } from "./observability/processHandlers";
+import { assertTwilioVerifyEnv } from "./modules/auth/auth.service";
 import {
   setCriticalServicesReady,
   setDbConnected,
@@ -12,7 +12,6 @@ import {
   setSchemaReady,
 } from "./startupState";
 import { runStartupConsistencyCheck } from "./startup/consistencyCheck";
-import { validateCorsConfig } from "./startup/corsValidation";
 import { getPendingMigrations } from "./migrations";
 import { ensureSchemaRepairs } from "./startup/schemaRepairs";
 
@@ -22,6 +21,8 @@ const logger = {
     logInfo(event, rest);
   },
 };
+
+assertTwilioVerifyEnv();
 
 async function logStartupStatus(): Promise<void> {
   try {
@@ -52,7 +53,6 @@ async function logStartupStatus(): Promise<void> {
 }
 
 const app = buildApp();
-app.use(express.json());
 registerApiRoutes(app);
 const PORT = Number(process.env.PORT ?? 8080);
 
@@ -102,12 +102,6 @@ function safeStartupStep(context: string, action: () => void): void {
     handleStartupException(error, context);
   }
 }
-
-safeStartupStep("cors_validation", () => {
-  if (!isTestEnvironment()) {
-    validateCorsConfig();
-  }
-});
 
 safeStartupStep("app_insights_init", () => {
   initializeAppInsights();

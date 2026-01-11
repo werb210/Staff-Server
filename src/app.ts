@@ -1,4 +1,3 @@
-import cors from "cors";
 import express from "express";
 
 import apiRouter from "./api";
@@ -9,35 +8,55 @@ import { requestId } from "./middleware/requestId";
 import { requestLogger } from "./middleware/requestLogger";
 import { requestTimeout } from "./middleware/requestTimeout";
 import { runStartupConsistencyCheck } from "./startup/consistencyCheck";
-import { getCorsAllowlist } from "./config/env";
-import { getCorsAllowedHeaders } from "./startup/corsValidation";
 import { setCriticalServicesReady, setMigrationsState } from "./startupState";
+
+const corsAllowlist = new Set([
+  "https://staff.boreal.financial",
+  "http://localhost:5173",
+]);
+const corsAllowedHeaders = ["Content-Type", "Authorization", "Idempotency-Key"];
+const corsAllowedMethods = ["POST", "OPTIONS"];
+
+function corsMiddleware(
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction
+): void {
+  const origin = req.headers.origin;
+  if (origin) {
+    if (!corsAllowlist.has(origin)) {
+      res.status(403).json({ code: "cors_origin_not_allowed" });
+      return;
+    }
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Vary", "Origin");
+    res.setHeader(
+      "Access-Control-Allow-Methods",
+      corsAllowedMethods.join(", ")
+    );
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      corsAllowedHeaders.join(", ")
+    );
+  }
+
+  if (req.method === "OPTIONS") {
+    res.status(204).end();
+    return;
+  }
+  next();
+}
 
 export function buildApp(): express.Express {
   const app = express();
-  const corsAllowlist = getCorsAllowlist();
-  const allowAnyOrigin = corsAllowlist.includes("*");
+
+  app.use(corsMiddleware);
+  app.use(express.json({ limit: "10mb" }));
+  app.use(express.urlencoded({ extended: true }));
 
   app.use(requestId);
   app.use(requestLogger);
   app.use(requestTimeout);
-
-  app.use(
-    cors({
-      origin: (origin, callback) => {
-        if (!origin || allowAnyOrigin || corsAllowlist.includes(origin)) {
-          callback(null, true);
-          return;
-        }
-        callback(new Error("cors_origin_not_allowed"));
-      },
-      credentials: false,
-      allowedHeaders: getCorsAllowedHeaders(),
-      exposedHeaders: ["x-request-id"],
-    })
-  );
-  app.use(express.json({ limit: "10mb" }));
-  app.use(express.urlencoded({ extended: true }));
 
   app.get("/health", healthHandler);
   app.get("/ready", healthHandler);

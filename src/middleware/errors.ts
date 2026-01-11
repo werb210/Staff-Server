@@ -25,9 +25,11 @@ const authFailureCodes = new Set([
   "missing_token",
   "missing_fields",
   "invalid_phone",
-  "twilio_verify_failed",
+  "otp_failed",
+  "twilio_error",
   "user_disabled",
   "auth_unavailable",
+  "service_unavailable",
 ]);
 
 const constraintViolationCodes = new Set(["23502", "23503", "23505"]);
