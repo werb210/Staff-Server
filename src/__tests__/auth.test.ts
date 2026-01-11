@@ -1,4 +1,5 @@
 import request from "supertest";
+import bcrypt from "bcryptjs";
 import express from "express";
 import { buildAppWithApiRoutes, initializeServer } from "../app";
 import { pool } from "../db";
@@ -276,6 +277,52 @@ describe("auth", () => {
       ]);
       await pool.query("alter table users alter column password_hash set not null");
     }
+  });
+
+  it("upgrades legacy bcrypt hashes on successful login", async () => {
+    const password = "LegacyPassword123!";
+    const user = await createUserAccount({
+      email: "legacy-hash@example.com",
+      password,
+      role: ROLES.STAFF,
+    });
+    const legacyHash = await bcrypt.hash(password, 10);
+    await pool.query(
+      "update users set password_hash = $1 where id = $2",
+      [legacyHash, user.id]
+    );
+
+    const res = await postWithRequestId("/api/auth/login").send({
+      email: "legacy-hash@example.com",
+      password,
+    });
+
+    expect(res.status).toBe(200);
+    const updatedHash = await pool.query<{ password_hash: string }>(
+      "select password_hash from users where id = $1",
+      [user.id]
+    );
+    expect(updatedHash.rows[0]?.password_hash).toMatch(/^\$2[aby]\$12\$/);
+  });
+
+  it("requires password reset for legacy argon2 hashes", async () => {
+    const user = await createUserAccount({
+      email: "legacy-argon2@example.com",
+      password: "Password123!",
+      role: ROLES.STAFF,
+    });
+    await pool.query(
+      "update users set password_hash = $1 where id = $2",
+      ["$argon2id$v=19$m=65536,t=3,p=4$c29tZXNhbHQ$ZHVtbXloYXNo", user.id]
+    );
+
+    const res = await postWithRequestId("/api/auth/login").send({
+      email: "legacy-argon2@example.com",
+      password: "Password123!",
+    });
+
+    expect(res.status).toBe(403);
+    expect(res.body.code).toBe("password_reset_required");
   });
 
   it("returns 503 when login exceeds the auth timeout", async () => {

@@ -14,6 +14,7 @@ import {
 import { runStartupConsistencyCheck } from "./startup/consistencyCheck";
 import { validateCorsConfig } from "./startup/corsValidation";
 import { getPendingMigrations } from "./migrations";
+import { ensureSchemaRepairs } from "./startup/schemaRepairs";
 
 const logger = {
   info: (fields: { event: string; [key: string]: unknown }): void => {
@@ -26,6 +27,7 @@ async function logStartupStatus(): Promise<void> {
   try {
     await dbQuery("select 1");
     setDbConnected(true);
+    await ensureSchemaRepairs();
     setSchemaReady(true);
     const pendingMigrations = await getPendingMigrations();
     setMigrationsState(pendingMigrations);
