@@ -1,4 +1,4 @@
-import pg from "pg";
+import pg, { type QueryResult, type QueryResultRow } from "pg";
 import { logError, logInfo, logWarn } from "./observability/logger";
 import { setDbConnected } from "./startupState";
 
@@ -32,7 +32,10 @@ pool.on("error", (err) => {
   // IMPORTANT: do not crash process
 });
 
-export async function dbQuery<T = any>(text: string, params?: any[]) {
+export async function dbQuery<T extends QueryResultRow = QueryResultRow>(
+  text: string,
+  params?: any[]
+): Promise<QueryResult<T>> {
   try {
     return await pool.query<T>(text, params);
   } catch (err: any) {

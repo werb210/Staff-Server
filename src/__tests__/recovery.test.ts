@@ -84,7 +84,7 @@ describe("recovery integration", () => {
     const user = await findAuthUserByEmail("hash-check@example.com");
     const match = await bcrypt.compare(
       "Password123!",
-      user?.password_hash ?? ""
+      user?.passwordHash ?? ""
     );
     expect(match).toBe(true);
   });

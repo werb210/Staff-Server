@@ -327,7 +327,7 @@ export async function loginUser(
           );
         }
 
-        const passwordHash = user.password_hash;
+        const passwordHash = user.passwordHash;
         const trimmedPasswordHash =
           typeof passwordHash === "string" ? passwordHash.trim() : "";
         if (!trimmedPasswordHash || !trimmedPasswordHash.startsWith("$2")) {
@@ -400,14 +400,14 @@ export async function loginUser(
 
         const now = Date.now();
         const isLocked = Boolean(
-          user.locked_until && user.locked_until.getTime() > now
+          user.lockedUntil && user.lockedUntil.getTime() > now
         );
         logInfo("auth_login_flags", {
           email: normalizedEmail,
           userId: user.id,
           disabled: !user.active,
           locked: isLocked,
-          force_reset: user.password_reset_required,
+          force_reset: user.passwordResetRequired,
         });
 
         if (!user.active) {
@@ -454,7 +454,7 @@ export async function loginUser(
           );
         }
 
-        if (user.password_reset_required) {
+        if (user.passwordResetRequired) {
           logWarn("auth_login_failed", {
             email: normalizedEmail,
             userId: user.id,
@@ -494,7 +494,7 @@ export async function loginUser(
         if (!ok) {
           const lockoutThreshold = getLoginLockoutThreshold();
           const lockoutMinutes = getLoginLockoutMinutes();
-          const nextFailures = user.failed_login_attempts + 1;
+          const nextFailures = user.failedLoginAttempts + 1;
           const shouldLock = nextFailures >= lockoutThreshold;
           const lockUntil = shouldLock
             ? new Date(Date.now() + lockoutMinutes * 60 * 1000)
@@ -540,7 +540,7 @@ export async function loginUser(
 
         await resetLoginFailures(user.id, client);
 
-        if (isPasswordExpired(user.password_changed_at)) {
+        if (isPasswordExpired(user.passwordChangedAt)) {
           logWarn("auth_login_failed", {
             email: normalizedEmail,
             userId: user.id,
@@ -567,7 +567,7 @@ export async function loginUser(
         const payload = {
           userId: user.id,
           role: user.role,
-          tokenVersion: user.token_version,
+          tokenVersion: user.tokenVersion,
         };
         const accessToken = issueAccessToken(payload);
         const refreshToken = issueRefreshToken(payload);
@@ -691,12 +691,12 @@ export async function refreshSession(
             await handleRefreshReuse(payload.userId, ip, userAgent);
             throw new AppError("invalid_token", "Invalid refresh token.", 401);
           }
-          if (record.user_id !== payload.userId) {
+          if (record.userId !== payload.userId) {
             await client.query("commit");
             await handleRefreshReuse(payload.userId, ip, userAgent);
             throw new AppError("invalid_token", "Invalid refresh token.", 401);
           }
-          if (record.expires_at.getTime() < Date.now()) {
+          if (record.expiresAt.getTime() < Date.now()) {
             await client.query("commit");
             throw new AppError("invalid_token", "Invalid refresh token.", 401);
           }
@@ -706,7 +706,7 @@ export async function refreshSession(
             await client.query("commit");
             throw new AppError("invalid_token", "Invalid refresh token.", 401);
           }
-          if (isPasswordExpired(user.password_changed_at)) {
+          if (isPasswordExpired(user.passwordChangedAt)) {
             await client.query("commit");
             throw new AppError(
               "password_expired",
@@ -714,7 +714,7 @@ export async function refreshSession(
               403
             );
           }
-          if (user.token_version !== payload.tokenVersion) {
+          if (user.tokenVersion !== payload.tokenVersion) {
             await client.query("commit");
             throw new AppError("invalid_token", "Invalid refresh token.", 401);
           }
@@ -722,12 +722,12 @@ export async function refreshSession(
           const newAccessToken = issueAccessToken({
             userId: user.id,
             role: user.role,
-            tokenVersion: user.token_version,
+            tokenVersion: user.tokenVersion,
           });
           const newRefreshToken = issueRefreshToken({
             userId: user.id,
             role: user.role,
-            tokenVersion: user.token_version,
+            tokenVersion: user.tokenVersion,
           });
           const newHash = hashToken(newRefreshToken);
           const refreshExpires = new Date();
@@ -913,7 +913,7 @@ export async function changePassword(params: {
   userAgent?: string;
 }): Promise<void> {
   const user = await findAuthUserById(params.userId);
-  if (!user || !user.password_hash) {
+  if (!user || !user.passwordHash) {
     await recordAuditEvent({
       action: "password_change",
       actorUserId: params.userId,
@@ -924,7 +924,7 @@ export async function changePassword(params: {
     });
     throw new AppError("invalid_credentials", "Invalid credentials.", 401);
   }
-  const ok = await bcrypt.compare(params.currentPassword, user.password_hash);
+  const ok = await bcrypt.compare(params.currentPassword, user.passwordHash);
   if (!ok) {
     await recordAuditEvent({
       action: "password_change",
@@ -1010,11 +1010,11 @@ export async function confirmPasswordReset(params: {
   try {
     await client.query("begin");
     const record = await findPasswordReset(tokenHash, client);
-    if (!record || record.used_at || record.expires_at.getTime() < Date.now()) {
+    if (!record || record.usedAt || record.expiresAt.getTime() < Date.now()) {
       await recordAuditEvent({
         action: "password_reset_completed",
         actorUserId: null,
-        targetUserId: record?.user_id ?? null,
+        targetUserId: record?.userId ?? null,
         ip: params.ip,
         userAgent: params.userAgent,
         success: false,
@@ -1023,11 +1023,11 @@ export async function confirmPasswordReset(params: {
       throw new AppError("invalid_token", "Invalid reset token.", 401);
     }
 
-    if (!timingSafeTokenCompare(record.token_hash, tokenHash)) {
+    if (!timingSafeTokenCompare(record.tokenHash, tokenHash)) {
       await recordAuditEvent({
         action: "password_reset_completed",
         actorUserId: null,
-        targetUserId: record.user_id,
+        targetUserId: record.userId,
         ip: params.ip,
         userAgent: params.userAgent,
         success: false,
@@ -1037,14 +1037,14 @@ export async function confirmPasswordReset(params: {
     }
 
     const passwordHash = await bcrypt.hash(params.newPassword, 12);
-    await updatePassword(record.user_id, passwordHash, client);
-    await incrementTokenVersion(record.user_id, client);
-    await revokeRefreshTokensForUser(record.user_id, client);
+    await updatePassword(record.userId, passwordHash, client);
+    await incrementTokenVersion(record.userId, client);
+    await revokeRefreshTokensForUser(record.userId, client);
     await markPasswordResetUsed(record.id, client);
     await recordAuditEvent({
       action: "token_revoke",
       actorUserId: null,
-      targetUserId: record.user_id,
+      targetUserId: record.userId,
       ip: params.ip,
       userAgent: params.userAgent,
       success: true,
@@ -1053,7 +1053,7 @@ export async function confirmPasswordReset(params: {
     await recordAuditEvent({
       action: "password_reset_completed",
       actorUserId: null,
-      targetUserId: record.user_id,
+      targetUserId: record.userId,
       ip: params.ip,
       userAgent: params.userAgent,
       success: true,
