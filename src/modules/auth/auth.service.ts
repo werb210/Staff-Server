@@ -399,7 +399,6 @@ export async function loginUser(
           userId: user.id,
           disabled: !user.active,
           locked: isLocked,
-          force_reset: user.passwordResetRequired,
         });
 
         if (!user.active) {
@@ -443,30 +442,6 @@ export async function loginUser(
             "account_locked",
             "Account is locked. Try again later.",
             423
-          );
-        }
-
-        if (user.passwordResetRequired) {
-          logWarn("auth_login_failed", {
-            email: normalizedEmail,
-            userId: user.id,
-            reason: "password_reset_required",
-          });
-          await recordAuditEvent({
-            action: "login",
-            actorUserId: user.id,
-            targetUserId: user.id,
-            ip,
-            userAgent,
-            success: false,
-            client,
-          });
-          await client.query("commit");
-          committed = true;
-          throw new AppError(
-            "password_reset_required",
-            "Password reset required.",
-            403
           );
         }
 
