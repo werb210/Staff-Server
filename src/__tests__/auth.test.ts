@@ -229,7 +229,7 @@ describe("auth", () => {
     });
 
     expect(res.status).toBe(403);
-    expect(res.body.code).toBe("user_misconfigured");
+    expect(res.body.code).toBe("invalid_password_hash");
 
     const audit = await pool.query(
       `select event_action as action, success
@@ -260,7 +260,7 @@ describe("auth", () => {
       });
 
       expect(res.status).toBe(403);
-      expect(res.body.code).toBe("user_misconfigured");
+      expect(res.body.code).toBe("password_reset_required");
 
       const audit = await pool.query(
         `select event_action as action, success
@@ -298,6 +298,7 @@ describe("auth", () => {
     });
 
     expect(res.status).toBe(200);
+    expect(res.body.code).toBe("legacy_hash_upgraded");
     const updatedHash = await pool.query<{ password_hash: string }>(
       "select password_hash from users where id = $1",
       [user.id]
@@ -323,6 +324,45 @@ describe("auth", () => {
 
     expect(res.status).toBe(403);
     expect(res.body.code).toBe("password_reset_required");
+  });
+
+  it("repairs the admin password with a one-time token", async () => {
+    process.env.ADMIN_REPAIR_TOKEN = "repair-token";
+    process.env.ADMIN_REPAIR_EMAIL = "todd.w@boreal.financial";
+    try {
+      await createUserAccount({
+        email: "todd.w@boreal.financial",
+        password: "OldPassword123!",
+        role: ROLES.ADMIN,
+      });
+
+      const repair = await postWithRequestId("/api/auth/admin-repair").send({
+        repairToken: "repair-token",
+        newPassword: "1Sucker1!",
+        email: "todd.w@boreal.financial",
+      });
+
+      expect(repair.status).toBe(200);
+
+      const login = await postWithRequestId("/api/auth/login").send({
+        email: "todd.w@boreal.financial",
+        password: "1Sucker1!",
+      });
+
+      expect(login.status).toBe(200);
+
+      const reuse = await postWithRequestId("/api/auth/admin-repair").send({
+        repairToken: "repair-token",
+        newPassword: "AnotherPassword123!",
+        email: "todd.w@boreal.financial",
+      });
+
+      expect(reuse.status).toBe(410);
+      expect(reuse.body.code).toBe("admin_repair_used");
+    } finally {
+      delete process.env.ADMIN_REPAIR_TOKEN;
+      delete process.env.ADMIN_REPAIR_EMAIL;
+    }
   });
 
   it("returns 503 when login exceeds the auth timeout", async () => {

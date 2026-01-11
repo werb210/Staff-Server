@@ -122,7 +122,7 @@ describe("auth contract", () => {
     expectRequestId(res, requestId);
   });
 
-  it("returns the same response for duplicate idempotency keys", async () => {
+  it("does not cache login responses for duplicate idempotency keys", async () => {
     await createUserAccount({
       email: "duplicate-idem@example.com",
       password: "Password123!",
@@ -139,13 +139,13 @@ describe("auth contract", () => {
     const first = await loginRequest(payload, { idempotencyKey, requestId });
     const second = await loginRequest(payload, { idempotencyKey, requestId });
 
-    expect(first.status).toBe(second.status);
-    expect(first.body).toEqual(second.body);
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
     expectRequestId(first, requestId);
     expectRequestId(second, requestId);
   });
 
-  it("returns conflict when payload changes for the same idempotency key", async () => {
+  it("ignores idempotency conflicts for login payload changes", async () => {
     await createUserAccount({
       email: "conflict-idem@example.com",
       password: "Password123!",
@@ -167,8 +167,8 @@ describe("auth contract", () => {
       { idempotencyKey, requestId }
     );
 
-    expect(second.status).toBe(409);
-    expect(second.body.code).toBe("idempotency_conflict");
+    expect(second.status).toBe(401);
+    expect(second.body.code).toBe("invalid_credentials");
     expectRequestId(second, requestId);
   });
 });

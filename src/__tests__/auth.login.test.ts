@@ -7,6 +7,7 @@ import { ROLES } from "../auth/roles";
 import { runMigrations } from "../migrations";
 import { resetLoginRateLimit } from "../middleware/rateLimit";
 import { ensureAuditEventSchema } from "./helpers/auditSchema";
+import { issueRefreshTokenForUser } from "./helpers/refreshTokens";
 
 const app = buildAppWithApiRoutes();
 
@@ -143,6 +144,41 @@ describe("auth login regression", () => {
       .set("Access-Control-Request-Headers", "Authorization, Content-Type, Idempotency-Key");
 
     expect(res.status).toBe(204);
+  });
+
+  it("bypasses idempotency storage for auth routes", async () => {
+    const user = await createUserAccount({
+      email: "idem-auth@example.com",
+      password: "Password123!",
+      role: ROLES.STAFF,
+    });
+
+    const login = await request(app)
+      .post("/api/auth/login")
+      .set("Idempotency-Key", "idem-auth-login")
+      .send({
+        email: "idem-auth@example.com",
+        password: "Password123!",
+      });
+
+    expect(login.status).toBe(200);
+    const afterLogin = await pool.query<{ count: number }>(
+      "select count(*)::int as count from idempotency_keys"
+    );
+    expect(afterLogin.rows[0]?.count ?? 0).toBe(0);
+
+    const refreshToken = await issueRefreshTokenForUser(user.id);
+    const logout = await request(app)
+      .post("/api/auth/logout")
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .set("Idempotency-Key", "idem-auth-logout")
+      .send({ refreshToken });
+
+    expect(logout.status).toBe(200);
+    const afterLogout = await pool.query<{ count: number }>(
+      "select count(*)::int as count from idempotency_keys"
+    );
+    expect(afterLogout.rows[0]?.count ?? 0).toBe(0);
   });
 
   it("returns /api/auth/me for valid JWTs", async () => {

@@ -263,6 +263,8 @@ export async function loginUser(
   userAgent?: string
 ): Promise<{
   accessToken: string;
+  code?: string;
+  message?: string;
 }> {
   const normalizedEmail = normalizeEmail(email);
   const trimmedPassword = typeof password === "string" ? password.trim() : "";
@@ -304,8 +306,13 @@ export async function loginUser(
       }, loginTimeoutMs);
     });
 
-    const loginPromise = (async (): Promise<{ accessToken: string }> => {
+    const loginPromise = (async (): Promise<{
+      accessToken: string;
+      code?: string;
+      message?: string;
+    }> => {
       let committed = false;
+      let legacyHashUpgraded = false;
       try {
         await client.query("begin");
         logInfo("auth_login_received", { email: normalizedEmail });
@@ -370,8 +377,8 @@ export async function loginUser(
             reason,
           });
           throw new AppError(
-            "user_misconfigured",
-            "User is misconfigured.",
+            "password_reset_required",
+            "Password reset required.",
             403
           );
         }
@@ -400,8 +407,8 @@ export async function loginUser(
             reason,
           });
           throw new AppError(
-            "user_misconfigured",
-            "User is misconfigured.",
+            "invalid_password_hash",
+            "Invalid password hash.",
             403
           );
         }
@@ -588,6 +595,7 @@ export async function loginUser(
         if (passwordHashState.needsRehash) {
           const upgradedHash = await bcrypt.hash(password, 12);
           await updatePassword(user.id, upgradedHash, client);
+          legacyHashUpgraded = true;
           logInfo("auth_password_hash_upgraded", {
             userId: user.id,
             email: normalizedEmail,
@@ -643,6 +651,13 @@ export async function loginUser(
 
         await client.query("commit");
         committed = true;
+        if (legacyHashUpgraded) {
+          return {
+            accessToken,
+            code: "legacy_hash_upgraded",
+            message: "Legacy password hash upgraded.",
+          };
+        }
         return { accessToken };
       } catch (err) {
         if (!committed) {
@@ -1086,6 +1101,129 @@ export async function confirmPasswordReset(params: {
       action: "password_reset_completed",
       actorUserId: null,
       targetUserId: record.userId,
+      ip: params.ip,
+      userAgent: params.userAgent,
+      success: true,
+      client,
+    });
+    await client.query("commit");
+  } catch (err) {
+    recordTransactionRollback(err);
+    await client.query("rollback");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export async function repairAdminPassword(params: {
+  repairToken: string;
+  newPassword: string;
+  email?: string;
+  ip?: string;
+  userAgent?: string;
+}): Promise<void> {
+  const configuredToken = process.env.ADMIN_REPAIR_TOKEN;
+  if (!configuredToken) {
+    throw new AppError(
+      "admin_repair_unavailable",
+      "Admin repair is not configured.",
+      503
+    );
+  }
+
+  const providedHash = hashToken(params.repairToken);
+  const expectedHash = hashToken(configuredToken);
+  if (!timingSafeTokenCompare(providedHash, expectedHash)) {
+    throw new AppError("invalid_token", "Invalid repair token.", 401);
+  }
+
+  const targetEmail = normalizeEmail(
+    params.email ?? process.env.ADMIN_REPAIR_EMAIL ?? "todd.w@boreal.financial"
+  );
+  if (!targetEmail) {
+    throw new AppError("missing_fields", "Email is required.", 400);
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const user = await findAuthUserByEmail(targetEmail, client, { forUpdate: true });
+    if (!user) {
+      await recordAuditEvent({
+        action: "admin_password_repair",
+        actorUserId: null,
+        targetUserId: null,
+        ip: params.ip,
+        userAgent: params.userAgent,
+        success: false,
+        metadata: { reason: "user_not_found" },
+        client,
+      });
+      await client.query("commit");
+      throw new AppError("not_found", "User not found.", 404);
+    }
+
+    const existing = await findPasswordReset(providedHash, client);
+    if (existing && existing.userId !== user.id) {
+      await client.query("commit");
+      throw new AppError("invalid_token", "Invalid repair token.", 401);
+    }
+    if (existing?.usedAt) {
+      await recordAuditEvent({
+        action: "admin_password_repair",
+        actorUserId: null,
+        targetUserId: user.id,
+        ip: params.ip,
+        userAgent: params.userAgent,
+        success: false,
+        metadata: { reason: "token_used" },
+        client,
+      });
+      await client.query("commit");
+      throw new AppError(
+        "admin_repair_used",
+        "Admin repair token already used.",
+        410
+      );
+    }
+    if (existing && existing.expiresAt.getTime() < Date.now()) {
+      await recordAuditEvent({
+        action: "admin_password_repair",
+        actorUserId: null,
+        targetUserId: user.id,
+        ip: params.ip,
+        userAgent: params.userAgent,
+        success: false,
+        metadata: { reason: "token_expired" },
+        client,
+      });
+      await client.query("commit");
+      throw new AppError("invalid_token", "Invalid repair token.", 401);
+    }
+
+    const passwordHash = await bcrypt.hash(params.newPassword, 12);
+    await updatePassword(user.id, passwordHash, client);
+    await resetLoginFailures(user.id, client);
+    await incrementTokenVersion(user.id, client);
+    await revokeRefreshTokensForUser(user.id, client);
+
+    let recordId = existing?.id;
+    if (!recordId) {
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      const record = await createPasswordReset({
+        userId: user.id,
+        tokenHash: providedHash,
+        expiresAt,
+        client,
+      });
+      recordId = record.id;
+    }
+    await markPasswordResetUsed(recordId, client);
+    await recordAuditEvent({
+      action: "admin_password_repair",
+      actorUserId: null,
+      targetUserId: user.id,
       ip: params.ip,
       userAgent: params.userAgent,
       success: true,

@@ -446,7 +446,7 @@ describe("auth failure matrix", () => {
       .send({ email: "invalid-state@example.com", password: loginPassword });
 
     expect(res.status).toBe(403);
-    expect(res.body.code).toBe("user_misconfigured");
+    expect(res.body.code).toBe("invalid_password_hash");
     const eventNames = trackEvent.mock.calls.map(
       ([telemetry]) => (telemetry as { name?: string }).name
     );
