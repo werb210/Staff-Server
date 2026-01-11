@@ -127,7 +127,7 @@ describe("admin lifecycle", () => {
       refreshToken: await issueRefreshTokenForUser(user.id),
     });
     expect(refresh.status).toBe(401);
-    expect(refresh.body.code).toBe("invalid_credentials");
+    expect(refresh.body.code).toBe("invalid_token");
 
     const me = await request(app)
       .get("/api/auth/me")

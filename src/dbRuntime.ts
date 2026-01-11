@@ -1,6 +1,8 @@
 import { pool } from "./db";
 
-export const isPgMem = process.env.DATABASE_URL === "pg-mem";
+export const isPgMem =
+  process.env.DATABASE_URL === "pg-mem" ||
+  (process.env.NODE_ENV === "test" && !process.env.DATABASE_URL);
 
 export function isPgMemRuntime(): boolean {
   return process.env.NODE_ENV === "test" || isPgMem;
