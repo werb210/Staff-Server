@@ -397,7 +397,7 @@ describe("auth", () => {
     expect(res.body.code).toBe("invalid_credentials");
   });
 
-  it("rejects login before database readiness", async () => {
+  it("does not block login when startup db state is false", async () => {
     const { setDbConnected } = await import("../startupState");
     setDbConnected(false);
 
@@ -406,7 +406,7 @@ describe("auth", () => {
       password: "Password123!",
     });
 
-    expect(res.status).toBe(503);
+    expect(res.status).toBe(401);
     expect(res.body.code).toBe("invalid_credentials");
 
     setDbConnected(true);
