@@ -216,7 +216,7 @@ export function idempotencyMiddleware(
           client: lockClient ?? undefined,
         });
       } catch (error) {
-        if (shouldBypassIdempotency(error)) {
+        if (isLoginRoute || shouldBypassIdempotency(error)) {
           logWarn("idempotency_bypassed", {
             requestId,
             route,
@@ -317,7 +317,7 @@ export function idempotencyMiddleware(
         route,
         error: error instanceof Error ? error.message : "unknown_error",
       });
-      if (shouldBypassIdempotency(error)) {
+      if (isLoginRoute || shouldBypassIdempotency(error)) {
         logWarn("idempotency_bypassed", {
           requestId,
           route,
