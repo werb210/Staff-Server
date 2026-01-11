@@ -1,9 +1,8 @@
 import request from "supertest";
-import bcrypt from "bcryptjs";
 import express from "express";
 import { buildAppWithApiRoutes, initializeServer } from "../app";
 import { pool } from "../db";
-import { createUserAccount } from "../modules/auth/auth.service";
+import { createUserAccount, internalAdminUnlockUserAccount } from "../modules/auth/auth.service";
 import { setUserActive } from "../modules/auth/auth.repo";
 import { setUserStatus } from "../modules/users/users.service";
 import { resetLoginRateLimit } from "../middleware/rateLimit";
@@ -279,51 +278,55 @@ describe("auth", () => {
     }
   });
 
-  it("upgrades legacy bcrypt hashes on successful login", async () => {
-    const password = "LegacyPassword123!";
+  it("locks accounts on repeated failures and allows internal unlock", async () => {
+    const password = "Password123!";
     const user = await createUserAccount({
-      email: "legacy-hash@example.com",
+      email: "lockout-test@example.com",
       password,
       role: ROLES.STAFF,
     });
-    const legacyHash = await bcrypt.hash(password, 10);
-    await pool.query(
-      "update users set password_hash = $1 where id = $2",
-      [legacyHash, user.id]
-    );
 
-    const res = await postWithRequestId("/api/auth/login").send({
-      email: "legacy-hash@example.com",
+    const success = await postWithRequestId("/api/auth/login").send({
+      email: "lockout-test@example.com",
       password,
     });
+    expect(success.status).toBe(200);
 
-    expect(res.status).toBe(200);
-    expect(res.body.code).toBe("legacy_hash_upgraded");
-    const updatedHash = await pool.query<{ password_hash: string }>(
-      "select password_hash from users where id = $1",
+    const firstFailure = await postWithRequestId("/api/auth/login").send({
+      email: "lockout-test@example.com",
+      password: "WrongPassword123!",
+    });
+    expect(firstFailure.status).toBe(401);
+
+    const firstState = await pool.query<{
+      failed_login_attempts: number;
+      locked_until: Date | null;
+    }>(
+      "select failed_login_attempts, locked_until from users where id = $1",
       [user.id]
     );
-    expect(updatedHash.rows[0]?.password_hash).toMatch(/^\$2[aby]\$12\$/);
-  });
+    expect(firstState.rows[0]?.failed_login_attempts).toBe(1);
+    expect(firstState.rows[0]?.locked_until).toBeNull();
 
-  it("requires password reset for legacy argon2 hashes", async () => {
-    const user = await createUserAccount({
-      email: "legacy-argon2@example.com",
-      password: "Password123!",
-      role: ROLES.STAFF,
+    const secondFailure = await postWithRequestId("/api/auth/login").send({
+      email: "lockout-test@example.com",
+      password: "WrongPassword123!",
     });
-    await pool.query(
-      "update users set password_hash = $1 where id = $2",
-      ["$argon2id$v=19$m=65536,t=3,p=4$c29tZXNhbHQ$ZHVtbXloYXNo", user.id]
-    );
+    expect(secondFailure.status).toBe(401);
 
-    const res = await postWithRequestId("/api/auth/login").send({
-      email: "legacy-argon2@example.com",
-      password: "Password123!",
+    const locked = await postWithRequestId("/api/auth/login").send({
+      email: "lockout-test@example.com",
+      password,
     });
+    expect(locked.status).toBe(423);
 
-    expect(res.status).toBe(403);
-    expect(res.body.code).toBe("password_reset_required");
+    await internalAdminUnlockUserAccount({ userId: user.id });
+
+    const unlocked = await postWithRequestId("/api/auth/login").send({
+      email: "lockout-test@example.com",
+      password,
+    });
+    expect(unlocked.status).toBe(200);
   });
 
   it("repairs the admin password with a one-time token", async () => {
