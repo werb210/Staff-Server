@@ -157,13 +157,11 @@ async function withAuthDbRetry<T>(
 }
 
 const bcryptHashPattern = /^\$2[aby]\$(\d{2})\$[./A-Za-z0-9]{53}$/;
-const argon2HashPattern = /^\$argon2(id|i|d)\$[^\s]+$/;
 const CURRENT_BCRYPT_COST = 12;
 
 type PasswordHashEvaluation =
   | { status: "missing" }
-  | { status: "bcrypt"; cost: number; needsRehash: boolean }
-  | { status: "argon2" }
+  | { status: "bcrypt"; cost: number }
   | { status: "invalid" };
 
 function evaluatePasswordHash(hash?: string | null): PasswordHashEvaluation {
@@ -182,11 +180,7 @@ function evaluatePasswordHash(hash?: string | null): PasswordHashEvaluation {
     return {
       status: "bcrypt",
       cost: boundedCost,
-      needsRehash: boundedCost !== CURRENT_BCRYPT_COST,
     };
-  }
-  if (argon2HashPattern.test(trimmed)) {
-    return { status: "argon2" };
   }
   return { status: "invalid" };
 }
@@ -313,7 +307,6 @@ export async function loginUser(
       message?: string;
     }> => {
       let committed = false;
-      let legacyHashUpgraded = false;
       try {
         await client.query("begin");
         logInfo("auth_login_received", { email: normalizedEmail });
@@ -419,47 +412,11 @@ export async function loginUser(
           );
         }
 
-        if (passwordHashState.status === "argon2") {
-          const reason = "password_hash_legacy_format";
-          logWarn("legacy_password_state", {
-            email: normalizedEmail,
-            userId: user.id,
-            reason,
-          });
-          logWarn("auth_login_failed", {
-            email: normalizedEmail,
-            userId: user.id,
-            reason: "legacy_hash_detected",
-          });
-          await recordAuditEvent({
-            action: "invalid_password_state",
-            actorUserId: user.id,
-            targetUserId: user.id,
-            ip,
-            userAgent,
-            success: false,
-            metadata: { reason },
-            client,
-          });
-          await client.query("commit");
-          committed = true;
-          trackAuthEvent("auth_password_hash_legacy", {
-            action: "login",
-            reason,
-          });
-          throw new AppError(
-            "password_reset_required",
-            "Password reset required.",
-            403
-          );
-        }
-
         logInfo("auth_login_password_hash", {
           email: normalizedEmail,
           userId: user.id,
           algorithm: "bcrypt",
           cost: passwordHashState.cost,
-          legacy: passwordHashState.needsRehash,
         });
 
         const now = Date.now();
@@ -603,18 +560,6 @@ export async function loginUser(
           );
         }
 
-        if (passwordHashState.needsRehash) {
-          const upgradedHash = await bcrypt.hash(password, CURRENT_BCRYPT_COST);
-          await updatePassword(user.id, upgradedHash, client);
-          legacyHashUpgraded = true;
-          logInfo("auth_password_hash_upgraded", {
-            userId: user.id,
-            email: normalizedEmail,
-            previousCost: passwordHashState.cost,
-            newCost: CURRENT_BCRYPT_COST,
-          });
-        }
-
         const payload = {
           userId: user.id,
           role: user.role,
@@ -662,13 +607,6 @@ export async function loginUser(
 
         await client.query("commit");
         committed = true;
-        if (legacyHashUpgraded) {
-          return {
-            accessToken,
-            code: "legacy_hash_upgraded",
-            message: "Legacy password hash upgraded.",
-          };
-        }
         return { accessToken };
       } catch (err) {
         if (!committed) {
@@ -1346,6 +1284,34 @@ export async function unlockUserAccount(params: {
   await recordAuditEvent({
     action: "account_unlock",
     actorUserId: params.actorUserId,
+    targetUserId: params.userId,
+    ip: params.ip,
+    userAgent: params.userAgent,
+    success: true,
+  });
+}
+
+export async function internalAdminUnlockUserAccount(params: {
+  userId: string;
+  ip?: string;
+  userAgent?: string;
+}): Promise<void> {
+  const user = await findAuthUserById(params.userId);
+  if (!user) {
+    await recordAuditEvent({
+      action: "account_unlock",
+      actorUserId: null,
+      targetUserId: params.userId,
+      ip: params.ip,
+      userAgent: params.userAgent,
+      success: false,
+    });
+    throw new AppError("not_found", "User not found.", 404);
+  }
+  await resetLoginFailures(params.userId);
+  await recordAuditEvent({
+    action: "account_unlock",
+    actorUserId: null,
     targetUserId: params.userId,
     ip: params.ip,
     userAgent: params.userAgent,
