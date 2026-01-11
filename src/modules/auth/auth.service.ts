@@ -158,6 +158,7 @@ async function withAuthDbRetry<T>(
 
 const bcryptHashPattern = /^\$2[aby]\$(\d{2})\$[./A-Za-z0-9]{53}$/;
 const argon2HashPattern = /^\$argon2(id|i|d)\$[^\s]+$/;
+const ADMIN_REPAIR_BCRYPT_COST = 10;
 
 type PasswordHashEvaluation =
   | { status: "missing" }
@@ -1202,11 +1203,19 @@ export async function repairAdminPassword(params: {
       throw new AppError("invalid_token", "Invalid repair token.", 401);
     }
 
-    const passwordHash = await bcrypt.hash(params.newPassword, 12);
+    const passwordHash = await bcrypt.hash(
+      params.newPassword,
+      ADMIN_REPAIR_BCRYPT_COST
+    );
     await updatePassword(user.id, passwordHash, client);
     await resetLoginFailures(user.id, client);
     await incrementTokenVersion(user.id, client);
     await revokeRefreshTokensForUser(user.id, client);
+    logInfo("auth_admin_password_repaired", {
+      userId: user.id,
+      email: user.email,
+      cost: ADMIN_REPAIR_BCRYPT_COST,
+    });
 
     let recordId = existing?.id;
     if (!recordId) {

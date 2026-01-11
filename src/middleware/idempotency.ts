@@ -106,6 +106,12 @@ export function idempotencyMiddleware(
   res: Response,
   next: NextFunction
 ): void {
+  const route = getRequestRoute(req);
+  if (route.startsWith("/api/auth/")) {
+    next();
+    return;
+  }
+
   const method = req.method.toUpperCase();
   const enforceMethods = ["POST", "PUT", "PATCH", "DELETE"];
   if (!enforceMethods.includes(method)) {
@@ -113,19 +119,9 @@ export function idempotencyMiddleware(
     return;
   }
 
-  const route = getRequestRoute(req);
-  if (route.startsWith("/api/auth/")) {
-    next();
-    return;
-  }
-  const isLoginRoute = method === "POST" && route === "/api/auth/login";
   const key = req.get(IDEMPOTENCY_HEADER);
   const trimmedKey = key ? key.trim() : "";
   if (!trimmedKey) {
-    if (isLoginRoute) {
-      next();
-      return;
-    }
     if (!isProductionEnvironment()) {
       logWarn("idempotency_key_missing", {
         route,
