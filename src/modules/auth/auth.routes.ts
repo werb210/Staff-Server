@@ -54,11 +54,7 @@ router.post("/refresh", refreshRateLimit(), async (req, res, next) => {
   try {
     const { refreshToken } = req.body ?? {};
     if (!refreshToken) {
-      throw new AppError(
-        "missing_token",
-        "Refresh token is required.",
-        400
-      );
+      throw new AppError("missing_token", "Refresh token is required.", 400);
     }
     const session = await refreshSession(
       refreshToken,
@@ -79,11 +75,7 @@ router.post(
     try {
       const { refreshToken } = req.body ?? {};
       if (!refreshToken) {
-        throw new AppError(
-          "missing_token",
-          "Refresh token is required.",
-          400
-        );
+        throw new AppError("missing_token", "Refresh token is required.", 400);
       }
       if (!req.user) {
         throw new AppError(
@@ -135,19 +127,23 @@ router.get(
   requireAuth,
   requireCapability([CAPABILITIES.AUTH_SESSION]),
   async (req, res, next) => {
-  try {
-    if (!req.user) {
-      throw new AppError("missing_token", "Authorization token is required.", 401);
+    try {
+      if (!req.user) {
+        throw new AppError(
+          "missing_token",
+          "Authorization token is required.",
+          401
+        );
+      }
+      res.json({
+        id: req.user.userId,
+        email: req.user.email,
+        role: req.user.role,
+        permissions: req.user.capabilities,
+      });
+    } catch (err) {
+      next(err);
     }
-    res.json({
-      id: req.user.userId,
-      email: req.user.email,
-      role: req.user.role,
-      permissions: req.user.capabilities,
-    });
-  } catch (err) {
-    next(err);
-  }
   }
 );
 

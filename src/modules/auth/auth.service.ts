@@ -1,6 +1,7 @@
 import jwt, { type SignOptions } from "jsonwebtoken";
 import { createHash, randomBytes } from "crypto";
 import { type PoolClient } from "pg";
+import { parsePhoneNumberFromString } from "libphonenumber-js";
 import {
   createUser,
   consumeRefreshToken,
@@ -57,8 +58,17 @@ function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
-function normalizePhone(input: string): string {
-  return input.trim();
+function normalizePhoneToE164(phone: string): string {
+  const sanitized = phone.replace(/[()\s-]/g, "");
+  const parsed = parsePhoneNumberFromString(sanitized);
+  if (!parsed || !parsed.isValid() || !parsed.number.startsWith("+")) {
+    throw new AppError(
+      "invalid_phone",
+      "Phone number must be in E.164 format.",
+      400
+    );
+  }
+  return parsed.number;
 }
 
 type AuthDbAction = "otp_start" | "otp_verify" | "refresh" | "logout_all";
@@ -217,6 +227,17 @@ function getTwilioVerifyConfig(): TwilioVerifyConfig {
   return { accountSid, authToken, serviceSid };
 }
 
+function resolveTwilioFailureMessage(
+  payload: Record<string, unknown>,
+  fallback: string
+): string {
+  const message = payload.message;
+  if (typeof message === "string" && message.trim()) {
+    return message;
+  }
+  return fallback;
+}
+
 async function callTwilioVerify(
   endpoint: "Verifications" | "VerificationCheck",
   params: Record<string, string>
@@ -245,6 +266,13 @@ async function callTwilioVerify(
       status: response.status,
       payload,
     });
+    if (response.status >= 400 && response.status < 500) {
+      throw new AppError(
+        "twilio_verify_failed",
+        resolveTwilioFailureMessage(payload, "Verification request failed."),
+        response.status
+      );
+    }
     throw new AppError(
       "auth_unavailable",
       "Authentication service unavailable.",
@@ -257,7 +285,12 @@ async function callTwilioVerify(
 async function findOrCreateUserByPhone(
   phoneNumber: string,
   db: Queryable
-): Promise<{ userId: string; email: string | null; role: Role; tokenVersion: number }> {
+): Promise<{
+  userId: string;
+  email: string | null;
+  role: Role;
+  tokenVersion: number;
+}> {
   let user = await findAuthUserByPhone(phoneNumber, db, { forUpdate: true });
   if (!user) {
     const created = await createUser({
@@ -290,10 +323,13 @@ export async function startOtpVerification(params: {
   ip?: string;
   userAgent?: string;
 }): Promise<void> {
-  const phone = normalizePhone(params.phone);
-  if (!phone) {
+  const rawPhone = params.phone?.trim() ?? "";
+  if (!rawPhone) {
     throw new AppError("missing_fields", "phone is required.", 400);
   }
+  const phone = normalizePhoneToE164(rawPhone);
+
+  await callTwilioVerify("Verifications", { To: phone, Channel: "sms" });
 
   await withAuthDbRetry("otp_start", async () => {
     const client = await pool.connect();
@@ -309,8 +345,6 @@ export async function startOtpVerification(params: {
       client.release();
     }
   });
-
-  await callTwilioVerify("Verifications", { To: phone, Channel: "sms" });
 }
 
 export async function verifyOtpCode(params: {
@@ -319,11 +353,12 @@ export async function verifyOtpCode(params: {
   ip?: string;
   userAgent?: string;
 }): Promise<{ accessToken: string }> {
-  const phone = normalizePhone(params.phone);
+  const rawPhone = params.phone?.trim() ?? "";
   const code = params.code?.trim() ?? "";
-  if (!phone || !code) {
+  if (!rawPhone || !code) {
     throw new AppError("missing_fields", "phone and code are required.", 400);
   }
+  const phone = normalizePhoneToE164(rawPhone);
 
   const result = await callTwilioVerify("VerificationCheck", {
     To: phone,

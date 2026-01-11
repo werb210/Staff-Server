@@ -23,6 +23,9 @@ const authFailureCodes = new Set([
   "account_disabled",
   "invalid_token",
   "missing_token",
+  "missing_fields",
+  "invalid_phone",
+  "twilio_verify_failed",
   "user_disabled",
   "auth_unavailable",
 ]);
@@ -88,11 +91,12 @@ export function errorHandler(
     : 0;
   if (isAuthRoute(req)) {
     const normalized = normalizeAuthError(err);
-    const status = err instanceof AppError
-      ? err.status
-      : isDbConnectionFailure(err)
-        ? 503
-        : 500;
+    const status =
+      err instanceof AppError
+        ? err.status
+        : isDbConnectionFailure(err)
+          ? 503
+          : 500;
     logWarn("request_error", {
       requestId,
       route: req.originalUrl,
