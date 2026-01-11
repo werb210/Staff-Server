@@ -28,7 +28,6 @@ export interface AuthUser {
   failedLoginAttempts: number;
   lockedUntil: Date | null;
   tokenVersion: number;
-  passwordResetRequired: boolean;
 }
 
 export async function findAuthUserByEmail(
@@ -50,17 +49,9 @@ export async function findAuthUserByEmail(
             u.password_changed_at as "passwordChangedAt",
             u.failed_login_attempts as "failedLoginAttempts",
             u.locked_until as "lockedUntil",
-            u.token_version as "tokenVersion",
-            coalesce(
-              bool_or(pr.used_at is null and pr.expires_at > now()),
-              false
-            ) as "passwordResetRequired"
+            u.token_version as "tokenVersion"
      from users u
-     left join password_resets pr on pr.user_id = u.id
      where lower(u.email) = $1
-     group by u.id, u.email, u.password_hash, u.role, u.active,
-              u.password_changed_at, u.failed_login_attempts,
-              u.locked_until, u.token_version
      order by u.id asc${forUpdate}`,
     [normalizedEmail]
   );
@@ -88,17 +79,9 @@ export async function findAuthUserById(
             u.password_changed_at as "passwordChangedAt",
             u.failed_login_attempts as "failedLoginAttempts",
             u.locked_until as "lockedUntil",
-            u.token_version as "tokenVersion",
-            coalesce(
-              bool_or(pr.used_at is null and pr.expires_at > now()),
-              false
-            ) as "passwordResetRequired"
+            u.token_version as "tokenVersion"
      from users u
-     left join password_resets pr on pr.user_id = u.id
      where u.id = $1
-     group by u.id, u.email, u.password_hash, u.role, u.active,
-              u.password_changed_at, u.failed_login_attempts,
-              u.locked_until, u.token_version
      limit 1`,
     [id]
   );
@@ -126,8 +109,7 @@ export async function createUser(params: {
               password_changed_at as "passwordChangedAt",
               failed_login_attempts as "failedLoginAttempts",
               locked_until as "lockedUntil",
-              token_version as "tokenVersion",
-              false as "passwordResetRequired"`,
+              token_version as "tokenVersion"`,
     [randomUUID(), params.email, params.passwordHash, params.role]
   );
 

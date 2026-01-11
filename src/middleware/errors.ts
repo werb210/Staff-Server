@@ -32,29 +32,6 @@ const authFailureCodes = new Set([
 ]);
 
 const constraintViolationCodes = new Set(["23502", "23503", "23505"]);
-const normalizedAuthCodes = new Set([
-  "invalid_credentials",
-  "user_disabled",
-  "password_expired",
-  "account_locked",
-]);
-
-const authCodeMap = new Map<string, string>([
-  ["account_disabled", "user_disabled"],
-  ["user_disabled", "user_disabled"],
-  ["password_expired", "password_expired"],
-  ["password_reset_required", "password_expired"],
-  ["account_locked", "account_locked"],
-  ["invalid_credentials", "invalid_credentials"],
-  ["invalid_token", "invalid_credentials"],
-  ["missing_token", "invalid_credentials"],
-  ["missing_credentials", "invalid_credentials"],
-  ["user_misconfigured", "invalid_credentials"],
-  ["auth_misconfigured", "invalid_credentials"],
-  ["auth_unavailable", "invalid_credentials"],
-  ["service_unavailable", "invalid_credentials"],
-]);
-
 function isConstraintViolation(err: Error): boolean {
   const code = (err as { code?: string }).code;
   return typeof code === "string" && constraintViolationCodes.has(code);
@@ -89,14 +66,17 @@ function isAuthRoute(req: Request): boolean {
 
 function normalizeAuthError(err: Error): { code: string; message: string } {
   if (err instanceof AppError) {
-    const mapped = authCodeMap.get(err.code);
-    if (mapped && normalizedAuthCodes.has(mapped)) {
-      return { code: mapped, message: err.message };
-    }
+    return { code: err.code, message: err.message };
+  }
+  if (isDbConnectionFailure(err)) {
+    return {
+      code: "service_unavailable",
+      message: "Service unavailable.",
+    };
   }
   return {
-    code: "invalid_credentials",
-    message: err instanceof AppError ? err.message : "Authentication failed.",
+    code: "server_error",
+    message: "Authentication failed.",
   };
 }
 
