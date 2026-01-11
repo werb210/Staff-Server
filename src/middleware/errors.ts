@@ -27,6 +27,7 @@ const authFailureCodes = new Set([
   "invalid_phone",
   "otp_failed",
   "twilio_error",
+  "twilio_auth_failed",
   "user_disabled",
   "auth_unavailable",
   "service_unavailable",

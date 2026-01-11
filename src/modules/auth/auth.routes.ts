@@ -6,7 +6,6 @@ import {
 } from "../../middleware/rateLimit";
 import { requireAuth, requireCapability } from "../../middleware/auth";
 import { CAPABILITIES } from "../../auth/capabilities";
-import { logInfo } from "../../observability/logger";
 import {
   startOtpVerification,
   verifyOtpCode,
@@ -19,10 +18,6 @@ const router = Router();
 
 router.post("/otp/start", otpRateLimit(), async (req, res, next) => {
   try {
-    logInfo("otp_start_request", {
-      contentType: req.headers["content-type"],
-      body: req.body,
-    });
     const { phone } = req.body ?? {};
     await startOtpVerification({
       phone,
