@@ -107,7 +107,8 @@ export function idempotencyMiddleware(
   next: NextFunction
 ): void {
   const route = getRequestRoute(req);
-  if (route.startsWith("/api/auth/")) {
+  const isAuthRoute = route.startsWith("/api/auth/");
+  if (isAuthRoute) {
     next();
     return;
   }
@@ -216,7 +217,7 @@ export function idempotencyMiddleware(
           client: lockClient ?? undefined,
         });
       } catch (error) {
-        if (isLoginRoute || shouldBypassIdempotency(error)) {
+        if (isAuthRoute || shouldBypassIdempotency(error)) {
           logWarn("idempotency_bypassed", {
             requestId,
             route,
@@ -317,7 +318,7 @@ export function idempotencyMiddleware(
         route,
         error: error instanceof Error ? error.message : "unknown_error",
       });
-      if (isLoginRoute || shouldBypassIdempotency(error)) {
+      if (isAuthRoute || shouldBypassIdempotency(error)) {
         logWarn("idempotency_bypassed", {
           requestId,
           route,
