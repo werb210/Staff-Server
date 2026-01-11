@@ -61,10 +61,15 @@ function hashToken(token: string): string {
 }
 
 function normalizePhoneToE164(phone: string): string {
-  const parsed =
-    parsePhoneNumberFromString(phone) ?? parsePhoneNumberFromString(phone, "US");
-  if (!parsed || !parsed.isValid() || !parsed.number.startsWith("+")) {
-    throw new AppError("invalid_phone", "invalid phone number", 400);
+  const trimmed = phone.trim();
+  const parsed = parsePhoneNumberFromString(trimmed);
+  if (
+    !parsed ||
+    !parsed.isValid() ||
+    !trimmed.startsWith("+") ||
+    parsed.number !== trimmed
+  ) {
+    throw new AppError("validation_error", "Invalid phone number.", 400);
   }
   return parsed.number;
 }
@@ -280,16 +285,6 @@ function resolveTwilioErrorDetails(error: unknown): {
   return { message: "Twilio request failed." };
 }
 
-function buildTwilioErrorMessage(details: {
-  message: string;
-  code?: number;
-}): string {
-  if (details.code) {
-    return `Twilio error ${details.code}: ${details.message}`;
-  }
-  return `Twilio error: ${details.message}`;
-}
-
 async function requestTwilioVerification(
   phoneE164: string,
   channel: "sms"
@@ -356,7 +351,7 @@ export async function startOtpVerification(params: {
 }): Promise<void> {
   const rawPhone = params.phone?.trim() ?? "";
   if (!rawPhone) {
-    throw new AppError("missing_fields", "phone is required", 400);
+    throw new AppError("validation_error", "Phone is required.", 400);
   }
   const phoneE164 = normalizePhoneToE164(rawPhone);
   logInfo("otp_start_request", {
@@ -380,11 +375,14 @@ export async function startOtpVerification(params: {
       code: details.code,
       message: details.message,
     });
-    throw new AppError(
-      isAuthFailure ? "twilio_auth_failed" : "twilio_error",
-      buildTwilioErrorMessage(details),
-      isAuthFailure ? 401 : 500
-    );
+    if (isAuthFailure) {
+      throw new AppError(
+        "twilio_error",
+        "Twilio authentication failed.",
+        401
+      );
+    }
+    throw new AppError("server_error", "Twilio Verify request failed.", 500);
   }
 }
 
@@ -397,7 +395,7 @@ export async function verifyOtpCode(params: {
   const rawPhone = params.phone?.trim() ?? "";
   const code = params.code?.trim() ?? "";
   if (!rawPhone || !code) {
-    throw new AppError("missing_fields", "phone and code are required.", 400);
+    throw new AppError("validation_error", "Phone and code are required.", 400);
   }
   const phoneE164 = normalizePhoneToE164(rawPhone);
 
@@ -417,68 +415,69 @@ export async function verifyOtpCode(params: {
       code: details.code,
       message: details.message,
     });
-    throw new AppError(
-      isAuthFailure ? "twilio_auth_failed" : "twilio_error",
-      buildTwilioErrorMessage(details),
-      isAuthFailure ? 401 : 500
-    );
+    if (isAuthFailure) {
+      throw new AppError(
+        "twilio_error",
+        "Twilio authentication failed.",
+        401
+      );
+    }
+    throw new AppError("server_error", "Twilio Verify request failed.", 500);
   }
   if (status !== "approved") {
-    throw new AppError("otp_failed", "OTP verification failed.", 400);
+    throw new AppError("otp_failed", "OTP verification failed.", 401);
   }
 
-  return withAuthDbRetry("otp_verify", async () => {
-    const client = await pool.connect();
-    const db = client;
-    try {
-      await client.query("begin");
-      const user = await findOrCreateUserByPhone(phoneE164, db);
-      const userRecord = await findAuthUserById(user.userId, db);
-      if (!userRecord || !userRecord.active) {
-        await client.query("commit");
-        throw new AppError("account_disabled", "Account is disabled.", 403);
-      }
-
-      await setPhoneVerified(user.userId, true, db);
-
-      const payload = {
-        userId: user.userId,
-        role: user.role,
-        tokenVersion: user.tokenVersion,
-      };
-      const accessToken = issueAccessToken(payload);
-      const refreshToken = issueRefreshToken(payload);
-      const tokenHash = hashToken(refreshToken);
-      const refreshExpires = new Date();
-      refreshExpires.setSeconds(
-        refreshExpires.getSeconds() + msToSeconds(getRefreshTokenExpiresIn())
-      );
-      await revokeRefreshTokensForUser(user.userId, db);
-      await storeRefreshToken({
-        userId: user.userId,
-        tokenHash,
-        expiresAt: refreshExpires,
-        client: db,
-      });
-      await recordAuditEvent({
-        action: "login",
-        actorUserId: user.userId,
-        targetUserId: user.userId,
-        ip: params.ip,
-        userAgent: params.userAgent,
-        success: true,
-        client: db,
-      });
-
+  const client = await pool.connect();
+  const db = client;
+  try {
+    await client.query("begin");
+    const user = await findOrCreateUserByPhone(phoneE164, db);
+    const userRecord = await findAuthUserById(user.userId, db);
+    if (!userRecord || !userRecord.active) {
       await client.query("commit");
-      return { accessToken };
-    } catch (err) {
-      await client.query("rollback");
-      throw err;
-    } finally {
-      client.release();
+      throw new AppError("account_disabled", "Account is disabled.", 403);
     }
-  });
+
+    await setPhoneVerified(user.userId, true, db);
+
+    const payload = {
+      userId: user.userId,
+      role: user.role,
+      tokenVersion: user.tokenVersion,
+    };
+    const accessToken = issueAccessToken(payload);
+    const refreshToken = issueRefreshToken(payload);
+    const tokenHash = hashToken(refreshToken);
+    const refreshExpires = new Date();
+    refreshExpires.setSeconds(
+      refreshExpires.getSeconds() + msToSeconds(getRefreshTokenExpiresIn())
+    );
+    await revokeRefreshTokensForUser(user.userId, db);
+    await storeRefreshToken({
+      userId: user.userId,
+      tokenHash,
+      expiresAt: refreshExpires,
+      client: db,
+    });
+    await recordAuditEvent({
+      action: "login",
+      actorUserId: user.userId,
+      targetUserId: user.userId,
+      ip: params.ip,
+      userAgent: params.userAgent,
+      success: true,
+      client: db,
+    });
+
+    await client.query("commit");
+    return { accessToken };
+  } catch (err) {
+    await client.query("rollback");
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 export async function refreshSession(
