@@ -12,7 +12,7 @@ import { getAccessTokenSecret } from "../config";
 
 export type AuthenticatedUser = {
   userId: string;
-  email: string;
+  email: string | null;
   role: Role;
   capabilities: Capability[];
 };

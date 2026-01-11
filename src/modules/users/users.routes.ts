@@ -1,24 +1,18 @@
 import { Router } from "express";
 import { AppError } from "../../middleware/errors";
-import {
-  adminRepairUserPassword,
-  createUserAccount,
-  requestPasswordReset,
-  unlockUserAccount,
-} from "../auth/auth.service";
+import { createUserAccount } from "../auth/auth.service";
 import { changeUserRole, setUserStatus } from "./users.service";
 import { isRole } from "../../auth/roles";
-import { CAPABILITIES } from "../../auth/capabilities";
 
 const router = Router();
 
 router.post("/", async (req, res, next) => {
   try {
-    const { email, password, role } = req.body;
-    if (!email || !password || !role) {
+    const { email, phoneNumber, role } = req.body;
+    if (!phoneNumber || !role) {
       throw new AppError(
         "missing_fields",
-        "Email, password, and role are required.",
+        "phoneNumber and role are required.",
         400
       );
     }
@@ -27,7 +21,7 @@ router.post("/", async (req, res, next) => {
     }
     const user = await createUserAccount({
       email,
-      password,
+      phoneNumber,
       role,
       actorUserId: req.user?.userId ?? null,
       ip: req.ip,
@@ -91,72 +85,6 @@ router.post("/:id/enable", async (req, res, next) => {
       userId: req.params.id,
       active: true,
       actorId,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
-    });
-    res.json({ ok: true });
-  } catch (err) {
-    next(err);
-  }
-});
-
-router.post("/:id/force-password-reset", async (req, res, next) => {
-  try {
-    const actorId = req.user?.userId;
-    if (!actorId) {
-      throw new AppError("missing_token", "Authorization token is required.", 401);
-    }
-    const token = await requestPasswordReset({
-      userId: req.params.id,
-      actorUserId: actorId,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
-    });
-    res.json({ token });
-  } catch (err) {
-    next(err);
-  }
-});
-
-router.post("/:id/password-repair", async (req, res, next) => {
-  try {
-    const actorId = req.user?.userId;
-    if (!actorId) {
-      throw new AppError("missing_token", "Authorization token is required.", 401);
-    }
-    const { newPassword } = req.body ?? {};
-    if (!newPassword) {
-      throw new AppError(
-        "missing_fields",
-        "newPassword is required.",
-        400
-      );
-    }
-    await adminRepairUserPassword({
-      userId: req.params.id,
-      newPassword,
-      actorUserId: actorId,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
-    });
-    res.json({ ok: true });
-  } catch (err) {
-    next(err);
-  }
-});
-
-router.post("/:id/unlock", async (req, res, next) => {
-  try {
-    const actorId = req.user?.userId;
-    if (!actorId) {
-      throw new AppError("missing_token", "Authorization token is required.", 401);
-    }
-    if (!req.user?.capabilities.includes(CAPABILITIES.ACCOUNT_UNLOCK)) {
-      throw new AppError("forbidden", "Admin access required.", 403);
-    }
-    await unlockUserAccount({
-      userId: req.params.id,
-      actorUserId: actorId,
       ip: req.ip,
       userAgent: req.get("user-agent"),
     });

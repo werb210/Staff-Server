@@ -82,6 +82,22 @@ export function loginRateLimit(
   );
 }
 
+export function otpRateLimit(
+  maxAttempts = getLoginRateLimitMax(),
+  windowMs = getLoginRateLimitWindowMs()
+): (req: Request, res: Response, next: NextFunction) => void {
+  return createRateLimiter(
+    (req) => {
+      const ip = req.ip || "unknown";
+      const phone =
+        typeof req.body?.phone === "string" ? req.body.phone : "unknown";
+      return `otp:${ip}:${phone}`;
+    },
+    maxAttempts,
+    windowMs
+  );
+}
+
 type RefreshPayload = { userId?: string };
 
 export function refreshRateLimit(

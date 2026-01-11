@@ -20,22 +20,19 @@ async function runAuthQuery<T extends QueryResultRow = QueryResultRow>(
 
 export interface AuthUser {
   id: string;
-  email: string;
-  passwordHash: string;
+  email: string | null;
+  phoneNumber: string;
+  phoneVerified: boolean;
   role: Role;
   active: boolean;
-  passwordChangedAt: Date | null;
-  failedLoginAttempts: number;
-  lockedUntil: Date | null;
   tokenVersion: number;
 }
 
-export async function findAuthUserByEmail(
-  email: string,
+export async function findAuthUserByPhone(
+  phoneNumber: string,
   client?: Queryable,
   options?: { forUpdate?: boolean }
 ): Promise<AuthUser | null> {
-  const normalizedEmail = email.trim().toLowerCase();
   const runner = client ?? pool;
   const forUpdate = options?.forUpdate ? " for update" : "";
 
@@ -43,22 +40,16 @@ export async function findAuthUserByEmail(
     runner,
     `select u.id,
             u.email,
-            u.password_hash as "passwordHash",
+            u.phone_number as "phoneNumber",
+            u.phone_verified as "phoneVerified",
             u.role,
             u.active,
-            u.password_changed_at as "passwordChangedAt",
-            u.failed_login_attempts as "failedLoginAttempts",
-            u.locked_until as "lockedUntil",
             u.token_version as "tokenVersion"
      from users u
-     where lower(u.email) = $1
+     where u.phone_number = $1
      order by u.id asc${forUpdate}`,
-    [normalizedEmail]
+    [phoneNumber]
   );
-
-  if (res.rows.length > 1) {
-    throw new Error("duplicate_email");
-  }
 
   return res.rows[0] ?? null;
 }
@@ -73,12 +64,10 @@ export async function findAuthUserById(
     runner,
     `select u.id,
             u.email,
-            u.password_hash as "passwordHash",
+            u.phone_number as "phoneNumber",
+            u.phone_verified as "phoneVerified",
             u.role,
             u.active,
-            u.password_changed_at as "passwordChangedAt",
-            u.failed_login_attempts as "failedLoginAttempts",
-            u.locked_until as "lockedUntil",
             u.token_version as "tokenVersion"
      from users u
      where u.id = $1
@@ -90,44 +79,29 @@ export async function findAuthUserById(
 }
 
 export async function createUser(params: {
-  email: string;
-  passwordHash: string;
+  email?: string | null;
+  phoneNumber: string;
   role: Role;
   client?: Queryable;
 }): Promise<AuthUser> {
   const runner = params.client ?? pool;
+  const normalizedEmail = params.email ? params.email.trim().toLowerCase() : null;
 
   const res = await runAuthQuery<AuthUser>(
     runner,
-    `insert into users (id, email, password_hash, role, active, password_changed_at)
-     values ($1, $2, $3, $4, true, now())
+    `insert into users (id, email, phone_number, role, active)
+     values ($1, $2, $3, $4, true)
      returning id,
               email,
-              password_hash as "passwordHash",
+              phone_number as "phoneNumber",
+              phone_verified as "phoneVerified",
               role,
               active,
-              password_changed_at as "passwordChangedAt",
-              failed_login_attempts as "failedLoginAttempts",
-              locked_until as "lockedUntil",
               token_version as "tokenVersion"`,
-    [randomUUID(), params.email, params.passwordHash, params.role]
+    [randomUUID(), normalizedEmail, params.phoneNumber, params.role]
   );
 
   return res.rows[0];
-}
-
-export async function updatePassword(
-  userId: string,
-  passwordHash: string,
-  client?: Queryable
-): Promise<void> {
-  const runner = client ?? pool;
-
-  await runAuthQuery(
-    runner,
-    `update users set password_hash = $1, password_changed_at = now() where id = $2`,
-    [passwordHash, userId]
-  );
 }
 
 export interface RefreshTokenRecord {
@@ -136,15 +110,6 @@ export interface RefreshTokenRecord {
   tokenHash: string;
   expiresAt: Date;
   revokedAt: Date | null;
-  createdAt: Date;
-}
-
-export interface PasswordResetRecord {
-  id: string;
-  userId: string;
-  tokenHash: string;
-  expiresAt: Date;
-  usedAt: Date | null;
   createdAt: Date;
 }
 
@@ -232,92 +197,17 @@ export async function incrementTokenVersion(
   );
 }
 
-export async function recordFailedLogin(
-  userId: string,
-  lockedUntil: Date | null,
-  client?: Queryable
-): Promise<{ failedAttempts: number; lockedUntil: Date | null } | null> {
-  const runner = client ?? pool;
-  const res = await runAuthQuery<{
-    failedAttempts: number;
-    lockedUntil: Date | null;
-  }>(
-    runner,
-    `update users
-     set failed_login_attempts = failed_login_attempts + 1,
-         locked_until = $2
-     where id = $1
-     returning failed_login_attempts as "failedAttempts",
-              locked_until as "lockedUntil"`,
-    [userId, lockedUntil]
-  );
-  return res.rows[0] ?? null;
-}
 
-export async function resetLoginFailures(
+export async function setPhoneVerified(
   userId: string,
+  verified: boolean,
   client?: Queryable
 ): Promise<void> {
   const runner = client ?? pool;
   await runAuthQuery(
     runner,
-    `update users set failed_login_attempts = 0, locked_until = null where id = $1`,
-    [userId]
-  );
-}
-
-export async function createPasswordReset(params: {
-  userId: string;
-  tokenHash: string;
-  expiresAt: Date;
-  client?: Queryable;
-}): Promise<PasswordResetRecord> {
-  const runner = params.client ?? pool;
-  const res = await runAuthQuery<PasswordResetRecord>(
-    runner,
-    `insert into password_resets (id, user_id, token_hash, expires_at, created_at)
-     values ($1, $2, $3, $4, now())
-     returning id,
-              user_id as "userId",
-              token_hash as "tokenHash",
-              expires_at as "expiresAt",
-              used_at as "usedAt",
-              created_at as "createdAt"`,
-    [randomUUID(), params.userId, params.tokenHash, params.expiresAt]
-  );
-  return res.rows[0];
-}
-
-export async function findPasswordReset(
-  tokenHash: string,
-  client?: Queryable
-): Promise<PasswordResetRecord | null> {
-  const runner = client ?? pool;
-  const res = await runAuthQuery<PasswordResetRecord>(
-    runner,
-    `select id,
-            user_id as "userId",
-            token_hash as "tokenHash",
-            expires_at as "expiresAt",
-            used_at as "usedAt",
-            created_at as "createdAt"
-     from password_resets
-     where token_hash = $1
-     limit 1`,
-    [tokenHash]
-  );
-  return res.rows[0] ?? null;
-}
-
-export async function markPasswordResetUsed(
-  id: string,
-  client?: Queryable
-): Promise<void> {
-  const runner = client ?? pool;
-  await runAuthQuery(
-    runner,
-    `update password_resets set used_at = now() where id = $1`,
-    [id]
+    `update users set phone_verified = $1 where id = $2`,
+    [verified, userId]
   );
 }
 
