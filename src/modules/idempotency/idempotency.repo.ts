@@ -8,7 +8,7 @@ export type IdempotencyRecord = {
   id: string;
   key: string;
   route: string;
-  request_hash: string;
+  request_hash: string | null;
   response_code: number;
   response_body: unknown;
   created_at: Date;

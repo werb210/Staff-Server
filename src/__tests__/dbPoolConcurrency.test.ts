@@ -223,7 +223,7 @@ describe("db pool concurrency hardening", () => {
       const health = await request(app).get("/health");
 
       expect(fastFail.status).toBe(503);
-      expect(fastFail.body.code).toBe("invalid_credentials");
+      expect(fastFail.body.code).toBe("service_unavailable");
       expect(fastDuration).toBeLessThan(500);
       expect(health.status).toBe(200);
     } finally {
@@ -259,7 +259,7 @@ describe("db pool concurrency hardening", () => {
 
     responses.forEach((res) => {
       expect(res.status).toBe(503);
-      expect(res.body.code).toBe("invalid_credentials");
+      expect(res.body.code).toBe("service_unavailable");
     });
 
     const eventNames = trackEvent.mock.calls.map(
@@ -322,7 +322,7 @@ describe("db pool concurrency hardening", () => {
     );
 
     expect(failed.status).toBe(503);
-    expect(failed.body.code).toBe("invalid_credentials");
+    expect(failed.body.code).toBe("service_unavailable");
 
     const recovered = await withTimeout(
       request(app)
@@ -377,7 +377,7 @@ describe("db pool concurrency hardening", () => {
       expect(health.status).toBe(200);
       expect(healthDurationMs).toBeLessThan(500);
       expect(slowLogin.status).toBe(503);
-      expect(slowLogin.body.code).toBe("invalid_credentials");
+      expect(slowLogin.body.code).toBe("service_unavailable");
 
       const warnEvents = warnSpy.mock.calls
         .map((call) => call[0])
@@ -396,7 +396,7 @@ describe("db pool concurrency hardening", () => {
       );
       const hasRequestError = warnEvents.some(
         (payload) =>
-          payload.event === "request_error" && payload.code === "invalid_credentials"
+          payload.event === "request_error" && payload.code === "service_unavailable"
       );
       const hasIdempotencyFailure = warnEvents.some(
         (payload) => payload.event === "idempotency_lock_failed"
@@ -443,7 +443,7 @@ describe("db pool concurrency hardening", () => {
     const [loginRes] = await Promise.all([loginPromise, readinessPromise]);
 
     expect(loginRes.status).toBe(503);
-    expect(loginRes.body.code).toBe("invalid_credentials");
+    expect(loginRes.body.code).toBe("service_unavailable");
     expect(loginRes.body.accessToken).toBeUndefined();
     expect(querySpy.mock.calls.length).toBeGreaterThanOrEqual(2);
 

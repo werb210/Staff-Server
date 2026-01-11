@@ -314,7 +314,7 @@ describe("auth failure matrix", () => {
       .send({ email: "down-before@example.com", password: loginPassword });
 
     expect(res.status).toBe(503);
-    expect(res.body.code).toBe("invalid_credentials");
+    expect(res.body.code).toBe("service_unavailable");
     expectRequestId(res, requestId);
     expectNoStackTrace(res);
     expect(trackDependency).toHaveBeenCalled();
@@ -341,7 +341,7 @@ describe("auth failure matrix", () => {
       .send({ email: "timeout-password@example.com", password: loginPassword });
 
     expect(res.status).toBe(503);
-    expect(res.body.code).toBe("invalid_credentials");
+    expect(res.body.code).toBe("service_unavailable");
     expectRequestId(res, requestId);
     expectNoStackTrace(res);
     expect(trackDependency).toHaveBeenCalled();
@@ -440,7 +440,7 @@ describe("auth failure matrix", () => {
       .send({ email: "invalid-state@example.com", password: loginPassword });
 
     expect(res.status).toBe(403);
-    expect(res.body.code).toBe("invalid_credentials");
+    expect(res.body.code).toBe("user_misconfigured");
     const eventNames = trackEvent.mock.calls.map(
       ([telemetry]) => (telemetry as { name?: string }).name
     );
@@ -523,7 +523,7 @@ describe("auth failure matrix", () => {
       .send({ email: "expired-db-down@example.com", password: loginPassword });
 
     expect(res.status).toBe(503);
-    expect(res.body.code).toBe("invalid_credentials");
+    expect(res.body.code).toBe("service_unavailable");
     expectRequestId(res, requestId);
     expectNoStackTrace(res);
     expect(trackDependency).toHaveBeenCalled();
