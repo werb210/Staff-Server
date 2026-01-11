@@ -228,7 +228,7 @@ describe("auth", () => {
     });
 
     expect(res.status).toBe(403);
-    expect(res.body.code).toBe("invalid_credentials");
+    expect(res.body.code).toBe("user_misconfigured");
 
     const audit = await pool.query(
       `select event_action as action, success
@@ -259,7 +259,7 @@ describe("auth", () => {
       });
 
       expect(res.status).toBe(403);
-      expect(res.body.code).toBe("invalid_credentials");
+      expect(res.body.code).toBe("user_misconfigured");
 
       const audit = await pool.query(
         `select event_action as action, success
@@ -302,7 +302,7 @@ describe("auth", () => {
       ]);
 
       expect(res.status).toBe(503);
-      expect(res.body.code).toBe("invalid_credentials");
+      expect(res.body.code).toBe("auth_unavailable");
 
       const poolState = pool as unknown as {
         totalCount?: number;
@@ -394,7 +394,7 @@ describe("auth", () => {
     });
 
     expect(res.status).toBe(503);
-    expect(res.body.code).toBe("invalid_credentials");
+    expect(res.body.code).toBe("service_unavailable");
   });
 
   it("does not block login when startup db state is false", async () => {
@@ -428,7 +428,7 @@ describe("auth", () => {
     });
 
     expect(res.status).toBe(503);
-    expect(res.body.code).toBe("invalid_credentials");
+    expect(res.body.code).toBe("service_unavailable");
 
     const warnings = warnSpy.mock.calls
       .map((call) => call[0])

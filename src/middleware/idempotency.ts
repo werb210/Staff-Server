@@ -2,7 +2,7 @@ import { type NextFunction, type Request, type Response } from "express";
 import { createHash } from "crypto";
 import { type PoolClient } from "pg";
 import { pool } from "../db";
-import { isPgMemRuntime } from "../dbRuntime";
+import { isDbConnectionFailure, isPgMemRuntime } from "../dbRuntime";
 import { AppError } from "./errors";
 import { isProductionEnvironment } from "../config";
 import { createIdempotencyRecord, findIdempotencyRecord } from "../modules/idempotency/idempotency.repo";
@@ -78,6 +78,27 @@ function emitTelemetry(event: string, params: { route: string; requestId: string
       idempotencyKeyHash: params.keyHash,
     },
   });
+}
+
+function isIdempotencySchemaError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  const code = (error as { code?: string }).code;
+  if (code === "42P01" || code === "42703" || code === "42P07") {
+    return true;
+  }
+  const message = error.message.toLowerCase();
+  return message.includes("idempotency_keys") && (
+    message.includes("does not exist") ||
+    message.includes("undefined") ||
+    message.includes("column") ||
+    message.includes("relation")
+  );
+}
+
+function shouldBypassIdempotency(error: unknown): boolean {
+  return isDbConnectionFailure(error) || isIdempotencySchemaError(error);
 }
 
 export function idempotencyMiddleware(
@@ -187,13 +208,34 @@ export function idempotencyMiddleware(
       if (lockClient) {
         await lockClient.query("select pg_advisory_lock($1, $2)", lockKey);
       }
-      const existing = await findIdempotencyRecord({
-        route,
-        idempotencyKey: trimmedKey,
-        client: lockClient ?? undefined,
-      });
+      let existing = null;
+      try {
+        existing = await findIdempotencyRecord({
+          route,
+          idempotencyKey: trimmedKey,
+          client: lockClient ?? undefined,
+        });
+      } catch (error) {
+        if (shouldBypassIdempotency(error)) {
+          logWarn("idempotency_bypassed", {
+            requestId,
+            route,
+            error: error instanceof Error ? error.message : "unknown_error",
+          });
+          if (releaseLock) {
+            releaseLock();
+          }
+          if (lockClient) {
+            await lockClient.query("select pg_advisory_unlock($1, $2)", lockKey);
+            lockClient.release();
+          }
+          next();
+          return;
+        }
+        throw error;
+      }
       if (existing) {
-        if (existing.request_hash !== requestHash) {
+        if (existing.request_hash && existing.request_hash !== requestHash) {
           emitTelemetry("idempotency_conflict", { route, requestId, keyHash });
           if (releaseLock) {
             releaseLock();
@@ -275,6 +317,15 @@ export function idempotencyMiddleware(
         route,
         error: error instanceof Error ? error.message : "unknown_error",
       });
+      if (shouldBypassIdempotency(error)) {
+        logWarn("idempotency_bypassed", {
+          requestId,
+          route,
+          error: error instanceof Error ? error.message : "unknown_error",
+        });
+        next();
+        return;
+      }
       next(error instanceof Error ? error : new Error("idempotency_lock_failed"));
     }
   };
