@@ -3,7 +3,6 @@ import { createHash, randomBytes } from "crypto";
 import { type PoolClient } from "pg";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
 import Twilio from "twilio";
-import RestException from "twilio/lib/base/RestException";
 import {
   createUser,
   consumeRefreshToken,
@@ -219,14 +218,6 @@ export const twilioClient = new Twilio(
   process.env.TWILIO_AUTH_TOKEN!
 );
 
-function getTwilioVerifyServiceSid(): string {
-  const serviceSid = process.env.TWILIO_VERIFY_SERVICE_SID;
-  if (!serviceSid) {
-    throw new AppError("auth_misconfigured", "Auth is not configured.", 503);
-  }
-  return serviceSid;
-}
-
 export function assertTwilioVerifyEnv(): void {
   ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_VERIFY_SERVICE_SID"].forEach(
     (key) => {
@@ -237,49 +228,32 @@ export function assertTwilioVerifyEnv(): void {
   );
 }
 
-function isTwilioAuthFailure(error: {
-  status?: number;
-  code?: number | string;
-}): boolean {
-  if (error.status === 401) {
-    return true;
+function getTwilioVerifyServiceSid(): string {
+  const serviceSid = process.env.TWILIO_VERIFY_SERVICE_SID;
+  if (!serviceSid) {
+    throw new AppError("auth_misconfigured", "Auth is not configured.", 503);
   }
-  const code =
-    typeof error.code === "number"
-      ? error.code
-      : Number.isNaN(Number(error.code))
-        ? undefined
-        : Number(error.code);
-  return code === 20003;
+  return serviceSid;
 }
 
-function resolveTwilioErrorDetails(error: unknown): {
-  message: string;
-  status?: number;
-  code?: number;
-  requestId?: string;
-} {
-  if (error instanceof RestException) {
-    return {
-      message: error.message,
-      status: error.status,
-      code: error.code,
-      requestId: (error as any)?.requestId,
-    };
+function maskPhoneNumber(phoneE164: string): string {
+  const visibleTail = 2;
+  const visibleHead = 3;
+  if (phoneE164.length <= visibleHead + visibleTail) {
+    return "*".repeat(phoneE164.length);
   }
-  if (error instanceof Error) {
-    return { message: error.message };
-  }
-  return { message: "Twilio request failed." };
+  const head = phoneE164.slice(0, visibleHead);
+  const tail = phoneE164.slice(-visibleTail);
+  const masked = "*".repeat(phoneE164.length - visibleHead - visibleTail);
+  return `${head}${masked}${tail}`;
 }
 
 async function requestTwilioVerification(
   phoneE164: string,
   channel: "sms"
 ): Promise<void> {
-  const serviceSid = getTwilioVerifyServiceSid();
-  await twilioClient.verify
-    .services(serviceSid)
+  await twilioClient.verify.v2
+    .services(process.env.TWILIO_VERIFY_SERVICE_SID!)
     .verifications.create({ to: phoneE164, channel });
 }
 
@@ -287,9 +261,8 @@ async function requestTwilioVerificationCheck(
   phoneE164: string,
   code: string
 ): Promise<string | undefined> {
-  const serviceSid = getTwilioVerifyServiceSid();
-  const result = await twilioClient.verify
-    .services(serviceSid)
+  const result = await twilioClient.verify.v2
+    .services(process.env.TWILIO_VERIFY_SERVICE_SID!)
     .verificationChecks.create({ to: phoneE164, code });
   return result.status;
 }
@@ -340,36 +313,27 @@ export async function startOtpVerification(params: {
     throw new AppError("validation_error", "Phone is required.", 400);
   }
   const phoneE164 = normalizePhoneToE164(rawPhone);
+  const serviceSid = getTwilioVerifyServiceSid();
+  const maskedPhone = maskPhoneNumber(phoneE164);
   logInfo("otp_start_request", {
-    phone: phoneE164,
+    phone: maskedPhone,
+    serviceSid,
     ip: params.ip,
     userAgent: params.userAgent,
   });
   try {
     await requestTwilioVerification(phoneE164, "sms");
-    logInfo("otp_start_success", { phone: phoneE164 });
+    logInfo("otp_start_success", { phone: maskedPhone, serviceSid });
   } catch (err) {
-    const details = resolveTwilioErrorDetails(err);
-    const isAuthFailure = isTwilioAuthFailure({
-      status: details.status,
-      code: details.code,
-    });
+    const message =
+      err instanceof Error ? err.message : "Twilio verification failed";
     logWarn("auth_twilio_verify_failed", {
       action: "otp_start",
-      phone: phoneE164,
-      status: details.status,
-      code: details.code,
-      message: details.message,
-      requestId: details.requestId,
+      phone: maskedPhone,
+      serviceSid,
+      message,
     });
-    if (isAuthFailure) {
-      throw new AppError(
-        "twilio_error",
-        "Twilio authentication failed.",
-        401
-      );
-    }
-    throw new AppError("server_error", "Twilio Verify request failed.", 500);
+    throw new AppError("twilio_error", message, 500);
   }
 }
 
@@ -385,32 +349,23 @@ export async function verifyOtpCode(params: {
     throw new AppError("validation_error", "Phone and code are required.", 400);
   }
   const phoneE164 = normalizePhoneToE164(rawPhone);
+  const serviceSid = getTwilioVerifyServiceSid();
+  const maskedPhone = maskPhoneNumber(phoneE164);
 
   let status: string | undefined;
   try {
     status = await requestTwilioVerificationCheck(phoneE164, code);
+    logInfo("otp_verify_success", { phone: maskedPhone, serviceSid });
   } catch (err) {
-    const details = resolveTwilioErrorDetails(err);
-    const isAuthFailure = isTwilioAuthFailure({
-      status: details.status,
-      code: details.code,
-    });
+    const message =
+      err instanceof Error ? err.message : "Twilio verification failed";
     logWarn("auth_twilio_verify_failed", {
       action: "otp_verify",
-      phone: phoneE164,
-      status: details.status,
-      code: details.code,
-      message: details.message,
-      requestId: details.requestId,
+      phone: maskedPhone,
+      serviceSid,
+      message,
     });
-    if (isAuthFailure) {
-      throw new AppError(
-        "twilio_error",
-        "Twilio authentication failed.",
-        401
-      );
-    }
-    throw new AppError("server_error", "Twilio Verify request failed.", 500);
+    throw new AppError("twilio_error", message, 500);
   }
   if (status !== "approved") {
     throw new AppError("otp_failed", "OTP verification failed.", 401);
