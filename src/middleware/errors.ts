@@ -20,11 +20,7 @@ export function forbiddenError(): AppError {
 
 const authFailureCodes = new Set([
   "invalid_credentials",
-  "account_locked",
   "account_disabled",
-  "password_expired",
-  "password_reset_required",
-  "invalid_password_hash",
   "invalid_token",
   "missing_token",
   "user_disabled",

@@ -31,11 +31,11 @@ router.post("/bootstrap-admin", async (req, res, next) => {
       );
     }
 
-    const password = process.env.BOOTSTRAP_ADMIN_PASSWORD;
-    if (!password) {
+    const phoneNumber = process.env.BOOTSTRAP_ADMIN_PHONE;
+    if (!phoneNumber) {
       throw new AppError(
-        "bootstrap_missing_password",
-        "BOOTSTRAP_ADMIN_PASSWORD is required.",
+        "bootstrap_missing_phone",
+        "BOOTSTRAP_ADMIN_PHONE is required.",
         500
       );
     }
@@ -58,7 +58,7 @@ router.post("/bootstrap-admin", async (req, res, next) => {
 
     const user = await createUserAccount({
       email: "todd.w@boreal.financial",
-      password,
+      phoneNumber,
       role: ROLES.ADMIN,
       actorUserId: null,
       ip: req.ip,

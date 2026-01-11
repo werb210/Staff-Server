@@ -2,42 +2,48 @@ import { Router } from "express";
 import { AppError } from "../../middleware/errors";
 import {
   loginRateLimit,
-  passwordResetRateLimit,
+  otpRateLimit,
   refreshRateLimit,
 } from "../../middleware/rateLimit";
 import { requireAuth, requireCapability } from "../../middleware/auth";
 import { CAPABILITIES } from "../../auth/capabilities";
 import {
-  confirmPasswordReset,
-  loginUser,
+  startOtpVerification,
+  verifyOtpCode,
   refreshSession,
-  repairAdminPassword,
   logoutUser,
-  requestPasswordReset,
-  changePassword,
   logoutAll,
 } from "./auth.service";
 
 const router = Router();
 
-router.post("/login", loginRateLimit(), async (req, res, next) => {
+router.post("/login", loginRateLimit(), async (_req, res) => {
+  res.status(403).json({ error: "password_auth_disabled" });
+});
+
+router.post("/otp/start", otpRateLimit(), async (req, res, next) => {
   try {
-    const { email, password } = req.body ?? {};
+    const { phone } = req.body ?? {};
+    await startOtpVerification({
+      phone,
+      ip: req.ip,
+      userAgent: req.get("user-agent"),
+    });
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
 
-    if (!email || !password) {
-      throw new AppError(
-        "missing_credentials",
-        "Email and password are required.",
-        400
-      );
-    }
-
-    const result = await loginUser(
-      email,
-      password,
-      req.ip,
-      req.get("user-agent")
-    );
+router.post("/otp/verify", otpRateLimit(), async (req, res, next) => {
+  try {
+    const { phone, code } = req.body ?? {};
+    const result = await verifyOtpCode({
+      phone,
+      code,
+      ip: req.ip,
+      userAgent: req.get("user-agent"),
+    });
     res.status(200).json(result);
   } catch (err) {
     next(err);
@@ -142,118 +148,6 @@ router.get(
   } catch (err) {
     next(err);
   }
-  }
-);
-
-router.post(
-  "/password-reset/request",
-  requireAuth,
-  requireCapability([CAPABILITIES.USER_MANAGE]),
-  passwordResetRateLimit(),
-  async (req, res, next) => {
-    try {
-      const { userId } = req.body ?? {};
-      if (!userId) {
-        throw new AppError("missing_fields", "userId is required.", 400);
-      }
-      const token = await requestPasswordReset({
-        userId,
-        actorUserId: req.user?.userId ?? null,
-        ip: req.ip,
-        userAgent: req.get("user-agent"),
-      });
-      res.json({ token });
-    } catch (err) {
-      next(err);
-    }
-  }
-);
-
-router.post(
-  "/admin-repair",
-  passwordResetRateLimit(),
-  async (req, res, next) => {
-    try {
-      const { repairToken, newPassword, email } = req.body ?? {};
-      if (!repairToken || !newPassword) {
-        throw new AppError(
-          "missing_fields",
-          "repairToken and newPassword are required.",
-          400
-        );
-      }
-      await repairAdminPassword({
-        repairToken,
-        newPassword,
-        email,
-        ip: req.ip,
-        userAgent: req.get("user-agent"),
-      });
-      res.json({ ok: true });
-    } catch (err) {
-      next(err);
-    }
-  }
-);
-
-router.post(
-  "/password-reset/confirm",
-  passwordResetRateLimit(),
-  async (req, res, next) => {
-    try {
-      const { token, newPassword } = req.body ?? {};
-      if (!token || !newPassword) {
-        throw new AppError(
-          "missing_fields",
-          "Token and newPassword are required.",
-          400
-        );
-      }
-      await confirmPasswordReset({
-        token,
-        newPassword,
-        ip: req.ip,
-        userAgent: req.get("user-agent"),
-      });
-      res.json({ ok: true });
-    } catch (err) {
-      next(err);
-    }
-  }
-);
-
-router.post(
-  "/password-change",
-  requireAuth,
-  requireCapability([CAPABILITIES.AUTH_SESSION]),
-  async (req, res, next) => {
-    try {
-      const { currentPassword, newPassword } = req.body ?? {};
-      if (!currentPassword || !newPassword) {
-        throw new AppError(
-          "missing_fields",
-          "currentPassword and newPassword are required.",
-          400
-        );
-      }
-      if (!req.user) {
-        throw new AppError(
-          "missing_token",
-          "Authorization token is required.",
-          401
-        );
-      }
-      await changePassword({
-        userId: req.user.userId,
-        currentPassword,
-        newPassword,
-        ip: req.ip,
-        userAgent: req.get("user-agent"),
-      });
-      res.json({ ok: true });
-    } catch (err) {
-      next(err);
-    }
   }
 );
 
