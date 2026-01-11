@@ -13,6 +13,7 @@ import { getAccessTokenSecret } from "../config";
 export type AuthenticatedUser = {
   userId: string;
   email: string | null;
+  phoneNumber: string;
   role: Role;
   capabilities: Capability[];
 };
@@ -78,6 +79,7 @@ export function requireAuth(
         req.user = {
           userId: payload.userId,
           email: user.email,
+          phoneNumber: user.phoneNumber,
           role: payload.role,
           capabilities: getCapabilitiesForRole(payload.role),
         };
