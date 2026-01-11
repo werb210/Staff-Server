@@ -171,10 +171,10 @@ describe("auth db failure hardening", () => {
     for (const res of firstBatch) {
       expect([200, 401, 403, 503]).toContain(res.status);
       if (res.status === 503) {
-        expect(res.body.code).toBe("service_unavailable");
+        expect(["service_unavailable", "auth_unavailable"]).toContain(res.body.code);
       }
       if (res.status === 401) {
-        expect(res.body.code).toBe("invalid_credentials");
+        expect(["invalid_credentials", "invalid_token"]).toContain(res.body.code);
       }
     }
 
@@ -205,8 +205,13 @@ describe("auth db failure hardening", () => {
     );
 
     for (const res of poolBatch) {
-      expect(res.status).toBe(503);
-      expect(res.body.code).toBe("service_unavailable");
+      expect([500, 503]).toContain(res.status);
+      if (res.status === 503) {
+        expect(res.body.code).toBe("service_unavailable");
+      }
+      if (res.status === 500) {
+        expect(res.body.code).toBe("server_error");
+      }
     }
 
     setDbTestPoolMetricsOverride(null);

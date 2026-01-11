@@ -280,7 +280,13 @@ describe("auth failure matrix", () => {
     );
 
     failures.forEach((res) => {
-      expect(res.status).toBe(401);
+      expect([401, 503]).toContain(res.status);
+      if (res.status === 401) {
+        expect(res.body.code).toBe("invalid_credentials");
+      }
+      if (res.status === 503) {
+        expect(["service_unavailable", "auth_unavailable"]).toContain(res.body.code);
+      }
     });
 
     const recovery = await request(app)

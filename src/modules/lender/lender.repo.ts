@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { pool } from "../../db";
+import { isPgMemRuntime } from "../../dbRuntime";
 import { type PoolClient } from "pg";
 
 type Queryable = Pick<PoolClient, "query">;
@@ -173,6 +174,47 @@ export async function upsertSubmissionRetryState(params: {
   client?: Queryable;
 }): Promise<LenderSubmissionRetryRecord> {
   const runner = params.client ?? pool;
+  if (isPgMemRuntime()) {
+    const update = await runner.query<LenderSubmissionRetryRecord>(
+      `update lender_submission_retries
+       set status = $2,
+           attempt_count = $3,
+           next_attempt_at = $4,
+           last_error = $5,
+           canceled_at = $6,
+           updated_at = now()
+       where submission_id = $1
+       returning id, submission_id, status, attempt_count, next_attempt_at, last_error, created_at, updated_at, canceled_at`,
+      [
+        params.submissionId,
+        params.status,
+        params.attemptCount,
+        params.nextAttemptAt,
+        params.lastError,
+        params.canceledAt,
+      ]
+    );
+    if (update.rows[0]) {
+      return update.rows[0];
+    }
+
+    const insert = await runner.query<LenderSubmissionRetryRecord>(
+      `insert into lender_submission_retries
+       (id, submission_id, status, attempt_count, next_attempt_at, last_error, created_at, updated_at, canceled_at)
+       values ($1, $2, $3, $4, $5, $6, now(), now(), $7)
+       returning id, submission_id, status, attempt_count, next_attempt_at, last_error, created_at, updated_at, canceled_at`,
+      [
+        randomUUID(),
+        params.submissionId,
+        params.status,
+        params.attemptCount,
+        params.nextAttemptAt,
+        params.lastError,
+        params.canceledAt,
+      ]
+    );
+    return insert.rows[0];
+  }
   const res = await runner.query<LenderSubmissionRetryRecord>(
     `insert into lender_submission_retries
      (id, submission_id, status, attempt_count, next_attempt_at, last_error, created_at, updated_at, canceled_at)

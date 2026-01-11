@@ -184,6 +184,11 @@ function shouldIgnorePgMemMigrationError(statement: string, error: unknown): boo
       return true;
     }
   }
+  if (message.includes("column already exists")) {
+    if (/^\s*alter table/i.test(statement) && /\badd column\b/i.test(statement)) {
+      return true;
+    }
+  }
   if (message.includes("does not exist")) {
     if (/^\s*alter table[\s\S]+drop constraint/i.test(statement)) {
       return true;
@@ -221,6 +226,16 @@ export async function runMigrations(): Promise<void> {
         if (!hasExecutableSql(normalized)) {
           continue;
         }
+        if (isPgMem && /^\s*do\s+\$\$/i.test(normalized)) {
+          continue;
+        }
+        if (
+          isPgMem &&
+          /^\s*update\s+idempotency_keys/i.test(normalized) &&
+          /\bmd5\s*\(/i.test(normalized)
+        ) {
+          continue;
+        }
         try {
           await client.query(normalized);
         } catch (error) {
@@ -241,6 +256,12 @@ export async function runMigrations(): Promise<void> {
     } finally {
       client.release();
     }
+  }
+
+  if (isPgMem) {
+    await pool.query(
+      "create unique index if not exists lender_submission_retries_submission_id_unique_idx on lender_submission_retries (submission_id)"
+    );
   }
 }
 

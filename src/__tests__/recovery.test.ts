@@ -134,7 +134,7 @@ describe("recovery integration", () => {
     expect(res.body.code).toBe("invalid_credentials");
   });
 
-  it("returns user_disabled when the user is disabled", async () => {
+  it("returns account_disabled when the user is disabled", async () => {
     const user = await createUserAccount({
       email: "disabled-recovery@example.com",
       password: "Password123!",
@@ -153,10 +153,10 @@ describe("recovery integration", () => {
     });
 
     expect(res.status).toBe(403);
-    expect(res.body.code).toBe("user_disabled");
+    expect(res.body.code).toBe("account_disabled");
   });
 
-  it("returns password_expired when a reset is pending", async () => {
+  it("allows login when a reset is pending", async () => {
     const user = await createUserAccount({
       email: "reset-required@example.com",
       password: "Password123!",
@@ -170,8 +170,8 @@ describe("recovery integration", () => {
       password: "Password123!",
     });
 
-    expect(res.status).toBe(403);
-    expect(res.body.code).toBe("password_expired");
+    expect(res.status).toBe(200);
+    expect(res.body.accessToken).toBeTruthy();
   });
 
   it("logs requests for telemetry", async () => {

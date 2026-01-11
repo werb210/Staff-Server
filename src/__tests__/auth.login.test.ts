@@ -97,7 +97,7 @@ describe("auth login regression", () => {
     expect(res.body.code).toBe("invalid_credentials");
   });
 
-  it("returns user_disabled when the user is disabled", async () => {
+  it("returns account_disabled when the user is disabled", async () => {
     const user = await createUserAccount({
       email: "disabled-login@example.com",
       password: "Password123!",
@@ -111,7 +111,7 @@ describe("auth login regression", () => {
     });
 
     expect(res.status).toBe(403);
-    expect(res.body.code).toBe("user_disabled");
+    expect(res.body.code).toBe("account_disabled");
   });
 
   it("returns password_expired when the password is expired", async () => {

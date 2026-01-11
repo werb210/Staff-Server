@@ -58,7 +58,7 @@ describe("azure health endpoints", () => {
 
     jest.isolateModules(() => {
       jest.doMock("../app", () => ({
-        buildApp: () => ({ listen: listenSpy }),
+        buildApp: () => ({ listen: listenSpy, use: jest.fn() }),
         registerApiRoutes: jest.fn(),
       }));
       require("../index");
