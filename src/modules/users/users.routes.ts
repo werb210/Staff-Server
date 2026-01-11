@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { AppError } from "../../middleware/errors";
 import {
+  adminRepairUserPassword,
   createUserAccount,
   requestPasswordReset,
   unlockUserAccount,
@@ -112,6 +113,33 @@ router.post("/:id/force-password-reset", async (req, res, next) => {
       userAgent: req.get("user-agent"),
     });
     res.json({ token });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/:id/password-repair", async (req, res, next) => {
+  try {
+    const actorId = req.user?.userId;
+    if (!actorId) {
+      throw new AppError("missing_token", "Authorization token is required.", 401);
+    }
+    const { newPassword } = req.body ?? {};
+    if (!newPassword) {
+      throw new AppError(
+        "missing_fields",
+        "newPassword is required.",
+        400
+      );
+    }
+    await adminRepairUserPassword({
+      userId: req.params.id,
+      newPassword,
+      actorUserId: actorId,
+      ip: req.ip,
+      userAgent: req.get("user-agent"),
+    });
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }

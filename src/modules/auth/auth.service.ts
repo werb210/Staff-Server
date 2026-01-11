@@ -158,7 +158,7 @@ async function withAuthDbRetry<T>(
 
 const bcryptHashPattern = /^\$2[aby]\$(\d{2})\$[./A-Za-z0-9]{53}$/;
 const argon2HashPattern = /^\$argon2(id|i|d)\$[^\s]+$/;
-const ADMIN_REPAIR_BCRYPT_COST = 10;
+const CURRENT_BCRYPT_COST = 12;
 
 type PasswordHashEvaluation =
   | { status: "missing" }
@@ -182,7 +182,7 @@ function evaluatePasswordHash(hash?: string | null): PasswordHashEvaluation {
     return {
       status: "bcrypt",
       cost: boundedCost,
-      needsRehash: boundedCost !== 12,
+      needsRehash: boundedCost !== CURRENT_BCRYPT_COST,
     };
   }
   if (argon2HashPattern.test(trimmed)) {
@@ -361,6 +361,11 @@ export async function loginUser(
             userId: user.id,
             reason,
           });
+          logWarn("auth_login_failed", {
+            email: normalizedEmail,
+            userId: user.id,
+            reason: "reset_required",
+          });
           await recordAuditEvent({
             action: "invalid_password_state",
             actorUserId: user.id,
@@ -420,6 +425,11 @@ export async function loginUser(
             email: normalizedEmail,
             userId: user.id,
             reason,
+          });
+          logWarn("auth_login_failed", {
+            email: normalizedEmail,
+            userId: user.id,
+            reason: "legacy_hash_detected",
           });
           await recordAuditEvent({
             action: "invalid_password_state",
@@ -594,14 +604,14 @@ export async function loginUser(
         }
 
         if (passwordHashState.needsRehash) {
-          const upgradedHash = await bcrypt.hash(password, 12);
+          const upgradedHash = await bcrypt.hash(password, CURRENT_BCRYPT_COST);
           await updatePassword(user.id, upgradedHash, client);
           legacyHashUpgraded = true;
           logInfo("auth_password_hash_upgraded", {
             userId: user.id,
             email: normalizedEmail,
             previousCost: passwordHashState.cost,
-            newCost: 12,
+            newCost: CURRENT_BCRYPT_COST,
           });
         }
 
@@ -918,7 +928,7 @@ export async function createUserAccount(params: {
   const client = await pool.connect();
   try {
     await client.query("begin");
-    const passwordHash = await bcrypt.hash(params.password, 12);
+    const passwordHash = await bcrypt.hash(params.password, CURRENT_BCRYPT_COST);
     const user = await createUser({
       email: params.email,
       passwordHash,
@@ -987,7 +997,7 @@ export async function changePassword(params: {
   const client = await pool.connect();
   try {
     await client.query("begin");
-    const passwordHash = await bcrypt.hash(params.newPassword, 12);
+    const passwordHash = await bcrypt.hash(params.newPassword, CURRENT_BCRYPT_COST);
     await updatePassword(params.userId, passwordHash, client);
     await incrementTokenVersion(params.userId, client);
     await revokeRefreshTokensForUser(params.userId, client);
@@ -1084,7 +1094,7 @@ export async function confirmPasswordReset(params: {
       throw new AppError("invalid_token", "Invalid reset token.", 401);
     }
 
-    const passwordHash = await bcrypt.hash(params.newPassword, 12);
+    const passwordHash = await bcrypt.hash(params.newPassword, CURRENT_BCRYPT_COST);
     await updatePassword(record.userId, passwordHash, client);
     await incrementTokenVersion(record.userId, client);
     await revokeRefreshTokensForUser(record.userId, client);
@@ -1205,7 +1215,7 @@ export async function repairAdminPassword(params: {
 
     const passwordHash = await bcrypt.hash(
       params.newPassword,
-      ADMIN_REPAIR_BCRYPT_COST
+      CURRENT_BCRYPT_COST
     );
     await updatePassword(user.id, passwordHash, client);
     await resetLoginFailures(user.id, client);
@@ -1214,7 +1224,7 @@ export async function repairAdminPassword(params: {
     logInfo("auth_admin_password_repaired", {
       userId: user.id,
       email: user.email,
-      cost: ADMIN_REPAIR_BCRYPT_COST,
+      cost: CURRENT_BCRYPT_COST,
     });
 
     let recordId = existing?.id;
@@ -1237,6 +1247,72 @@ export async function repairAdminPassword(params: {
       userAgent: params.userAgent,
       success: true,
       client,
+    });
+    await client.query("commit");
+  } catch (err) {
+    recordTransactionRollback(err);
+    await client.query("rollback");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export async function adminRepairUserPassword(params: {
+  userId: string;
+  newPassword: string;
+  actorUserId: string;
+  ip?: string;
+  userAgent?: string;
+}): Promise<void> {
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const user = await findAuthUserById(params.userId, client);
+    if (!user) {
+      await recordAuditEvent({
+        action: "admin_password_repair",
+        actorUserId: params.actorUserId,
+        targetUserId: params.userId,
+        ip: params.ip,
+        userAgent: params.userAgent,
+        success: false,
+        client,
+      });
+      await client.query("commit");
+      throw new AppError("not_found", "User not found.", 404);
+    }
+
+    const passwordHash = await bcrypt.hash(
+      params.newPassword,
+      CURRENT_BCRYPT_COST
+    );
+    await updatePassword(user.id, passwordHash, client);
+    await resetLoginFailures(user.id, client);
+    await incrementTokenVersion(user.id, client);
+    await revokeRefreshTokensForUser(user.id, client);
+    await recordAuditEvent({
+      action: "token_revoke",
+      actorUserId: params.actorUserId,
+      targetUserId: user.id,
+      ip: params.ip,
+      userAgent: params.userAgent,
+      success: true,
+      client,
+    });
+    await recordAuditEvent({
+      action: "admin_password_repair",
+      actorUserId: params.actorUserId,
+      targetUserId: user.id,
+      ip: params.ip,
+      userAgent: params.userAgent,
+      success: true,
+      client,
+    });
+    logInfo("auth_admin_password_repaired", {
+      userId: user.id,
+      email: user.email,
+      cost: CURRENT_BCRYPT_COST,
     });
     await client.query("commit");
   } catch (err) {
