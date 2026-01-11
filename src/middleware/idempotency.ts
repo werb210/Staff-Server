@@ -1,7 +1,8 @@
 import { type NextFunction, type Request, type Response } from "express";
 import { createHash } from "crypto";
 import { type PoolClient } from "pg";
-import { isPgMemRuntime, pool } from "../db";
+import { pool } from "../db";
+import { isPgMemRuntime } from "../dbRuntime";
 import { AppError } from "./errors";
 import { isProductionEnvironment } from "../config";
 import { createIdempotencyRecord, findIdempotencyRecord } from "../modules/idempotency/idempotency.repo";

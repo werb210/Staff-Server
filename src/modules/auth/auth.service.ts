@@ -28,7 +28,8 @@ import {
 } from "../../config";
 import { AppError } from "../../middleware/errors";
 import { recordAuditEvent } from "../audit/audit.service";
-import { cancelDbWork, getDbFailureCategory, isDbConnectionFailure, pool } from "../../db";
+import { pool } from "../../db";
+import { cancelDbWork, getDbFailureCategory, isDbConnectionFailure } from "../../dbRuntime";
 import { type Role } from "../../auth/roles";
 import { logError, logInfo, logWarn } from "../../observability/logger";
 import { recordTransactionRollback } from "../../observability/transactionTelemetry";
