@@ -11,6 +11,7 @@ import {
   confirmPasswordReset,
   loginUser,
   refreshSession,
+  repairAdminPassword,
   logoutUser,
   requestPasswordReset,
   changePassword,
@@ -162,6 +163,33 @@ router.post(
         userAgent: req.get("user-agent"),
       });
       res.json({ token });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+router.post(
+  "/admin-repair",
+  passwordResetRateLimit(),
+  async (req, res, next) => {
+    try {
+      const { repairToken, newPassword, email } = req.body ?? {};
+      if (!repairToken || !newPassword) {
+        throw new AppError(
+          "missing_fields",
+          "repairToken and newPassword are required.",
+          400
+        );
+      }
+      await repairAdminPassword({
+        repairToken,
+        newPassword,
+        email,
+        ip: req.ip,
+        userAgent: req.get("user-agent"),
+      });
+      res.json({ ok: true });
     } catch (err) {
       next(err);
     }

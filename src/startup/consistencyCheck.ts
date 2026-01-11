@@ -16,6 +16,16 @@ async function logCheckResult(params: {
   logInfo(params.event, { count: params.count });
 }
 
+async function hasTable(table: string): Promise<boolean> {
+  const res = await pool.query<{ count: number }>(
+    `select count(*)::int as count
+     from information_schema.tables
+     where table_name = $1`,
+    [table]
+  );
+  return (res.rows[0]?.count ?? 0) > 0;
+}
+
 async function hasColumn(table: string, column: string): Promise<boolean> {
   const res = await pool.query<{ count: number }>(
     `select count(*)::int as count
@@ -29,31 +39,41 @@ async function hasColumn(table: string, column: string): Promise<boolean> {
 
 export async function runStartupConsistencyCheck(): Promise<void> {
   try {
-    const orphanDocumentsCount = await pool.query<{ count: number }>(
-      `select count(*)::int as count
-       from documents d
-       where not exists (
-         select 1 from applications a where a.id = d.application_id
-       )`
-    );
-    const orphanDocumentsSample = await pool.query<SampleRow>(
-      `select d.id, d.application_id
-       from documents d
-       where not exists (
-         select 1 from applications a where a.id = d.application_id
-       )
-       limit 10`
-    );
-    await logCheckResult({
-      event: "startup_orphaned_documents",
-      count: orphanDocumentsCount.rows[0]?.count ?? 0,
-      sample: orphanDocumentsSample.rows,
-    });
+    const hasDocuments = await hasTable("documents");
+    const hasApplications = await hasTable("applications");
+    const hasDocumentApplicationId = await hasColumn("documents", "application_id");
+    if (!hasDocuments || !hasApplications || !hasDocumentApplicationId) {
+      logInfo("startup_orphaned_documents_skipped", {
+        reason: "missing_documents_or_applications",
+      });
+    } else {
+      const orphanDocumentsCount = await pool.query<{ count: number }>(
+        `select count(*)::int as count
+         from documents d
+         where not exists (
+           select 1 from applications a where a.id = d.application_id
+         )`
+      );
+      const orphanDocumentsSample = await pool.query<SampleRow>(
+        `select d.id, d.application_id
+         from documents d
+         where not exists (
+           select 1 from applications a where a.id = d.application_id
+         )
+         limit 10`
+      );
+      await logCheckResult({
+        event: "startup_orphaned_documents",
+        count: orphanDocumentsCount.rows[0]?.count ?? 0,
+        sample: orphanDocumentsSample.rows,
+      });
+    }
 
+    const hasUsers = await hasTable("users");
     const hasOwnerUserId = await hasColumn("applications", "owner_user_id");
-    if (!hasOwnerUserId) {
+    if (!hasApplications || !hasUsers || !hasOwnerUserId) {
       logInfo("startup_orphaned_applications_skipped", {
-        reason: "missing_owner_user_id",
+        reason: "missing_applications_users_or_owner",
       });
     } else {
       const orphanApplicationsCount = await pool.query<{ count: number }>(
@@ -78,24 +98,31 @@ export async function runStartupConsistencyCheck(): Promise<void> {
       });
     }
 
-    const invalidPipelineCount = await pool.query<{ count: number }>(
-      `select count(*)::int as count
-       from applications
-       where not (pipeline_state = any($1::text[]))`,
-      [PIPELINE_STATES]
-    );
-    const invalidPipelineSample = await pool.query<SampleRow>(
-      `select id, pipeline_state
-       from applications
-       where not (pipeline_state = any($1::text[]))
-       limit 10`,
-      [PIPELINE_STATES]
-    );
-    await logCheckResult({
-      event: "startup_invalid_pipeline_states",
-      count: invalidPipelineCount.rows[0]?.count ?? 0,
-      sample: invalidPipelineSample.rows,
-    });
+    const hasPipelineState = await hasColumn("applications", "pipeline_state");
+    if (!hasApplications || !hasPipelineState) {
+      logInfo("startup_invalid_pipeline_states_skipped", {
+        reason: "missing_applications_or_pipeline_state",
+      });
+    } else {
+      const invalidPipelineCount = await pool.query<{ count: number }>(
+        `select count(*)::int as count
+         from applications
+         where not (pipeline_state = any($1::text[]))`,
+        [PIPELINE_STATES]
+      );
+      const invalidPipelineSample = await pool.query<SampleRow>(
+        `select id, pipeline_state
+         from applications
+         where not (pipeline_state = any($1::text[]))
+         limit 10`,
+        [PIPELINE_STATES]
+      );
+      await logCheckResult({
+        event: "startup_invalid_pipeline_states",
+        count: invalidPipelineCount.rows[0]?.count ?? 0,
+        sample: invalidPipelineSample.rows,
+      });
+    }
   } catch (err) {
     logError("startup_consistency_check_failed", {
       error: err instanceof Error ? err.message : "unknown_error",

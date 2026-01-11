@@ -24,7 +24,7 @@ const authFailureCodes = new Set([
   "account_disabled",
   "password_expired",
   "password_reset_required",
-  "user_misconfigured",
+  "invalid_password_hash",
   "invalid_token",
   "missing_token",
   "user_disabled",

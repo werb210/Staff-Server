@@ -114,6 +114,10 @@ export function idempotencyMiddleware(
   }
 
   const route = getRequestRoute(req);
+  if (route.startsWith("/api/auth/")) {
+    next();
+    return;
+  }
   const isLoginRoute = method === "POST" && route === "/api/auth/login";
   const key = req.get(IDEMPOTENCY_HEADER);
   const trimmedKey = key ? key.trim() : "";
