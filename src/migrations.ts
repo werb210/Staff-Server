@@ -203,9 +203,6 @@ async function fetchAppliedMigrations(): Promise<Set<string>> {
 }
 
 export async function runMigrations(): Promise<void> {
-  if (process.env.NODE_ENV === "production") {
-    return;
-  }
   await ensureMigrationsTable();
   const migrationFiles = listMigrationFiles();
   const applied = await fetchAppliedMigrations();
