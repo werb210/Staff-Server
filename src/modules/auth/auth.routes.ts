@@ -7,7 +7,7 @@ import {
 import { requireAuth, requireCapability } from "../../middleware/auth";
 import { CAPABILITIES } from "../../auth/capabilities";
 import {
-  startOtpVerification,
+  startOtp,
   verifyOtpCode,
   refreshSession,
   logoutUser,
@@ -19,14 +19,14 @@ const router = Router();
 router.post("/otp/start", otpRateLimit(), async (req, res, next) => {
   try {
     const { phone } = req.body ?? {};
-    await startOtpVerification({
-      phone,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
-      route: "/api/auth/otp/start",
-      method: req.method,
-    });
-    res.status(200).json({ ok: true });
+    const result = await startOtp(phone);
+    if (!result.ok) {
+      return res.status(result.status).json({
+        code: result.code,
+        message: result.message,
+      });
+    }
+    res.status(204).send();
   } catch (err) {
     next(err);
   }

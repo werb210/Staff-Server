@@ -1,17 +1,15 @@
-import twilio from "twilio";
+import Twilio from "twilio";
 
-const accountSid = process.env.TWILIO_ACCOUNT_SID;
-const authToken = process.env.TWILIO_AUTH_TOKEN;
+export function getTwilioClient() {
+  const sid = process.env.TWILIO_ACCOUNT_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
 
-export const twilioAvailable = Boolean(accountSid && authToken);
+  if (!sid || !token) {
+    return { available: false as const, client: null };
+  }
 
-export const twilioClient = twilioAvailable
-  ? twilio(accountSid!, authToken!)
-  : null;
-
-if (!twilioAvailable) {
-  console.error("Twilio disabled: missing env vars", {
-    hasSid: !!accountSid,
-    hasToken: !!authToken,
-  });
+  return {
+    available: true as const,
+    client: Twilio(sid, token),
+  };
 }
