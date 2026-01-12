@@ -1,7 +1,6 @@
 import jwt, { type SignOptions } from "jsonwebtoken";
 import { createHash, randomBytes } from "crypto";
 import { type PoolClient } from "pg";
-import { parsePhoneNumberFromString } from "libphonenumber-js";
 import Twilio from "twilio";
 import {
   createUser,
@@ -59,19 +58,8 @@ function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
-function normalizePhoneToE164(phone: string): string {
-  const trimmed = phone.trim();
-  const parsed = parsePhoneNumberFromString(trimmed);
-  if (
-    !parsed ||
-    !parsed.isValid() ||
-    !trimmed.startsWith("+") ||
-    parsed.number !== trimmed
-  ) {
-    throw new AppError("validation_error", "Invalid phone number.", 400);
-  }
-  return parsed.number;
-}
+const normalizePhone = (p: string) =>
+  p.startsWith("+") ? p : `+${p.replace(/\D/g, "")}`;
 
 type AuthDbAction = "otp_verify" | "refresh" | "logout_all";
 
@@ -223,9 +211,6 @@ export function assertTwilioVerifyEnv(): void {
     "TWILIO_ACCOUNT_SID",
     "TWILIO_AUTH_TOKEN",
     "TWILIO_VERIFY_SERVICE_SID",
-    "TWILIO_PHONE_NUMBER",
-    "TWILIO_CALLER_ID",
-    "TWILIO_TWIML_APP_SID",
   ];
   const missing = requiredKeys.filter((key) => !process.env[key]);
   if (missing.length > 0) {
@@ -361,7 +346,7 @@ export async function startOtpVerification(params: {
   if (!rawPhone) {
     throw new AppError("validation_error", "Phone is required.", 400);
   }
-  const phoneE164 = normalizePhoneToE164(rawPhone);
+  const phoneE164 = normalizePhone(rawPhone);
   const serviceSid = getTwilioVerifyServiceSid();
   const maskedPhone = maskPhoneNumber(phoneE164);
   logInfo("otp_start_request_received", {
@@ -427,7 +412,7 @@ export async function verifyOtpCode(params: {
   if (!rawPhone || !code) {
     throw new AppError("validation_error", "Phone and code are required.", 400);
   }
-  const phoneE164 = normalizePhoneToE164(rawPhone);
+  const phoneE164 = normalizePhone(rawPhone);
   const serviceSid = getTwilioVerifyServiceSid();
   const maskedPhone = maskPhoneNumber(phoneE164);
   logInfo("otp_verify_request", {
