@@ -28,15 +28,19 @@ type TwilioConstructorMock = jest.MockedFunction<
   ) => {
     verify: {
       v2: {
-        services: (serviceSid: string) => {
-          verifications: {
-            create: VerificationCreateMock;
-          };
-          verificationChecks: {
-            create: VerificationCheckCreateMock;
-          };
-        };
+        services: ServicesMock;
       };
+    };
+  }
+>;
+
+type ServicesMock = jest.MockedFunction<
+  (serviceSid: string) => {
+    verifications: {
+      create: VerificationCreateMock;
+    };
+    verificationChecks: {
+      create: VerificationCheckCreateMock;
     };
   }
 >;
@@ -45,6 +49,8 @@ export type TwilioMockState = {
   createVerification: VerificationCreateMock;
   createVerificationCheck: VerificationCheckCreateMock;
   twilioConstructor: TwilioConstructorMock;
+  services: ServicesMock;
+  lastServiceSid: string | null;
 };
 
 type GlobalWithTwilioMocks = typeof globalThis & {

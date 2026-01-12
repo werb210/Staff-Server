@@ -48,10 +48,14 @@ type VerificationService = {
   };
 };
 
+type ServicesMock = jest.MockedFunction<
+  (serviceSid: string) => VerificationService
+>;
+
 type TwilioClientMock = {
   verify: {
     v2: {
-      services: (serviceSid: string) => VerificationService;
+      services: ServicesMock;
     };
   };
 };
@@ -61,10 +65,15 @@ const mockService: VerificationService = {
   verificationChecks: { create: createVerificationCheck },
 };
 
+const services: ServicesMock = jest.fn((serviceSid: string) => {
+  twilioMockState.lastServiceSid = serviceSid;
+  return mockService;
+});
+
 const mockClient: TwilioClientMock = {
   verify: {
     v2: {
-      services: jest.fn(() => mockService),
+      services,
     },
   },
 };
@@ -83,12 +92,16 @@ type TwilioMockState = {
   createVerification: typeof createVerification;
   createVerificationCheck: typeof createVerificationCheck;
   twilioConstructor: typeof TwilioMock;
+  services: ServicesMock;
+  lastServiceSid: string | null;
 };
 
 const twilioMockState: TwilioMockState = {
   createVerification,
   createVerificationCheck,
   twilioConstructor: TwilioMock,
+  services,
+  lastServiceSid: null,
 };
 
 Object.assign(globalThis, { __twilioMocks: twilioMockState });
