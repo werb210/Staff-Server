@@ -12,12 +12,39 @@ describe("POST /api/auth/otp/start", () => {
 
   beforeEach(() => {
     process.env = { ...originalEnv };
-    process.env.TWILIO_ENABLED = "true";
     jest.resetModules();
   });
 
   afterEach(() => {
     process.env = originalEnv;
+  });
+
+  it("returns 503 when Twilio missing", async () => {
+    delete process.env.TWILIO_ACCOUNT_SID;
+    delete process.env.TWILIO_AUTH_TOKEN;
+    delete process.env.TWILIO_VERIFY_SERVICE_SID;
+    jest.resetModules();
+
+    const app = buildTestApp();
+    const res = await request(app)
+      .post("/api/auth/otp/start")
+      .send({ phone: "+15878881337" });
+
+    expect(res.status).toBe(503);
+  });
+
+  it("returns 204 with CORS headers on preflight", async () => {
+    const app = buildTestApp();
+    const res = await request(app)
+      .options("/api/auth/otp/start")
+      .set("Origin", "https://staff.boreal.financial")
+      .set("Access-Control-Request-Method", "POST");
+
+    expect(res.status).toBe(204);
+    expect(res.headers["access-control-allow-origin"]).toBe(
+      "https://staff.boreal.financial"
+    );
+    expect(res.headers["access-control-allow-credentials"]).toBe("true");
   });
 
   it("returns 200 when Twilio configured", async () => {
@@ -34,16 +61,5 @@ describe("POST /api/auth/otp/start", () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ ok: true });
-  });
-
-  it("returns 503 when twilio disabled", async () => {
-    process.env.TWILIO_ENABLED = "false";
-    jest.resetModules();
-
-    const app = buildTestApp();
-    const res = await request(app).post("/api/auth/otp/start");
-
-    expect(res.status).toBe(503);
-    expect(res.body).toEqual({ error: "otp_disabled" });
   });
 });

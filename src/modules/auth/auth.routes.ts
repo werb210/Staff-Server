@@ -13,15 +13,11 @@ import {
   logoutUser,
   logoutAll,
 } from "./auth.service";
-import { twilioEnabled } from "../../config/twilio";
 
 const router = Router();
 
 router.post("/otp/start", otpRateLimit(), async (req, res, next) => {
   try {
-    if (!twilioEnabled) {
-      return res.status(503).json({ error: "otp_disabled" });
-    }
     const { phone } = req.body ?? {};
     await startOtpVerification({
       phone,
@@ -38,9 +34,6 @@ router.post("/otp/start", otpRateLimit(), async (req, res, next) => {
 
 router.post("/otp/verify", otpRateLimit(), async (req, res, next) => {
   try {
-    if (!twilioEnabled) {
-      return res.status(503).json({ error: "otp_disabled" });
-    }
     const { phone, code } = req.body ?? {};
     const result = await verifyOtpCode({
       phone,

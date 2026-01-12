@@ -96,12 +96,14 @@ export function errorHandler(
     : 0;
   if (isAuthRoute(req)) {
     const normalized = normalizeAuthError(err);
+    const explicitStatus =
+      typeof (err as { status?: unknown }).status === "number"
+        ? (err as unknown as { status: number }).status
+        : undefined;
     const status =
       err instanceof AppError
         ? err.status
-        : isDbConnectionFailure(err)
-          ? 503
-          : 500;
+        : explicitStatus ?? (isDbConnectionFailure(err) ? 503 : 500);
     logWarn("request_error", {
       requestId,
       route: req.originalUrl,
