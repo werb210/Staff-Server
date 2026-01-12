@@ -34,7 +34,7 @@ describe("boot behavior", () => {
       JWT_EXPIRES_IN: "1h",
       JWT_REFRESH_EXPIRES_IN: "1d",
       TWILIO_ACCOUNT_SID: "ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-      TWILIO_AUTH_TOKEN: "test-auth-token",
+      TWILIO_AUTH_TOKEN: "test-auth-token-1234567890",
       TWILIO_VERIFY_SERVICE_SID: "VA00000000000000000000000000000000",
     };
     let exitSpy: jest.SpyInstance | null = null;
