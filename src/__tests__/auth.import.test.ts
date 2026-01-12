@@ -1,11 +1,18 @@
-describe("auth.service import safety", () => {
-  it("does not throw on import without Twilio env vars", () => {
-    delete process.env.TWILIO_ACCOUNT_SID;
+describe("startup twilio config", () => {
+  it("crashes app if TWILIO_AUTH_TOKEN missing", () => {
+    const originalEnv = process.env;
+    process.env = { ...originalEnv };
     delete process.env.TWILIO_AUTH_TOKEN;
-    delete process.env.TWILIO_VERIFY_SERVICE_SID;
+    process.env.TWILIO_ENABLED = "true";
+
+    jest.resetModules();
 
     expect(() => {
-      require("../modules/auth/auth.service");
-    }).not.toThrow();
+      jest.isolateModules(() => {
+        require("../config/twilio");
+      });
+    }).toThrow();
+
+    process.env = originalEnv;
   });
 });
