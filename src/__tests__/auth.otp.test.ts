@@ -19,9 +19,9 @@ describe("POST /api/auth/otp/start", () => {
     process.env = originalEnv;
   });
 
-  it("returns 503 when Twilio missing", async () => {
-    delete process.env.TWILIO_ACCOUNT_SID;
-    delete process.env.TWILIO_AUTH_TOKEN;
+  it("returns 503 when Verify service SID missing", async () => {
+    process.env.TWILIO_ACCOUNT_SID = "ACxxxx";
+    process.env.TWILIO_AUTH_TOKEN = "token";
     delete process.env.TWILIO_VERIFY_SERVICE_SID;
     jest.resetModules();
 
@@ -60,5 +60,23 @@ describe("POST /api/auth/otp/start", () => {
       .send({ phone: "+15878881337" });
 
     expect(res.status).toBe(204);
+  });
+
+  it("returns 401 when Twilio auth invalid", async () => {
+    const twilioMocks = getTwilioMocks();
+    const error: any = new Error("Authentication Error - invalid username");
+    error.status = 401;
+    twilioMocks.createVerification.mockRejectedValueOnce(error);
+
+    const app = buildTestApp();
+    const res = await request(app)
+      .post("/api/auth/otp/start")
+      .send({ phone: "+15878881337" });
+
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual({
+      code: "twilio_verify_failed",
+      message: "Authentication Error - invalid username",
+    });
   });
 });
