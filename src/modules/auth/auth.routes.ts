@@ -45,8 +45,10 @@ router.post("/otp/start", otpRateLimit(), async (req, res, next) => {
     const result = await startOtp(phone);
     if (!result.ok) {
       return res.status(result.status).json({
-        code: result.code,
-        message: result.message,
+        error: result.error,
+        ...(result.twilioCode !== undefined
+          ? { twilioCode: result.twilioCode }
+          : {}),
       });
     }
     res.status(204).send();
@@ -66,7 +68,18 @@ router.post("/otp/verify", otpRateLimit(), async (req, res, next) => {
       route: "/api/auth/otp/verify",
       method: req.method,
     });
-    res.status(200).json(result);
+    if (!result.ok) {
+      return res.status(result.status).json({
+        error: result.error,
+        ...(result.twilioCode !== undefined
+          ? { twilioCode: result.twilioCode }
+          : {}),
+      });
+    }
+    res.status(200).json({
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+    });
   } catch (err) {
     handleTwilioAuthError(err, res, next);
   }

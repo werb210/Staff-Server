@@ -175,7 +175,7 @@ describe("auth contract", () => {
     });
 
     expect(second.status).toBe(401);
-    expect(second.body.code).toBe("otp_failed");
+    expect(second.body.error).toBe("Invalid or expired code");
     expectRequestId(second, requestId);
   });
 });

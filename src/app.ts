@@ -11,6 +11,7 @@ import { requestLogger } from "./middleware/requestLogger";
 import { requestTimeout } from "./middleware/requestTimeout";
 import { runStartupConsistencyCheck } from "./startup/consistencyCheck";
 import { setCriticalServicesReady, setMigrationsState } from "./startupState";
+import "./services/twilio";
 
 export function buildApp(): express.Express {
   const app = express();
