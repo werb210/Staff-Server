@@ -394,7 +394,11 @@ export async function startOtpVerification(params: {
       status: details.status,
       message: details.message,
     });
-    throw new AppError("twilio_error", details.message, 500);
+    throw new AppError(
+      "twilio_error",
+      "Verification service unavailable.",
+      500
+    );
   }
 }
 
@@ -437,7 +441,11 @@ export async function verifyOtpCode(params: {
       status: details.status,
       message: details.message,
     });
-    throw new AppError("twilio_error", details.message, 500);
+    throw new AppError(
+      "twilio_error",
+      "Verification service unavailable.",
+      500
+    );
   }
   if (status !== "approved") {
     throw new AppError("otp_failed", "OTP verification failed.", 401);
