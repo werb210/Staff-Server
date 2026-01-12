@@ -217,16 +217,23 @@ export function requireTwilioEnv(): { ok: boolean; error?: string } {
   return { ok: true };
 }
 
-let twilioClient: ReturnType<typeof twilio> | null = null;
-
 function getTwilioClient(): ReturnType<typeof twilio> {
-  if (!twilioClient) {
-    twilioClient = twilio(
-      process.env.TWILIO_ACCOUNT_SID,
-      process.env.TWILIO_AUTH_TOKEN
-    );
+  const missing = [];
+
+  if (!process.env.TWILIO_ACCOUNT_SID) missing.push("TWILIO_ACCOUNT_SID");
+  if (!process.env.TWILIO_AUTH_TOKEN) missing.push("TWILIO_AUTH_TOKEN");
+  if (!process.env.TWILIO_VERIFY_SERVICE_SID) {
+    missing.push("TWILIO_VERIFY_SERVICE_SID");
   }
-  return twilioClient;
+
+  if (missing.length) {
+    throw new Error(`Missing Twilio env vars: ${missing.join(", ")}`);
+  }
+
+  return twilio(
+    process.env.TWILIO_ACCOUNT_SID,
+    process.env.TWILIO_AUTH_TOKEN
+  );
 }
 
 function getTwilioVerifyServiceSid(): string {
@@ -273,17 +280,6 @@ function maskPhoneNumber(phoneE164: string): string {
   return `${head}${masked}${tail}`;
 }
 
-async function requestTwilioVerification(
-  serviceSid: string,
-  phoneE164: string,
-  channel: "sms"
-): Promise<{ sid: string; status: string }> {
-  const response = await getTwilioClient().verify.v2
-    .services(serviceSid)
-    .verifications.create({ to: phoneE164, channel });
-  return { sid: response.sid, status: response.status };
-}
-
 async function requestTwilioVerificationCheck(
   serviceSid: string,
   phoneE164: string,
@@ -293,6 +289,17 @@ async function requestTwilioVerificationCheck(
     .services(serviceSid)
     .verificationChecks.create({ to: phoneE164, code });
   return result.status;
+}
+
+export async function startOtp(phone: string) {
+  const client = getTwilioClient();
+
+  return client.verify.v2
+    .services(process.env.TWILIO_VERIFY_SERVICE_SID!)
+    .verifications.create({
+      to: phone,
+      channel: "sms",
+    });
 }
 
 async function findOrCreateUserByPhone(
@@ -359,11 +366,7 @@ export async function startOtpVerification(params: {
       serviceSid,
       channel: "sms",
     });
-    const verification = await requestTwilioVerification(
-      serviceSid,
-      phoneE164,
-      "sms"
-    );
+    const verification = await startOtp(phoneE164);
     logInfo("otp_start_success", {
       phone: maskedPhone,
       serviceSid,
