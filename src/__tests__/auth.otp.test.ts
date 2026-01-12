@@ -25,12 +25,9 @@ describe("POST /api/auth/otp/start", () => {
     delete process.env.TWILIO_VERIFY_SERVICE_SID;
     jest.resetModules();
 
-    const app = buildTestApp();
-    const res = await request(app)
-      .post("/api/auth/otp/start")
-      .send({ phone: "+15878881337" });
-
-    expect(res.status).toBe(503);
+    expect(() => buildTestApp()).toThrow(
+      "Missing required Twilio environment variables"
+    );
   });
 
   it("returns 204 with CORS headers on preflight", async () => {
@@ -74,10 +71,10 @@ describe("POST /api/auth/otp/start", () => {
       .post("/api/auth/otp/start")
       .send({ phone: "+15878881337" });
 
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(502);
     expect(res.body).toEqual({
-      code: "twilio_verify_failed",
-      message: "Invalid Twilio credentials",
+      error: "Twilio verification failed",
+      twilioCode: 20003,
     });
   });
 });

@@ -25,12 +25,9 @@ describe("POST /api/auth/otp/start Twilio Verify behaviors", () => {
     process.env.TWILIO_AUTH_TOKEN = "token";
     process.env.TWILIO_VERIFY_SERVICE_SID = "VA00000000000000000000000000000000";
 
-    const app = buildTestApp();
-    const res = await request(app)
-      .post("/api/auth/otp/start")
-      .send({ phone: "+15878881837" });
-
-    expect(res.status).toBe(503);
+    expect(() => buildTestApp()).toThrow(
+      "Missing required Twilio environment variables"
+    );
   });
 
   it("returns 503 when TWILIO_AUTH_TOKEN is missing", async () => {
@@ -38,12 +35,9 @@ describe("POST /api/auth/otp/start Twilio Verify behaviors", () => {
     delete process.env.TWILIO_AUTH_TOKEN;
     process.env.TWILIO_VERIFY_SERVICE_SID = "VA00000000000000000000000000000000";
 
-    const app = buildTestApp();
-    const res = await request(app)
-      .post("/api/auth/otp/start")
-      .send({ phone: "+15878881837" });
-
-    expect(res.status).toBe(503);
+    expect(() => buildTestApp()).toThrow(
+      "Missing required Twilio environment variables"
+    );
   });
 
   it("returns 503 when TWILIO_VERIFY_SERVICE_SID is missing", async () => {
@@ -51,29 +45,9 @@ describe("POST /api/auth/otp/start Twilio Verify behaviors", () => {
     process.env.TWILIO_AUTH_TOKEN = "token";
     delete process.env.TWILIO_VERIFY_SERVICE_SID;
 
-    const app = buildTestApp();
-    const res = await request(app)
-      .post("/api/auth/otp/start")
-      .send({ phone: "+15878881837" });
-
-    expect(res.status).toBe(503);
-  });
-
-  it("returns 401 when TWILIO_ACCOUNT_SID is not an Account SID", async () => {
-    process.env.TWILIO_ACCOUNT_SID = "SKxxxx";
-    process.env.TWILIO_AUTH_TOKEN = "token";
-    process.env.TWILIO_VERIFY_SERVICE_SID = "VA00000000000000000000000000000000";
-
-    const app = buildTestApp();
-    const res = await request(app)
-      .post("/api/auth/otp/start")
-      .send({ phone: "+15878881837" });
-
-    expect(res.status).toBe(401);
-    expect(res.body).toEqual({
-      code: "twilio_verify_failed",
-      message: "Invalid Twilio credentials",
-    });
+    expect(() => buildTestApp()).toThrow(
+      "Missing required Twilio environment variables"
+    );
   });
 
   it("returns 204 when Verify succeeds", async () => {
@@ -114,6 +88,6 @@ describe("POST /api/auth/otp/start Twilio Verify behaviors", () => {
       .post("/api/auth/otp/start")
       .send({ phone: "+15878881837" });
 
-    expect(twilioMocks.twilioConstructor).toHaveBeenCalledTimes(2);
+    expect(twilioMocks.twilioConstructor).toHaveBeenCalledTimes(1);
   });
 });

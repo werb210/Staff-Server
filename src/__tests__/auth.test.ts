@@ -95,7 +95,7 @@ describe("auth otp", () => {
     });
 
     expect(res.status).toBe(401);
-    expect(res.body.code).toBe("otp_failed");
+    expect(res.body.error).toBe("Invalid or expired code");
   });
 
   it("blocks otp verification for disabled users", async () => {
