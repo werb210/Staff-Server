@@ -10,6 +10,7 @@ import reportingRoutes from "./routes/reporting";
 import reportsRoutes from "./routes/reports";
 import staffRoutes from "./routes/staff";
 import usersRoutes from "./routes/users";
+import debugRoutes from "./routes/debug";
 import { errorHandler, notFoundHandler } from "./middleware/errors";
 import { enforceSecureCookies, requireHttps } from "./middleware/security";
 import { idempotencyMiddleware } from "./middleware/idempotency";
@@ -21,6 +22,7 @@ router.use(enforceSecureCookies);
 router.use(idempotencyMiddleware);
 
 router.use("/_int", internalRoutes);
+router.use("/_debug", debugRoutes);
 router.use("/auth", authRoutes);
 router.use("/applications", applicationsRoutes);
 router.use("/client", clientRoutes);
