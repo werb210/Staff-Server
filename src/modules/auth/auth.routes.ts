@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type NextFunction, type Response } from "express";
 import { AppError } from "../../middleware/errors";
 import {
   otpRateLimit,
@@ -16,6 +16,29 @@ import {
 
 const router = Router();
 
+const isTwilioAuthError = (err: unknown): err is { code: number } => {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    (err as { code?: number }).code === 20003
+  );
+};
+
+function handleTwilioAuthError(
+  err: unknown,
+  res: Response,
+  next: NextFunction
+) {
+  if (isTwilioAuthError(err)) {
+    return res.status(401).json({
+      code: "twilio_verify_failed",
+      message: "Invalid Twilio credentials",
+    });
+  }
+  return next(err);
+}
+
 router.post("/otp/start", otpRateLimit(), async (req, res, next) => {
   try {
     const { phone } = req.body ?? {};
@@ -28,7 +51,7 @@ router.post("/otp/start", otpRateLimit(), async (req, res, next) => {
     }
     res.status(204).send();
   } catch (err) {
-    next(err);
+    handleTwilioAuthError(err, res, next);
   }
 });
 
@@ -45,7 +68,7 @@ router.post("/otp/verify", otpRateLimit(), async (req, res, next) => {
     });
     res.status(200).json(result);
   } catch (err) {
-    next(err);
+    handleTwilioAuthError(err, res, next);
   }
 });
 

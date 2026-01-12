@@ -80,10 +80,9 @@ const TwilioMock = jest.fn<
   [string | undefined, string | undefined, ClientOpts | undefined]
 >(() => mockClient);
 
-jest.mock("twilio", () => ({
-  __esModule: true,
-  default: TwilioMock,
-}));
+const twilioModule = Object.assign(TwilioMock, { default: TwilioMock });
+
+jest.mock("twilio", () => twilioModule);
 
 type TwilioMockState = {
   createVerification: typeof createVerification;

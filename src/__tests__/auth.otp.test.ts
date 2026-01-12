@@ -64,7 +64,8 @@ describe("POST /api/auth/otp/start", () => {
 
   it("returns 401 when Twilio auth invalid", async () => {
     const twilioMocks = getTwilioMocks();
-    const error: any = new Error("Authentication Error - invalid username");
+    const error: any = new Error("Authentication failed");
+    error.code = 20003;
     error.status = 401;
     twilioMocks.createVerification.mockRejectedValueOnce(error);
 
@@ -76,7 +77,7 @@ describe("POST /api/auth/otp/start", () => {
     expect(res.status).toBe(401);
     expect(res.body).toEqual({
       code: "twilio_verify_failed",
-      message: "Authentication Error - invalid username",
+      message: "Invalid Twilio credentials",
     });
   });
 });
