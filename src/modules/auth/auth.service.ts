@@ -217,7 +217,7 @@ function requireTwilioClient() {
 
 function getTwilioVerifyServiceSid(): string {
   const serviceSid = (process.env.TWILIO_VERIFY_SERVICE_SID ?? "").trim();
-  if (!serviceSid) {
+  if (!serviceSid || !serviceSid.startsWith("VA")) {
     throw Object.assign(new Error("OTP service unavailable"), { status: 503 });
   }
   return serviceSid;
@@ -269,10 +269,14 @@ async function requestTwilioVerificationCheck(
   return result.status;
 }
 
-export async function startOtp(phone: string) {
+type StartOtpResult =
+  | { ok: true }
+  | { ok: false; status: number; code: string; message: string };
+
+export async function startOtp(phone: string): Promise<StartOtpResult> {
   const { available, client } = getTwilioClient();
 
-  if (!available || !client) {
+  if (!client || !available) {
     return {
       ok: false,
       status: 503,
@@ -282,18 +286,39 @@ export async function startOtp(phone: string) {
   }
 
   try {
-    const serviceSid = process.env.TWILIO_VERIFY_SERVICE_SID!;
+    const serviceSid = getTwilioVerifyServiceSid();
+    const phoneE164 = normalizePhone(phone?.trim() ?? "");
+    const maskedPhone = maskPhoneNumber(phoneE164);
     await client.verify.v2
       .services(serviceSid)
-      .verifications.create({ to: phone, channel: "sms" });
-
+      .verifications.create({ to: phoneE164, channel: "sms" });
+    logInfo("otp_start_success", { phone: maskedPhone, serviceSid });
     return { ok: true };
   } catch (err: any) {
+    const details = getTwilioErrorDetails(err);
+    const phoneE164 = normalizePhone(phone?.trim() ?? "");
+    const maskedPhone = maskPhoneNumber(phoneE164);
+    logWarn("auth_twilio_verify_failed", {
+      action: "otp_start",
+      phone: maskedPhone,
+      serviceSid: process.env.TWILIO_VERIFY_SERVICE_SID,
+      code: details.code,
+      status: details.status,
+      message: details.message,
+    });
+    if (details.status === 401) {
+      return {
+        ok: false,
+        status: 401,
+        code: "twilio_verify_failed",
+        message: "Authentication Error - invalid username",
+      };
+    }
     return {
       ok: false,
-      status: err?.status || 502,
+      status: details.status || 502,
       code: "twilio_verify_failed",
-      message: err?.message || "Verify failed",
+      message: details.message || "Verify failed",
     };
   }
 }
