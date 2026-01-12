@@ -201,48 +201,29 @@ export function assertAuthSubsystem(): void {
   }
 }
 
-let twilioEnvValidated = false;
-
-export function assertTwilioVerifyEnv(): void {
-  if (twilioEnvValidated) {
-    return;
-  }
-  const requiredKeys = [
+function assertTwilioVerifyEnvRuntime(): void {
+  const required = [
     "TWILIO_ACCOUNT_SID",
     "TWILIO_AUTH_TOKEN",
     "TWILIO_VERIFY_SERVICE_SID",
   ];
-  const missing = requiredKeys.filter((key) => !process.env[key]);
+  const missing = required.filter((key) => !process.env[key]);
   if (missing.length > 0) {
-    logError("twilio_env_missing", { missing });
-    throw new Error(`Missing Twilio environment variables: ${missing.join(", ")}`);
+    throw new Error(`Missing Twilio env vars: ${missing.join(", ")}`);
   }
-  const accountSid = process.env.TWILIO_ACCOUNT_SID ?? "";
-  const authToken = process.env.TWILIO_AUTH_TOKEN ?? "";
-  const accountSidValid = accountSid.startsWith("AC");
-  const authTokenValid = authToken.length > 20;
-  if (!accountSidValid || !authTokenValid) {
-    logError("twilio_env_invalid", {
-      accountSidPrefix: accountSid.slice(0, 2),
-      authTokenLength: authToken.length,
-    });
-    throw new Error("Invalid Twilio credentials for Verify.");
-  }
-  logInfo("twilio_env_validated", {
-    accountSidPrefix: accountSid.slice(0, 2),
-    authTokenLength: authToken.length,
-  });
-  twilioEnvValidated = true;
 }
 
-export const twilioClient = (() => {
-  assertTwilioVerifyEnv();
-  const client = twilio(
-    process.env.TWILIO_ACCOUNT_SID,
-    process.env.TWILIO_AUTH_TOKEN
-  );
-  return client;
-})();
+let twilioClient: ReturnType<typeof twilio> | null = null;
+
+function getTwilioClient(): ReturnType<typeof twilio> {
+  if (!twilioClient) {
+    twilioClient = twilio(
+      process.env.TWILIO_ACCOUNT_SID,
+      process.env.TWILIO_AUTH_TOKEN
+    );
+  }
+  return twilioClient;
+}
 
 function getTwilioVerifyServiceSid(): string {
   const serviceSid = process.env.TWILIO_VERIFY_SERVICE_SID;
@@ -297,7 +278,7 @@ async function requestTwilioVerification(
   phoneE164: string,
   channel: "sms"
 ): Promise<{ sid: string; status: string }> {
-  const response = await twilioClient.verify.v2
+  const response = await getTwilioClient().verify.v2
     .services(serviceSid)
     .verifications.create({ to: phoneE164, channel });
   return { sid: response.sid, status: response.status };
@@ -308,7 +289,7 @@ async function requestTwilioVerificationCheck(
   phoneE164: string,
   code: string
 ): Promise<string | undefined> {
-  const result = await twilioClient.verify.v2
+  const result = await getTwilioClient().verify.v2
     .services(serviceSid)
     .verificationChecks.create({ to: phoneE164, code });
   return result.status;
@@ -361,6 +342,7 @@ export async function startOtpVerification(params: {
   if (!rawPhone) {
     throw new AppError("validation_error", "Phone is required.", 400);
   }
+  assertTwilioVerifyEnvRuntime();
   const phoneE164 = normalizePhone(rawPhone);
   const serviceSid = getTwilioVerifyServiceSid();
   const maskedPhone = maskPhoneNumber(phoneE164);
