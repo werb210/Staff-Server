@@ -49,6 +49,23 @@ afterAll(async () => {
 });
 
 describe("auth otp", () => {
+  it("initializes Twilio with Account SID auth", () => {
+    const { twilioConstructor } = getTwilioMocks();
+    expect(twilioConstructor).not.toHaveBeenCalled();
+    jest.isolateModules(() => {
+      const { twilioClient } = require("../modules/auth/auth.service");
+      expect(twilioClient).toBeTruthy();
+    });
+    expect(twilioConstructor).toHaveBeenCalled();
+    const [accountSid, authToken] = twilioConstructor.mock.calls[0] ?? [];
+    expect(accountSid).toBe(process.env.TWILIO_ACCOUNT_SID);
+    expect(authToken).toBe(process.env.TWILIO_AUTH_TOKEN);
+    for (const [sid] of twilioConstructor.mock.calls) {
+      expect(String(sid).startsWith("SK")).toBe(false);
+      expect(String(sid).startsWith("AC")).toBe(true);
+    }
+  });
+
   it("starts otp verification with Twilio Verify", async () => {
     const { createVerification, services } = getTwilioMocks();
     createVerification.mockClear();

@@ -15,7 +15,7 @@ process.env.RUN_MIGRATIONS = "false";
 process.env.DB_READY_ATTEMPTS = "1";
 process.env.DB_READY_BASE_DELAY_MS = "1";
 process.env.TWILIO_ACCOUNT_SID = "ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
-process.env.TWILIO_AUTH_TOKEN = "test-auth-token";
+process.env.TWILIO_AUTH_TOKEN = "test-auth-token-1234567890";
 process.env.TWILIO_VERIFY_SERVICE_SID = "VA00000000000000000000000000000000";
 
 setDbConnected(true);

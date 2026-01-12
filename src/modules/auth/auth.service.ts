@@ -1,7 +1,7 @@
 import jwt, { type SignOptions } from "jsonwebtoken";
 import { createHash, randomBytes } from "crypto";
 import { type PoolClient } from "pg";
-import Twilio from "twilio";
+import twilio from "twilio";
 import {
   createUser,
   consumeRefreshToken,
@@ -217,12 +217,27 @@ export function assertTwilioVerifyEnv(): void {
     logError("twilio_env_missing", { missing });
     throw new Error(`Missing Twilio environment variables: ${missing.join(", ")}`);
   }
+  const accountSid = process.env.TWILIO_ACCOUNT_SID ?? "";
+  const authToken = process.env.TWILIO_AUTH_TOKEN ?? "";
+  const accountSidValid = accountSid.startsWith("AC");
+  const authTokenValid = authToken.length > 20;
+  if (!accountSidValid || !authTokenValid) {
+    logError("twilio_env_invalid", {
+      accountSidPrefix: accountSid.slice(0, 2),
+      authTokenLength: authToken.length,
+    });
+    throw new Error("Invalid Twilio credentials for Verify.");
+  }
+  logInfo("twilio_env_validated", {
+    accountSidPrefix: accountSid.slice(0, 2),
+    authTokenLength: authToken.length,
+  });
   twilioEnvValidated = true;
 }
 
 export const twilioClient = (() => {
   assertTwilioVerifyEnv();
-  const client = new Twilio(
+  const client = twilio(
     process.env.TWILIO_ACCOUNT_SID,
     process.env.TWILIO_AUTH_TOKEN
   );
