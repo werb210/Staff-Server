@@ -364,7 +364,7 @@ export async function startOtpVerification(params: {
   const phoneE164 = normalizePhoneToE164(rawPhone);
   const serviceSid = getTwilioVerifyServiceSid();
   const maskedPhone = maskPhoneNumber(phoneE164);
-  logInfo("otp_start_request", {
+  logInfo("otp_start_request_received", {
     route: params.route,
     method: params.method,
     phone: phoneE164,
@@ -373,6 +373,11 @@ export async function startOtpVerification(params: {
     userAgent: params.userAgent,
   });
   try {
+    logInfo("otp_start_twilio_called", {
+      phone: maskedPhone,
+      serviceSid,
+      channel: "sms",
+    });
     const verification = await requestTwilioVerification(
       serviceSid,
       phoneE164,
@@ -386,6 +391,13 @@ export async function startOtpVerification(params: {
     });
   } catch (err) {
     const details = getTwilioErrorDetails(err);
+    logWarn("otp_start_error", {
+      phone: maskedPhone,
+      serviceSid,
+      code: details.code,
+      status: details.status,
+      message: details.message,
+    });
     logWarn("auth_twilio_verify_failed", {
       action: "otp_start",
       phone: maskedPhone,
