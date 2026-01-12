@@ -12,12 +12,19 @@ import {
   refreshSession,
   logoutUser,
   logoutAll,
+  requireTwilioEnv,
 } from "./auth.service";
 
 const router = Router();
 
 router.post("/otp/start", otpRateLimit(), async (req, res, next) => {
   try {
+    const envCheck = requireTwilioEnv();
+    if (!envCheck.ok) {
+      return res.status(500).json({
+        error: envCheck.error ?? "Twilio environment is not configured.",
+      });
+    }
     const { phone } = req.body ?? {};
     await startOtpVerification({
       phone,
@@ -34,6 +41,12 @@ router.post("/otp/start", otpRateLimit(), async (req, res, next) => {
 
 router.post("/otp/verify", otpRateLimit(), async (req, res, next) => {
   try {
+    const envCheck = requireTwilioEnv();
+    if (!envCheck.ok) {
+      return res.status(500).json({
+        error: envCheck.error ?? "Twilio environment is not configured.",
+      });
+    }
     const { phone, code } = req.body ?? {};
     const result = await verifyOtpCode({
       phone,

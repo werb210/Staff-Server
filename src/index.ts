@@ -50,11 +50,6 @@ async function logStartupStatus(): Promise<void> {
 }
 
 const app = buildApp();
-console.info("[BOOT] Twilio envs", {
-  accountSid: !!process.env.TWILIO_ACCOUNT_SID,
-  authToken: !!process.env.TWILIO_AUTH_TOKEN,
-  verifySid: !!process.env.TWILIO_VERIFY_SERVICE_SID,
-});
 registerApiRoutes(app);
 const PORT = Number(process.env.PORT ?? 8080);
 
