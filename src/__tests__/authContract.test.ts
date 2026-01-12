@@ -6,26 +6,18 @@ import { ROLES } from "../auth/roles";
 import { runMigrations } from "../migrations";
 import { resetLoginRateLimit } from "../middleware/rateLimit";
 import { ensureAuditEventSchema } from "./helpers/auditSchema";
+import { otpVerifyRequest } from "./helpers/otpAuth";
 
 const app = buildAppWithApiRoutes();
 let idempotencyCounter = 0;
 let requestCounter = 0;
+let phoneCounter = 700;
 
 const nextIdempotencyKey = (): string => `idem-auth-contract-${idempotencyCounter++}`;
 const nextRequestId = (): string => `auth-contract-req-${requestCounter++}`;
 
-const loginRequest = (
-  payload: { email: string; password: string },
-  options: { idempotencyKey?: string; requestId: string }
-) => {
-  const req = request(app)
-    .post("/api/auth/login")
-    .set("x-request-id", options.requestId);
-  if (options.idempotencyKey) {
-    req.set("Idempotency-Key", options.idempotencyKey);
-  }
-  return req.send(payload);
-};
+const nextPhone = (): string =>
+  `+1415555${String(phoneCounter++).padStart(4, "0")}`;
 
 async function resetDb(): Promise<void> {
   const client = await pool.connect();
@@ -84,6 +76,7 @@ beforeEach(async () => {
   resetLoginRateLimit();
   idempotencyCounter = 0;
   requestCounter = 0;
+  phoneCounter = 700;
 });
 
 afterAll(async () => {
@@ -92,17 +85,19 @@ afterAll(async () => {
 
 describe("auth contract", () => {
   it("accepts idempotency key for login", async () => {
+    const phone = nextPhone();
     await createUserAccount({
       email: "contract-login@example.com",
-      password: "Password123!",
+      phoneNumber: phone,
       role: ROLES.USER,
     });
 
     const requestId = nextRequestId();
-    const res = await loginRequest(
-      { email: "contract-login@example.com", password: "Password123!" },
-      { idempotencyKey: nextIdempotencyKey(), requestId }
-    );
+    const res = await otpVerifyRequest(app, {
+      phone,
+      requestId,
+      idempotencyKey: nextIdempotencyKey(),
+    });
 
     expect([200, 401]).toContain(res.status);
     if (res.status === 200) {
@@ -112,32 +107,40 @@ describe("auth contract", () => {
   });
 
   it("allows login when idempotency key is missing", async () => {
+    const phone = nextPhone();
+    await createUserAccount({
+      email: "missing-idem@example.com",
+      phoneNumber: phone,
+      role: ROLES.USER,
+    });
     const requestId = nextRequestId();
-    const res = await loginRequest(
-      { email: "missing-idem@example.com", password: "Password123!" },
-      { requestId }
-    );
+    const res = await otpVerifyRequest(app, { phone, requestId });
 
     expect([200, 401]).toContain(res.status);
     expectRequestId(res, requestId);
   });
 
   it("does not cache login responses for duplicate idempotency keys", async () => {
+    const phone = nextPhone();
     await createUserAccount({
       email: "duplicate-idem@example.com",
-      password: "Password123!",
+      phoneNumber: phone,
       role: ROLES.STAFF,
     });
 
     const requestId = nextRequestId();
     const idempotencyKey = nextIdempotencyKey();
-    const payload = {
-      email: "duplicate-idem@example.com",
-      password: "Password123!",
-    };
 
-    const first = await loginRequest(payload, { idempotencyKey, requestId });
-    const second = await loginRequest(payload, { idempotencyKey, requestId });
+    const first = await otpVerifyRequest(app, {
+      phone,
+      requestId,
+      idempotencyKey,
+    });
+    const second = await otpVerifyRequest(app, {
+      phone,
+      requestId,
+      idempotencyKey,
+    });
 
     expect(first.status).toBe(200);
     expect(second.status).toBe(200);
@@ -146,29 +149,33 @@ describe("auth contract", () => {
   });
 
   it("ignores idempotency conflicts for login payload changes", async () => {
+    const phone = nextPhone();
     await createUserAccount({
       email: "conflict-idem@example.com",
-      password: "Password123!",
+      phoneNumber: phone,
       role: ROLES.USER,
     });
 
     const requestId = nextRequestId();
     const idempotencyKey = nextIdempotencyKey();
 
-    const first = await loginRequest(
-      { email: "conflict-idem@example.com", password: "Password123!" },
-      { idempotencyKey, requestId }
-    );
+    const first = await otpVerifyRequest(app, {
+      phone,
+      requestId,
+      idempotencyKey,
+    });
 
     expect([200, 401]).toContain(first.status);
 
-    const second = await loginRequest(
-      { email: "conflict-idem@example.com", password: "WrongPassword!" },
-      { idempotencyKey, requestId }
-    );
+    const second = await otpVerifyRequest(app, {
+      phone,
+      code: "000000",
+      requestId,
+      idempotencyKey,
+    });
 
     expect(second.status).toBe(401);
-    expect(second.body.code).toBe("invalid_credentials");
+    expect(second.body.code).toBe("otp_failed");
     expectRequestId(second, requestId);
   });
 });

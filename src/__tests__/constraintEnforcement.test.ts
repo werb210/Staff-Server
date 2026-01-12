@@ -5,10 +5,14 @@ import { createUserAccount } from "../modules/auth/auth.service";
 import { ROLES } from "../auth/roles";
 import { runMigrations } from "../migrations";
 import { ensureAuditEventSchema } from "./helpers/auditSchema";
+import { otpVerifyRequest } from "./helpers/otpAuth";
 
 const app = buildAppWithApiRoutes();
 let idempotencyCounter = 0;
 const nextIdempotencyKey = (): string => `idem-constraint-${idempotencyCounter++}`;
+let phoneCounter = 400;
+const nextPhone = (): string =>
+  `+1415555${String(phoneCounter++).padStart(4, "0")}`;
 
 async function resetDb(): Promise<void> {
   await pool.query("delete from client_submissions");
@@ -26,17 +30,18 @@ async function resetDb(): Promise<void> {
 }
 
 async function loginAdmin(): Promise<string> {
+  const adminPhone = nextPhone();
   await createUserAccount({
     email: "admin-constraint@example.com",
-    password: "Password123!",
+    phoneNumber: adminPhone,
     role: ROLES.ADMIN,
   });
 
-  const res = await request(app)
-    .post("/api/auth/login")
-    .set("Idempotency-Key", nextIdempotencyKey())
-    .set("x-request-id", "admin-login")
-    .send({ email: "admin-constraint@example.com", password: "Password123!" });
+  const res = await otpVerifyRequest(app, {
+    phone: adminPhone,
+    requestId: "admin-login",
+    idempotencyKey: nextIdempotencyKey(),
+  });
 
   return res.body.accessToken as string;
 }
@@ -58,6 +63,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   await resetDb();
   idempotencyCounter = 0;
+  phoneCounter = 400;
 });
 
 afterAll(async () => {
@@ -73,7 +79,7 @@ describe("constraint enforcement", () => {
       .set("Authorization", `Bearer ${token}`)
       .set("x-request-id", "create-user-1")
       .set("Idempotency-Key", nextIdempotencyKey())
-      .send({ email: "dupe@example.com", password: "Password123!", role: "staff" });
+      .send({ email: "dupe@example.com", phoneNumber: nextPhone(), role: "staff" });
 
     expect(first.status).toBe(201);
 
@@ -84,7 +90,7 @@ describe("constraint enforcement", () => {
         .set("Authorization", `Bearer ${token}`)
         .set("x-request-id", "create-user-2")
         .set("Idempotency-Key", nextIdempotencyKey())
-        .send({ email: "dupe@example.com", password: "Password123!", role: "staff" });
+        .send({ email: "dupe@example.com", phoneNumber: nextPhone(), role: "staff" });
 
       expect(second.status).toBe(409);
       expect(second.body.code).toBe("constraint_violation");

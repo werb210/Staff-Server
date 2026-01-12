@@ -5,11 +5,15 @@ import { createUserAccount } from "../modules/auth/auth.service";
 import { ROLES } from "../auth/roles";
 import { runMigrations } from "../migrations";
 import { ensureAuditEventSchema } from "./helpers/auditSchema";
+import { otpVerifyRequest } from "./helpers/otpAuth";
 
 const app = buildAppWithApiRoutes();
 const requestId = "test-request-id";
 let idempotencyCounter = 0;
 const nextIdempotencyKey = (): string => `idem-lender-${idempotencyCounter++}`;
+let phoneCounter = 1100;
+const nextPhone = (): string =>
+  `+1415555${String(phoneCounter++).padStart(4, "0")}`;
 
 async function resetDb(): Promise<void> {
   await pool.query("delete from client_submissions");
@@ -45,6 +49,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   await resetDb();
   idempotencyCounter = 0;
+  phoneCounter = 1100;
 });
 
 afterAll(async () => {
@@ -53,19 +58,17 @@ afterAll(async () => {
 
 describe("lender submissions", () => {
   it("prevents duplicate submissions and persists status", async () => {
+    const staffPhone = nextPhone();
     await createUserAccount({
       email: "lender@apps.com",
-      password: "Password123!",
+      phoneNumber: staffPhone,
       role: ROLES.STAFF,
     });
 
-    const login = await request(app)
-      .post("/api/auth/login")
-      .set("Idempotency-Key", nextIdempotencyKey())
-      .set("x-request-id", requestId)
-      .send({
-      email: "lender@apps.com",
-      password: "Password123!",
+    const login = await otpVerifyRequest(app, {
+      phone: staffPhone,
+      requestId,
+      idempotencyKey: nextIdempotencyKey(),
     });
 
     const appRes = await request(app)
@@ -152,19 +155,17 @@ describe("lender submissions", () => {
   });
 
   it("rejects submissions without required documents", async () => {
+    const staffPhone = nextPhone();
     await createUserAccount({
       email: "lender2@apps.com",
-      password: "Password123!",
+      phoneNumber: staffPhone,
       role: ROLES.STAFF,
     });
 
-    const login = await request(app)
-      .post("/api/auth/login")
-      .set("Idempotency-Key", nextIdempotencyKey())
-      .set("x-request-id", requestId)
-      .send({
-      email: "lender2@apps.com",
-      password: "Password123!",
+    const login = await otpVerifyRequest(app, {
+      phone: staffPhone,
+      requestId,
+      idempotencyKey: nextIdempotencyKey(),
     });
 
     const appRes = await request(app)
@@ -187,20 +188,18 @@ describe("lender submissions", () => {
   });
 
   it("retries failed lender submissions", async () => {
+    const adminPhone = nextPhone();
     await createUserAccount({
       email: "retry@apps.com",
-      password: "Password123!",
+      phoneNumber: adminPhone,
       role: ROLES.ADMIN,
     });
 
-    const login = await request(app)
-      .post("/api/auth/login")
-      .set("Idempotency-Key", nextIdempotencyKey())
-      .set("x-request-id", requestId)
-      .send({
-        email: "retry@apps.com",
-        password: "Password123!",
-      });
+    const login = await otpVerifyRequest(app, {
+      phone: adminPhone,
+      requestId,
+      idempotencyKey: nextIdempotencyKey(),
+    });
 
     const appRes = await request(app)
       .post("/api/applications")

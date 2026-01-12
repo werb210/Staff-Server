@@ -26,8 +26,21 @@ describe("boot behavior", () => {
 
   it("starts without required env vars and serves boot endpoints", async () => {
     const originalEnv = process.env;
-    process.env = { PORT: "0", STARTUP_WATCHDOG_MS: "2000" };
-    let exitSpy: jest.SpyInstance;
+    process.env = {
+      PORT: "0",
+      STARTUP_WATCHDOG_MS: "2000",
+      JWT_SECRET: "test-access-secret",
+      JWT_REFRESH_SECRET: "test-refresh-secret",
+      JWT_EXPIRES_IN: "1h",
+      JWT_REFRESH_EXPIRES_IN: "1d",
+      TWILIO_ACCOUNT_SID: "ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+      TWILIO_AUTH_TOKEN: "test-auth-token",
+      TWILIO_VERIFY_SERVICE_SID: "VA00000000000000000000000000000000",
+      TWILIO_PHONE_NUMBER: "+14155550100",
+      TWILIO_CALLER_ID: "+14155550101",
+      TWILIO_TWIML_APP_SID: "AP00000000000000000000000000000000",
+    };
+    let exitSpy: jest.SpyInstance | null = null;
 
     try {
       exitSpy = jest

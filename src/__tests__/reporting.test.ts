@@ -20,13 +20,15 @@ import {
   runStaffActivityJob,
 } from "../modules/reporting/reporting.jobs";
 import { ensureAuditEventSchema } from "./helpers/auditSchema";
+import { otpVerifyRequest } from "./helpers/otpAuth";
 
 const app = buildAppWithApiRoutes();
 const requestId = "test-request-id";
 let idempotencyCounter = 0;
 const nextIdempotencyKey = (): string => `idem-reporting-${idempotencyCounter++}`;
-const postWithRequestId = (url: string) =>
-  request(app).post(url).set("x-request-id", requestId).set("Idempotency-Key", nextIdempotencyKey());
+let phoneCounter = 900;
+const nextPhone = (): string =>
+  `+1415555${String(phoneCounter++).padStart(4, "0")}`;
 
 async function resetDb(): Promise<void> {
   await pool.query("delete from reporting_lender_funnel_daily");
@@ -70,6 +72,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   await resetDb();
   idempotencyCounter = 0;
+  phoneCounter = 900;
 });
 
 afterAll(async () => {
@@ -79,12 +82,12 @@ afterAll(async () => {
 async function seedReportingData(): Promise<{ ownerId: string; staffId: string }> {
   const owner = await createUserAccount({
     email: "owner@reports.test",
-    password: "Password123!",
+    phoneNumber: nextPhone(),
     role: ROLES.USER,
   });
   const staff = await createUserAccount({
     email: "staff@reports.test",
-    password: "Password123!",
+    phoneNumber: nextPhone(),
     role: ROLES.STAFF,
   });
 
@@ -255,24 +258,28 @@ describe("reporting", () => {
   });
 
   it("enforces reporting access roles", async () => {
+    const userPhone = nextPhone();
+    const adminPhone = nextPhone();
     await createUserAccount({
       email: "user@reports.test",
-      password: "Password123!",
+      phoneNumber: userPhone,
       role: ROLES.USER,
     });
     await createUserAccount({
       email: "admin@reports.test",
-      password: "Password123!",
+      phoneNumber: adminPhone,
       role: ROLES.ADMIN,
     });
 
-    const userLogin = await postWithRequestId("/api/auth/login").send({
-      email: "user@reports.test",
-      password: "Password123!",
+    const userLogin = await otpVerifyRequest(app, {
+      phone: userPhone,
+      requestId,
+      idempotencyKey: nextIdempotencyKey(),
     });
-    const adminLogin = await postWithRequestId("/api/auth/login").send({
-      email: "admin@reports.test",
-      password: "Password123!",
+    const adminLogin = await otpVerifyRequest(app, {
+      phone: adminPhone,
+      requestId,
+      idempotencyKey: nextIdempotencyKey(),
     });
 
     const forbidden = await request(app)

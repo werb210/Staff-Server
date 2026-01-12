@@ -236,6 +236,17 @@ export async function runMigrations(): Promise<void> {
         ) {
           continue;
         }
+        if (isPgMem && /\bregexp_replace\s*\(/i.test(normalized)) {
+          continue;
+        }
+        if (
+          isPgMem &&
+          /^\s*alter\s+table\s+users\s+alter\s+column\s+phone_number\s+set\s+not\s+null/i.test(
+            normalized
+          )
+        ) {
+          continue;
+        }
         try {
           await client.query(normalized);
         } catch (error) {
