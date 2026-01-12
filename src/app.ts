@@ -1,7 +1,9 @@
 import express from "express";
+import cors from "cors";
 
 import apiRouter from "./api";
-import readyRoutes, { healthHandler } from "./routes/ready";
+import internalRoutes from "./routes/_int";
+import { healthHandler } from "./routes/ready";
 import { printRoutes } from "./debug/printRoutes";
 import { getPendingMigrations, runMigrations } from "./migrations";
 import { requestId } from "./middleware/requestId";
@@ -10,48 +12,18 @@ import { requestTimeout } from "./middleware/requestTimeout";
 import { runStartupConsistencyCheck } from "./startup/consistencyCheck";
 import { setCriticalServicesReady, setMigrationsState } from "./startupState";
 
-const corsAllowlist = new Set([
-  "https://staff.boreal.financial",
-  "http://localhost:5173",
-]);
-const corsAllowedHeaders = ["Content-Type", "Authorization", "Idempotency-Key"];
-const corsAllowedMethods = ["POST", "OPTIONS"];
-
-function corsMiddleware(
-  req: express.Request,
-  res: express.Response,
-  next: express.NextFunction
-): void {
-  const origin = req.headers.origin;
-  if (origin) {
-    if (!corsAllowlist.has(origin)) {
-      res.status(403).json({ code: "cors_origin_not_allowed" });
-      return;
-    }
-    res.setHeader("Access-Control-Allow-Origin", origin);
-    res.setHeader("Vary", "Origin");
-    res.setHeader("Access-Control-Allow-Credentials", "true");
-    res.setHeader(
-      "Access-Control-Allow-Methods",
-      corsAllowedMethods.join(", ")
-    );
-    res.setHeader(
-      "Access-Control-Allow-Headers",
-      corsAllowedHeaders.join(", ")
-    );
-  }
-
-  if (req.method === "OPTIONS") {
-    res.status(204).end();
-    return;
-  }
-  next();
-}
-
 export function buildApp(): express.Express {
   const app = express();
 
-  app.use(corsMiddleware);
+  app.use(
+    cors({
+      origin: "https://staff.boreal.financial",
+      credentials: true,
+      methods: ["GET", "POST", "OPTIONS"],
+      allowedHeaders: ["Content-Type", "Authorization"],
+    })
+  );
+  app.options("*", cors());
   app.use(express.json({ limit: "10mb" }));
   app.use(express.urlencoded({ extended: true }));
 
@@ -77,7 +49,7 @@ export function buildApp(): express.Express {
     res.json({ status: "ok" });
   });
 
-  app.use("/api/_int", readyRoutes);
+  app.use("/api/_int", internalRoutes);
 
   return app;
 }

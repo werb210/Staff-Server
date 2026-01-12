@@ -1,7 +1,7 @@
 import jwt, { type SignOptions } from "jsonwebtoken";
 import { createHash, randomBytes } from "crypto";
 import { type PoolClient } from "pg";
-import { twilioClient, twilioVerifyServiceSid } from "../../config/twilio";
+import { twilioClient } from "../../config/twilio";
 import {
   createUser,
   consumeRefreshToken,
@@ -207,6 +207,21 @@ type TwilioErrorDetails = {
   message: string;
 };
 
+function getTwilioClient(): NonNullable<typeof twilioClient> {
+  if (!twilioClient) {
+    throw Object.assign(new Error("OTP service unavailable"), { status: 503 });
+  }
+  return twilioClient;
+}
+
+function getTwilioVerifyServiceSid(): string {
+  const serviceSid = (process.env.TWILIO_VERIFY_SERVICE_SID ?? "").trim();
+  if (!serviceSid) {
+    throw Object.assign(new Error("OTP service unavailable"), { status: 503 });
+  }
+  return serviceSid;
+}
+
 function getTwilioErrorDetails(error: unknown): TwilioErrorDetails {
   if (error && typeof error === "object") {
     const err = error as {
@@ -246,15 +261,17 @@ async function requestTwilioVerificationCheck(
   phoneE164: string,
   code: string
 ): Promise<string | undefined> {
-  const result = await twilioClient.verify.v2
+  const client = getTwilioClient();
+  const result = await client.verify.v2
     .services(serviceSid)
     .verificationChecks.create({ to: phoneE164, code });
   return result.status;
 }
 
-export async function startOtp(phone: string) {
-  return twilioClient.verify.v2
-    .services(twilioVerifyServiceSid)
+export async function startOtp(serviceSid: string, phone: string) {
+  const client = getTwilioClient();
+  return client.verify.v2
+    .services(serviceSid)
     .verifications.create({
       to: phone,
       channel: "sms",
@@ -309,7 +326,7 @@ export async function startOtpVerification(params: {
     throw new AppError("validation_error", "Phone is required.", 400);
   }
   const phoneE164 = normalizePhone(rawPhone);
-  const serviceSid = twilioVerifyServiceSid;
+  const serviceSid = getTwilioVerifyServiceSid();
   const maskedPhone = maskPhoneNumber(phoneE164);
   logInfo("otp_start_request_received", {
     route: params.route,
@@ -325,7 +342,7 @@ export async function startOtpVerification(params: {
       serviceSid,
       channel: "sms",
     });
-    const verification = await startOtp(phoneE164);
+    const verification = await startOtp(serviceSid, phoneE164);
     logInfo("otp_start_success", {
       phone: maskedPhone,
       serviceSid,
@@ -371,7 +388,7 @@ export async function verifyOtpCode(params: {
     throw new AppError("validation_error", "Phone and code are required.", 400);
   }
   const phoneE164 = normalizePhone(rawPhone);
-  const serviceSid = twilioVerifyServiceSid;
+  const serviceSid = getTwilioVerifyServiceSid();
   const maskedPhone = maskPhoneNumber(phoneE164);
   logInfo("otp_verify_request", {
     route: params.route,

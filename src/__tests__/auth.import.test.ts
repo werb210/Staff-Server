@@ -1,17 +1,19 @@
 describe("startup twilio config", () => {
-  it("crashes app if TWILIO_AUTH_TOKEN missing", () => {
+  it("does not crash app if TWILIO_AUTH_TOKEN missing", () => {
     const originalEnv = process.env;
     process.env = { ...originalEnv };
     delete process.env.TWILIO_AUTH_TOKEN;
-    process.env.TWILIO_ENABLED = "true";
 
     jest.resetModules();
 
-    expect(() => {
-      jest.isolateModules(() => {
-        require("../config/twilio");
-      });
-    }).toThrow();
+    let loaded = false;
+    jest.isolateModules(() => {
+      const twilioConfig = require("../config/twilio");
+      loaded = true;
+      expect(twilioConfig.twilioAvailable).toBe(false);
+    });
+
+    expect(loaded).toBe(true);
 
     process.env = originalEnv;
   });
