@@ -24,7 +24,7 @@ import { recordAuditEvent } from "../audit/audit.service";
 import { pool } from "../../db";
 import { getDbFailureCategory, isDbConnectionFailure } from "../../dbRuntime";
 import { type Role, ROLES } from "../../auth/roles";
-import { logInfo, logWarn } from "../../observability/logger";
+import { logError, logInfo, logWarn } from "../../observability/logger";
 import { trackEvent } from "../../observability/appInsights";
 import { buildTelemetryProperties } from "../../observability/telemetry";
 
@@ -213,20 +213,36 @@ export function assertAuthSubsystem(): void {
   }
 }
 
-export const twilioClient = new Twilio(
-  process.env.TWILIO_ACCOUNT_SID!,
-  process.env.TWILIO_AUTH_TOKEN!
-);
+let twilioEnvValidated = false;
 
 export function assertTwilioVerifyEnv(): void {
-  ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_VERIFY_SERVICE_SID"].forEach(
-    (key) => {
-      if (!process.env[key]) {
-        throw new Error(`Missing ${key}`);
-      }
-    }
-  );
+  if (twilioEnvValidated) {
+    return;
+  }
+  const requiredKeys = [
+    "TWILIO_ACCOUNT_SID",
+    "TWILIO_AUTH_TOKEN",
+    "TWILIO_VERIFY_SERVICE_SID",
+    "TWILIO_PHONE_NUMBER",
+    "TWILIO_CALLER_ID",
+    "TWILIO_TWIML_APP_SID",
+  ];
+  const missing = requiredKeys.filter((key) => !process.env[key]);
+  if (missing.length > 0) {
+    logError("twilio_env_missing", { missing });
+    throw new Error(`Missing Twilio environment variables: ${missing.join(", ")}`);
+  }
+  twilioEnvValidated = true;
 }
+
+export const twilioClient = (() => {
+  assertTwilioVerifyEnv();
+  const client = new Twilio(
+    process.env.TWILIO_ACCOUNT_SID,
+    process.env.TWILIO_AUTH_TOKEN
+  );
+  return client;
+})();
 
 function getTwilioVerifyServiceSid(): string {
   const serviceSid = process.env.TWILIO_VERIFY_SERVICE_SID;
@@ -234,6 +250,34 @@ function getTwilioVerifyServiceSid(): string {
     throw new AppError("auth_misconfigured", "Auth is not configured.", 503);
   }
   return serviceSid;
+}
+
+type TwilioErrorDetails = {
+  code?: number | string;
+  status?: number;
+  message: string;
+};
+
+function getTwilioErrorDetails(error: unknown): TwilioErrorDetails {
+  if (error && typeof error === "object") {
+    const err = error as {
+      code?: unknown;
+      status?: unknown;
+      message?: unknown;
+    };
+    return {
+      code:
+        typeof err.code === "number" || typeof err.code === "string"
+          ? err.code
+          : undefined,
+      status: typeof err.status === "number" ? err.status : undefined,
+      message: typeof err.message === "string" ? err.message : "Twilio verification failed",
+    };
+  }
+  if (error instanceof Error) {
+    return { message: error.message };
+  }
+  return { message: "Twilio verification failed" };
 }
 
 function maskPhoneNumber(phoneE164: string): string {
@@ -249,20 +293,23 @@ function maskPhoneNumber(phoneE164: string): string {
 }
 
 async function requestTwilioVerification(
+  serviceSid: string,
   phoneE164: string,
   channel: "sms"
-): Promise<void> {
-  await twilioClient.verify.v2
-    .services(process.env.TWILIO_VERIFY_SERVICE_SID!)
+): Promise<{ sid: string; status: string }> {
+  const response = await twilioClient.verify.v2
+    .services(serviceSid)
     .verifications.create({ to: phoneE164, channel });
+  return { sid: response.sid, status: response.status };
 }
 
 async function requestTwilioVerificationCheck(
+  serviceSid: string,
   phoneE164: string,
   code: string
 ): Promise<string | undefined> {
   const result = await twilioClient.verify.v2
-    .services(process.env.TWILIO_VERIFY_SERVICE_SID!)
+    .services(serviceSid)
     .verificationChecks.create({ to: phoneE164, code });
   return result.status;
 }
@@ -307,6 +354,8 @@ export async function startOtpVerification(params: {
   phone: string;
   ip?: string;
   userAgent?: string;
+  route?: string;
+  method?: string;
 }): Promise<void> {
   const rawPhone = params.phone?.trim() ?? "";
   if (!rawPhone) {
@@ -316,24 +365,36 @@ export async function startOtpVerification(params: {
   const serviceSid = getTwilioVerifyServiceSid();
   const maskedPhone = maskPhoneNumber(phoneE164);
   logInfo("otp_start_request", {
-    phone: maskedPhone,
+    route: params.route,
+    method: params.method,
+    phone: phoneE164,
     serviceSid,
     ip: params.ip,
     userAgent: params.userAgent,
   });
   try {
-    await requestTwilioVerification(phoneE164, "sms");
-    logInfo("otp_start_success", { phone: maskedPhone, serviceSid });
+    const verification = await requestTwilioVerification(
+      serviceSid,
+      phoneE164,
+      "sms"
+    );
+    logInfo("otp_start_success", {
+      phone: maskedPhone,
+      serviceSid,
+      sid: verification.sid,
+      status: verification.status,
+    });
   } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Twilio verification failed";
+    const details = getTwilioErrorDetails(err);
     logWarn("auth_twilio_verify_failed", {
       action: "otp_start",
       phone: maskedPhone,
       serviceSid,
-      message,
+      code: details.code,
+      status: details.status,
+      message: details.message,
     });
-    throw new AppError("twilio_error", message, 500);
+    throw new AppError("twilio_error", details.message, 500);
   }
 }
 
@@ -342,7 +403,9 @@ export async function verifyOtpCode(params: {
   code: string;
   ip?: string;
   userAgent?: string;
-}): Promise<{ accessToken: string }> {
+  route?: string;
+  method?: string;
+}): Promise<{ accessToken: string; refreshToken: string }> {
   const rawPhone = params.phone?.trim() ?? "";
   const code = params.code?.trim() ?? "";
   if (!rawPhone || !code) {
@@ -351,21 +414,30 @@ export async function verifyOtpCode(params: {
   const phoneE164 = normalizePhoneToE164(rawPhone);
   const serviceSid = getTwilioVerifyServiceSid();
   const maskedPhone = maskPhoneNumber(phoneE164);
+  logInfo("otp_verify_request", {
+    route: params.route,
+    method: params.method,
+    phone: phoneE164,
+    serviceSid,
+    ip: params.ip,
+    userAgent: params.userAgent,
+  });
 
   let status: string | undefined;
   try {
-    status = await requestTwilioVerificationCheck(phoneE164, code);
-    logInfo("otp_verify_success", { phone: maskedPhone, serviceSid });
+    status = await requestTwilioVerificationCheck(serviceSid, phoneE164, code);
+    logInfo("otp_verify_success", { phone: maskedPhone, serviceSid, status });
   } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Twilio verification failed";
+    const details = getTwilioErrorDetails(err);
     logWarn("auth_twilio_verify_failed", {
       action: "otp_verify",
       phone: maskedPhone,
       serviceSid,
-      message,
+      code: details.code,
+      status: details.status,
+      message: details.message,
     });
-    throw new AppError("twilio_error", message, 500);
+    throw new AppError("twilio_error", details.message, 500);
   }
   if (status !== "approved") {
     throw new AppError("otp_failed", "OTP verification failed.", 401);
@@ -414,7 +486,7 @@ export async function verifyOtpCode(params: {
     });
 
     await client.query("commit");
-    return { accessToken };
+    return { accessToken, refreshToken };
   } catch (err) {
     await client.query("rollback");
     throw err;
