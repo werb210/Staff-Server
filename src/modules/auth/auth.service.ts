@@ -201,7 +201,7 @@ export function assertAuthSubsystem(): void {
   }
 }
 
-function assertTwilioVerifyEnvRuntime(): void {
+export function requireTwilioEnv(): { ok: boolean; error?: string } {
   const required = [
     "TWILIO_ACCOUNT_SID",
     "TWILIO_AUTH_TOKEN",
@@ -209,8 +209,12 @@ function assertTwilioVerifyEnvRuntime(): void {
   ];
   const missing = required.filter((key) => !process.env[key]);
   if (missing.length > 0) {
-    throw new Error(`Missing Twilio env vars: ${missing.join(", ")}`);
+    return {
+      ok: false,
+      error: `Missing Twilio env vars: ${missing.join(", ")}`,
+    };
   }
+  return { ok: true };
 }
 
 let twilioClient: ReturnType<typeof twilio> | null = null;
@@ -226,11 +230,7 @@ function getTwilioClient(): ReturnType<typeof twilio> {
 }
 
 function getTwilioVerifyServiceSid(): string {
-  const serviceSid = process.env.TWILIO_VERIFY_SERVICE_SID;
-  if (!serviceSid) {
-    throw new AppError("auth_misconfigured", "Auth is not configured.", 503);
-  }
-  return serviceSid;
+  return process.env.TWILIO_VERIFY_SERVICE_SID ?? "";
 }
 
 type TwilioErrorDetails = {
@@ -342,7 +342,6 @@ export async function startOtpVerification(params: {
   if (!rawPhone) {
     throw new AppError("validation_error", "Phone is required.", 400);
   }
-  assertTwilioVerifyEnvRuntime();
   const phoneE164 = normalizePhone(rawPhone);
   const serviceSid = getTwilioVerifyServiceSid();
   const maskedPhone = maskPhoneNumber(phoneE164);
@@ -409,7 +408,6 @@ export async function verifyOtpCode(params: {
   if (!rawPhone || !code) {
     throw new AppError("validation_error", "Phone and code are required.", 400);
   }
-  assertTwilioVerifyEnvRuntime();
   const phoneE164 = normalizePhone(rawPhone);
   const serviceSid = getTwilioVerifyServiceSid();
   const maskedPhone = maskPhoneNumber(phoneE164);
