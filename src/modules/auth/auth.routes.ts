@@ -23,6 +23,8 @@ router.post("/otp/start", otpRateLimit(), async (req, res, next) => {
       phone,
       ip: req.ip,
       userAgent: req.get("user-agent"),
+      route: "/api/auth/otp/start",
+      method: req.method,
     });
     res.json({ status: "sent" });
   } catch (err) {
@@ -38,6 +40,8 @@ router.post("/otp/verify", otpRateLimit(), async (req, res, next) => {
       code,
       ip: req.ip,
       userAgent: req.get("user-agent"),
+      route: "/api/auth/otp/verify",
+      method: req.method,
     });
     res.status(200).json(result);
   } catch (err) {
