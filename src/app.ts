@@ -30,6 +30,7 @@ function corsMiddleware(
     }
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Vary", "Origin");
+    res.setHeader("Access-Control-Allow-Credentials", "true");
     res.setHeader(
       "Access-Control-Allow-Methods",
       corsAllowedMethods.join(", ")
