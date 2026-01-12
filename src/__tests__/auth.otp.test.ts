@@ -79,5 +79,7 @@ describe("auth otp", () => {
       code: "123456",
     });
     expect(services).toHaveBeenCalledWith(process.env.TWILIO_VERIFY_SERVICE_SID);
+    const verificationResult = await createVerificationCheck.mock.results[0].value;
+    expect(verificationResult.status).toBe("approved");
   });
 });
