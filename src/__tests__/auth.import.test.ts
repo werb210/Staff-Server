@@ -10,7 +10,8 @@ describe("startup twilio config", () => {
     jest.isolateModules(() => {
       const twilioConfig = require("../config/twilio");
       loaded = true;
-      expect(twilioConfig.twilioAvailable).toBe(false);
+      const { available } = twilioConfig.getTwilioClient();
+      expect(available).toBe(false);
     });
 
     expect(loaded).toBe(true);

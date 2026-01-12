@@ -47,7 +47,7 @@ describe("POST /api/auth/otp/start", () => {
     expect(res.headers["access-control-allow-credentials"]).toBe("true");
   });
 
-  it("returns 200 when Twilio configured", async () => {
+  it("returns 204 when Twilio configured", async () => {
     const twilioMocks = getTwilioMocks();
     twilioMocks.createVerification.mockResolvedValueOnce({
       sid: "VE200",
@@ -59,7 +59,6 @@ describe("POST /api/auth/otp/start", () => {
       .post("/api/auth/otp/start")
       .send({ phone: "+15878881337" });
 
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual({ ok: true });
+    expect(res.status).toBe(204);
   });
 });
