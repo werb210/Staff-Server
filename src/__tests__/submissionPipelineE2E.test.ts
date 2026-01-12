@@ -10,12 +10,16 @@ import { runMigrations } from "../migrations";
 import { createUserAccount } from "../modules/auth/auth.service";
 import { ROLES } from "../auth/roles";
 import { ensureAuditEventSchema } from "./helpers/auditSchema";
+import { otpVerifyRequest } from "./helpers/otpAuth";
 
 const app = buildAppWithApiRoutes();
 const requestId = "test-request-id";
 let idempotencyCounter = 0;
 const nextIdempotencyKey = (): string => `idem-e2e-${idempotencyCounter++}`;
 const nextRequestId = (): string => `req-e2e-${idempotencyCounter++}`;
+let phoneCounter = 600;
+const nextPhone = (): string =>
+  `+1415555${String(phoneCounter++).padStart(4, "0")}`;
 
 async function resetDb(): Promise<void> {
   await pool.query("delete from client_submissions");
@@ -43,17 +47,18 @@ type UploadResponse = {
 };
 
 async function loginAsStaff(): Promise<AuthContext> {
+  const staffPhone = nextPhone();
   const user = await createUserAccount({
     email: "staff@example.com",
-    password: "Password123!",
+    phoneNumber: staffPhone,
     role: ROLES.STAFF,
   });
 
-  const res = await request(app)
-    .post("/api/auth/login")
-    .set("Idempotency-Key", nextIdempotencyKey())
-    .set("x-request-id", requestId)
-    .send({ email: "staff@example.com", password: "Password123!" });
+  const res = await otpVerifyRequest(app, {
+    phone: staffPhone,
+    requestId,
+    idempotencyKey: nextIdempotencyKey(),
+  });
 
   expect(res.status).toBe(200);
 
@@ -164,6 +169,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   await resetDb();
   idempotencyCounter = 0;
+  phoneCounter = 600;
   clearDbTestFailureInjection();
   setDbTestPoolMetricsOverride(null);
 });

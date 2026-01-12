@@ -17,9 +17,10 @@ import { processOcrJob } from "../modules/ocr/ocr.service";
 import { ensureAuditEventSchema } from "./helpers/auditSchema";
 
 async function seedDocument(): Promise<{ documentId: string; applicationId: string }> {
+  const phone = `+1415${Math.floor(Math.random() * 9000000 + 1000000)}`;
   const user = await createUserAccount({
     email: `ocr-${randomUUID()}@example.com`,
-    password: "Password123!",
+    phoneNumber: phone,
     role: ROLES.USER,
   });
   const application = await createApplication({

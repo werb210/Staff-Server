@@ -1,6 +1,7 @@
 import express from "express";
 import request from "supertest";
 import { ROLES } from "../auth/roles";
+import { otpVerifyRequest } from "./helpers/otpAuth";
 
 const trackRequest = jest.fn();
 const trackDependency = jest.fn();
@@ -107,16 +108,16 @@ describe("application insights telemetry", () => {
     const app = buildAppWithApiRoutes();
     await runMigrations();
     await ensureAuditEventSchema();
+    const phone = "+14155550123";
     await createUserAccount({
       email: "telemetry-auth@example.com",
-      password: "Password123!",
+      phoneNumber: phone,
       role: ROLES.STAFF,
     });
 
-    await request(app).post("/api/auth/login")
-      .set("Idempotency-Key", nextIdempotencyKey()).send({
-      email: "telemetry-auth@example.com",
-      password: "Password123!",
+    await otpVerifyRequest(app, {
+      phone,
+      idempotencyKey: nextIdempotencyKey(),
     });
 
     expect(trackDependency).toHaveBeenCalled();

@@ -6,11 +6,15 @@ import { ROLES } from "../auth/roles";
 import { runMigrations } from "../migrations";
 import { recordAuditEvent } from "../modules/audit/audit.service";
 import { ensureAuditEventSchema } from "./helpers/auditSchema";
+import { otpVerifyRequest } from "./helpers/otpAuth";
 
 const app = buildAppWithApiRoutes();
 const requestId = "test-request-id";
 let idempotencyCounter = 0;
 const nextIdempotencyKey = (): string => `idem-ops-${idempotencyCounter++}`;
+let phoneCounter = 1000;
+const nextPhone = (): string =>
+  `+1415555${String(phoneCounter++).padStart(4, "0")}`;
 
 async function resetDb(): Promise<void> {
   await pool.query("delete from ops_replay_events");
@@ -63,6 +67,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   await resetDb();
   idempotencyCounter = 0;
+  phoneCounter = 1000;
 });
 
 afterAll(async () => {
@@ -71,17 +76,18 @@ afterAll(async () => {
 
 describe("ops + exports", () => {
   it("enforces admin-only access for ops routes", async () => {
+    const staffPhone = nextPhone();
     await createUserAccount({
       email: "staff@example.com",
-      password: "Password123!",
+      phoneNumber: staffPhone,
       role: ROLES.STAFF,
     });
 
-    const login = await request(app)
-      .post("/api/auth/login")
-      .set("Idempotency-Key", nextIdempotencyKey())
-      .set("x-request-id", requestId)
-      .send({ email: "staff@example.com", password: "Password123!" });
+    const login = await otpVerifyRequest(app, {
+      phone: staffPhone,
+      requestId,
+      idempotencyKey: nextIdempotencyKey(),
+    });
 
     const res = await request(app)
       .get("/api/admin/ops/kill-switches")
@@ -93,16 +99,17 @@ describe("ops + exports", () => {
   });
 
   it("enforces kill switch before exports", async () => {
-    const admin = await createUserAccount({
+    const adminPhone = nextPhone();
+    await createUserAccount({
       email: "admin-exports@example.com",
-      password: "Password123!",
+      phoneNumber: adminPhone,
       role: ROLES.ADMIN,
     });
-    const login = await request(app)
-      .post("/api/auth/login")
-      .set("Idempotency-Key", nextIdempotencyKey())
-      .set("x-request-id", requestId)
-      .send({ email: admin.email, password: "Password123!" });
+    const login = await otpVerifyRequest(app, {
+      phone: adminPhone,
+      requestId,
+      idempotencyKey: nextIdempotencyKey(),
+    });
 
     await pool.query(
       "insert into ops_kill_switches (key, enabled, updated_at) values ($1, true, now())",
@@ -124,16 +131,17 @@ describe("ops + exports", () => {
   });
 
   it("streams CSV exports", async () => {
-    const admin = await createUserAccount({
+    const adminPhone = nextPhone();
+    await createUserAccount({
       email: "admin-csv@example.com",
-      password: "Password123!",
+      phoneNumber: adminPhone,
       role: ROLES.ADMIN,
     });
-    const login = await request(app)
-      .post("/api/auth/login")
-      .set("Idempotency-Key", nextIdempotencyKey())
-      .set("x-request-id", requestId)
-      .send({ email: admin.email, password: "Password123!" });
+    const login = await otpVerifyRequest(app, {
+      phone: adminPhone,
+      requestId,
+      idempotencyKey: nextIdempotencyKey(),
+    });
 
     await pool.query(
       `insert into reporting_pipeline_daily_snapshots
@@ -158,16 +166,17 @@ describe("ops + exports", () => {
   });
 
   it("replay jobs are idempotent", async () => {
+    const adminPhone = nextPhone();
     const admin = await createUserAccount({
       email: "admin-replay@example.com",
-      password: "Password123!",
+      phoneNumber: adminPhone,
       role: ROLES.ADMIN,
     });
-    const login = await request(app)
-      .post("/api/auth/login")
-      .set("Idempotency-Key", nextIdempotencyKey())
-      .set("x-request-id", requestId)
-      .send({ email: admin.email, password: "Password123!" });
+    const login = await otpVerifyRequest(app, {
+      phone: adminPhone,
+      requestId,
+      idempotencyKey: nextIdempotencyKey(),
+    });
 
     await recordAuditEvent({
       actorUserId: admin.id,

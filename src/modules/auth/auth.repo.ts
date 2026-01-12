@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { pool } from "../../db";
+import { isPgMemRuntime } from "../../dbRuntime";
 import { type PoolClient, type QueryResult, type QueryResultRow } from "pg";
 import { type Role } from "../../auth/roles";
 
@@ -86,6 +87,9 @@ export async function createUser(params: {
 }): Promise<AuthUser> {
   const runner = params.client ?? pool;
   const normalizedEmail = params.email ? params.email.trim().toLowerCase() : null;
+  const resolvedEmail =
+    normalizedEmail ??
+    (isPgMemRuntime() ? `pgmem-${randomUUID()}@example.com` : null);
 
   const res = await runAuthQuery<AuthUser>(
     runner,
@@ -98,7 +102,7 @@ export async function createUser(params: {
               role,
               active,
               token_version as "tokenVersion"`,
-    [randomUUID(), normalizedEmail, params.phoneNumber, params.role]
+    [randomUUID(), resolvedEmail, params.phoneNumber, params.role]
   );
 
   return res.rows[0];

@@ -5,11 +5,15 @@ import { createUserAccount } from "../modules/auth/auth.service";
 import { ROLES } from "../auth/roles";
 import { runMigrations } from "../migrations";
 import { ensureAuditEventSchema } from "./helpers/auditSchema";
+import { otpVerifyRequest } from "./helpers/otpAuth";
 
 const app = buildAppWithApiRoutes();
 const requestId = "test-request-id";
 let idempotencyCounter = 0;
 const nextIdempotencyKey = (): string => `idem-guard-${idempotencyCounter++}`;
+let phoneCounter = 800;
+const nextPhone = (): string =>
+  `+1415555${String(phoneCounter++).padStart(4, "0")}`;
 
 async function resetDb(): Promise<void> {
   await pool.query("delete from client_submissions");
@@ -45,6 +49,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   await resetDb();
   idempotencyCounter = 0;
+  phoneCounter = 800;
 });
 
 afterAll(async () => {
@@ -53,17 +58,18 @@ afterAll(async () => {
 
 describe("concurrency guardrails", () => {
   it("allows only one of concurrent accept/reject to succeed", async () => {
+    const reviewerPhone = nextPhone();
     await createUserAccount({
       email: "reviewer@example.com",
-      password: "Password123!",
+      phoneNumber: reviewerPhone,
       role: ROLES.STAFF,
     });
 
-    const login = await request(app)
-      .post("/api/auth/login")
-      .set("Idempotency-Key", nextIdempotencyKey())
-      .set("x-request-id", requestId)
-      .send({ email: "reviewer@example.com", password: "Password123!" });
+    const login = await otpVerifyRequest(app, {
+      phone: reviewerPhone,
+      requestId,
+      idempotencyKey: nextIdempotencyKey(),
+    });
 
     const application = await request(app)
       .post("/api/applications")

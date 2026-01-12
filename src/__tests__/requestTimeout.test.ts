@@ -5,11 +5,15 @@ import { createUserAccount } from "../modules/auth/auth.service";
 import { ROLES } from "../auth/roles";
 import { runMigrations } from "../migrations";
 import { ensureAuditEventSchema } from "./helpers/auditSchema";
+import { otpVerifyRequest } from "./helpers/otpAuth";
 
 const app = buildAppWithApiRoutes();
 const requestId = "test-request-id";
 let idempotencyCounter = 0;
 const nextIdempotencyKey = (): string => `idem-timeout-${idempotencyCounter++}`;
+let phoneCounter = 500;
+const nextPhone = (): string =>
+  `+1415555${String(phoneCounter++).padStart(4, "0")}`;
 
 async function resetDb(): Promise<void> {
   await pool.query("delete from client_submissions");
@@ -45,6 +49,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   await resetDb();
   idempotencyCounter = 0;
+  phoneCounter = 500;
 });
 
 afterEach(() => {
@@ -59,16 +64,17 @@ afterAll(async () => {
 
 describe("request timeouts", () => {
   it("returns 504 and releases the db connection", async () => {
+    const phone = nextPhone();
     await createUserAccount({
       email: "timeout@example.com",
-      password: "Password123!",
+      phoneNumber: phone,
       role: ROLES.USER,
     });
-    const login = await request(app)
-      .post("/api/auth/login")
-      .set("Idempotency-Key", nextIdempotencyKey())
-      .set("x-request-id", requestId)
-      .send({ email: "timeout@example.com", password: "Password123!" });
+    const login = await otpVerifyRequest(app, {
+      phone,
+      requestId,
+      idempotencyKey: nextIdempotencyKey(),
+    });
 
     process.env.REQUEST_TIMEOUT_MS = "10";
     process.env.DB_TEST_SLOW_QUERY_PATTERN = "insert into applications";
