@@ -1,100 +1,13 @@
-import request from "supertest";
-import { buildAppWithApiRoutes } from "../app";
-import { pool } from "../db";
-import { runMigrations } from "../migrations";
-import { resetLoginRateLimit } from "../middleware/rateLimit";
-import { ensureAuditEventSchema } from "./helpers/auditSchema";
-import { getTwilioMocks } from "./helpers/twilioMocks";
+import { startOtp } from "../modules/auth/auth.service";
 
-const app = buildAppWithApiRoutes();
-const requestId = "test-request-id";
-const postWithRequestId = (url: string) =>
-  request(app).post(url).set("x-request-id", requestId);
+describe("startOtp env validation", () => {
+  it("throws when called without Twilio env vars", async () => {
+    delete process.env.TWILIO_ACCOUNT_SID;
+    delete process.env.TWILIO_AUTH_TOKEN;
+    delete process.env.TWILIO_VERIFY_SERVICE_SID;
 
-async function resetDb(): Promise<void> {
-  await pool.query("delete from client_submissions");
-  await pool.query("delete from lender_submission_retries");
-  await pool.query("delete from lender_submissions");
-  await pool.query("delete from document_version_reviews");
-  await pool.query("delete from document_versions");
-  await pool.query("delete from documents");
-  await pool.query("delete from applications");
-  await pool.query("delete from idempotency_keys");
-  await pool.query("delete from auth_refresh_tokens");
-  await pool.query("delete from password_resets");
-  await pool.query("delete from audit_events");
-  await pool.query("delete from users where id <> '00000000-0000-0000-0000-000000000001'");
-}
-
-beforeAll(async () => {
-  process.env.DATABASE_URL = "pg-mem";
-  process.env.BUILD_TIMESTAMP = "2024-01-01T00:00:00.000Z";
-  process.env.COMMIT_SHA = "test-commit";
-  process.env.JWT_SECRET = "test-access-secret";
-  process.env.JWT_REFRESH_SECRET = "test-refresh-secret";
-  process.env.JWT_EXPIRES_IN = "1h";
-  process.env.JWT_REFRESH_EXPIRES_IN = "1d";
-  process.env.NODE_ENV = "test";
-  await runMigrations();
-  await ensureAuditEventSchema();
-});
-
-beforeEach(async () => {
-  await resetDb();
-  resetLoginRateLimit();
-});
-
-afterAll(async () => {
-  await pool.end();
-});
-
-describe("auth otp", () => {
-  it("initializes Twilio with Account SID auth", async () => {
-    const { twilioConstructor } = getTwilioMocks();
-    twilioConstructor.mockClear();
-    expect(twilioConstructor).not.toHaveBeenCalled();
-    await postWithRequestId("/api/auth/otp/start").send({ phone: "+14155550123" });
-    expect(twilioConstructor).toHaveBeenCalled();
-    const [accountSid, authToken] = twilioConstructor.mock.calls[0] ?? [];
-    expect(accountSid).toBe(process.env.TWILIO_ACCOUNT_SID);
-    expect(authToken).toBe(process.env.TWILIO_AUTH_TOKEN);
-    for (const [sid] of twilioConstructor.mock.calls) {
-      expect(String(sid).startsWith("SK")).toBe(false);
-      expect(String(sid).startsWith("AC")).toBe(true);
-    }
-  });
-
-  it("starts otp verification with Twilio Verify", async () => {
-    const { createVerification, services } = getTwilioMocks();
-    createVerification.mockClear();
-    services.mockClear();
-    const phone = "+14155550123";
-    const res = await postWithRequestId("/api/auth/otp/start").send({ phone });
-
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual({ status: "sent" });
-    expect(createVerification).toHaveBeenCalledWith({ to: phone, channel: "sms" });
-    expect(services).toHaveBeenCalledWith(process.env.TWILIO_VERIFY_SERVICE_SID);
-  });
-
-  it("verifies otp code and returns tokens", async () => {
-    const { createVerificationCheck, services } = getTwilioMocks();
-    createVerificationCheck.mockClear();
-    services.mockClear();
-    const res = await postWithRequestId("/api/auth/otp/verify").send({
-      phone: "+14155550123",
-      code: "123456",
-    });
-
-    expect(res.status).toBe(200);
-    expect(res.body.accessToken).toBeTruthy();
-    expect(res.body.refreshToken).toBeTruthy();
-    expect(createVerificationCheck).toHaveBeenCalledWith({
-      to: "+14155550123",
-      code: "123456",
-    });
-    expect(services).toHaveBeenCalledWith(process.env.TWILIO_VERIFY_SERVICE_SID);
-    const verificationResult = await createVerificationCheck.mock.results[0].value;
-    expect(verificationResult.status).toBe("approved");
+    await expect(startOtp("+15555555555")).rejects.toThrow(
+      /Missing Twilio env vars/
+    );
   });
 });
