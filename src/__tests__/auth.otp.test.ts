@@ -49,13 +49,11 @@ afterAll(async () => {
 });
 
 describe("auth otp", () => {
-  it("initializes Twilio with Account SID auth", () => {
+  it("initializes Twilio with Account SID auth", async () => {
     const { twilioConstructor } = getTwilioMocks();
+    twilioConstructor.mockClear();
     expect(twilioConstructor).not.toHaveBeenCalled();
-    jest.isolateModules(() => {
-      const { twilioClient } = require("../modules/auth/auth.service");
-      expect(twilioClient).toBeTruthy();
-    });
+    await postWithRequestId("/api/auth/otp/start").send({ phone: "+14155550123" });
     expect(twilioConstructor).toHaveBeenCalled();
     const [accountSid, authToken] = twilioConstructor.mock.calls[0] ?? [];
     expect(accountSid).toBe(process.env.TWILIO_ACCOUNT_SID);

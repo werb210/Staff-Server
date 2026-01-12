@@ -23,7 +23,7 @@ import { recordAuditEvent } from "../audit/audit.service";
 import { pool } from "../../db";
 import { getDbFailureCategory, isDbConnectionFailure } from "../../dbRuntime";
 import { type Role, ROLES } from "../../auth/roles";
-import { logError, logInfo, logWarn } from "../../observability/logger";
+import { logInfo, logWarn } from "../../observability/logger";
 import { trackEvent } from "../../observability/appInsights";
 import { buildTelemetryProperties } from "../../observability/telemetry";
 
@@ -409,6 +409,7 @@ export async function verifyOtpCode(params: {
   if (!rawPhone || !code) {
     throw new AppError("validation_error", "Phone and code are required.", 400);
   }
+  assertTwilioVerifyEnvRuntime();
   const phoneE164 = normalizePhone(rawPhone);
   const serviceSid = getTwilioVerifyServiceSid();
   const maskedPhone = maskPhoneNumber(phoneE164);
