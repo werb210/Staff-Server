@@ -50,19 +50,22 @@ afterAll(async () => {
 
 describe("auth otp", () => {
   it("starts otp verification with Twilio Verify", async () => {
-    const { createVerification } = getTwilioMocks();
+    const { createVerification, services } = getTwilioMocks();
     createVerification.mockClear();
+    services.mockClear();
     const phone = "+14155550123";
     const res = await postWithRequestId("/api/auth/otp/start").send({ phone });
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ status: "sent" });
     expect(createVerification).toHaveBeenCalledWith({ to: phone, channel: "sms" });
+    expect(services).toHaveBeenCalledWith(process.env.TWILIO_VERIFY_SERVICE_SID);
   });
 
   it("verifies otp code and returns tokens", async () => {
-    const { createVerificationCheck } = getTwilioMocks();
+    const { createVerificationCheck, services } = getTwilioMocks();
     createVerificationCheck.mockClear();
+    services.mockClear();
     const res = await postWithRequestId("/api/auth/otp/verify").send({
       phone: "+14155550123",
       code: "123456",
@@ -75,5 +78,6 @@ describe("auth otp", () => {
       to: "+14155550123",
       code: "123456",
     });
+    expect(services).toHaveBeenCalledWith(process.env.TWILIO_VERIFY_SERVICE_SID);
   });
 });
