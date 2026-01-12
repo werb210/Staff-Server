@@ -12,18 +12,15 @@ import {
   refreshSession,
   logoutUser,
   logoutAll,
-  requireTwilioEnv,
 } from "./auth.service";
+import { twilioEnabled } from "../../config/twilio";
 
 const router = Router();
 
 router.post("/otp/start", otpRateLimit(), async (req, res, next) => {
   try {
-    const envCheck = requireTwilioEnv();
-    if (!envCheck.ok) {
-      return res.status(500).json({
-        error: envCheck.error ?? "Twilio environment is not configured.",
-      });
+    if (!twilioEnabled) {
+      return res.status(503).json({ error: "otp_disabled" });
     }
     const { phone } = req.body ?? {};
     await startOtpVerification({
@@ -33,7 +30,7 @@ router.post("/otp/start", otpRateLimit(), async (req, res, next) => {
       route: "/api/auth/otp/start",
       method: req.method,
     });
-    res.json({ status: "sent" });
+    res.status(200).json({ ok: true });
   } catch (err) {
     next(err);
   }
@@ -41,11 +38,8 @@ router.post("/otp/start", otpRateLimit(), async (req, res, next) => {
 
 router.post("/otp/verify", otpRateLimit(), async (req, res, next) => {
   try {
-    const envCheck = requireTwilioEnv();
-    if (!envCheck.ok) {
-      return res.status(500).json({
-        error: envCheck.error ?? "Twilio environment is not configured.",
-      });
+    if (!twilioEnabled) {
+      return res.status(503).json({ error: "otp_disabled" });
     }
     const { phone, code } = req.body ?? {};
     const result = await verifyOtpCode({

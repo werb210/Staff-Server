@@ -1,7 +1,7 @@
 import jwt, { type SignOptions } from "jsonwebtoken";
 import { createHash, randomBytes } from "crypto";
 import { type PoolClient } from "pg";
-import twilio from "twilio";
+import { twilioClient, twilioVerifyServiceSid } from "../../config/twilio";
 import {
   createUser,
   consumeRefreshToken,
@@ -201,45 +201,6 @@ export function assertAuthSubsystem(): void {
   }
 }
 
-export function requireTwilioEnv(): { ok: boolean; error?: string } {
-  const required = [
-    "TWILIO_ACCOUNT_SID",
-    "TWILIO_AUTH_TOKEN",
-    "TWILIO_VERIFY_SERVICE_SID",
-  ];
-  const missing = required.filter((key) => !process.env[key]);
-  if (missing.length > 0) {
-    return {
-      ok: false,
-      error: `Missing Twilio env vars: ${missing.join(", ")}`,
-    };
-  }
-  return { ok: true };
-}
-
-function getTwilioClient(): ReturnType<typeof twilio> {
-  const missing = [];
-
-  if (!process.env.TWILIO_ACCOUNT_SID) missing.push("TWILIO_ACCOUNT_SID");
-  if (!process.env.TWILIO_AUTH_TOKEN) missing.push("TWILIO_AUTH_TOKEN");
-  if (!process.env.TWILIO_VERIFY_SERVICE_SID) {
-    missing.push("TWILIO_VERIFY_SERVICE_SID");
-  }
-
-  if (missing.length) {
-    throw new Error(`Missing Twilio env vars: ${missing.join(", ")}`);
-  }
-
-  return twilio(
-    process.env.TWILIO_ACCOUNT_SID,
-    process.env.TWILIO_AUTH_TOKEN
-  );
-}
-
-function getTwilioVerifyServiceSid(): string {
-  return process.env.TWILIO_VERIFY_SERVICE_SID ?? "";
-}
-
 type TwilioErrorDetails = {
   code?: number | string;
   status?: number;
@@ -285,17 +246,15 @@ async function requestTwilioVerificationCheck(
   phoneE164: string,
   code: string
 ): Promise<string | undefined> {
-  const result = await getTwilioClient().verify.v2
+  const result = await twilioClient.verify.v2
     .services(serviceSid)
     .verificationChecks.create({ to: phoneE164, code });
   return result.status;
 }
 
 export async function startOtp(phone: string) {
-  const client = getTwilioClient();
-
-  return client.verify.v2
-    .services(process.env.TWILIO_VERIFY_SERVICE_SID!)
+  return twilioClient.verify.v2
+    .services(twilioVerifyServiceSid)
     .verifications.create({
       to: phone,
       channel: "sms",
@@ -350,7 +309,7 @@ export async function startOtpVerification(params: {
     throw new AppError("validation_error", "Phone is required.", 400);
   }
   const phoneE164 = normalizePhone(rawPhone);
-  const serviceSid = getTwilioVerifyServiceSid();
+  const serviceSid = twilioVerifyServiceSid;
   const maskedPhone = maskPhoneNumber(phoneE164);
   logInfo("otp_start_request_received", {
     route: params.route,
@@ -412,7 +371,7 @@ export async function verifyOtpCode(params: {
     throw new AppError("validation_error", "Phone and code are required.", 400);
   }
   const phoneE164 = normalizePhone(rawPhone);
-  const serviceSid = getTwilioVerifyServiceSid();
+  const serviceSid = twilioVerifyServiceSid;
   const maskedPhone = maskPhoneNumber(phoneE164);
   logInfo("otp_verify_request", {
     route: params.route,
