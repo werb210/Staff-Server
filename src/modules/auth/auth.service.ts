@@ -207,14 +207,6 @@ type TwilioErrorDetails = {
   message: string;
 };
 
-function requireTwilioClient() {
-  const { available, client } = getTwilioClient();
-  if (!available || !client) {
-    throw Object.assign(new Error("OTP service unavailable"), { status: 503 });
-  }
-  return client;
-}
-
 function getTwilioVerifyServiceSid(): string {
   const serviceSid = (process.env.TWILIO_VERIFY_SERVICE_SID ?? "").trim();
   if (!serviceSid || !serviceSid.startsWith("VA")) {
@@ -262,7 +254,10 @@ async function requestTwilioVerificationCheck(
   phoneE164: string,
   code: string
 ): Promise<string | undefined> {
-  const client = requireTwilioClient();
+  const { available, client } = getTwilioClient();
+  if (!available || !client) {
+    throw Object.assign(new Error("OTP service unavailable"), { status: 503 });
+  }
   const result = await client.verify.v2
     .services(serviceSid)
     .verificationChecks.create({ to: phoneE164, code });
@@ -274,18 +269,16 @@ type StartOtpResult =
   | { ok: false; status: number; code: string; message: string };
 
 export async function startOtp(phone: string): Promise<StartOtpResult> {
-  const { available, client } = getTwilioClient();
-
-  if (!client || !available) {
-    return {
-      ok: false,
-      status: 503,
-      code: "twilio_unavailable",
-      message: "Twilio credentials not configured",
-    };
-  }
-
   try {
+    const { available, client } = getTwilioClient();
+    if (!client || !available) {
+      return {
+        ok: false,
+        status: 503,
+        code: "twilio_unavailable",
+        message: "Twilio credentials not configured",
+      };
+    }
     const serviceSid = getTwilioVerifyServiceSid();
     const phoneE164 = normalizePhone(phone?.trim() ?? "");
     const maskedPhone = maskPhoneNumber(phoneE164);
@@ -296,6 +289,17 @@ export async function startOtp(phone: string): Promise<StartOtpResult> {
     return { ok: true };
   } catch (err: any) {
     const details = getTwilioErrorDetails(err);
+    if (
+      err instanceof Error &&
+      err.message === "TWILIO_ACCOUNT_SID must be an Account SID (AC...)"
+    ) {
+      return {
+        ok: false,
+        status: 401,
+        code: "twilio_verify_failed",
+        message: "Invalid Twilio credentials",
+      };
+    }
     const phoneE164 = normalizePhone(phone?.trim() ?? "");
     const maskedPhone = maskPhoneNumber(phoneE164);
     logWarn("auth_twilio_verify_failed", {
@@ -306,12 +310,12 @@ export async function startOtp(phone: string): Promise<StartOtpResult> {
       status: details.status,
       message: details.message,
     });
-    if (details.status === 401) {
+    if (details.code === 20003 || details.status === 401) {
       return {
         ok: false,
         status: 401,
         code: "twilio_verify_failed",
-        message: "Authentication Error - invalid username",
+        message: "Invalid Twilio credentials",
       };
     }
     return {
