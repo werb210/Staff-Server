@@ -10,13 +10,14 @@ import {
   revokeRefreshTokensForUser,
   setPhoneVerified,
   storeRefreshToken,
+  updateUserRoleById,
 } from "./auth.repo";
 import { getAccessTokenExpiresIn, getRefreshTokenExpiresIn } from "../../config";
 import { AppError, forbiddenError } from "../../middleware/errors";
 import { recordAuditEvent } from "../audit/audit.service";
 import { pool } from "../../db";
 import { getDbFailureCategory, isDbConnectionFailure } from "../../dbRuntime";
-import { type Role, isRole } from "../../auth/roles";
+import { ROLES, type Role, isRole } from "../../auth/roles";
 import { logInfo, logWarn } from "../../observability/logger";
 import { trackEvent } from "../../observability/appInsights";
 import { buildTelemetryProperties } from "../../observability/telemetry";
@@ -217,6 +218,42 @@ function getPhoneTail(phoneE164: string): string {
   return phoneE164.slice(-2);
 }
 
+function normalizeEmail(email: string | null | undefined): string | null {
+  if (!email) {
+    return null;
+  }
+  const trimmed = email.trim().toLowerCase();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeBootstrapPhone(
+  phone: string | null | undefined
+): string | null {
+  if (!phone) {
+    return null;
+  }
+  const parsed = parsePhoneNumberFromString(phone);
+  const normalized = parsed?.format("E.164") ?? phone;
+  return E164_REGEX.test(normalized) ? normalized : null;
+}
+
+function isBootstrapAdminUser(params: {
+  phoneNumber: string;
+  email: string | null;
+}): boolean {
+  const bootstrapEmail = normalizeEmail(
+    process.env.AUTH_BOOTSTRAP_ADMIN_EMAIL
+  );
+  const bootstrapPhone = normalizeBootstrapPhone(
+    process.env.AUTH_BOOTSTRAP_ADMIN_PHONE
+  );
+  const userEmail = normalizeEmail(params.email);
+  return (
+    (!!bootstrapEmail && !!userEmail && bootstrapEmail === userEmail) ||
+    (!!bootstrapPhone && bootstrapPhone === params.phoneNumber)
+  );
+}
+
 async function requestTwilioVerificationCheck(
   phoneE164: string,
   code: string
@@ -364,10 +401,15 @@ export async function verifyOtpCode(params: {
       await client.query("commit");
       throw new AppError("account_disabled", "Account is disabled.", 403);
     }
-    const role = userRecord.role as Role | null;
+    let role = userRecord.role;
     if (!role || !isRole(role)) {
-      await client.query("commit");
-      throw forbiddenError("User has no assigned role");
+      if (isBootstrapAdminUser(userRecord)) {
+        await updateUserRoleById(userRecord.id, ROLES.ADMIN, db);
+        role = ROLES.ADMIN;
+      } else {
+        await client.query("commit");
+        throw forbiddenError("User has no assigned role");
+      }
     }
 
     await setPhoneVerified(userRecord.id, true, db);
@@ -479,11 +521,16 @@ export async function refreshSession(
             await client.query("commit");
             throw new AppError("invalid_token", "Invalid refresh token.", 401);
           }
+          const role = user.role;
+          if (!role || !isRole(role)) {
+            await client.query("commit");
+            throw forbiddenError("User has no assigned role");
+          }
 
           const newAccessToken = issueAccessToken({
             sub: user.id,
             userId: user.id,
-            role: user.role,
+            role,
             phone: user.phoneNumber,
             type: "access",
             tokenVersion: user.tokenVersion,
@@ -668,7 +715,7 @@ export async function createUserAccount(params: {
       client: db,
     });
     await client.query("commit");
-    return { id: user.id, email: user.email, role: user.role };
+    return { id: user.id, email: user.email, role: params.role };
   } catch (err) {
     await client.query("rollback");
     await recordAuditEvent({

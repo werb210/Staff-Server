@@ -6,7 +6,8 @@
     "dev": "npm run build && node dist/index.js",
     "build": "rm -rf dist && tsc",
     "start": "node dist/index.js",
-    "test": "jest"
+    "test": "jest",
+    "user:set-role": "tsx scripts/set-user-role.ts"
   },
   "dependencies": {
     "@azure/storage-blob": "^12.29.1",
