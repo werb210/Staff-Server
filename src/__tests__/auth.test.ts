@@ -80,6 +80,41 @@ describe("auth otp", () => {
     expect(me.body.role).toBe(ROLES.ADMIN);
   });
 
+  it("persists refresh token metadata on otp verification", async () => {
+    const phone = nextPhone();
+    const user = await createUserAccount({
+      email: "token-check@example.com",
+      phoneNumber: phone,
+      role: ROLES.STAFF,
+    });
+
+    const res = await otpVerifyRequest(app, {
+      phone,
+      requestId,
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.refreshToken).toBeTruthy();
+
+    const stored = await pool.query(
+      `select user_id as "userId",
+              token_hash as "tokenHash",
+              expires_at as "expiresAt",
+              revoked_at as "revokedAt",
+              created_at as "createdAt"
+       from auth_refresh_tokens
+       where user_id = $1`,
+      [user.id]
+    );
+    expect(stored.rows).toHaveLength(1);
+    const record = stored.rows[0];
+    expect(record.userId).toBe(user.id);
+    expect(record.tokenHash).toBeTruthy();
+    expect(record.expiresAt).toBeTruthy();
+    expect(record.createdAt).toBeTruthy();
+    expect(record.revokedAt).toBeNull();
+  });
+
   it("rejects otp verification when code is invalid", async () => {
     const phone = nextPhone();
     await createUserAccount({
