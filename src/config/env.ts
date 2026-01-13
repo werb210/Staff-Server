@@ -44,14 +44,7 @@ function getEnvValue(key: string): string | undefined {
 }
 
 export function getAccessTokenSecret(): string | undefined {
-  const jwtSecret = getEnvValue("JWT_SECRET");
-  const authJwtSecret = getEnvValue("AUTH_JWT_SECRET");
-  if (jwtSecret && authJwtSecret && jwtSecret !== authJwtSecret) {
-    logError("env_conflict", {
-      keys: ["JWT_SECRET", "AUTH_JWT_SECRET"],
-    });
-  }
-  return jwtSecret ?? authJwtSecret;
+  return getEnvValue("JWT_SECRET");
 }
 
 function parsePositiveInt(value: string | undefined, fallback?: number): number {
@@ -91,7 +84,7 @@ export function assertEnv(): void {
   const missing: string[] = requiredRuntimeEnv.filter(
     (key) => !getEnvValue(key)
   );
-  if (!getAccessTokenSecret()) {
+  if (!getEnvValue("JWT_SECRET")) {
     missing.push("JWT_SECRET");
   }
   if (missing.length > 0) {

@@ -1,14 +1,13 @@
 import { type NextFunction, type Request, type Response } from "express";
 import jwt from "jsonwebtoken";
 import { AppError, forbiddenError } from "./errors";
-import { type Role, isRole } from "../auth/roles";
+import { type Role } from "../auth/roles";
 import { findAuthUserById } from "../modules/auth/auth.repo";
 import { recordAuditEvent } from "../modules/audit/audit.service";
 import {
   type Capability,
   getCapabilitiesForRole,
 } from "../auth/capabilities";
-import { getAccessTokenSecret } from "../config";
 
 export type AuthenticatedUser = {
   id: string;
@@ -20,10 +19,10 @@ export type AuthenticatedUser = {
 };
 
 type AccessTokenPayload = {
-  sub: string;
-  userId: string;
-  role: Role;
-  tokenVersion: number;
+  sub?: string;
+  userId?: string;
+  role?: Role;
+  tokenVersion?: number;
   phone?: string;
   type?: string;
 };
@@ -51,14 +50,11 @@ export function requireAuth(
     return;
   }
 
-  const secret = getAccessTokenSecret();
-  if (!secret) {
-    next(new AppError("auth_misconfigured", "Auth is not configured.", 503));
-    return;
-  }
-
   try {
-    const payload = jwt.verify(token, secret) as AccessTokenPayload;
+    const payload = jwt.verify(
+      token,
+      process.env.JWT_SECRET ?? ""
+    ) as AccessTokenPayload;
     if (
       !payload.userId ||
       !payload.role ||
@@ -107,37 +103,18 @@ export function requireAccessToken(
     return;
   }
 
-  const secret = getAccessTokenSecret();
-  if (!secret) {
-    next(new AppError("auth_misconfigured", "Auth is not configured.", 503));
-    return;
-  }
-
   try {
-    const payload = jwt.verify(token, secret) as AccessTokenPayload;
-    if (!payload.userId) {
-      next(new AppError("invalid_token", "Invalid access token.", 401));
-      return;
-    }
-    if (!payload.role || !isRole(payload.role)) {
-      next(forbiddenError());
-      return;
-    }
-    if (payload.type && payload.type !== "access") {
-      next(new AppError("invalid_token", "Invalid access token.", 401));
-      return;
-    }
-    if (!payload.phone || typeof payload.phone !== "string") {
-      next(new AppError("invalid_token", "Invalid access token.", 401));
-      return;
-    }
+    const payload = jwt.verify(
+      token,
+      process.env.JWT_SECRET ?? ""
+    ) as AccessTokenPayload;
     req.user = {
-      id: payload.userId,
-      userId: payload.userId,
+      id: payload.userId as string,
+      userId: payload.userId as string,
       email: null,
-      phoneNumber: payload.phone,
-      role: payload.role,
-      capabilities: getCapabilitiesForRole(payload.role),
+      phoneNumber: payload.phone as string,
+      role: payload.role as Role,
+      capabilities: payload.role ? getCapabilitiesForRole(payload.role) : [],
     };
     next();
   } catch {
