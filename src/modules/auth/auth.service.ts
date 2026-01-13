@@ -1,5 +1,5 @@
 import jwt, { type SignOptions } from "jsonwebtoken";
-import { createHash, randomUUID } from "crypto";
+import { createHash, randomBytes } from "crypto";
 import { type PoolClient } from "pg";
 import { twilioClient, VERIFY_SERVICE_SID } from "../../services/twilio";
 import {
@@ -26,6 +26,8 @@ import { type Role, ROLES } from "../../auth/roles";
 import { logInfo, logWarn } from "../../observability/logger";
 import { trackEvent } from "../../observability/appInsights";
 import { buildTelemetryProperties } from "../../observability/telemetry";
+import { getRequestId } from "../../middleware/requestContext";
+import { parsePhoneNumberFromString } from "libphonenumber-js";
 
 type AccessTokenPayload = {
   userId: string;
@@ -61,11 +63,13 @@ function assertE164(phone: unknown): string {
     throw new Error("Phone number is required");
   }
 
-  if (!E164_REGEX.test(phone)) {
+  const parsed = parsePhoneNumberFromString(phone);
+  const normalized = parsed?.format("E.164") ?? phone;
+  if (!E164_REGEX.test(normalized)) {
     throw new Error("Phone number must be in E.164 format");
   }
 
-  return phone;
+  return normalized;
 }
 
 type AuthDbAction = "otp_verify" | "refresh" | "logout_all";
@@ -150,7 +154,27 @@ function issueAccessToken(payload: AccessTokenPayload): string {
 }
 
 function issueRefreshToken(): string {
-  return randomUUID();
+  return randomBytes(32).toString("hex");
+}
+
+function assertRefreshTokenInputs(params: {
+  userId: string;
+  tokenHash: string;
+  expiresAt: Date;
+  action: string;
+}): void {
+  if (!params.userId || !params.tokenHash || !params.expiresAt) {
+    logWarn("auth_refresh_token_missing_fields", {
+      userId: params.userId ?? null,
+      action: params.action,
+      requestId: getRequestId() ?? "unknown",
+    });
+    throw new AppError(
+      "auth_token_error",
+      "Authentication service unavailable.",
+      500
+    );
+  }
 }
 
 export function assertAuthSubsystem(): void {
@@ -398,12 +422,23 @@ export async function verifyOtpCode(params: {
     refreshExpires.setSeconds(
       refreshExpires.getSeconds() + msToSeconds(getRefreshTokenExpiresIn())
     );
+    assertRefreshTokenInputs({
+      userId: user.userId,
+      tokenHash,
+      expiresAt: refreshExpires,
+      action: "otp_verify",
+    });
     await revokeRefreshTokensForUser(user.userId, db);
     await storeRefreshToken({
       userId: user.userId,
       tokenHash,
       expiresAt: refreshExpires,
       client: db,
+    });
+    logInfo("auth_refresh_token_issued", {
+      userId: user.userId,
+      expiresAt: refreshExpires.toISOString(),
+      requestId: getRequestId() ?? "unknown",
     });
     await recordAuditEvent({
       action: "login",
@@ -466,11 +501,22 @@ export async function refreshSession(
             refreshExpires.getSeconds() + msToSeconds(getRefreshTokenExpiresIn())
           );
 
+          assertRefreshTokenInputs({
+            userId: user.id,
+            tokenHash: newHash,
+            expiresAt: refreshExpires,
+            action: "refresh",
+          });
           await storeRefreshToken({
             userId: user.id,
             tokenHash: newHash,
             expiresAt: refreshExpires,
             client: db,
+          });
+          logInfo("auth_refresh_token_issued", {
+            userId: user.id,
+            expiresAt: refreshExpires.toISOString(),
+            requestId: getRequestId() ?? "unknown",
           });
 
           await recordAuditEvent({
