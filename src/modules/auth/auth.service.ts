@@ -12,11 +12,7 @@ import {
   setPhoneVerified,
   storeRefreshToken,
 } from "./auth.repo";
-import {
-  getAccessTokenExpiresIn,
-  getAccessTokenSecret,
-  getRefreshTokenExpiresIn,
-} from "../../config";
+import { getAccessTokenExpiresIn, getRefreshTokenExpiresIn } from "../../config";
 import { AppError } from "../../middleware/errors";
 import { recordAuditEvent } from "../audit/audit.service";
 import { pool } from "../../db";
@@ -143,13 +139,16 @@ async function withAuthDbRetry<T>(
 
 type Queryable = Pick<PoolClient, "query">;
 
-function issueAccessToken(payload: AccessTokenPayload): string {
-  const secret = getAccessTokenSecret();
+function issueAccessToken(
+  payload: AccessTokenPayload,
+  expiresIn: SignOptions["expiresIn"] = getAccessTokenExpiresIn()
+): string {
+  const secret = process.env.JWT_SECRET;
   if (!secret) {
     throw new AppError("auth_misconfigured", "Auth is not configured.", 503);
   }
   const options: SignOptions = {
-    expiresIn: getAccessTokenExpiresIn() as SignOptions["expiresIn"],
+    expiresIn,
   };
   return jwt.sign(payload, secret, options);
 }
@@ -175,7 +174,7 @@ function assertRefreshTokenInputs(params: {
 }
 
 export function assertAuthSubsystem(): void {
-  const accessSecret = getAccessTokenSecret();
+  const accessSecret = process.env.JWT_SECRET;
   const refreshSecret = process.env.JWT_REFRESH_SECRET;
   if (!accessSecret || !refreshSecret) {
     throw new AppError("auth_misconfigured", "Auth is not configured.", 503);
@@ -414,7 +413,7 @@ export async function verifyOtpCode(params: {
       type: "access" as const,
       tokenVersion: user.tokenVersion,
     };
-    const accessToken = issueAccessToken(payload);
+    const accessToken = issueAccessToken(payload, "15m");
 
     let refreshToken: string;
     let tokenHash: string;
