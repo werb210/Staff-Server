@@ -1,8 +1,10 @@
 import express from "express";
+import path from "path";
 import cors from "cors";
 
 import apiRouter from "./api";
 import internalRoutes from "./routes/_int";
+import authRoutes from "./routes/auth";
 import { healthHandler } from "./routes/ready";
 import { printRoutes } from "./debug/printRoutes";
 import { getPendingMigrations, runMigrations } from "./migrations";
@@ -50,8 +52,6 @@ export function buildApp(): express.Express {
     res.json({ status: "ok" });
   });
 
-  app.use("/api/_int", internalRoutes);
-
   return app;
 }
 
@@ -65,7 +65,23 @@ export async function initializeServer(): Promise<void> {
 
 export function registerApiRoutes(app: express.Express): void {
   // Ensure API routes are registered before any auth guards are applied.
+  const portalBuildPath = path.join(process.cwd(), "portal", "build");
+
+  app.use("/api/_int", internalRoutes);
+  app.use("/api/auth", authRoutes);
   app.use("/api", apiRouter);
+
+  app.get("/api/_int/health", (_req, res) => {
+    res.status(200).json({ ok: true });
+  });
+
+  if (process.env.NODE_ENV === "production") {
+    app.use(express.static(portalBuildPath));
+
+    app.get("*", (_req, res) => {
+      res.sendFile(path.join(portalBuildPath, "index.html"));
+    });
+  }
   if (process.env.PRINT_ROUTES === "true") {
     printRoutes(app);
   }

@@ -33,6 +33,10 @@ export default function requireAuth(
   res: Response,
   next: NextFunction
 ): void {
+  if (req.path.startsWith("/api/_int") || req.path.startsWith("/api/auth")) {
+    next();
+    return;
+  }
   const token = parseBearer(req);
   if (!token) {
     res.sendStatus(401);
