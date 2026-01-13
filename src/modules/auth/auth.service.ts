@@ -1,5 +1,5 @@
 import jwt, { type SignOptions } from "jsonwebtoken";
-import { createHash, randomBytes } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import { type PoolClient } from "pg";
 import { twilioClient, VERIFY_SERVICE_SID } from "../../services/twilio";
 import {
@@ -31,10 +31,6 @@ type AccessTokenPayload = {
   userId: string;
   role: Role;
   tokenVersion: number;
-};
-
-type RefreshTokenPayload = AccessTokenPayload & {
-  tokenId: string;
 };
 
 const refreshLocks = new Set<string>();
@@ -132,34 +128,6 @@ async function withAuthDbRetry<T>(
 
 type Queryable = Pick<PoolClient, "query">;
 
-async function handleRefreshReuse(
-  userId: string,
-  db: Queryable,
-  ip?: string,
-  userAgent?: string
-): Promise<void> {
-  await revokeRefreshTokensForUser(userId, db);
-  await incrementTokenVersion(userId, db);
-  await recordAuditEvent({
-    action: "token_revoke",
-    actorUserId: userId,
-    targetUserId: userId,
-    ip,
-    userAgent,
-    success: true,
-    client: db,
-  });
-  await recordAuditEvent({
-    action: "token_reuse",
-    actorUserId: userId,
-    targetUserId: userId,
-    ip,
-    userAgent,
-    success: false,
-    client: db,
-  });
-}
-
 function issueAccessToken(payload: AccessTokenPayload): string {
   const secret = getAccessTokenSecret();
   if (!secret) {
@@ -172,20 +140,8 @@ function issueAccessToken(payload: AccessTokenPayload): string {
   return jwt.sign(payload, secret, options);
 }
 
-function issueRefreshToken(payload: AccessTokenPayload): string {
-  const secret = process.env.JWT_REFRESH_SECRET;
-  if (!secret) {
-    throw new AppError("auth_misconfigured", "Auth is not configured.", 503);
-  }
-  const options: SignOptions = {
-    expiresIn: getRefreshTokenExpiresIn() as SignOptions["expiresIn"],
-    subject: payload.userId,
-  };
-  const refreshPayload: RefreshTokenPayload = {
-    ...payload,
-    tokenId: randomBytes(16).toString("hex"),
-  };
-  return jwt.sign(refreshPayload, secret, options);
+function issueRefreshToken(): string {
+  return randomUUID();
 }
 
 export function assertAuthSubsystem(): void {
@@ -423,7 +379,7 @@ export async function verifyOtpCode(params: {
       tokenVersion: user.tokenVersion,
     };
     const accessToken = issueAccessToken(payload);
-    const refreshToken = issueRefreshToken(payload);
+    const refreshToken = issueRefreshToken();
     const tokenHash = hashToken(refreshToken);
     const refreshExpires = new Date();
     refreshExpires.setSeconds(
@@ -461,27 +417,9 @@ export async function refreshSession(
   ip?: string,
   userAgent?: string
 ): Promise<{ accessToken: string; refreshToken: string }> {
-  const secret = process.env.JWT_REFRESH_SECRET;
-  if (!secret) {
-    throw new AppError("auth_misconfigured", "Auth is not configured.", 503);
-  }
-
-  const decoded = jwt.decode(refreshToken) as RefreshTokenPayload | null;
-  const actorUserId = decoded?.userId ?? null;
-
   return withAuthDbRetry("refresh", async () => {
     try {
-      const payload = jwt.verify(refreshToken, secret) as RefreshTokenPayload;
-      if (
-        !payload.userId ||
-        !payload.role ||
-        typeof payload.tokenVersion !== "number" ||
-        !payload.tokenId
-      ) {
-        throw new AppError("invalid_token", "Invalid refresh token.", 401);
-      }
-
-      return await withRefreshLock(payload.userId, async () => {
+      return await withRefreshLock(refreshToken, async () => {
         const client = await pool.connect();
         const db = client;
         try {
@@ -490,12 +428,6 @@ export async function refreshSession(
           const record = await consumeRefreshToken(tokenHash, db);
           if (!record) {
             await client.query("rollback");
-            await handleRefreshReuse(payload.userId, pool, ip, userAgent);
-            throw new AppError("invalid_token", "Invalid refresh token.", 401);
-          }
-          if (record.userId !== payload.userId) {
-            await client.query("commit");
-            await handleRefreshReuse(payload.userId, pool, ip, userAgent);
             throw new AppError("invalid_token", "Invalid refresh token.", 401);
           }
           if (record.expiresAt.getTime() < Date.now()) {
@@ -503,12 +435,8 @@ export async function refreshSession(
             throw new AppError("invalid_token", "Invalid refresh token.", 401);
           }
 
-          const user = await findAuthUserById(payload.userId, db);
+          const user = await findAuthUserById(record.userId, db);
           if (!user || !user.active) {
-            await client.query("commit");
-            throw new AppError("invalid_token", "Invalid refresh token.", 401);
-          }
-          if (user.tokenVersion !== payload.tokenVersion) {
             await client.query("commit");
             throw new AppError("invalid_token", "Invalid refresh token.", 401);
           }
@@ -518,11 +446,7 @@ export async function refreshSession(
             role: user.role,
             tokenVersion: user.tokenVersion,
           });
-          const newRefreshToken = issueRefreshToken({
-            userId: user.id,
-            role: user.role,
-            tokenVersion: user.tokenVersion,
-          });
+          const newRefreshToken = issueRefreshToken();
           const newHash = hashToken(newRefreshToken);
           const refreshExpires = new Date();
           refreshExpires.setSeconds(
@@ -564,15 +488,15 @@ export async function refreshSession(
       const db = pool;
       await recordAuditEvent({
         action: "token_refresh",
-        actorUserId,
-        targetUserId: actorUserId,
+        actorUserId: null,
+        targetUserId: null,
         ip,
         userAgent,
         success: false,
         client: db,
       });
       logWarn("auth_refresh_failed", {
-        userId: actorUserId,
+        userId: null,
         error: err instanceof Error ? err.message : "unknown_error",
       });
       if (err instanceof AppError) {

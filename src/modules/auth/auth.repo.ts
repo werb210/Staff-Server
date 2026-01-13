@@ -148,6 +148,7 @@ export async function consumeRefreshToken(
      set revoked_at = now()
      where token_hash = $1
        and revoked_at is null
+       and expires_at > now()
      returning id,
               user_id as "userId",
               token_hash as "tokenHash",

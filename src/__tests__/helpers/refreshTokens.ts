@@ -1,5 +1,4 @@
-import { createHash, randomBytes } from "crypto";
-import jwt, { type SignOptions } from "jsonwebtoken";
+import { createHash, randomUUID } from "crypto";
 import { getRefreshTokenExpiresIn } from "../../config";
 import { findAuthUserById, storeRefreshToken } from "../../modules/auth/auth.repo";
 
@@ -31,20 +30,7 @@ export async function issueRefreshTokenForUser(userId: string): Promise<string> 
   if (!user) {
     throw new Error("User not found for refresh token.");
   }
-  const secret = process.env.JWT_REFRESH_SECRET;
-  if (!secret) {
-    throw new Error("JWT_REFRESH_SECRET is not configured.");
-  }
-  const options: SignOptions = {
-    expiresIn: getRefreshTokenExpiresIn() as SignOptions["expiresIn"],
-  };
-  const refreshPayload = {
-    userId: user.id,
-    role: user.role,
-    tokenVersion: user.tokenVersion,
-    tokenId: randomBytes(16).toString("hex"),
-  };
-  const refreshToken = jwt.sign(refreshPayload, secret, options);
+  const refreshToken = randomUUID();
   const tokenHash = createHash("sha256").update(refreshToken).digest("hex");
   const refreshExpires = new Date();
   refreshExpires.setSeconds(
