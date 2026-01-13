@@ -54,10 +54,19 @@ function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
-const normalizePhone = (phone: string): string =>
-  phone.startsWith("+") ? phone : `+${phone.replace(/\D/g, "")}`;
+const E164_REGEX = /^\+[1-9]\d{10,14}$/;
 
-const isValidE164 = (phone: string): boolean => /^\+\d{10,15}$/.test(phone);
+function assertE164(phone: unknown): string {
+  if (!phone || typeof phone !== "string") {
+    throw new Error("Phone number is required");
+  }
+
+  if (!E164_REGEX.test(phone)) {
+    throw new Error("Phone number must be in E.164 format");
+  }
+
+  return phone;
+}
 
 type AuthDbAction = "otp_verify" | "refresh" | "logout_all";
 
@@ -206,21 +215,24 @@ type StartOtpResult =
   | { ok: true }
   | { ok: false; status: number; error: string; twilioCode?: number | string };
 
-export async function startOtp(phone: string): Promise<StartOtpResult> {
+export async function startOtp(phone: unknown): Promise<StartOtpResult> {
+  let phoneE164: string;
   try {
-    const phoneE164 = normalizePhone(phone?.trim() ?? "");
-    if (!isValidE164(phoneE164)) {
-      const phoneTail = getPhoneTail(phoneE164);
-      logWarn("otp_start_invalid_phone", {
-        phoneTail,
-        status: "invalid_phone",
-      });
-      return {
-        ok: false,
-        status: 400,
-        error: "Invalid phone number",
-      };
-    }
+    phoneE164 = assertE164(phone);
+  } catch {
+    const phoneTail = typeof phone === "string" ? getPhoneTail(phone) : "";
+    logWarn("otp_start_invalid_phone", {
+      phoneTail,
+      status: "invalid_phone",
+    });
+    return {
+      ok: false,
+      status: 400,
+      error: "Invalid phone number",
+    };
+  }
+
+  try {
     const phoneTail = getPhoneTail(phoneE164);
     const verification = await twilioClient.verify.v2
       .services(VERIFY_SERVICE_SID)
@@ -234,7 +246,6 @@ export async function startOtp(phone: string): Promise<StartOtpResult> {
     return { ok: true };
   } catch (err: any) {
     const details = getTwilioErrorDetails(err);
-    const phoneE164 = normalizePhone(phone?.trim() ?? "");
     const phoneTail = getPhoneTail(phoneE164);
     logWarn("auth_twilio_verify_failed", {
       action: "otp_start",
@@ -301,9 +312,8 @@ export async function verifyOtpCode(params: {
   | { ok: true; accessToken: string; refreshToken: string }
   | { ok: false; status: number; error: string; twilioCode?: number | string }
 > {
-  const rawPhone = params.phone?.trim() ?? "";
   const code = params.code?.trim() ?? "";
-  if (!rawPhone || !code) {
+  if (!code) {
     logWarn("otp_verify_invalid_request", {
       status: "missing_fields",
     });
@@ -313,9 +323,12 @@ export async function verifyOtpCode(params: {
       error: "Phone and code are required",
     };
   }
-  const phoneE164 = normalizePhone(rawPhone);
-  if (!isValidE164(phoneE164)) {
-    const phoneTail = getPhoneTail(phoneE164);
+  let phoneE164: string;
+  try {
+    phoneE164 = assertE164(params.phone);
+  } catch {
+    const phoneTail =
+      typeof params.phone === "string" ? getPhoneTail(params.phone) : "";
     logWarn("otp_verify_invalid_phone", {
       phoneTail,
       status: "invalid_phone",
