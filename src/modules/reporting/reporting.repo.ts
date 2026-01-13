@@ -436,7 +436,7 @@ export async function upsertStaffActivityWindow(params: {
      from audit_events ae
      join users u on u.id = ae.actor_user_id
      where ae.actor_user_id is not null
-       and u.role in ('admin', 'staff')
+       and u.role in ('Admin', 'Staff')
        and ae.created_at >= $1 and ae.created_at < $2
      group by ae.actor_user_id, ae.event_action
      on conflict (metric_date, staff_user_id, action) do update
