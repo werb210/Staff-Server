@@ -5,7 +5,7 @@ import {
   incrementTokenVersion,
   revokeRefreshTokensForUser,
   setUserActive,
-  updateUserRole,
+  updateUserRoleById,
 } from "../auth/auth.repo";
 import { type Role } from "../../auth/roles";
 import { pool } from "../../db";
@@ -94,7 +94,7 @@ export async function changeUserRole(params: {
   const client = await pool.connect();
   try {
     await client.query("begin");
-    await updateUserRole(params.userId, params.role, client);
+    await updateUserRoleById(params.userId, params.role, client);
     await incrementTokenVersion(params.userId, client);
     await revokeRefreshTokensForUser(params.userId, client);
     await recordAuditEvent({

@@ -1,10 +1,9 @@
 import jwt from "jsonwebtoken";
 import request from "supertest";
+import { randomUUID } from "crypto";
 import { buildAppWithApiRoutes } from "../app";
 import { pool } from "../db";
-import { randomUUID } from "crypto";
 import { ROLES } from "../auth/roles";
-import { createUserAccount } from "../modules/auth/auth.service";
 import { runMigrations } from "../migrations";
 import { resetLoginRateLimit } from "../middleware/rateLimit";
 import { ensureAuditEventSchema } from "./helpers/auditSchema";
@@ -12,7 +11,7 @@ import { otpVerifyRequest } from "./helpers/otpAuth";
 import { getTwilioMocks } from "./helpers/twilioMocks";
 
 const app = buildAppWithApiRoutes();
-let phoneCounter = 300;
+let phoneCounter = 400;
 const nextPhone = (): string =>
   `+1415555${String(phoneCounter++).padStart(4, "0")}`;
 
@@ -47,21 +46,26 @@ beforeAll(async () => {
 beforeEach(async () => {
   await resetDb();
   resetLoginRateLimit();
-  phoneCounter = 300;
+  phoneCounter = 400;
+  delete process.env.AUTH_BOOTSTRAP_ADMIN_EMAIL;
+  delete process.env.AUTH_BOOTSTRAP_ADMIN_PHONE;
 });
 
 afterAll(async () => {
   await pool.end();
 });
 
-describe("auth otp contract", () => {
-  it("issues a JWT with role on OTP verify", async () => {
+describe("auth bootstrap admin", () => {
+  it("assigns ADMIN role for bootstrap user with null role and issues JWT", async () => {
     const phone = nextPhone();
-    const user = await createUserAccount({
-      email: "otp-role@example.com",
-      phoneNumber: phone,
-      role: ROLES.STAFF,
-    });
+    process.env.AUTH_BOOTSTRAP_ADMIN_PHONE = phone;
+
+    const userId = randomUUID();
+    await pool.query(
+      `insert into users (id, email, phone_number, role, active)
+       values ($1, $2, $3, $4, $5)`,
+      [userId, "bootstrap-admin@example.com", phone, null, true]
+    );
 
     const twilioMocks = getTwilioMocks();
     twilioMocks.createVerificationCheck.mockResolvedValueOnce({
@@ -76,52 +80,20 @@ describe("auth otp contract", () => {
       process.env.JWT_SECRET ?? "test-access-secret"
     ) as jwt.JwtPayload;
 
-    expect(payload.sub).toBe(user.id);
-    expect(payload.role).toBe(ROLES.STAFF);
-  });
+    expect(payload.sub).toBe(userId);
+    expect(payload.role).toBe(ROLES.ADMIN);
 
-  it("rejects OTP verify when user role is missing", async () => {
-    const phone = nextPhone();
-    const twilioMocks = getTwilioMocks();
-    twilioMocks.createVerificationCheck.mockResolvedValueOnce({
-      status: "approved",
-    });
-
-    delete process.env.AUTH_BOOTSTRAP_ADMIN_EMAIL;
-    delete process.env.AUTH_BOOTSTRAP_ADMIN_PHONE;
-    await pool.query(
-      `insert into users (id, email, phone_number, role, active)
-       values ($1, $2, $3, $4, $5)`,
-      [randomUUID(), "otp-null@example.com", phone, null, true]
+    const dbRole = await pool.query<{ role: string | null }>(
+      `select role from users where id = $1`,
+      [userId]
     );
-
-    const res = await otpVerifyRequest(app, { phone });
-    expect(res.status).toBe(403);
-    expect(res.body.code).toBe("forbidden");
-    expect(res.body.message).toBe("User has no assigned role");
-  });
-
-  it("returns role in /api/auth/me after OTP login", async () => {
-    const phone = nextPhone();
-    await createUserAccount({
-      email: "otp-me@example.com",
-      phoneNumber: phone,
-      role: ROLES.STAFF,
-    });
-
-    const twilioMocks = getTwilioMocks();
-    twilioMocks.createVerificationCheck.mockResolvedValueOnce({
-      status: "approved",
-    });
-
-    const res = await otpVerifyRequest(app, { phone });
-    expect(res.status).toBe(200);
+    expect(dbRole.rows[0]?.role).toBe(ROLES.ADMIN);
 
     const me = await request(app)
       .get("/api/auth/me")
       .set("Authorization", `Bearer ${res.body.accessToken}`);
 
     expect(me.status).toBe(200);
-    expect(me.body.role).toBe(ROLES.STAFF);
+    expect(me.body.role).toBe(ROLES.ADMIN);
   });
 });

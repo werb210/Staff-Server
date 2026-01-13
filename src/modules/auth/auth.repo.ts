@@ -24,7 +24,7 @@ export interface AuthUser {
   email: string | null;
   phoneNumber: string;
   phoneVerified: boolean;
-  role: Role;
+  role: Role | null;
   active: boolean;
   tokenVersion: number;
 }
@@ -229,7 +229,7 @@ export async function setUserActive(
   );
 }
 
-export async function updateUserRole(
+export async function updateUserRoleById(
   userId: string,
   role: Role,
   client?: Queryable
