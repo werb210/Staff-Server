@@ -93,7 +93,8 @@ router.post(
       if (!state || typeof state !== "string") {
         throw new AppError("missing_fields", "state is required.", 400);
       }
-      if (override && !req.user.capabilities.includes(CAPABILITIES.PIPELINE_OVERRIDE)) {
+      const capabilities = req.user.capabilities ?? [];
+      if (override && !capabilities.includes(CAPABILITIES.PIPELINE_OVERRIDE)) {
         throw new AppError("forbidden", "Override not permitted.", 403);
       }
       await changePipelineState({

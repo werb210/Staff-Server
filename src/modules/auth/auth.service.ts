@@ -141,7 +141,7 @@ type Queryable = Pick<PoolClient, "query">;
 
 function issueAccessToken(
   payload: AccessTokenPayload,
-  expiresIn: SignOptions["expiresIn"] = getAccessTokenExpiresIn()
+  expiresIn: SignOptions["expiresIn"] = getAccessTokenExpiresIn() as SignOptions["expiresIn"]
 ): string {
   const secret = process.env.JWT_SECRET;
   if (!secret) {

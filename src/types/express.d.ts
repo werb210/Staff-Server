@@ -1,4 +1,4 @@
-import { type AuthenticatedUser } from "../middleware/auth";
+import { type AuthenticatedUser } from "./auth";
 
 declare global {
   namespace Express {
