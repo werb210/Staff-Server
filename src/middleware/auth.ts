@@ -10,11 +10,9 @@ import {
 import { type AuthenticatedUser } from "../types/auth";
 
 type AccessTokenPayload = JwtPayload & {
-  userId?: string;
   sub?: string;
   role?: string;
   phone?: string;
-  phoneNumber?: string;
   capabilities?: Capability[] | string[];
 };
 
@@ -64,25 +62,12 @@ function normalizeAuthenticatedUser(
     return null;
   }
   const payload = decoded as AccessTokenPayload;
-  const userId =
-    typeof payload.userId === "string"
-      ? payload.userId
-      : typeof payload.sub === "string"
-        ? payload.sub
-        : null;
+  const userId = typeof payload.sub === "string" ? payload.sub : null;
   if (!userId) {
     return null;
   }
   const role = typeof payload.role === "string" ? payload.role : null;
-  if (!role || !isRole(role)) {
-    return null;
-  }
-  const phone =
-    typeof payload.phone === "string"
-      ? payload.phone
-      : typeof payload.phoneNumber === "string"
-        ? payload.phoneNumber
-        : undefined;
+  const phone = typeof payload.phone === "string" ? payload.phone : null;
   const capabilities = Array.isArray(payload.capabilities)
     ? (payload.capabilities.filter(
         (capability): capability is Capability => typeof capability === "string"
@@ -92,7 +77,8 @@ function normalizeAuthenticatedUser(
     userId,
     role,
     phone,
-    capabilities: capabilities ?? getCapabilitiesForRole(role),
+    capabilities:
+      capabilities ?? (role && isRole(role) ? getCapabilitiesForRole(role) : []),
   };
 }
 
@@ -115,12 +101,15 @@ export function requireCapability(capabilities: readonly Capability[]) {
       const userPayload =
         typeof req.user === "object" && req.user !== null ? req.user : undefined;
       const userCapabilities =
-        (userPayload as { capabilities?: Capability[] } | undefined)?.capabilities ??
-        (userPayload as { role?: Role } | undefined)?.role
+        (userPayload as { capabilities?: Capability[] } | undefined)
+          ?.capabilities ??
+        ((userPayload as { role?: Role | string | null } | undefined)?.role &&
+        isRole((userPayload as { role?: Role | string | null } | undefined)?.role)
           ? getCapabilitiesForRole(
-              (userPayload as { role?: Role } | undefined)?.role as Role
+              (userPayload as { role?: Role | string | null } | undefined)
+                ?.role as Role
             )
-          : [];
+          : []);
 
       if (!allowed.some((capability) => userCapabilities.includes(capability))) {
         await recordAuditEvent({
