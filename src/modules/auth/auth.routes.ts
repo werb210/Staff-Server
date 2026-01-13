@@ -170,9 +170,9 @@ router.get(
         );
       }
       res.json({
-        id: req.user.id,
+        userId: req.user.userId,
         role: req.user.role,
-        phone: req.user.phoneNumber,
+        phone: req.user.phone,
       });
     } catch (err) {
       next(err);

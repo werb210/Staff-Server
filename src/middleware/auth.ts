@@ -1,14 +1,22 @@
 import { type NextFunction, type Request, type Response } from "express";
 import jwt, { type JwtPayload } from "jsonwebtoken";
 import { forbiddenError } from "./errors";
-import { type Role } from "../auth/roles";
+import { type Role, isRole } from "../auth/roles";
 import { recordAuditEvent } from "../modules/audit/audit.service";
 import {
   type Capability,
   getCapabilitiesForRole,
 } from "../auth/capabilities";
+import { type AuthenticatedUser } from "../types/auth";
 
-export type AuthenticatedUser = JwtPayload | string;
+type AccessTokenPayload = JwtPayload & {
+  userId?: string;
+  sub?: string;
+  role?: string;
+  phone?: string;
+  phoneNumber?: string;
+  capabilities?: Capability[] | string[];
+};
 
 function parseBearer(req: Request): string | null {
   const header = req.headers.authorization;
@@ -34,14 +42,58 @@ export default function requireAuth(
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET ?? "", {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET ?? "", {
       algorithms: ["HS256"],
     });
-    req.user = decoded as AuthenticatedUser;
+    const user = normalizeAuthenticatedUser(decoded);
+    if (!user) {
+      res.sendStatus(401);
+      return;
+    }
+    req.user = user;
     next();
   } catch {
     res.sendStatus(401);
   }
+}
+
+function normalizeAuthenticatedUser(
+  decoded: JwtPayload | string
+): AuthenticatedUser | null {
+  if (!decoded || typeof decoded !== "object") {
+    return null;
+  }
+  const payload = decoded as AccessTokenPayload;
+  const userId =
+    typeof payload.userId === "string"
+      ? payload.userId
+      : typeof payload.sub === "string"
+        ? payload.sub
+        : null;
+  if (!userId) {
+    return null;
+  }
+  const role = typeof payload.role === "string" ? payload.role : null;
+  if (!role || !isRole(role)) {
+    return null;
+  }
+  const phone =
+    typeof payload.phone === "string"
+      ? payload.phone
+      : typeof payload.phoneNumber === "string"
+        ? payload.phoneNumber
+        : undefined;
+  const capabilities = Array.isArray(payload.capabilities)
+    ? (payload.capabilities.filter(
+        (capability): capability is Capability => typeof capability === "string"
+      ) as Capability[])
+    : undefined;
+  return {
+    userId,
+    role,
+    phone,
+    capabilities: capabilities ?? getCapabilitiesForRole(role),
+  };
 }
 
 export function requireCapability(capabilities: readonly Capability[]) {
