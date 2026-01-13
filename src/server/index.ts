@@ -52,15 +52,17 @@ async function logStartupStatus(): Promise<void> {
 const app = buildApp();
 registerApiRoutes(app);
 
+if (!process.env.PORT) {
+  throw new Error("PORT env var missing");
+}
+
 const port = Number(process.env.PORT);
 
-if (!port) {
-  throw new Error("PORT env var is not set");
-}
+logInfo("api_boot", { port, pid: process.pid });
 
 const server = app.listen(port, "0.0.0.0", () => {
   app.set("port", port);
-  console.log(`Server listening on ${port}`);
+  console.log(`API server running on port ${port}`);
   logger.info({
     event: "server_listening",
     port,
