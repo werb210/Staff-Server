@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { AppError } from "../../middleware/errors";
-import { requireAuth, requireCapability } from "../../middleware/auth";
+import requireAuth, { requireCapability } from "../../middleware/auth";
 import { CAPABILITIES } from "../../auth/capabilities";
 import { recordAuditEvent } from "../audit/audit.service";
 import { listDailyMetrics } from "./dailyMetrics.service";

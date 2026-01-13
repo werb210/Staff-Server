@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { requireAuth, requireCapability } from "../../middleware/auth";
+import requireAuth, { requireCapability } from "../../middleware/auth";
 import { CAPABILITIES } from "../../auth/capabilities";
 import { AppError } from "../../middleware/errors";
 import { getSubmissionStatus, submitApplication } from "./lender.service";
