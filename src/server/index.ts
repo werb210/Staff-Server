@@ -1,122 +1,43 @@
-import { buildApp, registerApiRoutes } from "../app";
-import { isTestEnvironment } from "../config";
-import { dbQuery } from "../db";
-import { logError, logInfo, logWarn } from "../observability/logger";
-import { initializeAppInsights } from "../observability/appInsights";
-import { installProcessHandlers } from "../observability/processHandlers";
-import {
-  setCriticalServicesReady,
-  setDbConnected,
-  setMigrationsState,
-  setSchemaReady,
-} from "../startupState";
-import { runStartupConsistencyCheck } from "../startup/consistencyCheck";
-import { getPendingMigrations } from "../migrations";
-import { ensureSchemaRepairs } from "../startup/schemaRepairs";
+import express from "express";
+import path from "path";
+import { registerApiRoutes } from "./routes";
 
-const logger = {
-  info: (fields: { event: string; [key: string]: unknown }): void => {
-    const { event, ...rest } = fields;
-    logInfo(event, rest);
-  },
-};
+const app = express();
 
-async function logStartupStatus(): Promise<void> {
-  try {
-    await dbQuery("select 1");
-    setDbConnected(true);
-    await ensureSchemaRepairs();
-    setSchemaReady(true);
-    const pendingMigrations = await getPendingMigrations();
-    setMigrationsState(pendingMigrations);
-    logInfo("db_connected");
-    await runStartupConsistencyCheck();
-    setCriticalServicesReady(true);
-
-    const userCountResult = await dbQuery<{ count: number }>(
-      "select count(*)::int as count from users"
-    );
-    const userCount = userCountResult.rows[0]?.count ?? 0;
-    if (userCount === 0) {
-      logWarn("seed_failure", { userCount });
-    } else {
-      logInfo("user_count", { userCount });
-    }
-  } catch (err) {
-    logError("startup_failed", {
-      error: err instanceof Error ? err.message : "unknown_error",
-    });
-  }
-}
-
-const app = buildApp();
+/* =========================
+   API ROUTES — FIRST
+========================= */
 registerApiRoutes(app);
 
-if (!process.env.PORT) {
-  throw new Error("PORT env var missing");
-}
+/* Health endpoint (JSON only) */
+app.get("/health", (_req, res) => {
+  res.status(200).json({ ok: true });
+});
 
+/* =========================
+   STATIC FILES
+========================= */
+const distPath = path.resolve(__dirname, "../../dist");
+app.use(express.static(distPath));
+
+/* =========================
+   SPA FALLBACK — LAST
+   NEVER intercept /api/*
+========================= */
+app.get("*", (req, res) => {
+  if (req.path.startsWith("/api/")) {
+    res.status(404).json({ error: "API route not found" });
+    return;
+  }
+  res.sendFile(path.join(distPath, "index.html"));
+});
+
+/* =========================
+   START SERVER
+========================= */
 const port = Number(process.env.PORT);
+if (!port) throw new Error("PORT env var missing");
 
-logInfo("api_boot", { port, pid: process.pid });
-
-const server = app.listen(port, "0.0.0.0", () => {
-  app.set("port", port);
-  console.log(`API server running on port ${port}`);
-  logger.info({
-    event: "server_listening",
-    port,
-    pid: process.pid,
-  });
+app.listen(port, "0.0.0.0", () => {
+  console.log(`API server listening on ${port}`);
 });
-
-const startupWatchdogMs = Number(process.env.STARTUP_WATCHDOG_MS ?? 15000);
-const watchdog = setTimeout(() => {
-  if (!server.listening) {
-    logError("startup_timeout", {
-      message: "Server did not start listening before watchdog timeout.",
-      timeoutMs: startupWatchdogMs,
-    });
-  }
-}, startupWatchdogMs);
-
-server.once("listening", () => {
-  clearTimeout(watchdog);
-});
-
-server.once("error", () => {
-  clearTimeout(watchdog);
-});
-
-function handleStartupException(error: unknown, context: string): void {
-  const err = error instanceof Error ? error : new Error(String(error));
-  logError("startup_exception", {
-    context,
-    error: err.message,
-    stack: err.stack,
-  });
-}
-
-function safeStartupStep(context: string, action: () => void): void {
-  try {
-    action();
-  } catch (error) {
-    handleStartupException(error, context);
-  }
-}
-
-safeStartupStep("app_insights_init", () => {
-  initializeAppInsights();
-});
-
-safeStartupStep("process_handlers", () => {
-  installProcessHandlers();
-});
-
-safeStartupStep("startup_status", () => {
-  if (!isTestEnvironment()) {
-    void logStartupStatus().catch((error) => handleStartupException(error, "startup_status_async"));
-  }
-});
-
-export { app, server };
