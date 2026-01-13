@@ -1,7 +1,7 @@
 import { type NextFunction, type Request, type Response } from "express";
 import jwt from "jsonwebtoken";
 import { AppError, forbiddenError } from "./errors";
-import { type Role } from "../auth/roles";
+import { type Role, isRole } from "../auth/roles";
 import { findAuthUserById } from "../modules/auth/auth.repo";
 import { recordAuditEvent } from "../modules/audit/audit.service";
 import {
@@ -11,6 +11,7 @@ import {
 import { getAccessTokenSecret } from "../config";
 
 export type AuthenticatedUser = {
+  id: string;
   userId: string;
   email: string | null;
   phoneNumber: string;
@@ -19,9 +20,12 @@ export type AuthenticatedUser = {
 };
 
 type AccessTokenPayload = {
+  sub: string;
   userId: string;
   role: Role;
   tokenVersion: number;
+  phone?: string;
+  type?: string;
 };
 
 function parseBearer(req: Request): string | null {
@@ -77,6 +81,7 @@ export function requireAuth(
           return;
         }
         req.user = {
+          id: payload.userId,
           userId: payload.userId,
           email: user.email,
           phoneNumber: user.phoneNumber,
@@ -86,6 +91,55 @@ export function requireAuth(
         next();
       })
       .catch((err) => next(err));
+  } catch {
+    next(new AppError("invalid_token", "Invalid access token.", 401));
+  }
+}
+
+export function requireAccessToken(
+  req: Request,
+  _res: Response,
+  next: NextFunction
+): void {
+  const token = parseBearer(req);
+  if (!token) {
+    next(new AppError("missing_token", "Authorization token is required.", 401));
+    return;
+  }
+
+  const secret = getAccessTokenSecret();
+  if (!secret) {
+    next(new AppError("auth_misconfigured", "Auth is not configured.", 503));
+    return;
+  }
+
+  try {
+    const payload = jwt.verify(token, secret) as AccessTokenPayload;
+    if (!payload.userId) {
+      next(new AppError("invalid_token", "Invalid access token.", 401));
+      return;
+    }
+    if (!payload.role || !isRole(payload.role)) {
+      next(forbiddenError());
+      return;
+    }
+    if (payload.type && payload.type !== "access") {
+      next(new AppError("invalid_token", "Invalid access token.", 401));
+      return;
+    }
+    if (!payload.phone || typeof payload.phone !== "string") {
+      next(new AppError("invalid_token", "Invalid access token.", 401));
+      return;
+    }
+    req.user = {
+      id: payload.userId,
+      userId: payload.userId,
+      email: null,
+      phoneNumber: payload.phone,
+      role: payload.role,
+      capabilities: getCapabilitiesForRole(payload.role),
+    };
+    next();
   } catch {
     next(new AppError("invalid_token", "Invalid access token.", 401));
   }

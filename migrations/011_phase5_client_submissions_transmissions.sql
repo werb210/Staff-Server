@@ -40,7 +40,7 @@ values (
   '00000000-0000-0000-0000-000000000001',
   'client-submission@system.local',
   '$2a$10$w6mUovSd.4MYgYusN4uT0.oVpi9oyaylVv4QOM4bLIKO7iHuUWLZa',
-  'user',
+  'referrer',
   false,
   now()
 )

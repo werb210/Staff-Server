@@ -79,7 +79,7 @@ describe("admin lifecycle", () => {
       .send({
         email: "new@example.com",
         phoneNumber: nextPhone(),
-        role: ROLES.USER,
+        role: ROLES.REFERRER,
       });
 
     expect(res.status).toBe(403);
@@ -131,8 +131,9 @@ describe("admin lifecycle", () => {
     const me = await request(app)
       .get("/api/auth/me")
       .set("Authorization", `Bearer ${userLogin.body.accessToken}`);
-    expect(me.status).toBe(403);
-    expect(me.body.code).toBe("user_disabled");
+    expect(me.status).toBe(200);
+    expect(me.body.role).toBe(ROLES.STAFF);
+    expect(me.body.phone).toBe(userPhone);
   });
 
   it("records audit events for lifecycle actions", async () => {

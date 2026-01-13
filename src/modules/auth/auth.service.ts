@@ -33,8 +33,11 @@ import {
 } from "../../auth/tokenUtils";
 
 type AccessTokenPayload = {
+  sub: string;
   userId: string;
   role: Role;
+  phone: string;
+  type: "access";
   tokenVersion: number;
 };
 
@@ -147,7 +150,6 @@ function issueAccessToken(payload: AccessTokenPayload): string {
   }
   const options: SignOptions = {
     expiresIn: getAccessTokenExpiresIn() as SignOptions["expiresIn"],
-    subject: payload.userId,
   };
   return jwt.sign(payload, secret, options);
 }
@@ -297,7 +299,7 @@ async function findOrCreateUserByPhone(
     const created = await createUser({
       email: null,
       phoneNumber,
-      role: ROLES.USER,
+      role: ROLES.REFERRER,
       client: db,
     });
     await recordAuditEvent({
@@ -405,8 +407,11 @@ export async function verifyOtpCode(params: {
     await setPhoneVerified(user.userId, true, db);
 
     const payload = {
+      sub: user.userId,
       userId: user.userId,
       role: user.role,
+      phone: userRecord.phoneNumber,
+      type: "access" as const,
       tokenVersion: user.tokenVersion,
     };
     const accessToken = issueAccessToken(payload);
@@ -510,8 +515,11 @@ export async function refreshSession(
           }
 
           const newAccessToken = issueAccessToken({
+            sub: user.id,
             userId: user.id,
             role: user.role,
+            phone: user.phoneNumber,
+            type: "access",
             tokenVersion: user.tokenVersion,
           });
           const newRefreshToken = generateRefreshToken();

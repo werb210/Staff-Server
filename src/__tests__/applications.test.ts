@@ -62,7 +62,7 @@ describe("applications and documents", () => {
     await createUserAccount({
       email: "user@apps.com",
       phoneNumber: userPhone,
-      role: ROLES.USER,
+      role: ROLES.REFERRER,
     });
 
     const login = await otpVerifyRequest(app, {
@@ -121,12 +121,12 @@ describe("applications and documents", () => {
     await createUserAccount({
       email: "owner@apps.com",
       phoneNumber: ownerPhone,
-      role: ROLES.USER,
+      role: ROLES.REFERRER,
     });
     await createUserAccount({
       email: "other@apps.com",
       phoneNumber: otherPhone,
-      role: ROLES.USER,
+      role: ROLES.REFERRER,
     });
 
     const ownerLogin = await otpVerifyRequest(app, {
@@ -279,7 +279,7 @@ describe("applications and documents", () => {
     await createUserAccount({
       email: "requirements@apps.com",
       phoneNumber: requirementsPhone,
-      role: ROLES.USER,
+      role: ROLES.REFERRER,
     });
 
     const login = await otpVerifyRequest(app, {
@@ -446,7 +446,7 @@ describe("applications and documents", () => {
     await createUserAccount({
       email: "invalidmime@apps.com",
       phoneNumber: invalidPhone,
-      role: ROLES.USER,
+      role: ROLES.REFERRER,
     });
 
     const login = await otpVerifyRequest(app, {

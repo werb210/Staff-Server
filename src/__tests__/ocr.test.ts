@@ -21,7 +21,7 @@ async function seedDocument(): Promise<{ documentId: string; applicationId: stri
   const user = await createUserAccount({
     email: `ocr-${randomUUID()}@example.com`,
     phoneNumber: phone,
-    role: ROLES.USER,
+    role: ROLES.REFERRER,
   });
   const application = await createApplication({
     ownerUserId: user.id,
