@@ -1,5 +1,4 @@
 import jwt, { type SignOptions } from "jsonwebtoken";
-import { type PoolClient } from "pg";
 import { twilioClient, VERIFY_SERVICE_SID } from "../../services/twilio";
 import {
   createUser,
@@ -13,11 +12,11 @@ import {
   storeRefreshToken,
 } from "./auth.repo";
 import { getAccessTokenExpiresIn, getRefreshTokenExpiresIn } from "../../config";
-import { AppError } from "../../middleware/errors";
+import { AppError, forbiddenError } from "../../middleware/errors";
 import { recordAuditEvent } from "../audit/audit.service";
 import { pool } from "../../db";
 import { getDbFailureCategory, isDbConnectionFailure } from "../../dbRuntime";
-import { type Role, ROLES } from "../../auth/roles";
+import { type Role, isRole } from "../../auth/roles";
 import { logInfo, logWarn } from "../../observability/logger";
 import { trackEvent } from "../../observability/appInsights";
 import { buildTelemetryProperties } from "../../observability/telemetry";
@@ -136,8 +135,6 @@ async function withAuthDbRetry<T>(
     }
   }
 }
-
-type Queryable = Pick<PoolClient, "query">;
 
 function issueAccessToken(
   payload: AccessTokenPayload,
@@ -284,42 +281,6 @@ export async function startOtp(phone: unknown): Promise<StartOtpResult> {
   }
 }
 
-async function findOrCreateUserByPhone(
-  phoneNumber: string,
-  db: Queryable
-): Promise<{
-  userId: string;
-  email: string | null;
-  role: Role;
-  tokenVersion: number;
-}> {
-  let user = await findAuthUserByPhone(phoneNumber, db, { forUpdate: true });
-  if (!user) {
-    const created = await createUser({
-      email: null,
-      phoneNumber,
-      role: ROLES.REFERRER,
-      client: db,
-    });
-    await recordAuditEvent({
-      action: "user_created",
-      actorUserId: null,
-      targetUserId: created.id,
-      ip: null,
-      userAgent: null,
-      success: true,
-      client: db,
-    });
-    user = created;
-  }
-  return {
-    userId: user.id,
-    email: user.email,
-    role: user.role,
-    tokenVersion: user.tokenVersion,
-  };
-}
-
 export async function verifyOtpCode(params: {
   phone: string;
   code: string;
@@ -396,22 +357,28 @@ export async function verifyOtpCode(params: {
   const db = client;
   try {
     await client.query("begin");
-    const user = await findOrCreateUserByPhone(phoneE164, db);
-    const userRecord = await findAuthUserById(user.userId, db);
+    const userRecord = await findAuthUserByPhone(phoneE164, db, {
+      forUpdate: true,
+    });
     if (!userRecord || !userRecord.active) {
       await client.query("commit");
       throw new AppError("account_disabled", "Account is disabled.", 403);
     }
+    const role = userRecord.role as Role | null;
+    if (!role || !isRole(role)) {
+      await client.query("commit");
+      throw forbiddenError("User has no assigned role");
+    }
 
-    await setPhoneVerified(user.userId, true, db);
+    await setPhoneVerified(userRecord.id, true, db);
 
     const payload = {
-      sub: user.userId,
-      userId: user.userId,
-      role: user.role,
+      sub: userRecord.id,
+      userId: userRecord.id,
+      role,
       phone: userRecord.phoneNumber,
       type: "access" as const,
-      tokenVersion: user.tokenVersion,
+      tokenVersion: userRecord.tokenVersion,
     };
     const accessToken = issueAccessToken(payload, "15m");
 
@@ -425,7 +392,7 @@ export async function verifyOtpCode(params: {
       tokenHash = hashRefreshToken(refreshToken);
     } catch (err) {
       logWarn("auth_refresh_token_generation_failed", {
-        userId: user.userId,
+        userId: userRecord.id,
         requestId: getRequestId() ?? "unknown",
         error: err instanceof Error ? err.message : "unknown_error",
       });
@@ -437,15 +404,15 @@ export async function verifyOtpCode(params: {
       refreshExpires.getSeconds() + msToSeconds(getRefreshTokenExpiresIn())
     );
     assertRefreshTokenInputs({
-      userId: user.userId,
+      userId: userRecord.id,
       tokenHash,
       expiresAt: refreshExpires,
       action: "otp_verify",
     });
-    await revokeRefreshTokensForUser(user.userId, db);
+    await revokeRefreshTokensForUser(userRecord.id, db);
     try {
       await storeRefreshToken({
-        userId: user.userId,
+        userId: userRecord.id,
         token: refreshToken,
         tokenHash,
         expiresAt: refreshExpires,
@@ -453,21 +420,21 @@ export async function verifyOtpCode(params: {
       });
     } catch (err) {
       logWarn("auth_refresh_token_persist_failed", {
-        userId: user.userId,
+        userId: userRecord.id,
         requestId: getRequestId() ?? "unknown",
         error: err instanceof Error ? err.message : "unknown_error",
       });
       throw err;
     }
     logInfo("auth_refresh_token_issued", {
-      userId: user.userId,
+      userId: userRecord.id,
       expiresAt: refreshExpires.toISOString(),
       requestId: getRequestId() ?? "unknown",
     });
     await recordAuditEvent({
       action: "login",
-      actorUserId: user.userId,
-      targetUserId: user.userId,
+      actorUserId: userRecord.id,
+      targetUserId: userRecord.id,
       ip: params.ip,
       userAgent: params.userAgent,
       success: true,
