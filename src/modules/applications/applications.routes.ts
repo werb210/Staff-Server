@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { AppError } from "../../middleware/errors";
+import { AppError, forbiddenError } from "../../middleware/errors";
 import {
   changePipelineState,
   createApplicationForUser,
@@ -26,13 +26,17 @@ router.post(
       if (!name || typeof name !== "string") {
         throw new AppError("missing_fields", "Name is required.", 400);
       }
+      const role = req.user.role;
+      if (!role) {
+        throw forbiddenError();
+      }
       const result = await createApplicationForUser({
         ownerUserId: req.user.userId,
         name,
         metadata: metadata ?? null,
         productType: productType ?? null,
         actorUserId: req.user.userId,
-        actorRole: req.user.role,
+        actorRole: role,
         ip: req.ip,
         userAgent: req.get("user-agent"),
       });
@@ -61,6 +65,10 @@ router.post(
           400
         );
       }
+      const role = req.user.role;
+      if (!role) {
+        throw forbiddenError();
+      }
       const result = await uploadDocument({
         applicationId: req.params.id,
         documentId: documentId ?? null,
@@ -69,7 +77,7 @@ router.post(
         metadata,
         content,
         actorUserId: req.user.userId,
-        actorRole: req.user.role,
+        actorRole: role,
         ip: req.ip,
         userAgent: req.get("user-agent"),
       });
@@ -97,11 +105,15 @@ router.post(
       if (override && !capabilities.includes(CAPABILITIES.PIPELINE_OVERRIDE)) {
         throw new AppError("forbidden", "Override not permitted.", 403);
       }
+      const role = req.user.role;
+      if (!role) {
+        throw forbiddenError();
+      }
       await changePipelineState({
         applicationId: req.params.id,
         nextState: state,
         actorUserId: req.user.userId,
-        actorRole: req.user.role,
+        actorRole: role,
         allowOverride: Boolean(override),
         ip: req.ip,
         userAgent: req.get("user-agent"),
@@ -122,12 +134,16 @@ router.post(
       if (!req.user) {
         throw new AppError("missing_token", "Authorization token is required.", 401);
       }
+      const role = req.user.role;
+      if (!role) {
+        throw forbiddenError();
+      }
       await acceptDocumentVersion({
         applicationId: req.params.id,
         documentId: req.params.documentId,
         documentVersionId: req.params.versionId,
         actorUserId: req.user.userId,
-        actorRole: req.user.role,
+        actorRole: role,
         ip: req.ip,
         userAgent: req.get("user-agent"),
       });
@@ -147,12 +163,16 @@ router.post(
       if (!req.user) {
         throw new AppError("missing_token", "Authorization token is required.", 401);
       }
+      const role = req.user.role;
+      if (!role) {
+        throw forbiddenError();
+      }
       await rejectDocumentVersion({
         applicationId: req.params.id,
         documentId: req.params.documentId,
         documentVersionId: req.params.versionId,
         actorUserId: req.user.userId,
-        actorRole: req.user.role,
+        actorRole: role,
         ip: req.ip,
         userAgent: req.get("user-agent"),
       });

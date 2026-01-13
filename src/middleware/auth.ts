@@ -66,7 +66,8 @@ function normalizeAuthenticatedUser(
   if (!userId) {
     return null;
   }
-  const role = typeof payload.role === "string" ? payload.role : null;
+  const role =
+    typeof payload.role === "string" && isRole(payload.role) ? payload.role : null;
   const phone = typeof payload.phone === "string" ? payload.phone : null;
   const capabilities = Array.isArray(payload.capabilities)
     ? (payload.capabilities.filter(
@@ -77,8 +78,7 @@ function normalizeAuthenticatedUser(
     userId,
     role,
     phone,
-    capabilities:
-      capabilities ?? (role && isRole(role) ? getCapabilitiesForRole(role) : []),
+    capabilities: capabilities ?? (role ? getCapabilitiesForRole(role) : []),
   };
 }
 
@@ -103,11 +103,9 @@ export function requireCapability(capabilities: readonly Capability[]) {
       const userCapabilities =
         (userPayload as { capabilities?: Capability[] } | undefined)
           ?.capabilities ??
-        ((userPayload as { role?: Role | string | null } | undefined)?.role &&
-        isRole((userPayload as { role?: Role | string | null } | undefined)?.role)
+        ((userPayload as { role?: Role | null } | undefined)?.role
           ? getCapabilitiesForRole(
-              (userPayload as { role?: Role | string | null } | undefined)
-                ?.role as Role
+              (userPayload as { role?: Role | null } | undefined)?.role as Role
             )
           : []);
 
