@@ -1,5 +1,4 @@
 import jwt, { type SignOptions } from "jsonwebtoken";
-import { createHash, randomBytes } from "crypto";
 import { type PoolClient } from "pg";
 import { twilioClient, VERIFY_SERVICE_SID } from "../../services/twilio";
 import {
@@ -28,6 +27,10 @@ import { trackEvent } from "../../observability/appInsights";
 import { buildTelemetryProperties } from "../../observability/telemetry";
 import { getRequestId } from "../../middleware/requestContext";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
+import {
+  generateRefreshToken,
+  hashRefreshToken,
+} from "../../auth/tokenUtils";
 
 type AccessTokenPayload = {
   userId: string;
@@ -50,10 +53,6 @@ async function withRefreshLock<T>(
   } finally {
     refreshLocks.delete(userId);
   }
-}
-
-function hashToken(token: string): string {
-  return createHash("sha256").update(token).digest("hex");
 }
 
 const E164_REGEX = /^\+[1-9]\d{10,14}$/;
@@ -151,10 +150,6 @@ function issueAccessToken(payload: AccessTokenPayload): string {
     subject: payload.userId,
   };
   return jwt.sign(payload, secret, options);
-}
-
-function issueRefreshToken(): string {
-  return randomBytes(32).toString("hex");
 }
 
 function assertRefreshTokenInputs(params: {
@@ -324,7 +319,6 @@ async function findOrCreateUserByPhone(
   };
 }
 
-
 export async function verifyOtpCode(params: {
   phone: string;
   code: string;
@@ -416,8 +410,24 @@ export async function verifyOtpCode(params: {
       tokenVersion: user.tokenVersion,
     };
     const accessToken = issueAccessToken(payload);
-    const refreshToken = issueRefreshToken();
-    const tokenHash = hashToken(refreshToken);
+
+    let refreshToken: string;
+    let tokenHash: string;
+    try {
+      refreshToken = generateRefreshToken();
+      if (!refreshToken) {
+        throw new Error("refresh token generation failed");
+      }
+      tokenHash = hashRefreshToken(refreshToken);
+    } catch (err) {
+      logWarn("auth_refresh_token_generation_failed", {
+        userId: user.userId,
+        requestId: getRequestId() ?? "unknown",
+        error: err instanceof Error ? err.message : "unknown_error",
+      });
+      throw err;
+    }
+
     const refreshExpires = new Date();
     refreshExpires.setSeconds(
       refreshExpires.getSeconds() + msToSeconds(getRefreshTokenExpiresIn())
@@ -429,12 +439,22 @@ export async function verifyOtpCode(params: {
       action: "otp_verify",
     });
     await revokeRefreshTokensForUser(user.userId, db);
-    await storeRefreshToken({
-      userId: user.userId,
-      tokenHash,
-      expiresAt: refreshExpires,
-      client: db,
-    });
+    try {
+      await storeRefreshToken({
+        userId: user.userId,
+        token: refreshToken,
+        tokenHash,
+        expiresAt: refreshExpires,
+        client: db,
+      });
+    } catch (err) {
+      logWarn("auth_refresh_token_persist_failed", {
+        userId: user.userId,
+        requestId: getRequestId() ?? "unknown",
+        error: err instanceof Error ? err.message : "unknown_error",
+      });
+      throw err;
+    }
     logInfo("auth_refresh_token_issued", {
       userId: user.userId,
       expiresAt: refreshExpires.toISOString(),
@@ -472,7 +492,7 @@ export async function refreshSession(
         const db = client;
         try {
           await client.query("begin");
-          const tokenHash = hashToken(refreshToken);
+          const tokenHash = hashRefreshToken(refreshToken);
           const record = await consumeRefreshToken(tokenHash, db);
           if (!record) {
             await client.query("rollback");
@@ -494,8 +514,11 @@ export async function refreshSession(
             role: user.role,
             tokenVersion: user.tokenVersion,
           });
-          const newRefreshToken = issueRefreshToken();
-          const newHash = hashToken(newRefreshToken);
+          const newRefreshToken = generateRefreshToken();
+          if (!newRefreshToken) {
+            throw new Error("refresh token generation failed");
+          }
+          const newHash = hashRefreshToken(newRefreshToken);
           const refreshExpires = new Date();
           refreshExpires.setSeconds(
             refreshExpires.getSeconds() + msToSeconds(getRefreshTokenExpiresIn())
@@ -509,6 +532,7 @@ export async function refreshSession(
           });
           await storeRefreshToken({
             userId: user.id,
+            token: newRefreshToken,
             tokenHash: newHash,
             expiresAt: refreshExpires,
             client: db,
@@ -575,7 +599,7 @@ export async function logoutUser(params: {
   ip?: string;
   userAgent?: string;
 }): Promise<void> {
-  const tokenHash = hashToken(params.refreshToken);
+  const tokenHash = hashRefreshToken(params.refreshToken);
   const db = pool;
   await revokeRefreshToken(tokenHash, db);
   await recordAuditEvent({
