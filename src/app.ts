@@ -1,5 +1,4 @@
 import express from "express";
-import path from "path";
 import cors from "cors";
 
 import apiRouter from "./api";
@@ -38,10 +37,11 @@ export function buildApp(): express.Express {
   app.get("/ready", healthHandler);
   app.get("/__boot", (req, res) => {
     const appPort = req.app.get("port");
+    const envPort = Number(process.env.PORT);
     res.status(200).json({
       pid: process.pid,
       uptime: process.uptime(),
-      port: typeof appPort === "number" ? appPort : Number(process.env.PORT ?? 8080),
+      port: typeof appPort === "number" ? appPort : envPort,
       nodeVersion: process.version,
       envKeys: Object.keys(process.env).sort(),
       timestamp: new Date().toISOString(),
@@ -65,8 +65,6 @@ export async function initializeServer(): Promise<void> {
 
 export function registerApiRoutes(app: express.Express): void {
   // Ensure API routes are registered before any auth guards are applied.
-  const portalBuildPath = path.join(process.cwd(), "portal", "build");
-
   app.use("/api/_int", internalRoutes);
   app.use("/api/auth", authRoutes);
   app.use("/api", apiRouter);
@@ -74,14 +72,6 @@ export function registerApiRoutes(app: express.Express): void {
   app.get("/api/_int/health", (_req, res) => {
     res.status(200).json({ ok: true });
   });
-
-  if (process.env.NODE_ENV === "production") {
-    app.use(express.static(portalBuildPath));
-
-    app.get("*", (_req, res) => {
-      res.sendFile(path.join(portalBuildPath, "index.html"));
-    });
-  }
   if (process.env.PRINT_ROUTES === "true") {
     printRoutes(app);
   }

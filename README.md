@@ -37,6 +37,17 @@ Additional configuration is optional but recommended (rate limits, lockout polic
 - `npm run migrate:check` – validate migrations and schema
 - `npm start` – run the compiled server
 
+## Azure App Service startup
+
+Configure the App Service startup command to run the Node server entrypoint directly:
+
+```bash
+node dist/server/index.js
+```
+
+Avoid static-site startup modes (such as `serve`, blank startup commands, or SPA defaults) so
+`/api/*` requests are handled by the Node server.
+
 ## Health endpoints
 
 - `GET /api/_int/health` – liveness (process up)
