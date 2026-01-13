@@ -33,6 +33,8 @@ export function buildApp(): express.Express {
   app.use(requestLogger);
   app.use(requestTimeout);
 
+  app.use("/api/_int", internalRoutes);
+
   app.get("/health", healthHandler);
   app.get("/ready", healthHandler);
   app.get("/__boot", (req, res) => {
@@ -65,13 +67,8 @@ export async function initializeServer(): Promise<void> {
 
 export function registerApiRoutes(app: express.Express): void {
   // Ensure API routes are registered before any auth guards are applied.
-  app.use("/api/_int", internalRoutes);
   app.use("/api/auth", authRoutes);
   app.use("/api", apiRouter);
-
-  app.get("/api/_int/health", (_req, res) => {
-    res.status(200).json({ ok: true });
-  });
   if (process.env.PRINT_ROUTES === "true") {
     printRoutes(app);
   }

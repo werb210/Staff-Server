@@ -238,8 +238,7 @@ export function errorHandler(
 export function notFoundHandler(_req: Request, res: Response): void {
   const requestId = res.locals.requestId ?? "unknown";
   res.status(404).json({
-    code: "not_found",
-    message: "Route not found.",
+    error: "Not Found",
     requestId,
   });
 }

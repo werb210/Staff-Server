@@ -57,6 +57,24 @@ router.post("/otp/start", otpRateLimit(), async (req, res, next) => {
   }
 });
 
+router.post("/start", otpRateLimit(), async (req, res, next) => {
+  try {
+    const { phone } = req.body ?? {};
+    const result = await startOtp(phone);
+    if (!result.ok) {
+      return res.status(result.status).json({
+        error: result.error,
+        ...(result.twilioCode !== undefined
+          ? { twilioCode: result.twilioCode }
+          : {}),
+      });
+    }
+    res.status(200).json({ success: true });
+  } catch (err) {
+    handleTwilioAuthError(err, res, next);
+  }
+});
+
 router.post("/otp/verify", otpRateLimit(), async (req, res, next) => {
   try {
     const { phone, code } = req.body ?? {};
@@ -77,6 +95,35 @@ router.post("/otp/verify", otpRateLimit(), async (req, res, next) => {
       });
     }
     res.status(200).json({
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+    });
+  } catch (err) {
+    handleTwilioAuthError(err, res, next);
+  }
+});
+
+router.post("/verify", otpRateLimit(), async (req, res, next) => {
+  try {
+    const { phone, code } = req.body ?? {};
+    const result = await verifyOtpCode({
+      phone,
+      code,
+      ip: req.ip,
+      userAgent: req.get("user-agent"),
+      route: "/api/auth/verify",
+      method: req.method,
+    });
+    if (!result.ok) {
+      return res.status(result.status).json({
+        error: result.error,
+        ...(result.twilioCode !== undefined
+          ? { twilioCode: result.twilioCode }
+          : {}),
+      });
+    }
+    res.status(200).json({
+      success: true,
       accessToken: result.accessToken,
       refreshToken: result.refreshToken,
     });
