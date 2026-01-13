@@ -35,7 +35,7 @@ async function loginUser(email: string): Promise<string> {
   await createUserAccount({
     email,
     phoneNumber: phone,
-    role: ROLES.USER,
+    role: ROLES.REFERRER,
   });
   const login = await otpVerifyRequest(app, {
     phone,

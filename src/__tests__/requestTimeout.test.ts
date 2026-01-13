@@ -68,7 +68,7 @@ describe("request timeouts", () => {
     await createUserAccount({
       email: "timeout@example.com",
       phoneNumber: phone,
-      role: ROLES.USER,
+      role: ROLES.REFERRER,
     });
     const login = await otpVerifyRequest(app, {
       phone,

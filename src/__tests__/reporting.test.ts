@@ -83,7 +83,7 @@ async function seedReportingData(): Promise<{ ownerId: string; staffId: string }
   const owner = await createUserAccount({
     email: "owner@reports.test",
     phoneNumber: nextPhone(),
-    role: ROLES.USER,
+    role: ROLES.REFERRER,
   });
   const staff = await createUserAccount({
     email: "staff@reports.test",
@@ -263,7 +263,7 @@ describe("reporting", () => {
     await createUserAccount({
       email: "user@reports.test",
       phoneNumber: userPhone,
-      role: ROLES.USER,
+      role: ROLES.REFERRER,
     });
     await createUserAccount({
       email: "admin@reports.test",

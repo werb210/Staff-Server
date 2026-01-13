@@ -287,7 +287,7 @@ export async function createApplicationForUser(params: {
     await evaluateRequirements({
       applicationId: application.id,
       actorUserId: params.actorUserId,
-      actorRole: params.actorRole ?? (params.actorUserId ? ROLES.USER : null),
+      actorRole: params.actorRole ?? (params.actorUserId ? ROLES.REFERRER : null),
       ip: params.ip,
       userAgent: params.userAgent,
       client,

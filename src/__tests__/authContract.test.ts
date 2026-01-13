@@ -89,7 +89,7 @@ describe("auth contract", () => {
     await createUserAccount({
       email: "contract-login@example.com",
       phoneNumber: phone,
-      role: ROLES.USER,
+      role: ROLES.REFERRER,
     });
 
     const requestId = nextRequestId();
@@ -111,7 +111,7 @@ describe("auth contract", () => {
     await createUserAccount({
       email: "missing-idem@example.com",
       phoneNumber: phone,
-      role: ROLES.USER,
+      role: ROLES.REFERRER,
     });
     const requestId = nextRequestId();
     const res = await otpVerifyRequest(app, { phone, requestId });
@@ -153,7 +153,7 @@ describe("auth contract", () => {
     await createUserAccount({
       email: "conflict-idem@example.com",
       phoneNumber: phone,
-      role: ROLES.USER,
+      role: ROLES.REFERRER,
     });
 
     const requestId = nextRequestId();

@@ -76,7 +76,7 @@ describe("auth otp", () => {
       .get("/api/auth/me")
       .set("Authorization", `Bearer ${res.body.accessToken}`);
     expect(me.status).toBe(200);
-    expect(me.body.email).toBe("admin@example.com");
+    expect(me.body.phone).toBe(phone);
     expect(me.body.role).toBe(ROLES.ADMIN);
   });
 

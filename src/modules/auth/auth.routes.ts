@@ -4,7 +4,7 @@ import {
   otpRateLimit,
   refreshRateLimit,
 } from "../../middleware/rateLimit";
-import { requireAuth, requireCapability } from "../../middleware/auth";
+import { requireAccessToken, requireAuth, requireCapability } from "../../middleware/auth";
 import { CAPABILITIES } from "../../auth/capabilities";
 import {
   startOtp,
@@ -159,8 +159,7 @@ router.post(
 
 router.get(
   "/me",
-  requireAuth,
-  requireCapability([CAPABILITIES.AUTH_SESSION]),
+  requireAccessToken,
   async (req, res, next) => {
     try {
       if (!req.user) {
@@ -171,10 +170,9 @@ router.get(
         );
       }
       res.json({
-        id: req.user.userId,
-        email: req.user.email,
+        id: req.user.id,
         role: req.user.role,
-        permissions: req.user.capabilities,
+        phone: req.user.phoneNumber,
       });
     } catch (err) {
       next(err);
