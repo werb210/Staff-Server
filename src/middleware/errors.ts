@@ -14,8 +14,8 @@ export class AppError extends Error {
   }
 }
 
-export function forbiddenError(): AppError {
-  return new AppError("forbidden", "Access denied.", 403);
+export function forbiddenError(message = "Access denied."): AppError {
+  return new AppError("forbidden", message, 403);
 }
 
 const authFailureCodes = new Set([
