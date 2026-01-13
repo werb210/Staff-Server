@@ -7,7 +7,7 @@ import {
   rejectDocumentVersion,
   uploadDocument,
 } from "./applications.service";
-import { requireAuth, requireCapability } from "../../middleware/auth";
+import requireAuth, { requireCapability } from "../../middleware/auth";
 import { CAPABILITIES } from "../../auth/capabilities";
 import { documentUploadRateLimit } from "../../middleware/rateLimit";
 

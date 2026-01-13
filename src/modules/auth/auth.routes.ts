@@ -4,7 +4,7 @@ import {
   otpRateLimit,
   refreshRateLimit,
 } from "../../middleware/rateLimit";
-import { requireAccessToken, requireAuth, requireCapability } from "../../middleware/auth";
+import requireAuth, { requireCapability } from "../../middleware/auth";
 import { CAPABILITIES } from "../../auth/capabilities";
 import {
   startOtp,
@@ -159,7 +159,7 @@ router.post(
 
 router.get(
   "/me",
-  requireAccessToken,
+  requireAuth,
   async (req, res, next) => {
     try {
       if (!req.user) {
