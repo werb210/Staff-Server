@@ -69,6 +69,14 @@ export function registerApiRoutes(app: express.Express): void {
   // Ensure API routes are registered before any auth guards are applied.
   app.use("/api/auth", authRoutes);
   app.use("/api", apiRouter);
+  app.use("/api", (req, res) => {
+    const requestId = res.locals.requestId ?? "unknown";
+    res.status(404).json({
+      code: "not_found",
+      message: "Not Found",
+      requestId,
+    });
+  });
   if (process.env.PRINT_ROUTES === "true") {
     printRoutes(app);
   }

@@ -18,7 +18,7 @@ describe("API health and fallback", () => {
 
     expect(res.status).toBe(404);
     expect(res.headers["content-type"]).toContain("application/json");
-    expect(res.body.error).toBe("Not Found");
+    expect(res.body.code).toBe("not_found");
     expect(res.text).not.toMatch(/<!doctype|<html/i);
   });
 });
