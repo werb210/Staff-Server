@@ -94,6 +94,7 @@ export function errorHandler(
   const durationMs = res.locals.requestStart
     ? Date.now() - Number(res.locals.requestStart)
     : 0;
+  const isApiRequest = req.path.startsWith("/api/");
   if (isAuthRoute(req)) {
     const normalized = normalizeAuthError(err);
     const explicitStatus =
@@ -228,6 +229,15 @@ export function errorHandler(
     },
   });
 
+  if (isApiRequest) {
+    res.status(500).json({
+      code: "server_error",
+      message: "An unexpected error occurred.",
+      requestId,
+    });
+    return;
+  }
+
   res.status(500).json({
     code: "server_error",
     message: "An unexpected error occurred.",
@@ -238,7 +248,8 @@ export function errorHandler(
 export function notFoundHandler(_req: Request, res: Response): void {
   const requestId = res.locals.requestId ?? "unknown";
   res.status(404).json({
-    error: "Not Found",
+    code: "not_found",
+    message: "Not Found",
     requestId,
   });
 }
