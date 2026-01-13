@@ -119,6 +119,7 @@ export interface RefreshTokenRecord {
 
 export async function storeRefreshToken(params: {
   userId: string;
+  token: string;
   tokenHash: string;
   expiresAt: Date;
   client?: Queryable;
@@ -131,9 +132,9 @@ export async function storeRefreshToken(params: {
   );
   await runAuthQuery(
     runner,
-    `insert into auth_refresh_tokens (id, user_id, token_hash, expires_at, revoked_at, created_at)
-     values ($1, $2, $3, $4, null, now())`,
-    [randomUUID(), params.userId, params.tokenHash, params.expiresAt]
+    `insert into auth_refresh_tokens (id, user_id, token, token_hash, expires_at, revoked_at, created_at)
+     values ($1, $2, $3, $4, $5, null, now())`,
+    [randomUUID(), params.userId, params.token, params.tokenHash, params.expiresAt]
   );
 }
 
@@ -201,7 +202,6 @@ export async function incrementTokenVersion(
     [userId]
   );
 }
-
 
 export async function setPhoneVerified(
   userId: string,

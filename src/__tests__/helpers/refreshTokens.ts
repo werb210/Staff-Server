@@ -1,6 +1,6 @@
-import { createHash, randomBytes } from "crypto";
 import { getRefreshTokenExpiresIn } from "../../config";
 import { findAuthUserById, storeRefreshToken } from "../../modules/auth/auth.repo";
+import { generateRefreshToken, hashRefreshToken } from "../../auth/tokenUtils";
 
 function msToSeconds(value: string): number {
   if (value.endsWith("ms")) {
@@ -30,14 +30,18 @@ export async function issueRefreshTokenForUser(userId: string): Promise<string> 
   if (!user) {
     throw new Error("User not found for refresh token.");
   }
-  const refreshToken = randomBytes(32).toString("hex");
-  const tokenHash = createHash("sha256").update(refreshToken).digest("hex");
+  const refreshToken = generateRefreshToken();
+  if (!refreshToken) {
+    throw new Error("refresh token generation failed");
+  }
+  const tokenHash = hashRefreshToken(refreshToken);
   const refreshExpires = new Date();
   refreshExpires.setSeconds(
     refreshExpires.getSeconds() + msToSeconds(getRefreshTokenExpiresIn())
   );
   await storeRefreshToken({
     userId: user.id,
+    token: refreshToken,
     tokenHash,
     expiresAt: refreshExpires,
   });
