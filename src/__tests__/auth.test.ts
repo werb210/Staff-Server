@@ -79,6 +79,33 @@ describe("auth otp", () => {
     expect(me.body.role).toBe(ROLES.ADMIN);
   });
 
+  it("verifies otp for normalized phone input", async () => {
+    const storedPhone = "+1 (587) 888-1837";
+    const normalizedPhone = "+15878881837";
+    await createUserAccount({
+      email: "formatted-phone@example.com",
+      phoneNumber: storedPhone,
+      role: ROLES.ADMIN,
+    });
+
+    const res = await otpVerifyRequest(app, {
+      phone: normalizedPhone,
+      requestId,
+    });
+
+    expect(res.status).toBe(200);
+  });
+
+  it("returns 404 for otp verification when phone is unknown", async () => {
+    const res = await otpVerifyRequest(app, {
+      phone: "+19999999999",
+      requestId,
+    });
+
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe("user_not_found");
+  });
+
   it("persists refresh token metadata on otp verification", async () => {
     const phone = nextPhone();
     const user = await createUserAccount({

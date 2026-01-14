@@ -3,7 +3,7 @@ import { pool } from "../../db";
 import { isPgMemRuntime } from "../../dbRuntime";
 import { type PoolClient, type QueryResult, type QueryResultRow } from "pg";
 import { type Role } from "../../auth/roles";
-import { parsePhoneNumberFromString } from "libphonenumber-js";
+import { normalizePhoneNumber } from "./phone";
 
 type Queryable = Pick<PoolClient, "query">;
 
@@ -33,10 +33,13 @@ export interface AuthUser {
   tokenVersion: number;
 }
 
-function normalizePhoneInput(phoneNumber: string): string {
-  const trimmed = phoneNumber.trim();
-  const parsed = parsePhoneNumberFromString(trimmed);
-  return parsed?.format("E.164") ?? trimmed;
+function normalizePhoneInput(phoneNumber: string): string | null {
+  return normalizePhoneNumber(phoneNumber);
+}
+
+function normalizePhoneColumnSql(column: string): string {
+  const digits = `regexp_replace(${column}, '[^0-9]', '', 'g')`;
+  return `case when length(${digits}) = 10 then '1' || ${digits} else ${digits} end`;
 }
 
 export async function findAuthUserByPhone(
@@ -47,6 +50,10 @@ export async function findAuthUserByPhone(
   const runner = client ?? pool;
   const forUpdate = options?.forUpdate ? " for update" : "";
   const normalizedPhone = normalizePhoneInput(phoneNumber);
+  if (!normalizedPhone) {
+    return null;
+  }
+  const normalizedDigits = normalizedPhone.replace(/\D/g, "");
 
   const selectSql = `select u.id,
             u.email,
@@ -64,9 +71,9 @@ export async function findAuthUserByPhone(
   const primaryRes = await runAuthQuery<AuthUser>(
     runner,
     `${selectSql}
-     where u.phone_number = $1
+     where ${normalizePhoneColumnSql("u.phone_number")} = $1
      ${orderSql}`,
-    [normalizedPhone]
+    [normalizedDigits]
   );
   if (primaryRes.rows[0]) {
     return primaryRes.rows[0];
@@ -75,9 +82,9 @@ export async function findAuthUserByPhone(
   const fallbackRes = await runAuthQuery<AuthUser>(
     runner,
     `${selectSql}
-     where u.phone = $1
+     where ${normalizePhoneColumnSql("u.phone")} = $1
      ${orderSql}`,
-    [normalizedPhone]
+    [normalizedDigits]
   );
 
   return fallbackRes.rows[0] ?? null;

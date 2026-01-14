@@ -22,7 +22,7 @@ import { logInfo, logWarn } from "../../observability/logger";
 import { trackEvent } from "../../observability/appInsights";
 import { buildTelemetryProperties } from "../../observability/telemetry";
 import { getRequestId } from "../../middleware/requestContext";
-import { parsePhoneNumberFromString } from "libphonenumber-js";
+import { normalizePhoneNumber } from "./phone";
 import {
   generateRefreshToken,
   hashRefreshToken,
@@ -54,19 +54,11 @@ async function withRefreshLock<T>(
   }
 }
 
-const E164_REGEX = /^\+[1-9]\d{10,14}$/;
-
 function assertE164(phone: unknown): string {
-  if (!phone || typeof phone !== "string") {
-    throw new Error("Phone number is required");
-  }
-
-  const parsed = parsePhoneNumberFromString(phone);
-  const normalized = parsed?.format("E.164") ?? phone;
-  if (!E164_REGEX.test(normalized)) {
+  const normalized = normalizePhoneNumber(phone);
+  if (!normalized) {
     throw new Error("Phone number must be in E.164 format");
   }
-
   return normalized;
 }
 
@@ -232,9 +224,7 @@ function normalizeBootstrapPhone(
   if (!phone) {
     return null;
   }
-  const parsed = parsePhoneNumberFromString(phone);
-  const normalized = parsed?.format("E.164") ?? phone;
-  return E164_REGEX.test(normalized) ? normalized : null;
+  return normalizePhoneNumber(phone);
 }
 
 function isBootstrapAdminUser(params: {
