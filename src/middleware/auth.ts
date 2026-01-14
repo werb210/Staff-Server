@@ -40,6 +40,7 @@ export default function requireAuth(
   const token = parseBearer(req);
   if (!token) {
     logWarn("auth_missing_token", {
+      route: req.originalUrl,
       ip: req.ip,
       userAgent: req.get("user-agent"),
     });
@@ -54,6 +55,7 @@ export default function requireAuth(
     const user = normalizeAuthenticatedUser(decoded);
     if (!user) {
       logWarn("auth_invalid_token", {
+        route: req.originalUrl,
         ip: req.ip,
         userAgent: req.get("user-agent"),
       });
@@ -64,6 +66,7 @@ export default function requireAuth(
     next();
   } catch (err) {
     logWarn("auth_invalid_token", {
+      route: req.originalUrl,
       ip: req.ip,
       userAgent: req.get("user-agent"),
       error: err instanceof Error ? err.message : "unknown_error",

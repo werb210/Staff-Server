@@ -5,7 +5,7 @@ import {
   refreshRateLimit,
 } from "../../middleware/rateLimit";
 import requireAuth, { requireCapability } from "../../middleware/auth";
-import { CAPABILITIES } from "../../auth/capabilities";
+import { CAPABILITIES, getCapabilitiesForRole } from "../../auth/capabilities";
 import { safeHandler } from "../../middleware/safeHandler";
 import {
   startOtp,
@@ -208,10 +208,14 @@ router.get(
         401
       );
     }
+    const role = req.user.role;
+    const capabilities =
+      req.user.capabilities ?? (role ? getCapabilitiesForRole(role) : []);
     res.json({
       userId: req.user.userId,
-      role: req.user.role,
+      role,
       phone: req.user.phone,
+      capabilities,
     });
   })
 );

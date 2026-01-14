@@ -1,4 +1,4 @@
-import { buildApp, registerApiRoutes } from "../app";
+import { buildApp, initializeServer, registerApiRoutes } from "../app";
 
 const app = buildApp();
 
@@ -29,5 +29,16 @@ const server = app.listen(port, "0.0.0.0", () => {
   }
   console.log(`API server listening on ${port}`);
 });
+
+if (typeof app.set === "function") {
+  app.set("server", server);
+}
+
+if (typeof initializeServer === "function") {
+  initializeServer().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}
 
 export { server };
