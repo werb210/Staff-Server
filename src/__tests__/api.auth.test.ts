@@ -138,7 +138,7 @@ describe("API auth JSON responses", () => {
     const res = await otpVerifyRequest(app, { phone });
 
     expect(res.status).toBe(403);
-    expect(res.body.code).toBe("account_disabled");
+    expect(res.body.code).toBe("locked");
     expect(res.headers["content-type"]).toContain("application/json");
     expect(res.text).not.toMatch(/<!doctype|<html/i);
   });
