@@ -35,7 +35,7 @@ async function resetDb(): Promise<void> {
 
 async function loginWithOtp(phone: string): Promise<string> {
   const start = await otpStartRequest(app, { phone });
-  expect(start.status).toBe(204);
+  expect(start.status).toBe(200);
 
   const verify = await otpVerifyRequest(app, { phone });
   expect(verify.status).toBe(200);

@@ -113,6 +113,7 @@ describe("token lifecycle stability", () => {
     const twilioMocks = getTwilioMocks();
     twilioMocks.createVerificationCheck.mockResolvedValueOnce({
       status: "approved",
+      sid: "VE-CHECK-LIFECYCLE",
     });
 
     const first = await otpVerifyRequest(app, { phone });
@@ -128,7 +129,12 @@ describe("token lifecycle stability", () => {
       .send({ phone, code: "123456" });
 
     expect(second.status).toBe(200);
-    expect(second.body).toEqual({ ok: true, data: { alreadyVerified: true } });
+    expect(second.body).toMatchObject({
+      ok: true,
+      data: { alreadyVerified: true },
+      error: null,
+    });
+    expect(second.body.requestId).toBeDefined();
     expect(twilioMocks.createVerificationCheck).toHaveBeenCalledTimes(1);
 
     const refreshed = await request(app)
@@ -136,6 +142,7 @@ describe("token lifecycle stability", () => {
       .send({ refreshToken: first.body.data.refreshToken });
 
     expect(refreshed.status).toBe(200);
-    expect(refreshed.body.accessToken).toBeTruthy();
+    expect(refreshed.body.ok).toBe(true);
+    expect(refreshed.body.data.accessToken).toBeTruthy();
   });
 });

@@ -42,7 +42,7 @@ async function loginWithOtpSession(phone: string): Promise<{
   refreshToken: string;
 }> {
   const start = await otpStartRequest(app, { phone });
-  expect(start.status).toBe(204);
+  expect(start.status).toBe(200);
 
   const verify = await otpVerifyRequest(app, { phone });
   expect(verify.status).toBe(200);
@@ -138,12 +138,13 @@ describe("admin access coverage", () => {
       .post("/api/auth/refresh")
       .send({ refreshToken });
     expect(refresh.status).toBe(200);
-    expect(refresh.body.accessToken).toBeTruthy();
-    expect(refresh.body.refreshToken).toBeTruthy();
+    expect(refresh.body.ok).toBe(true);
+    expect(refresh.body.data.accessToken).toBeTruthy();
+    expect(refresh.body.data.refreshToken).toBeTruthy();
 
     const refreshedMe = await request(app)
       .get("/api/auth/me")
-      .set("Authorization", `Bearer ${refresh.body.accessToken}`);
+      .set("Authorization", `Bearer ${refresh.body.data.accessToken}`);
     expect(refreshedMe.status).toBe(200);
     expect(refreshedMe.body.ok).toBe(true);
     expect(refreshedMe.body.data.role).toBe(ROLES.ADMIN);

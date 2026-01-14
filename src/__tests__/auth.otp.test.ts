@@ -44,7 +44,7 @@ describe("POST /api/auth/otp/start", () => {
     expect(res.headers["access-control-allow-credentials"]).toBe("true");
   });
 
-  it("returns 204 when Twilio configured", async () => {
+  it("returns 200 when Twilio configured", async () => {
     const twilioMocks = getTwilioMocks();
     twilioMocks.createVerification.mockResolvedValueOnce({
       sid: "VE200",
@@ -56,7 +56,9 @@ describe("POST /api/auth/otp/start", () => {
       .post("/api/auth/otp/start")
       .send({ phone: "+15878881337" });
 
-    expect(res.status).toBe(204);
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.data).toEqual({ sent: true });
   });
 
   it("returns 401 when Twilio auth invalid", async () => {
@@ -71,10 +73,11 @@ describe("POST /api/auth/otp/start", () => {
       .post("/api/auth/otp/start")
       .send({ phone: "+15878881337" });
 
-    expect(res.status).toBe(502);
-    expect(res.body).toEqual({
-      error: "Twilio verification failed",
-      twilioCode: 20003,
+    expect(res.status).toBe(503);
+    expect(res.body.ok).toBe(false);
+    expect(res.body.error).toEqual({
+      code: "twilio_verify_failed",
+      message: "Twilio verification failed",
     });
   });
 });

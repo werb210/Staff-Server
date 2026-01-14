@@ -16,6 +16,8 @@ import { setCriticalServicesReady, setMigrationsState } from "./startupState";
 import "./services/twilio";
 import { PORTAL_ROUTE_REQUIREMENTS } from "./routes/routeRegistry";
 import { seedAdminUser, seedSecondAdminUser } from "./db/seed";
+import { ensureOtpTableExists } from "./db/ensureOtpTable";
+import { logError } from "./observability/logger";
 
 type RouteEntry = { method: string; path: string };
 
@@ -189,6 +191,12 @@ export async function initializeServer(): Promise<void> {
     await runMigrations();
     await seedAdminUser();
     await seedSecondAdminUser();
+  }
+
+  try {
+    await ensureOtpTableExists();
+  } catch (err) {
+    logError("otp_schema_self_heal_failed", { err });
   }
 
   const pendingMigrations = await getPendingMigrations();

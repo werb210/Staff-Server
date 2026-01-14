@@ -197,20 +197,22 @@ describe("auth otp", () => {
       .set("x-request-id", requestId)
       .send({ refreshToken: login.body.data.refreshToken });
     expect(refreshed.status).toBe(200);
+    expect(refreshed.body.ok).toBe(true);
 
     const logout = await request(app)
       .post("/api/auth/logout")
-      .set("Authorization", `Bearer ${refreshed.body.accessToken}`)
+      .set("Authorization", `Bearer ${refreshed.body.data.accessToken}`)
       .set("x-request-id", requestId)
-      .send({ refreshToken: refreshed.body.refreshToken });
+      .send({ refreshToken: refreshed.body.data.refreshToken });
     expect(logout.status).toBe(200);
+    expect(logout.body.ok).toBe(true);
 
     const reuse = await request(app)
       .post("/api/auth/refresh")
       .set("x-request-id", requestId)
-      .send({ refreshToken: refreshed.body.refreshToken });
+      .send({ refreshToken: refreshed.body.data.refreshToken });
     expect(reuse.status).toBe(401);
-    expect(reuse.body.code).toBe("invalid_token");
+    expect(reuse.body.error.code).toBe("invalid_token");
 
     const token = await issueRefreshTokenForUser(user.id);
     const freshLogin = await otpVerifyRequest(app, { phone, requestId });
@@ -222,12 +224,13 @@ describe("auth otp", () => {
       .set("x-request-id", requestId)
       .send({});
     expect(logoutAll.status).toBe(200);
+    expect(logoutAll.body.ok).toBe(true);
 
     const refreshAfterLogoutAll = await request(app)
       .post("/api/auth/refresh")
       .set("x-request-id", requestId)
       .send({ refreshToken: token });
     expect(refreshAfterLogoutAll.status).toBe(401);
-    expect(refreshAfterLogoutAll.body.code).toBe("invalid_token");
+    expect(refreshAfterLogoutAll.body.error.code).toBe("invalid_token");
   });
 });

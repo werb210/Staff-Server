@@ -30,10 +30,11 @@ const createVerification = jest.fn<
 >(async () => ({ sid: "VE123", status: "pending" }));
 
 const createVerificationCheck = jest.fn<
-  Promise<Pick<VerificationCheckInstance, "status">>,
+  Promise<Pick<VerificationCheckInstance, "status" | "sid">>,
   [VerificationCheckListInstanceCreateOptions]
 >(async (params) => ({
   status: params.code === "123456" ? "approved" : "pending",
+  sid: "VEXXXXX",
 }));
 
 type VerificationService = {

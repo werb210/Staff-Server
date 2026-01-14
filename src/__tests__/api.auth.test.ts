@@ -78,7 +78,8 @@ describe("API auth JSON responses", () => {
 
     expect(res.status).toBe(200);
     expect(res.headers["content-type"]).toContain("application/json");
-    expect(res.body.success || res.body.error).toBeTruthy();
+    expect(res.body.ok).toBe(true);
+    expect(res.body.data).toEqual({ sent: true });
     expect(res.text).not.toMatch(/<!doctype|<html/i);
   });
 
