@@ -3,6 +3,7 @@ import { pool } from "../../db";
 import { isPgMemRuntime } from "../../dbRuntime";
 import { type PoolClient, type QueryResult, type QueryResultRow } from "pg";
 import { type Role } from "../../auth/roles";
+import { parsePhoneNumberFromString } from "libphonenumber-js";
 
 type Queryable = Pick<PoolClient, "query">;
 
@@ -26,7 +27,14 @@ export interface AuthUser {
   phoneVerified: boolean;
   role: Role | null;
   active: boolean;
+  lockedUntil: Date | null;
   tokenVersion: number;
+}
+
+function normalizePhoneInput(phoneNumber: string): string {
+  const trimmed = phoneNumber.trim();
+  const parsed = parsePhoneNumberFromString(trimmed);
+  return parsed?.format("E.164") ?? trimmed;
 }
 
 export async function findAuthUserByPhone(
@@ -36,6 +44,7 @@ export async function findAuthUserByPhone(
 ): Promise<AuthUser | null> {
   const runner = client ?? pool;
   const forUpdate = options?.forUpdate ? " for update" : "";
+  const normalizedPhone = normalizePhoneInput(phoneNumber);
 
   const res = await runAuthQuery<AuthUser>(
     runner,
@@ -45,11 +54,12 @@ export async function findAuthUserByPhone(
             u.phone_verified as "phoneVerified",
             u.role,
             u.active,
+            u.locked_until as "lockedUntil",
             u.token_version as "tokenVersion"
      from users u
-     where u.phone_number = $1
+     where u.phone_number = $1 or u.phone = $1
      order by u.id asc${forUpdate}`,
-    [phoneNumber]
+    [normalizedPhone]
   );
 
   return res.rows[0] ?? null;
@@ -69,6 +79,7 @@ export async function findAuthUserById(
             u.phone_verified as "phoneVerified",
             u.role,
             u.active,
+            u.locked_until as "lockedUntil",
             u.token_version as "tokenVersion"
      from users u
      where u.id = $1
@@ -101,6 +112,7 @@ export async function createUser(params: {
               phone_verified as "phoneVerified",
               role,
               active,
+              locked_until as "lockedUntil",
               token_version as "tokenVersion"`,
     [randomUUID(), resolvedEmail, params.phoneNumber, params.role]
   );
