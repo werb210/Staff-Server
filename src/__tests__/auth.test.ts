@@ -2,7 +2,6 @@ import request from "supertest";
 import { buildAppWithApiRoutes } from "../app";
 import { pool } from "../db";
 import { createUserAccount } from "../modules/auth/auth.service";
-import { setUserActive } from "../modules/auth/auth.repo";
 import { ROLES } from "../auth/roles";
 import { runMigrations } from "../migrations";
 import { resetLoginRateLimit } from "../middleware/rateLimit";
@@ -140,7 +139,7 @@ describe("auth otp", () => {
       phoneNumber: phone,
       role: ROLES.STAFF,
     });
-    await setUserActive(user.id, false);
+    await pool.query(`update users set disabled = true where id = $1`, [user.id]);
 
     const res = await otpVerifyRequest(app, {
       phone,

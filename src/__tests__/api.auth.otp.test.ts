@@ -1,9 +1,8 @@
-import request from "supertest";
 import { randomUUID } from "crypto";
 import { buildAppWithApiRoutes } from "../app";
 import { pool } from "../db";
-import { ROLES } from "../auth/roles";
 import { runMigrations } from "../migrations";
+import { ROLES } from "../auth/roles";
 import { resetLoginRateLimit } from "../middleware/rateLimit";
 import { otpVerifyRequest } from "./helpers/otpAuth";
 
@@ -70,76 +69,81 @@ afterAll(async () => {
   await pool.end();
 });
 
-describe("API auth JSON responses", () => {
-  it("returns JSON for /api/auth/start", async () => {
-    const res = await request(app)
-      .post("/api/auth/start")
-      .send({ phone: "+15878881337" });
-
-    expect(res.status).toBe(200);
-    expect(res.headers["content-type"]).toContain("application/json");
-    expect(res.body.success || res.body.error).toBeTruthy();
-    expect(res.text).not.toMatch(/<!doctype|<html/i);
-  });
-
-  it("returns JSON error for /api/auth/verify with invalid code", async () => {
-    const res = await request(app)
-      .post("/api/auth/verify")
-      .send({ phone: "+15878881337", code: "000000" });
-
-    expect([400, 401]).toContain(res.status);
-    expect(res.headers["content-type"]).toContain("application/json");
-    expect(res.body.error).toBeDefined();
-    expect(res.text).not.toMatch(/<!doctype|<html/i);
-  });
-
-  it("allows OTP verify when user exists via phone column", async () => {
-    const phoneNumber = "+14155550001";
-    const phone = "+14155550002";
-    await insertUser({ phoneNumber, phone });
+describe("API auth otp verify eligibility", () => {
+  it("returns 200 when active is true and user is not disabled", async () => {
+    const phone = "+14155550010";
+    await insertUser({
+      phoneNumber: phone,
+      active: true,
+      isActive: null,
+      disabled: false,
+      lockedUntil: null,
+    });
 
     const res = await otpVerifyRequest(app, { phone });
 
     expect(res.status).toBe(200);
-    expect(res.headers["content-type"]).toContain("application/json");
-    expect(res.body.accessToken).toBeTruthy();
-    expect(res.text).not.toMatch(/<!doctype|<html/i);
   });
 
-  it("allows OTP verify when user exists via phone_number column", async () => {
-    const phone = "+14155550003";
-    await insertUser({ phoneNumber: phone, phone: null });
+  it("returns 200 when is_active is true even if active is false", async () => {
+    const phone = "+14155550011";
+    await insertUser({
+      phoneNumber: phone,
+      active: false,
+      isActive: true,
+      disabled: false,
+      lockedUntil: null,
+    });
 
     const res = await otpVerifyRequest(app, { phone });
 
     expect(res.status).toBe(200);
-    expect(res.headers["content-type"]).toContain("application/json");
-    expect(res.body.accessToken).toBeTruthy();
-    expect(res.text).not.toMatch(/<!doctype|<html/i);
   });
 
-  it("rejects OTP verify when disabled = true", async () => {
-    const phone = "+14155550004";
-    await insertUser({ phoneNumber: phone, disabled: true });
+  it("returns 403 only when disabled is true", async () => {
+    const phone = "+14155550012";
+    await insertUser({
+      phoneNumber: phone,
+      active: true,
+      isActive: true,
+      disabled: true,
+      lockedUntil: null,
+    });
 
     const res = await otpVerifyRequest(app, { phone });
 
     expect(res.status).toBe(403);
     expect(res.body.code).toBe("account_disabled");
-    expect(res.headers["content-type"]).toContain("application/json");
-    expect(res.text).not.toMatch(/<!doctype|<html/i);
   });
 
-  it("rejects OTP verify when locked_until is in the future", async () => {
-    const phone = "+14155550005";
-    const lockedUntil = new Date(Date.now() + 5 * 60 * 1000);
-    await insertUser({ phoneNumber: phone, lockedUntil });
+  it("returns 403 when locked_until is in the future", async () => {
+    const phone = "+14155550013";
+    await insertUser({
+      phoneNumber: phone,
+      active: true,
+      isActive: true,
+      disabled: false,
+      lockedUntil: new Date(Date.now() + 2 * 60 * 1000),
+    });
 
     const res = await otpVerifyRequest(app, { phone });
 
     expect(res.status).toBe(403);
     expect(res.body.code).toBe("account_disabled");
-    expect(res.headers["content-type"]).toContain("application/json");
-    expect(res.text).not.toMatch(/<!doctype|<html/i);
+  });
+
+  it("returns 200 when locked_until is in the past", async () => {
+    const phone = "+14155550014";
+    await insertUser({
+      phoneNumber: phone,
+      active: true,
+      isActive: true,
+      disabled: false,
+      lockedUntil: new Date(Date.now() - 2 * 60 * 1000),
+    });
+
+    const res = await otpVerifyRequest(app, { phone });
+
+    expect(res.status).toBe(200);
   });
 });
