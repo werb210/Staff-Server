@@ -126,19 +126,14 @@ describe("route integrity", () => {
       .set("Authorization", `Bearer ${adminToken}`);
     expect(applications.status).toBe(200);
 
-    const meAfterApplications = await request(app)
-      .get("/api/auth/me")
+    const dashboard = await request(app)
+      .get("/api/dashboard")
       .set("Authorization", `Bearer ${adminToken}`);
-    expect(meAfterApplications.status).toBe(200);
+    expect(dashboard.status).toBe(200);
 
-    const contacts = await request(app)
-      .get("/api/crm/contacts")
+    const applicationsAgain = await request(app)
+      .get("/api/applications")
       .set("Authorization", `Bearer ${adminToken}`);
-    expect(contacts.status).toBe(200);
-
-    const meAfterContacts = await request(app)
-      .get("/api/auth/me")
-      .set("Authorization", `Bearer ${adminToken}`);
-    expect(meAfterContacts.status).toBe(200);
+    expect(applicationsAgain.status).toBe(200);
   });
 });

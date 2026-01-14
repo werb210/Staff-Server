@@ -1,5 +1,6 @@
 import { type NextFunction, type Request, type Response } from "express";
 import { AppError } from "./errors";
+import { isDbConnectionFailure } from "../dbRuntime";
 import { logError } from "../observability/logger";
 
 export type SafeRequestHandler = (
@@ -17,9 +18,10 @@ export function safeHandler(handler: SafeRequestHandler): SafeRequestHandler {
       logError("safe_handler_error", {
         requestId,
         route: req.originalUrl,
+        userId: req.user?.userId ?? null,
         error: err instanceof Error ? err.message : "unknown_error",
       });
-      if (err instanceof AppError || res.headersSent) {
+      if (err instanceof AppError || res.headersSent || isDbConnectionFailure(err)) {
         next(err as Error);
         return;
       }

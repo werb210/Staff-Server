@@ -7,6 +7,7 @@ import authRoutes from "./routes/auth";
 import { healthHandler } from "./routes/ready";
 import { printRoutes } from "./debug/printRoutes";
 import { getPendingMigrations, runMigrations } from "./migrations";
+import { shouldRunMigrations } from "./config";
 import { requestId } from "./middleware/requestId";
 import { requestLogger } from "./middleware/requestLogger";
 import { requestTimeout } from "./middleware/requestTimeout";
@@ -14,6 +15,7 @@ import { runStartupConsistencyCheck } from "./startup/consistencyCheck";
 import { setCriticalServicesReady, setMigrationsState } from "./startupState";
 import "./services/twilio";
 import { ROUTES } from "./routes/routeRegistry";
+import { seedAdminUser, seedSecondAdminUser } from "./db/seed";
 
 type RouteEntry = { method: string; path: string };
 
@@ -177,7 +179,18 @@ export function buildApp(): express.Express {
 }
 
 export async function initializeServer(): Promise<void> {
-  await runMigrations();
+  const hasDatabase =
+    process.env.DATABASE_URL === "pg-mem" || Boolean(process.env.DATABASE_URL);
+  if (!hasDatabase) {
+    return;
+  }
+
+  if (shouldRunMigrations()) {
+    await runMigrations();
+    await seedAdminUser();
+    await seedSecondAdminUser();
+  }
+
   const pendingMigrations = await getPendingMigrations();
   setMigrationsState(pendingMigrations);
   await runStartupConsistencyCheck();
