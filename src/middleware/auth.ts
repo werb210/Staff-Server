@@ -70,6 +70,9 @@ function normalizeAuthenticatedUser(
   if (!userId) {
     return null;
   }
+  if (typeof payload.role === "string" && !isRole(payload.role)) {
+    throw forbiddenError("Unknown role.");
+  }
   const role =
     typeof payload.role === "string" && isRole(payload.role) ? payload.role : null;
   const phone = typeof payload.phone === "string" ? payload.phone : null;
