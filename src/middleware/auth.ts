@@ -103,6 +103,23 @@ export default function requireAuth(
   }
 }
 
+export function getAuthenticatedUserFromRequest(
+  req: Request
+): AuthenticatedUser | null {
+  const token = parseBearer(req);
+  if (!token) {
+    return null;
+  }
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET ?? "", {
+      algorithms: ["HS256"],
+    });
+    return normalizeAuthenticatedUser(decoded);
+  } catch {
+    return null;
+  }
+}
+
 function normalizeAuthenticatedUser(
   decoded: JwtPayload | string
 ): AuthenticatedUser | null {

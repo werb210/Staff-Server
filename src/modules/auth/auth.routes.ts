@@ -1,10 +1,13 @@
-import { Router, type NextFunction, type Response } from "express";
+import { Router, type NextFunction, type Request, type Response } from "express";
 import { AppError } from "../../middleware/errors";
 import {
   otpRateLimit,
   refreshRateLimit,
 } from "../../middleware/rateLimit";
-import requireAuth, { requireCapability } from "../../middleware/auth";
+import requireAuth, {
+  getAuthenticatedUserFromRequest,
+  requireCapability,
+} from "../../middleware/auth";
 import { CAPABILITIES, getCapabilitiesForRole } from "../../auth/capabilities";
 import { safeHandler } from "../../middleware/safeHandler";
 import { respondOk } from "../../utils/respondOk";
@@ -17,6 +20,36 @@ import {
 } from "./auth.service";
 
 const router = Router();
+
+const REFRESH_TOKEN_COOKIE_NAMES = ["refreshToken", "refresh_token"];
+
+function getCookieValue(header: string | undefined, name: string): string | null {
+  if (!header) {
+    return null;
+  }
+  const parts = header.split(";").map((part) => part.trim());
+  for (const part of parts) {
+    if (!part) {
+      continue;
+    }
+    const [key, ...valueParts] = part.split("=");
+    if (key === name) {
+      return decodeURIComponent(valueParts.join("="));
+    }
+  }
+  return null;
+}
+
+function getRefreshTokenCookie(req: Request): string | undefined {
+  const header = req.headers.cookie;
+  for (const name of REFRESH_TOKEN_COOKIE_NAMES) {
+    const value = getCookieValue(header, name);
+    if (value) {
+      return value;
+    }
+  }
+  return undefined;
+}
 
 const isTwilioAuthError = (err: unknown): err is { code: number } => {
   return (
@@ -79,10 +112,15 @@ router.post("/start", otpRateLimit(), async (req, res, next) => {
 
 router.post("/otp/verify", otpRateLimit(), async (req, res, next) => {
   try {
+    const authenticatedUser = getAuthenticatedUserFromRequest(req);
+    if (authenticatedUser) {
+      return res.status(200).json({ ok: true, alreadyVerified: true });
+    }
     const { phone, code } = req.body ?? {};
     const result = await verifyOtpCode({
       phone,
       code,
+      refreshToken: getRefreshTokenCookie(req),
       ip: req.ip,
       userAgent: req.get("user-agent"),
       route: "/api/auth/otp/verify",
@@ -96,6 +134,9 @@ router.post("/otp/verify", otpRateLimit(), async (req, res, next) => {
           : {}),
       });
     }
+    if ("alreadyVerified" in result) {
+      return res.status(200).json({ ok: true, alreadyVerified: true });
+    }
     res.status(200).json({
       accessToken: result.accessToken,
       refreshToken: result.refreshToken,
@@ -107,10 +148,15 @@ router.post("/otp/verify", otpRateLimit(), async (req, res, next) => {
 
 router.post("/verify", otpRateLimit(), async (req, res, next) => {
   try {
+    const authenticatedUser = getAuthenticatedUserFromRequest(req);
+    if (authenticatedUser) {
+      return res.status(200).json({ success: true, alreadyVerified: true });
+    }
     const { phone, code } = req.body ?? {};
     const result = await verifyOtpCode({
       phone,
       code,
+      refreshToken: getRefreshTokenCookie(req),
       ip: req.ip,
       userAgent: req.get("user-agent"),
       route: "/api/auth/verify",
@@ -123,6 +169,9 @@ router.post("/verify", otpRateLimit(), async (req, res, next) => {
           ? { twilioCode: result.twilioCode }
           : {}),
       });
+    }
+    if ("alreadyVerified" in result) {
+      return res.status(200).json({ success: true, alreadyVerified: true });
     }
     res.status(200).json({
       success: true,

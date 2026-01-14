@@ -158,6 +158,16 @@ export interface RefreshTokenRecord {
   createdAt: Date;
 }
 
+export interface OtpVerificationRecord {
+  id: string;
+  userId: string;
+  phone: string;
+  verificationSid: string | null;
+  status: "pending" | "approved" | "expired";
+  verifiedAt: Date | null;
+  createdAt: Date;
+}
+
 export async function storeRefreshToken(params: {
   userId: string;
   token: string;
@@ -177,6 +187,29 @@ export async function storeRefreshToken(params: {
      values ($1, $2, $3, $4, $5, null, now())`,
     [randomUUID(), params.userId, params.token, params.tokenHash, params.expiresAt]
   );
+}
+
+export async function findValidRefreshToken(
+  tokenHash: string,
+  client?: Queryable
+): Promise<RefreshTokenRecord | null> {
+  const runner = client ?? pool;
+  const res = await runAuthQuery<RefreshTokenRecord>(
+    runner,
+    `select id,
+            user_id as "userId",
+            token_hash as "tokenHash",
+            expires_at as "expiresAt",
+            revoked_at as "revokedAt",
+            created_at as "createdAt"
+     from auth_refresh_tokens
+     where token_hash = $1
+       and revoked_at is null
+       and expires_at > now()
+     limit 1`,
+    [tokenHash]
+  );
+  return res.rows[0] ?? null;
 }
 
 export async function consumeRefreshToken(
@@ -254,6 +287,95 @@ export async function setPhoneVerified(
     runner,
     `update users set phone_verified = $1 where id = $2`,
     [verified, userId]
+  );
+}
+
+export async function findApprovedOtpVerification(params: {
+  userId: string;
+  phone: string;
+  client?: Queryable;
+}): Promise<OtpVerificationRecord | null> {
+  const runner = params.client ?? pool;
+  const res = await runAuthQuery<OtpVerificationRecord>(
+    runner,
+    `select id,
+            user_id as "userId",
+            phone,
+            verification_sid as "verificationSid",
+            status,
+            verified_at as "verifiedAt",
+            created_at as "createdAt"
+     from otp_verifications
+     where user_id = $1
+       and phone = $2
+       and status = 'approved'
+     order by verified_at desc nulls last, created_at desc
+     limit 1`,
+    [params.userId, params.phone]
+  );
+  return res.rows[0] ?? null;
+}
+
+export async function findApprovedOtpVerificationByPhone(params: {
+  phone: string;
+  client?: Queryable;
+}): Promise<OtpVerificationRecord | null> {
+  const runner = params.client ?? pool;
+  const res = await runAuthQuery<OtpVerificationRecord>(
+    runner,
+    `select id,
+            user_id as "userId",
+            phone,
+            verification_sid as "verificationSid",
+            status,
+            verified_at as "verifiedAt",
+            created_at as "createdAt"
+     from otp_verifications
+     where phone = $1
+       and status = 'approved'
+     order by verified_at desc nulls last, created_at desc
+     limit 1`,
+    [params.phone]
+  );
+  return res.rows[0] ?? null;
+}
+
+export async function createOtpVerification(params: {
+  userId: string;
+  phone: string;
+  verificationSid?: string | null;
+  status: "pending" | "approved" | "expired";
+  verifiedAt?: Date | null;
+  client?: Queryable;
+}): Promise<void> {
+  const runner = params.client ?? pool;
+  await runAuthQuery(
+    runner,
+    `insert into otp_verifications (id, user_id, phone, verification_sid, status, verified_at, created_at)
+     values ($1, $2, $3, $4, $5, $6, now())`,
+    [
+      randomUUID(),
+      params.userId,
+      params.phone,
+      params.verificationSid ?? null,
+      params.status,
+      params.verifiedAt ?? null,
+    ]
+  );
+}
+
+export async function expireOtpVerificationsForUser(
+  userId: string,
+  client?: Queryable
+): Promise<void> {
+  const runner = client ?? pool;
+  await runAuthQuery(
+    runner,
+    `update otp_verifications
+     set status = 'expired'
+     where user_id = $1
+       and status = 'approved'`,
+    [userId]
   );
 }
 
