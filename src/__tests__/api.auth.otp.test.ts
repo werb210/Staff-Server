@@ -70,6 +70,15 @@ afterAll(async () => {
 });
 
 describe("API auth otp verify eligibility", () => {
+  it("returns user_not_found when no user exists", async () => {
+    const phone = "+14155550009";
+
+    const res = await otpVerifyRequest(app, { phone });
+
+    expect([401, 404]).toContain(res.status);
+    expect(res.body.code).toBe("user_not_found");
+  });
+
   it("returns 200 when active is true and user is not disabled", async () => {
     const phone = "+14155550010";
     await insertUser({
@@ -129,7 +138,7 @@ describe("API auth otp verify eligibility", () => {
     const res = await otpVerifyRequest(app, { phone });
 
     expect(res.status).toBe(403);
-    expect(res.body.code).toBe("account_disabled");
+    expect(res.body.code).toBe("locked");
   });
 
   it("returns 200 when locked_until is in the past", async () => {
