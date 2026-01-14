@@ -401,16 +401,24 @@ export async function verifyOtpCode(params: {
       await client.query("commit");
       throw new AppError("account_disabled", "Account is disabled.", 403);
     }
-    if (userRecord.active === false) {
+    const isActive = userRecord.active === true || userRecord.isActive === true;
+    const isDisabled = userRecord.disabled === true;
+    const isLocked =
+      userRecord.lockedUntil && userRecord.lockedUntil.getTime() > Date.now();
+    if (isDisabled) {
       await client.query("commit");
       throw new AppError("account_disabled", "Account is disabled.", 403);
     }
-    if (
-      userRecord.lockedUntil &&
-      userRecord.lockedUntil.getTime() > Date.now()
-    ) {
+    if (isLocked) {
       await client.query("commit");
       throw new AppError("account_disabled", "Account is disabled.", 403);
+    }
+    if (!isActive) {
+      logInfo("otp_verify_inactive_user", {
+        userId: userRecord.id,
+        phoneTail,
+        requestId: getRequestId() ?? "unknown",
+      });
     }
     let role = userRecord.role;
     if (!role || !isRole(role)) {

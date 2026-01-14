@@ -27,6 +27,8 @@ export interface AuthUser {
   phoneVerified: boolean;
   role: Role | null;
   active: boolean;
+  isActive: boolean | null;
+  disabled: boolean | null;
   lockedUntil: Date | null;
   tokenVersion: number;
 }
@@ -46,23 +48,39 @@ export async function findAuthUserByPhone(
   const forUpdate = options?.forUpdate ? " for update" : "";
   const normalizedPhone = normalizePhoneInput(phoneNumber);
 
-  const res = await runAuthQuery<AuthUser>(
-    runner,
-    `select u.id,
+  const selectSql = `select u.id,
             u.email,
             u.phone_number as "phoneNumber",
             u.phone_verified as "phoneVerified",
             u.role,
             u.active,
+            u.is_active as "isActive",
+            u.disabled,
             u.locked_until as "lockedUntil",
             u.token_version as "tokenVersion"
-     from users u
-     where u.phone_number = $1 or u.phone = $1
-     order by u.id asc${forUpdate}`,
+     from users u`;
+  const orderSql = `order by u.id asc${forUpdate}`;
+
+  const primaryRes = await runAuthQuery<AuthUser>(
+    runner,
+    `${selectSql}
+     where u.phone_number = $1
+     ${orderSql}`,
+    [normalizedPhone]
+  );
+  if (primaryRes.rows[0]) {
+    return primaryRes.rows[0];
+  }
+
+  const fallbackRes = await runAuthQuery<AuthUser>(
+    runner,
+    `${selectSql}
+     where u.phone = $1
+     ${orderSql}`,
     [normalizedPhone]
   );
 
-  return res.rows[0] ?? null;
+  return fallbackRes.rows[0] ?? null;
 }
 
 export async function findAuthUserById(
@@ -79,6 +97,8 @@ export async function findAuthUserById(
             u.phone_verified as "phoneVerified",
             u.role,
             u.active,
+            u.is_active as "isActive",
+            u.disabled,
             u.locked_until as "lockedUntil",
             u.token_version as "tokenVersion"
      from users u
@@ -112,6 +132,8 @@ export async function createUser(params: {
               phone_verified as "phoneVerified",
               role,
               active,
+              is_active as "isActive",
+              disabled,
               locked_until as "lockedUntil",
               token_version as "tokenVersion"`,
     [randomUUID(), resolvedEmail, params.phoneNumber, params.role]
