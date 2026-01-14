@@ -85,8 +85,9 @@ describe("admin access coverage", () => {
       .set("Authorization", `Bearer ${token}`);
 
     expect(me.status).toBe(200);
-    expect(me.body.role).toBe(ROLES.ADMIN);
-    expect(me.body.capabilities).toEqual(getCapabilitiesForRole(ROLES.ADMIN));
+    expect(me.body.ok).toBe(true);
+    expect(me.body.data.role).toBe(ROLES.ADMIN);
+    expect(me.body.data.capabilities).toEqual(getCapabilitiesForRole(ROLES.ADMIN));
   });
 
   it("allows Admin to access all protected module routes", async () => {
@@ -144,7 +145,8 @@ describe("admin access coverage", () => {
       .get("/api/auth/me")
       .set("Authorization", `Bearer ${refresh.body.accessToken}`);
     expect(refreshedMe.status).toBe(200);
-    expect(refreshedMe.body.role).toBe(ROLES.ADMIN);
+    expect(refreshedMe.body.ok).toBe(true);
+    expect(refreshedMe.body.data.role).toBe(ROLES.ADMIN);
   });
 
   it("maintains auth across Dashboard → Applications → Dashboard navigation", async () => {
@@ -197,7 +199,8 @@ describe("admin access coverage", () => {
       .set("Authorization", `Bearer ${token}`);
 
     expect(me.status).toBe(200);
-    expect(me.body.role).toBe(ROLES.ADMIN);
-    expect(me.body.phone).toBe(SEEDED_ADMIN2_PHONE);
+    expect(me.body.ok).toBe(true);
+    expect(me.body.data.role).toBe(ROLES.ADMIN);
+    expect(me.body.data.phone).toBe(SEEDED_ADMIN2_PHONE);
   });
 });

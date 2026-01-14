@@ -132,8 +132,9 @@ describe("admin lifecycle", () => {
       .get("/api/auth/me")
       .set("Authorization", `Bearer ${userLogin.body.accessToken}`);
     expect(me.status).toBe(200);
-    expect(me.body.role).toBe(ROLES.STAFF);
-    expect(me.body.phone).toBe(userPhone);
+    expect(me.body.ok).toBe(true);
+    expect(me.body.data.role).toBe(ROLES.STAFF);
+    expect(me.body.data.phone).toBe(userPhone);
   });
 
   it("records audit events for lifecycle actions", async () => {

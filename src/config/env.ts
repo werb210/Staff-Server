@@ -113,7 +113,7 @@ export function getEnvConfig(): EnvConfig {
   }
 
   const testDefaults = {
-    jwtExpiresIn: "15m",
+    jwtExpiresIn: "1h",
     jwtRefreshExpiresIn: "30d",
     corsAllowlist: ["*"],
     rateLimitWindowMs: 60_000,
