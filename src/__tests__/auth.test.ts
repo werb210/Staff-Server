@@ -68,12 +68,12 @@ describe("auth otp", () => {
     });
 
     expect(res.status).toBe(200);
-    expect(res.body.accessToken).toBeTruthy();
-    expect(res.body.refreshToken).toBeTruthy();
+    expect(res.body.data.accessToken).toBeTruthy();
+    expect(res.body.data.refreshToken).toBeTruthy();
 
     const me = await request(app)
       .get("/api/auth/me")
-      .set("Authorization", `Bearer ${res.body.accessToken}`);
+      .set("Authorization", `Bearer ${res.body.data.accessToken}`);
     expect(me.status).toBe(200);
     expect(me.body.ok).toBe(true);
     expect(me.body.data.phone).toBe(phone);
@@ -104,7 +104,7 @@ describe("auth otp", () => {
     });
 
     expect(res.status).toBe(404);
-    expect(res.body.code).toBe("user_not_found");
+    expect(res.body.error.code).toBe("user_not_found");
   });
 
   it("persists refresh token metadata on otp verification", async () => {
@@ -121,7 +121,7 @@ describe("auth otp", () => {
     });
 
     expect(res.status).toBe(200);
-    expect(res.body.refreshToken).toBeTruthy();
+    expect(res.body.data.refreshToken).toBeTruthy();
 
     const stored = await pool.query(
       `select user_id as "userId",
@@ -157,7 +157,10 @@ describe("auth otp", () => {
     });
 
     expect(res.status).toBe(401);
-    expect(res.body.error).toBe("Invalid or expired code");
+    expect(res.body.error).toEqual({
+      code: "invalid_code",
+      message: "Invalid or expired code",
+    });
   });
 
   it("blocks otp verification for disabled users", async () => {
@@ -175,7 +178,7 @@ describe("auth otp", () => {
     });
 
     expect(res.status).toBe(403);
-    expect(res.body.code).toBe("account_disabled");
+    expect(res.body.error.code).toBe("account_disabled");
   });
 
   it("refreshes and revokes sessions on logout", async () => {
@@ -192,7 +195,7 @@ describe("auth otp", () => {
     const refreshed = await request(app)
       .post("/api/auth/refresh")
       .set("x-request-id", requestId)
-      .send({ refreshToken: login.body.refreshToken });
+      .send({ refreshToken: login.body.data.refreshToken });
     expect(refreshed.status).toBe(200);
 
     const logout = await request(app)
@@ -215,7 +218,7 @@ describe("auth otp", () => {
 
     const logoutAll = await request(app)
       .post("/api/auth/logout-all")
-      .set("Authorization", `Bearer ${freshLogin.body.accessToken}`)
+      .set("Authorization", `Bearer ${freshLogin.body.data.accessToken}`)
       .set("x-request-id", requestId)
       .send({});
     expect(logoutAll.status).toBe(200);

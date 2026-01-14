@@ -51,6 +51,13 @@ beforeEach(async () => {
   const twilioMocks = getTwilioMocks();
   twilioMocks.createVerification.mockReset();
   twilioMocks.createVerificationCheck.mockReset();
+  twilioMocks.createVerification.mockImplementation(async () => ({
+    sid: "VE123",
+    status: "pending",
+  }));
+  twilioMocks.createVerificationCheck.mockImplementation(async (params) => ({
+    status: params.code === DEFAULT_OTP_CODE ? "approved" : "pending",
+  }));
 });
 
 afterAll(async () => {
@@ -75,7 +82,7 @@ describe("auth otp contract", () => {
     expect(res.status).toBe(200);
 
     const payload = jwt.verify(
-      res.body.accessToken,
+      res.body.data.accessToken,
       process.env.JWT_SECRET ?? "test-access-secret"
     ) as jwt.JwtPayload;
 
@@ -100,8 +107,8 @@ describe("auth otp contract", () => {
 
     const res = await otpVerifyRequest(app, { phone });
     expect(res.status).toBe(403);
-    expect(res.body.code).toBe("forbidden");
-    expect(res.body.message).toBe("User has no assigned role");
+    expect(res.body.error.code).toBe("forbidden");
+    expect(res.body.error.message).toBe("User has no assigned role");
   });
 
   it("returns role in /api/auth/me after OTP login", async () => {
@@ -122,7 +129,7 @@ describe("auth otp contract", () => {
 
     const me = await request(app)
       .get("/api/auth/me")
-      .set("Authorization", `Bearer ${res.body.accessToken}`);
+      .set("Authorization", `Bearer ${res.body.data.accessToken}`);
 
     expect(me.status).toBe(200);
     expect(me.body.ok).toBe(true);
@@ -155,7 +162,7 @@ describe("auth otp contract", () => {
       .send({ phone, code: DEFAULT_OTP_CODE });
 
     expect(second.status).toBe(200);
-    expect(second.body).toEqual({ ok: true, alreadyVerified: true });
+    expect(second.body).toEqual({ ok: true, data: { alreadyVerified: true } });
     expect(twilioMocks.createVerificationCheck).toHaveBeenCalledTimes(1);
   });
 
@@ -177,11 +184,78 @@ describe("auth otp contract", () => {
 
     const res = await request(app)
       .post("/api/auth/otp/verify")
-      .set("Cookie", `refreshToken=${first.body.refreshToken}`)
+      .set("Cookie", `refreshToken=${first.body.data.refreshToken}`)
       .send({ phone, code: "000000" });
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ ok: true, alreadyVerified: true });
+    expect(res.body).toEqual({ ok: true, data: { alreadyVerified: true } });
     expect(twilioMocks.createVerificationCheck).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns a stable error contract on invalid OTP code", async () => {
+    const phone = nextPhone();
+    await createUserAccount({
+      email: "otp-invalid-code@example.com",
+      phoneNumber: phone,
+      role: ROLES.STAFF,
+    });
+
+    const requestId = "otp-invalid-request";
+    const res = await otpVerifyRequest(app, {
+      phone,
+      code: "000000",
+      requestId,
+    });
+
+    expect(res.status).toBe(401);
+    expect(res.body.ok).toBe(false);
+    expect(res.body.error).toEqual({
+      code: "invalid_code",
+      message: "Invalid or expired code",
+    });
+    expect(res.body.requestId).toBe(requestId);
+  });
+
+  it("verifies OTP when otp_verifications table is missing", async () => {
+    const phone = nextPhone();
+    await createUserAccount({
+      email: "otp-missing-table@example.com",
+      phoneNumber: phone,
+      role: ROLES.STAFF,
+    });
+
+    await pool.query("drop table if exists otp_verifications");
+
+    const twilioMocks = getTwilioMocks();
+    twilioMocks.createVerificationCheck.mockResolvedValueOnce({
+      status: "approved",
+    });
+
+    const res = await otpVerifyRequest(app, { phone });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.data.accessToken).toBeTruthy();
+    expect(res.body.data.refreshToken).toBeTruthy();
+  });
+
+  it("uses the Verify check endpoint with the configured service SID", async () => {
+    const phone = nextPhone();
+    await createUserAccount({
+      email: "otp-service-sid@example.com",
+      phoneNumber: phone,
+      role: ROLES.STAFF,
+    });
+
+    const twilioMocks = getTwilioMocks();
+    twilioMocks.createVerificationCheck.mockResolvedValueOnce({
+      status: "approved",
+    });
+
+    const res = await otpVerifyRequest(app, { phone });
+    expect(res.status).toBe(200);
+    expect(twilioMocks.createVerificationCheck).toHaveBeenCalledTimes(1);
+    expect(twilioMocks.lastServiceSid).toBe(
+      process.env.TWILIO_VERIFY_SERVICE_SID
+    );
   });
 });

@@ -77,7 +77,7 @@ describe("API auth otp verify eligibility", () => {
     const res = await otpVerifyRequest(app, { phone });
 
     expect(res.status).toBe(404);
-    expect(res.body.code).toBe("user_not_found");
+    expect(res.body.error.code).toBe("user_not_found");
   });
 
   it("returns 200 for the seeded admin user", async () => {
@@ -131,7 +131,7 @@ describe("API auth otp verify eligibility", () => {
     const res = await otpVerifyRequest(app, { phone });
 
     expect(res.status).toBe(403);
-    expect(res.body.code).toBe("account_disabled");
+    expect(res.body.error.code).toBe("account_disabled");
   });
 
   it("returns 403 when is_active is false", async () => {
@@ -147,7 +147,7 @@ describe("API auth otp verify eligibility", () => {
     const res = await otpVerifyRequest(app, { phone });
 
     expect(res.status).toBe(403);
-    expect(res.body.code).toBe("user_disabled");
+    expect(res.body.error.code).toBe("user_disabled");
   });
 
   it("returns 403 when locked_until is in the future", async () => {
@@ -163,7 +163,7 @@ describe("API auth otp verify eligibility", () => {
     const res = await otpVerifyRequest(app, { phone });
 
     expect(res.status).toBe(403);
-    expect(res.body.code).toBe("locked");
+    expect(res.body.error.code).toBe("locked");
   });
 
   it("returns 200 when locked_until is in the past", async () => {

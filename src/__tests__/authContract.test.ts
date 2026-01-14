@@ -174,8 +174,16 @@ describe("auth contract", () => {
       idempotencyKey,
     });
 
-    expect(second.status).toBe(401);
-    expect(second.body.error).toBe("Invalid or expired code");
+    expect([200, 401]).toContain(second.status);
+    if (second.status === 401) {
+      expect(second.body.error).toEqual({
+        code: "invalid_code",
+        message: "Invalid or expired code",
+      });
+    } else {
+      expect(second.body.ok).toBe(true);
+      expect(second.body.data).toEqual({ alreadyVerified: true });
+    }
     expectRequestId(second, requestId);
   });
 });

@@ -11,6 +11,7 @@ import requireAuth, {
 import { CAPABILITIES, getCapabilitiesForRole } from "../../auth/capabilities";
 import { safeHandler } from "../../middleware/safeHandler";
 import { respondOk } from "../../utils/respondOk";
+import { getRequestId } from "../../middleware/requestContext";
 import {
   startOtp,
   verifyOtpCode,
@@ -110,11 +111,23 @@ router.post("/start", otpRateLimit(), async (req, res, next) => {
   }
 });
 
-router.post("/otp/verify", otpRateLimit(), async (req, res, next) => {
+router.post("/otp/verify", otpRateLimit(), async (req, res) => {
+  const requestId = res.locals.requestId ?? getRequestId() ?? "unknown";
+  const respondOtpError = (
+    status: number,
+    code: string,
+    message: string
+  ): Response => {
+    return res.status(status).json({
+      ok: false,
+      error: { code, message },
+      requestId,
+    });
+  };
   try {
     const authenticatedUser = getAuthenticatedUserFromRequest(req);
     if (authenticatedUser) {
-      return res.status(200).json({ ok: true, alreadyVerified: true });
+      return respondOk(res, { alreadyVerified: true });
     }
     const { phone, code } = req.body ?? {};
     const result = await verifyOtpCode({
@@ -127,30 +140,48 @@ router.post("/otp/verify", otpRateLimit(), async (req, res, next) => {
       method: req.method,
     });
     if (!result.ok) {
-      return res.status(result.status).json({
-        error: result.error,
-        ...(result.twilioCode !== undefined
-          ? { twilioCode: result.twilioCode }
-          : {}),
-      });
+      return respondOtpError(
+        result.status,
+        result.error.code,
+        result.error.message
+      );
     }
     if ("alreadyVerified" in result) {
-      return res.status(200).json({ ok: true, alreadyVerified: true });
+      return respondOk(res, { alreadyVerified: true });
     }
-    res.status(200).json({
+    return respondOk(res, {
       accessToken: result.accessToken,
       refreshToken: result.refreshToken,
     });
   } catch (err) {
-    handleTwilioAuthError(err, res, next);
+    if (err instanceof AppError) {
+      return respondOtpError(err.status, err.code, err.message);
+    }
+    return respondOtpError(
+      502,
+      "service_unavailable",
+      "Authentication service unavailable."
+    );
   }
 });
 
-router.post("/verify", otpRateLimit(), async (req, res, next) => {
+router.post("/verify", otpRateLimit(), async (req, res) => {
+  const requestId = res.locals.requestId ?? getRequestId() ?? "unknown";
+  const respondOtpError = (
+    status: number,
+    code: string,
+    message: string
+  ): Response => {
+    return res.status(status).json({
+      ok: false,
+      error: { code, message },
+      requestId,
+    });
+  };
   try {
     const authenticatedUser = getAuthenticatedUserFromRequest(req);
     if (authenticatedUser) {
-      return res.status(200).json({ success: true, alreadyVerified: true });
+      return respondOk(res, { alreadyVerified: true });
     }
     const { phone, code } = req.body ?? {};
     const result = await verifyOtpCode({
@@ -163,23 +194,28 @@ router.post("/verify", otpRateLimit(), async (req, res, next) => {
       method: req.method,
     });
     if (!result.ok) {
-      return res.status(result.status).json({
-        error: result.error,
-        ...(result.twilioCode !== undefined
-          ? { twilioCode: result.twilioCode }
-          : {}),
-      });
+      return respondOtpError(
+        result.status,
+        result.error.code,
+        result.error.message
+      );
     }
     if ("alreadyVerified" in result) {
-      return res.status(200).json({ success: true, alreadyVerified: true });
+      return respondOk(res, { alreadyVerified: true });
     }
-    res.status(200).json({
-      success: true,
+    return respondOk(res, {
       accessToken: result.accessToken,
       refreshToken: result.refreshToken,
     });
   } catch (err) {
-    handleTwilioAuthError(err, res, next);
+    if (err instanceof AppError) {
+      return respondOtpError(err.status, err.code, err.message);
+    }
+    return respondOtpError(
+      502,
+      "service_unavailable",
+      "Authentication service unavailable."
+    );
   }
 });
 

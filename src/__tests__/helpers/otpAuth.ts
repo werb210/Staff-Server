@@ -19,10 +19,25 @@ export async function otpVerifyRequest(
   if (params.idempotencyKey) {
     req = req.set("Idempotency-Key", params.idempotencyKey);
   }
-  return req.send({
+  const res = await req.send({
     phone: params.phone,
     code: params.code ?? DEFAULT_OTP_CODE,
   });
+  if (res.body?.data) {
+    if (res.body.data.accessToken) {
+      res.body.accessToken = res.body.data.accessToken;
+    }
+    if (res.body.data.refreshToken) {
+      res.body.refreshToken = res.body.data.refreshToken;
+    }
+    if (res.body.data.alreadyVerified) {
+      res.body.alreadyVerified = res.body.data.alreadyVerified;
+    }
+  }
+  if (res.body?.error?.code && !res.body.code) {
+    res.body.code = res.body.error.code;
+  }
+  return res;
 }
 
 export async function otpStartRequest(
