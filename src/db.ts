@@ -70,6 +70,34 @@ function createPgMemPool(config: PoolConfig): PgPool {
     implementation: (value: string) =>
       createHash("md5").update(value ?? "").digest("hex"),
   });
+  db.public.registerFunction({
+    name: "regexp_replace",
+    args: [DataType.text, DataType.text, DataType.text, DataType.text],
+    returns: DataType.text,
+    implementation: (
+      value: string | null,
+      pattern: string,
+      replacement: string,
+      flags: string
+    ) => {
+      if (value === null) {
+        return null;
+      }
+      const regex = new RegExp(pattern, flags ?? "");
+      return value.replace(regex, replacement);
+    },
+  });
+  db.public.registerFunction({
+    name: "length",
+    args: [DataType.text],
+    returns: DataType.integer,
+    implementation: (value: string | null) => {
+      if (value === null) {
+        return null;
+      }
+      return value.length;
+    },
+  });
   const adapter = db.adapters.createPg();
   const { connectionString, ...rest } = config;
   return new adapter.Pool(rest);
