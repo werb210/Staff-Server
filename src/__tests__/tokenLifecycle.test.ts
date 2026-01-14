@@ -128,12 +128,12 @@ describe("token lifecycle stability", () => {
       .send({ phone, code: "123456" });
 
     expect(second.status).toBe(200);
-    expect(second.body).toEqual({ ok: true, alreadyVerified: true });
+    expect(second.body).toEqual({ ok: true, data: { alreadyVerified: true } });
     expect(twilioMocks.createVerificationCheck).toHaveBeenCalledTimes(1);
 
     const refreshed = await request(app)
       .post("/api/auth/refresh")
-      .send({ refreshToken: first.body.refreshToken });
+      .send({ refreshToken: first.body.data.refreshToken });
 
     expect(refreshed.status).toBe(200);
     expect(refreshed.body.accessToken).toBeTruthy();

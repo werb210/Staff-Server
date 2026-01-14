@@ -89,7 +89,9 @@ describe("API auth JSON responses", () => {
 
     expect([400, 401]).toContain(res.status);
     expect(res.headers["content-type"]).toContain("application/json");
+    expect(res.body.ok).toBe(false);
     expect(res.body.error).toBeDefined();
+    expect(res.body.requestId).toBeDefined();
     expect(res.text).not.toMatch(/<!doctype|<html/i);
   });
 
@@ -102,7 +104,7 @@ describe("API auth JSON responses", () => {
 
     expect(res.status).toBe(200);
     expect(res.headers["content-type"]).toContain("application/json");
-    expect(res.body.accessToken).toBeTruthy();
+    expect(res.body.data.accessToken).toBeTruthy();
     expect(res.text).not.toMatch(/<!doctype|<html/i);
   });
 
@@ -114,7 +116,7 @@ describe("API auth JSON responses", () => {
 
     expect(res.status).toBe(200);
     expect(res.headers["content-type"]).toContain("application/json");
-    expect(res.body.accessToken).toBeTruthy();
+    expect(res.body.data.accessToken).toBeTruthy();
     expect(res.text).not.toMatch(/<!doctype|<html/i);
   });
 
@@ -125,7 +127,7 @@ describe("API auth JSON responses", () => {
     const res = await otpVerifyRequest(app, { phone });
 
     expect(res.status).toBe(403);
-    expect(res.body.code).toBe("account_disabled");
+    expect(res.body.error.code).toBe("account_disabled");
     expect(res.headers["content-type"]).toContain("application/json");
     expect(res.text).not.toMatch(/<!doctype|<html/i);
   });
@@ -138,7 +140,7 @@ describe("API auth JSON responses", () => {
     const res = await otpVerifyRequest(app, { phone });
 
     expect(res.status).toBe(403);
-    expect(res.body.code).toBe("locked");
+    expect(res.body.error.code).toBe("locked");
     expect(res.headers["content-type"]).toContain("application/json");
     expect(res.text).not.toMatch(/<!doctype|<html/i);
   });
