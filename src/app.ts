@@ -13,6 +13,125 @@ import { requestTimeout } from "./middleware/requestTimeout";
 import { runStartupConsistencyCheck } from "./startup/consistencyCheck";
 import { setCriticalServicesReady, setMigrationsState } from "./startupState";
 import "./services/twilio";
+import { ROUTES } from "./routes/routeRegistry";
+
+type RouteEntry = { method: string; path: string };
+
+type Layer = {
+  route?: {
+    path: string | string[];
+    methods: Record<string, boolean>;
+  };
+  name?: string;
+  handle?: { stack?: Layer[] };
+  path?: string;
+  regexp?: RegExp & { fast_slash?: boolean };
+};
+
+function getLayerPath(layer: Layer): string {
+  if (typeof layer.path === "string") {
+    return layer.path;
+  }
+
+  if (layer.regexp?.fast_slash) {
+    return "";
+  }
+
+  const source = layer.regexp?.source;
+  if (!source) {
+    return "";
+  }
+
+  if (source === "^\\/?$") {
+    return "";
+  }
+
+  let path = source
+    .replace("^\\/", "/")
+    .replace("\\/?(?=\\/|$)", "")
+    .replace("(?=\\/|$)", "")
+    .replace(/\\\//g, "/")
+    .replace(/\$$/, "")
+    .replace(/^\^/, "")
+    .replace(/\(\?:\(\?=\\\/\|\$\)\)\?/, "")
+    .replace(/\?$/, "");
+
+  if (!path.startsWith("/")) {
+    path = `/${path}`;
+  }
+
+  return path === "/" ? "" : path;
+}
+
+function joinPaths(prefix: string, suffix: string): string {
+  const base = prefix === "/" ? "" : prefix;
+  const tail = suffix === "/" ? "" : suffix;
+  const combined = `${base}${tail}`;
+  if (!combined) {
+    return "/";
+  }
+  return combined.startsWith("/") ? combined : `/${combined}`;
+}
+
+function addRoute(
+  routes: RouteEntry[],
+  prefix: string,
+  method: string,
+  routePath: string
+) {
+  const fullPath = joinPaths(prefix, routePath);
+  routes.push({ method, path: fullPath });
+}
+
+function walkStack(stack: Layer[], prefix: string, routes: RouteEntry[]) {
+  stack.forEach((layer) => {
+    if (layer.route) {
+      const paths = Array.isArray(layer.route.path)
+        ? layer.route.path
+        : [layer.route.path];
+      const methods = Object.keys(layer.route.methods);
+      methods.forEach((method) => {
+        paths.forEach((routePath) =>
+          addRoute(routes, prefix, method.toUpperCase(), routePath)
+        );
+      });
+      return;
+    }
+
+    if (layer.name === "router" && layer.handle?.stack) {
+      const layerPath = getLayerPath(layer);
+      const nextPrefix = joinPaths(prefix, layerPath);
+      walkStack(layer.handle.stack, nextPrefix, routes);
+    }
+  });
+}
+
+function listMountedRoutes(app: express.Express): RouteEntry[] {
+  const routes: RouteEntry[] = [];
+  const stack = (app as unknown as { _router?: { stack?: Layer[] } })._router
+    ?.stack;
+  if (stack) {
+    walkStack(stack, "", routes);
+  }
+  return routes;
+}
+
+function assertRoutesMounted(app: express.Express): void {
+  const mountedRoutes = listMountedRoutes(app);
+  const mountedSet = new Set(
+    mountedRoutes.map((route) => `${route.method} ${route.path}`)
+  );
+  const missing = ROUTES.filter(
+    (route) => !mountedSet.has(`${route.method} ${route.path}`)
+  );
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing API routes: ${missing
+        .map((route) => `${route.method} ${route.path}`)
+        .join(", ")}`
+    );
+  }
+}
 
 export function buildApp(): express.Express {
   const app = express();
@@ -80,6 +199,7 @@ export function registerApiRoutes(app: express.Express): void {
   if (process.env.PRINT_ROUTES === "true") {
     printRoutes(app);
   }
+  assertRoutesMounted(app);
 }
 
 export function buildAppWithApiRoutes(): express.Express {
