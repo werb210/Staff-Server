@@ -67,7 +67,7 @@ function assertE164(phone: unknown): string {
   return normalized;
 }
 
-type AuthDbAction = "otp_verify" | "refresh" | "logout_all";
+type AuthDbAction = "otp_verify" | "otp_session" | "refresh" | "logout_all";
 
 function trackAuthEvent(
   name: string,
@@ -882,6 +882,215 @@ export async function refreshSession(
       throw err;
     }
   });
+}
+
+export async function createOtpSession(params: {
+  phone?: string;
+  ip?: string;
+  userAgent?: string;
+}): Promise<
+  | { ok: true; accessToken: string; refreshToken: string }
+  | {
+      ok: false;
+      status: number;
+      error: { code: string; message: string };
+    }
+> {
+  const requestId = getRequestId() ?? "unknown";
+  try {
+    const phoneE164 = params.phone ? normalizePhoneNumber(params.phone) : null;
+    if (!phoneE164) {
+      return {
+        ok: false,
+        status: 401,
+        error: {
+          code: "otp_not_verified",
+          message: "OTP verification required.",
+        },
+      };
+    }
+
+    let approved;
+    try {
+      approved = await findApprovedOtpVerificationByPhone({ phone: phoneE164 });
+    } catch (err) {
+      if (isOtpVerificationTableMissing(err)) {
+        logWarn("otp_session_db_missing", {
+          requestId,
+          phoneTail: getPhoneTail(phoneE164),
+          errorCode: "OTP_SESSION_DB_MISSING",
+        });
+        return {
+          ok: false,
+          status: 401,
+          error: {
+            code: "otp_not_verified",
+            message: "OTP verification required.",
+          },
+        };
+      }
+      throw err;
+    }
+
+    if (!approved) {
+      return {
+        ok: false,
+        status: 401,
+        error: {
+          code: "otp_not_verified",
+          message: "OTP verification required.",
+        },
+      };
+    }
+
+    return await withAuthDbRetry("otp_session", async () => {
+      const client = await pool.connect();
+      const db = client;
+      try {
+        await client.query("begin");
+        const userRecord = await findAuthUserById(approved.userId, db);
+        if (!userRecord) {
+          await client.query("commit");
+          throw new AppError("user_not_found", "User not found.", 404);
+        }
+        const isDisabled = userRecord.disabled === true;
+        if (isDisabled) {
+          await client.query("commit");
+          throw new AppError("account_disabled", "Account is disabled.", 403);
+        }
+        if (userRecord.isActive === false) {
+          logInfo("otp_session_inactive_user", {
+            userId: userRecord.id,
+            requestId,
+          });
+          await client.query("commit");
+          throw new AppError("user_disabled", "Account is inactive.", 403);
+        }
+        const isActive =
+          userRecord.active === true || userRecord.isActive === true;
+        if (!isActive) {
+          logInfo("otp_session_inactive_user", {
+            userId: userRecord.id,
+            requestId,
+          });
+          await client.query("commit");
+          throw new AppError("user_disabled", "Account is inactive.", 403);
+        }
+        const isLocked =
+          userRecord.lockedUntil &&
+          userRecord.lockedUntil.getTime() > Date.now();
+        if (isLocked) {
+          await client.query("commit");
+          throw new AppError("locked", "Account is locked.", 403);
+        }
+        let role = userRecord.role;
+        if (!role || !isRole(role)) {
+          if (isBootstrapAdminUser(userRecord)) {
+            await updateUserRoleById(userRecord.id, ROLES.ADMIN, db);
+            role = ROLES.ADMIN;
+          } else {
+            await client.query("commit");
+            throw forbiddenError("User has no assigned role");
+          }
+        }
+
+        await setPhoneVerified(userRecord.id, true, db);
+
+        const accessToken = issueAccessToken({
+          sub: userRecord.id,
+          userId: userRecord.id,
+          role,
+          phone: userRecord.phoneNumber,
+          type: "access",
+          tokenVersion: userRecord.tokenVersion,
+        });
+
+        let refreshToken: string;
+        let tokenHash: string;
+        try {
+          refreshToken = generateRefreshToken();
+          if (!refreshToken) {
+            throw new Error("refresh token generation failed");
+          }
+          tokenHash = hashRefreshToken(refreshToken);
+        } catch (err) {
+          logWarn("auth_refresh_token_generation_failed", {
+            userId: userRecord.id,
+            requestId,
+            error: err instanceof Error ? err.message : "unknown_error",
+          });
+          throw err;
+        }
+
+        const refreshExpires = new Date();
+        refreshExpires.setSeconds(
+          refreshExpires.getSeconds() + msToSeconds(getRefreshTokenExpiresIn())
+        );
+        assertRefreshTokenInputs({
+          userId: userRecord.id,
+          tokenHash,
+          expiresAt: refreshExpires,
+          action: "otp_session",
+        });
+        await revokeRefreshTokensForUser(userRecord.id, db);
+        await storeRefreshToken({
+          userId: userRecord.id,
+          token: refreshToken,
+          tokenHash,
+          expiresAt: refreshExpires,
+          client: db,
+        });
+        logInfo("auth_refresh_token_issued", {
+          userId: userRecord.id,
+          expiresAt: refreshExpires.toISOString(),
+          requestId,
+        });
+
+        await recordAuditEvent({
+          action: "login",
+          actorUserId: userRecord.id,
+          targetUserId: userRecord.id,
+          ip: params.ip,
+          userAgent: params.userAgent,
+          success: true,
+          client: db,
+        });
+
+        await client.query("commit");
+        return { ok: true, accessToken, refreshToken };
+      } catch (err) {
+        try {
+          await client.query("rollback");
+        } catch {
+          // ignore rollback errors
+        }
+        throw err;
+      } finally {
+        client.release();
+      }
+    });
+  } catch (err) {
+    if (err instanceof AppError) {
+      const status = err.status >= 500 ? 503 : err.status;
+      return {
+        ok: false,
+        status,
+        error: { code: err.code, message: err.message },
+      };
+    }
+    logWarn("otp_session_failed", {
+      requestId,
+      error: err instanceof Error ? err.message : "unknown_error",
+    });
+    return {
+      ok: false,
+      status: 503,
+      error: {
+        code: "service_unavailable",
+        message: "Authentication service unavailable.",
+      },
+    };
+  }
 }
 
 export async function logoutUser(params: {
