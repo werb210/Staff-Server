@@ -406,6 +406,15 @@ export async function verifyOtpCode(params: {
       await client.query("commit");
       throw new AppError("account_disabled", "Account is disabled.", 403);
     }
+    if (userRecord.isActive === false) {
+      logInfo("otp_verify_inactive_user", {
+        userId: userRecord.id,
+        phoneTail,
+        requestId: getRequestId() ?? "unknown",
+      });
+      await client.query("commit");
+      throw new AppError("user_disabled", "Account is inactive.", 403);
+    }
     const isActive = userRecord.active === true || userRecord.isActive === true;
     if (!isActive) {
       logInfo("otp_verify_inactive_user", {
@@ -413,6 +422,8 @@ export async function verifyOtpCode(params: {
         phoneTail,
         requestId: getRequestId() ?? "unknown",
       });
+      await client.query("commit");
+      throw new AppError("user_disabled", "Account is inactive.", 403);
     }
     const isLocked =
       userRecord.lockedUntil && userRecord.lockedUntil.getTime() > Date.now();

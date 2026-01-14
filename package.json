@@ -6,6 +6,8 @@
     "dev": "npm run build && node dist/server/index.js",
     "build": "tsc",
     "start": "node dist/server/index.js",
+    "db:migrate": "tsx -e \"import('./src/migrations').then(m => m.runMigrations()).catch(err => { console.error(err); process.exit(1); })\"",
+    "db:seed": "tsx src/db/seed.ts",
     "test": "jest",
     "user:set-role": "tsx scripts/set-user-role.ts"
   },
