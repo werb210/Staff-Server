@@ -15,6 +15,7 @@ import reportingRoutes from "./routes/reporting";
 import reportsRoutes from "./routes/reports";
 import settingsRoutes from "./routes/settings";
 import staffRoutes from "./routes/staff";
+import tasksRoutes from "./routes/tasks";
 import usersRoutes from "./routes/users";
 import { errorHandler, notFoundHandler } from "./middleware/errors";
 import { enforceSecureCookies, requireHttps } from "./middleware/security";
@@ -41,6 +42,7 @@ router.use("/reporting", reportingRoutes);
 router.use("/reports", reportsRoutes);
 router.use("/settings", settingsRoutes);
 router.use("/staff", staffRoutes);
+router.use("/tasks", tasksRoutes);
 router.use("/users", usersRoutes);
 
 router.use(notFoundHandler);

@@ -2,6 +2,7 @@ import { type NextFunction, type Request, type Response } from "express";
 import jwt, { type JwtPayload } from "jsonwebtoken";
 import { forbiddenError } from "./errors";
 import { type Role, isRole } from "../auth/roles";
+import { logWarn } from "../observability/logger";
 import { recordAuditEvent } from "../modules/audit/audit.service";
 import {
   type Capability,
@@ -39,6 +40,10 @@ export default function requireAuth(
   }
   const token = parseBearer(req);
   if (!token) {
+    logWarn("auth_missing_token", {
+      ip: req.ip,
+      userAgent: req.get("user-agent"),
+    });
     res.sendStatus(401);
     return;
   }
@@ -49,12 +54,21 @@ export default function requireAuth(
     });
     const user = normalizeAuthenticatedUser(decoded);
     if (!user) {
+      logWarn("auth_invalid_token", {
+        ip: req.ip,
+        userAgent: req.get("user-agent"),
+      });
       res.sendStatus(401);
       return;
     }
     req.user = user;
     next();
-  } catch {
+  } catch (err) {
+    logWarn("auth_invalid_token", {
+      ip: req.ip,
+      userAgent: req.get("user-agent"),
+      error: err instanceof Error ? err.message : "unknown_error",
+    });
     res.sendStatus(401);
   }
 }
