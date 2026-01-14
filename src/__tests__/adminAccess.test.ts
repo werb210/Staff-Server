@@ -32,6 +32,14 @@ async function resetDb(): Promise<void> {
 }
 
 async function loginWithOtp(phone: string): Promise<string> {
+  const session = await loginWithOtpSession(phone);
+  return session.accessToken;
+}
+
+async function loginWithOtpSession(phone: string): Promise<{
+  accessToken: string;
+  refreshToken: string;
+}> {
   const start = await otpStartRequest(app, { phone });
   expect(start.status).toBe(204);
 
@@ -40,7 +48,10 @@ async function loginWithOtp(phone: string): Promise<string> {
   expect(verify.body.accessToken).toBeTruthy();
   expect(verify.body.refreshToken).toBeTruthy();
 
-  return verify.body.accessToken as string;
+  return {
+    accessToken: verify.body.accessToken as string,
+    refreshToken: verify.body.refreshToken as string,
+  };
 }
 
 beforeAll(async () => {
@@ -87,6 +98,7 @@ describe("admin access coverage", () => {
       "/api/communications/messages",
       "/api/calendar",
       "/api/calendar/tasks",
+      "/api/tasks",
       "/api/marketing",
       "/api/marketing/campaigns",
       "/api/lenders",
@@ -101,6 +113,54 @@ describe("admin access coverage", () => {
         .set("Authorization", `Bearer ${token}`);
       expect(res.status).toBe(200);
     }
+  });
+
+  it("persists session across refresh and route navigation", async () => {
+    const { accessToken, refreshToken } = await loginWithOtpSession(
+      SEEDED_ADMIN_PHONE
+    );
+
+    const initialMe = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${accessToken}`);
+    expect(initialMe.status).toBe(200);
+
+    const applications = await request(app)
+      .get("/api/applications")
+      .set("Authorization", `Bearer ${accessToken}`);
+    expect(applications.status).toBe(200);
+
+    const refresh = await request(app)
+      .post("/api/auth/refresh")
+      .send({ refreshToken });
+    expect(refresh.status).toBe(200);
+    expect(refresh.body.accessToken).toBeTruthy();
+    expect(refresh.body.refreshToken).toBeTruthy();
+
+    const refreshedMe = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${refresh.body.accessToken}`);
+    expect(refreshedMe.status).toBe(200);
+    expect(refreshedMe.body.role).toBe(ROLES.ADMIN);
+  });
+
+  it("maintains auth across Dashboard → Applications → Dashboard navigation", async () => {
+    const token = await loginWithOtp(SEEDED_ADMIN_PHONE);
+
+    const dashboardStart = await request(app)
+      .get("/api/staff/overview")
+      .set("Authorization", `Bearer ${token}`);
+    expect(dashboardStart.status).toBe(200);
+
+    const applications = await request(app)
+      .get("/api/applications")
+      .set("Authorization", `Bearer ${token}`);
+    expect(applications.status).toBe(200);
+
+    const dashboardReturn = await request(app)
+      .get("/api/staff/overview")
+      .set("Authorization", `Bearer ${token}`);
+    expect(dashboardReturn.status).toBe(200);
   });
 
   it("rejects role mismatches like Administrator", async () => {
