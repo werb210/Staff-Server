@@ -3,7 +3,6 @@ import jwt, { type JwtPayload } from "jsonwebtoken";
 import { forbiddenError } from "./errors";
 import { type Role, isRole } from "../auth/roles";
 import { logWarn } from "../observability/logger";
-import { recordAuditEvent } from "../modules/audit/audit.service";
 import {
   type Capability,
   getCapabilitiesForRole,
@@ -108,14 +107,6 @@ export function requireCapability(capabilities: readonly Capability[]) {
   return async (req: Request, _res: Response, next: NextFunction) => {
     try {
       if (!allowed || allowed.length === 0) {
-        await recordAuditEvent({
-          action: "access_denied",
-          actorUserId: (req.user as { userId?: string } | undefined)?.userId ?? null,
-          targetUserId: null,
-          ip: req.ip,
-          userAgent: req.get("user-agent"),
-          success: false,
-        });
         next(forbiddenError());
         return;
       }
@@ -131,15 +122,6 @@ export function requireCapability(capabilities: readonly Capability[]) {
           : []);
 
       if (!allowed.some((capability) => userCapabilities.includes(capability))) {
-        await recordAuditEvent({
-          action: "access_denied",
-          actorUserId:
-            (req.user as { userId?: string } | undefined)?.userId ?? null,
-          targetUserId: null,
-          ip: req.ip,
-          userAgent: req.get("user-agent"),
-          success: false,
-        });
         next(forbiddenError());
         return;
       }

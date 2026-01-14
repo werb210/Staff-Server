@@ -6,6 +6,7 @@ import {
 } from "../../middleware/rateLimit";
 import requireAuth, { requireCapability } from "../../middleware/auth";
 import { CAPABILITIES } from "../../auth/capabilities";
+import { safeHandler } from "../../middleware/safeHandler";
 import {
   startOtp,
   verifyOtpCode,
@@ -153,78 +154,66 @@ router.post(
   "/logout",
   requireAuth,
   requireCapability([CAPABILITIES.AUTH_SESSION]),
-  async (req, res, next) => {
-    try {
-      const { refreshToken } = req.body ?? {};
-      if (!refreshToken) {
-        throw new AppError("missing_token", "Refresh token is required.", 400);
-      }
-      if (!req.user) {
-        throw new AppError(
-          "missing_token",
-          "Authorization token is required.",
-          401
-        );
-      }
-      await logoutUser({
-        userId: req.user.userId,
-        refreshToken,
-        ip: req.ip,
-        userAgent: req.get("user-agent"),
-      });
-      res.json({ ok: true });
-    } catch (err) {
-      next(err);
+  safeHandler(async (req, res) => {
+    const { refreshToken } = req.body ?? {};
+    if (!refreshToken) {
+      throw new AppError("missing_token", "Refresh token is required.", 400);
     }
-  }
+    if (!req.user) {
+      throw new AppError(
+        "missing_token",
+        "Authorization token is required.",
+        401
+      );
+    }
+    await logoutUser({
+      userId: req.user.userId,
+      refreshToken,
+      ip: req.ip,
+      userAgent: req.get("user-agent"),
+    });
+    res.json({ ok: true });
+  })
 );
 
 router.post(
   "/logout-all",
   requireAuth,
   requireCapability([CAPABILITIES.AUTH_SESSION]),
-  async (req, res, next) => {
-    try {
-      if (!req.user) {
-        throw new AppError(
-          "missing_token",
-          "Authorization token is required.",
-          401
-        );
-      }
-      await logoutAll({
-        userId: req.user.userId,
-        ip: req.ip,
-        userAgent: req.get("user-agent"),
-      });
-      res.json({ ok: true });
-    } catch (err) {
-      next(err);
+  safeHandler(async (req, res) => {
+    if (!req.user) {
+      throw new AppError(
+        "missing_token",
+        "Authorization token is required.",
+        401
+      );
     }
-  }
+    await logoutAll({
+      userId: req.user.userId,
+      ip: req.ip,
+      userAgent: req.get("user-agent"),
+    });
+    res.json({ ok: true });
+  })
 );
 
 router.get(
   "/me",
   requireAuth,
-  async (req, res, next) => {
-    try {
-      if (!req.user) {
-        throw new AppError(
-          "missing_token",
-          "Authorization token is required.",
-          401
-        );
-      }
-      res.json({
-        userId: req.user.userId,
-        role: req.user.role,
-        phone: req.user.phone,
-      });
-    } catch (err) {
-      next(err);
+  safeHandler(async (req, res) => {
+    if (!req.user) {
+      throw new AppError(
+        "missing_token",
+        "Authorization token is required.",
+        401
+      );
     }
-  }
+    res.json({
+      userId: req.user.userId,
+      role: req.user.role,
+      phone: req.user.phone,
+    });
+  })
 );
 
 export default router;

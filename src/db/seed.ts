@@ -5,7 +5,7 @@ import { runMigrations } from "../migrations";
 export const SEEDED_ADMIN_PHONE = "+15878881837";
 export const SEEDED_ADMIN_ID = "00000000-0000-0000-0000-000000000099";
 export const SEEDED_ADMIN_EMAIL = "seeded-admin@boreal.financial";
-export const SEEDED_ADMIN2_PHONE = "+17802648467";
+export const SEEDED_ADMIN2_PHONE = "+1-780-264-8467";
 export const SEEDED_ADMIN2_ID = "00000000-0000-0000-0000-000000000100";
 export const SEEDED_ADMIN2_EMAIL = "seeded-admin-2@boreal.financial";
 

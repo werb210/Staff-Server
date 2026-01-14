@@ -4,6 +4,7 @@ import requireAuth, { requireCapability } from "../middleware/auth";
 import { CAPABILITIES } from "../auth/capabilities";
 import { recordAuditEvent } from "../modules/audit/audit.service";
 import { logError } from "../observability/logger";
+import { safeHandler } from "../middleware/safeHandler";
 import { isKillSwitchEnabled } from "../modules/ops/ops.service";
 import {
   exportApplicationVolume,
@@ -86,7 +87,7 @@ async function handleExport(params: {
   });
 }
 
-router.post("/pipeline", async (req, res, next) => {
+router.post("/pipeline", safeHandler(async (req, res, next) => {
   try {
     await assertExportsEnabled();
     const format = parseFormat(req.body?.format);
@@ -152,9 +153,9 @@ router.post("/pipeline", async (req, res, next) => {
     logError("export_failed", { code: "export_failed", message });
     next(err);
   }
-});
+}));
 
-router.post("/lenders", async (req, res, next) => {
+router.post("/lenders", safeHandler(async (req, res, next) => {
   try {
     await assertExportsEnabled();
     const format = parseFormat(req.body?.format);
@@ -220,9 +221,9 @@ router.post("/lenders", async (req, res, next) => {
     logError("export_failed", { code: "export_failed", message });
     next(err);
   }
-});
+}));
 
-router.post("/applications", async (req, res, next) => {
+router.post("/applications", safeHandler(async (req, res, next) => {
   try {
     await assertExportsEnabled();
     const format = parseFormat(req.body?.format);
@@ -288,6 +289,6 @@ router.post("/applications", async (req, res, next) => {
     logError("export_failed", { code: "export_failed", message });
     next(err);
   }
-});
+}));
 
 export default router;
