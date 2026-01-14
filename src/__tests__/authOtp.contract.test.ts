@@ -122,6 +122,7 @@ describe("auth otp contract", () => {
       .set("Authorization", `Bearer ${res.body.accessToken}`);
 
     expect(me.status).toBe(200);
-    expect(me.body.role).toBe(ROLES.STAFF);
+    expect(me.body.ok).toBe(true);
+    expect(me.body.data.role).toBe(ROLES.STAFF);
   });
 });

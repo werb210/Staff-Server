@@ -7,6 +7,7 @@ import {
 import requireAuth, { requireCapability } from "../../middleware/auth";
 import { CAPABILITIES, getCapabilitiesForRole } from "../../auth/capabilities";
 import { safeHandler } from "../../middleware/safeHandler";
+import { respondOk } from "../../utils/respondOk";
 import {
   startOtp,
   verifyOtpCode,
@@ -211,7 +212,7 @@ router.get(
     const role = req.user.role;
     const capabilities =
       req.user.capabilities ?? (role ? getCapabilitiesForRole(role) : []);
-    res.json({
+    respondOk(res, {
       userId: req.user.userId,
       role,
       phone: req.user.phone,

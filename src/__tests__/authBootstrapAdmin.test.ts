@@ -94,6 +94,7 @@ describe("auth bootstrap admin", () => {
       .set("Authorization", `Bearer ${res.body.accessToken}`);
 
     expect(me.status).toBe(200);
-    expect(me.body.role).toBe(ROLES.ADMIN);
+    expect(me.body.ok).toBe(true);
+    expect(me.body.data.role).toBe(ROLES.ADMIN);
   });
 });

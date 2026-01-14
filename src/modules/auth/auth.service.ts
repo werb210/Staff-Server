@@ -442,7 +442,7 @@ export async function verifyOtpCode(params: {
       type: "access" as const,
       tokenVersion: userRecord.tokenVersion,
     };
-    const accessToken = issueAccessToken(payload, "15m");
+    const accessToken = issueAccessToken(payload);
 
     let refreshToken: string;
     let tokenHash: string;
@@ -622,6 +622,12 @@ export async function refreshSession(
       logWarn("auth_refresh_failed", {
         userId: null,
         error: err instanceof Error ? err.message : "unknown_error",
+        reason:
+          err instanceof AppError
+            ? err.code
+            : err instanceof Error
+            ? err.name
+            : "unknown_error",
       });
       if (err instanceof AppError) {
         if (err.code === "invalid_token") {

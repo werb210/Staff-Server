@@ -16,6 +16,8 @@ type AccessTokenPayload = JwtPayload & {
   capabilities?: Capability[] | string[];
 };
 
+const AUTH_ME_GRACE_WINDOW_MS = 5 * 60 * 1000;
+
 function parseBearer(req: Request): string | null {
   const header = req.headers.authorization;
   if (!header) {
@@ -40,6 +42,7 @@ export default function requireAuth(
   const token = parseBearer(req);
   if (!token) {
     logWarn("auth_missing_token", {
+      reason: "missing",
       route: req.originalUrl,
       ip: req.ip,
       userAgent: req.get("user-agent"),
@@ -55,6 +58,7 @@ export default function requireAuth(
     const user = normalizeAuthenticatedUser(decoded);
     if (!user) {
       logWarn("auth_invalid_token", {
+        reason: "invalid_payload",
         route: req.originalUrl,
         ip: req.ip,
         userAgent: req.get("user-agent"),
@@ -65,11 +69,35 @@ export default function requireAuth(
     req.user = user;
     next();
   } catch (err) {
+    const error = err instanceof Error ? err : null;
+    const message = error?.message ?? "unknown_error";
+    const isExpired = error?.name === "TokenExpiredError";
+    if (isExpired && req.originalUrl.startsWith("/api/auth/me")) {
+      const decoded = jwt.decode(token);
+      const user = decoded ? normalizeAuthenticatedUser(decoded) : null;
+      const exp =
+        decoded && typeof decoded === "object" && typeof decoded.exp === "number"
+          ? decoded.exp * 1000
+          : null;
+      const withinGrace =
+        exp !== null && Date.now() - exp <= AUTH_ME_GRACE_WINDOW_MS;
+      if (user && withinGrace) {
+        req.user = user;
+        next();
+        return;
+      }
+    }
+    const reason = isExpired
+      ? "expired"
+      : message.includes("jwt malformed")
+      ? "malformed"
+      : "invalid";
     logWarn("auth_invalid_token", {
+      reason,
       route: req.originalUrl,
       ip: req.ip,
       userAgent: req.get("user-agent"),
-      error: err instanceof Error ? err.message : "unknown_error",
+      error: message,
     });
     res.sendStatus(401);
   }

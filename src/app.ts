@@ -14,7 +14,7 @@ import { requestTimeout } from "./middleware/requestTimeout";
 import { runStartupConsistencyCheck } from "./startup/consistencyCheck";
 import { setCriticalServicesReady, setMigrationsState } from "./startupState";
 import "./services/twilio";
-import { ROUTES } from "./routes/routeRegistry";
+import { PORTAL_ROUTE_REQUIREMENTS } from "./routes/routeRegistry";
 import { seedAdminUser, seedSecondAdminUser } from "./db/seed";
 
 type RouteEntry = { method: string; path: string };
@@ -123,7 +123,7 @@ function assertRoutesMounted(app: express.Express): void {
   const mountedSet = new Set(
     mountedRoutes.map((route) => `${route.method} ${route.path}`)
   );
-  const missing = ROUTES.filter(
+  const missing = PORTAL_ROUTE_REQUIREMENTS.filter(
     (route) => !mountedSet.has(`${route.method} ${route.path}`)
   );
   if (missing.length > 0) {

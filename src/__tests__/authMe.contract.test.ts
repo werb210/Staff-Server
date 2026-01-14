@@ -24,8 +24,9 @@ describe("auth me contract", () => {
       .set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.userId).toBe("user-1");
-    expect(res.body.role).toBe(ROLES.STAFF);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.data.userId).toBe("user-1");
+    expect(res.body.data.role).toBe(ROLES.STAFF);
     expect(querySpy).not.toHaveBeenCalled();
     querySpy.mockRestore();
   });
@@ -43,8 +44,9 @@ describe("auth me contract", () => {
       .set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.userId).toBe("user-2");
-    expect(res.body.role).toBeNull();
+    expect(res.body.ok).toBe(true);
+    expect(res.body.data.userId).toBe("user-2");
+    expect(res.body.data.role).toBeNull();
     expect(querySpy).not.toHaveBeenCalled();
     querySpy.mockRestore();
   });

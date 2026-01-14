@@ -3,22 +3,25 @@ import request from "supertest";
 import { buildAppWithApiRoutes } from "../app";
 import { ROLES } from "../auth/roles";
 
-const app = buildAppWithApiRoutes();
+describe("token lifecycle stability", () => {
+  let app: ReturnType<typeof buildAppWithApiRoutes>;
 
-describe("auth me smoke", () => {
   beforeAll(() => {
     process.env.JWT_SECRET = "test-access-secret";
+    app = buildAppWithApiRoutes();
   });
 
-  it("accepts a signed token with sub and returns user info", async () => {
+  it("allows a grace window for /api/auth/me on expired tokens", async () => {
+    const nowSeconds = Math.floor(Date.now() / 1000);
     const token = jwt.sign(
       {
-        sub: "user-123",
+        sub: "grace-user",
         role: ROLES.STAFF,
-        phone: "+14155551234",
+        exp: nowSeconds - 30,
+        iat: nowSeconds - 60,
       },
       process.env.JWT_SECRET ?? "test-access-secret",
-      { expiresIn: "1h" }
+      { noTimestamp: true }
     );
 
     const res = await request(app)
@@ -27,26 +30,26 @@ describe("auth me smoke", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
-    expect(res.body.data.userId).toBe("user-123");
-    expect(res.body.data.role).toBe(ROLES.STAFF);
+    expect(res.body.data.userId).toBe("grace-user");
   });
 
-  it("returns null role when token has no role claim", async () => {
+  it("rejects expired tokens outside the grace window", async () => {
+    const nowSeconds = Math.floor(Date.now() / 1000);
     const token = jwt.sign(
       {
-        sub: "test-user-123",
+        sub: "expired-user",
+        role: ROLES.STAFF,
+        exp: nowSeconds - 600,
+        iat: nowSeconds - 660,
       },
       process.env.JWT_SECRET ?? "test-access-secret",
-      { expiresIn: "1h" }
+      { noTimestamp: true }
     );
 
     const res = await request(app)
       .get("/api/auth/me")
       .set("Authorization", `Bearer ${token}`);
 
-    expect(res.status).toBe(200);
-    expect(res.body.ok).toBe(true);
-    expect(res.body.data.userId).toBe("test-user-123");
-    expect(res.body.data.role).toBeNull();
+    expect(res.status).toBe(401);
   });
 });
