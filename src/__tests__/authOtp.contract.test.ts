@@ -8,7 +8,7 @@ import { createUserAccount } from "../modules/auth/auth.service";
 import { runMigrations } from "../migrations";
 import { resetLoginRateLimit } from "../middleware/rateLimit";
 import { ensureAuditEventSchema } from "./helpers/auditSchema";
-import { otpVerifyRequest } from "./helpers/otpAuth";
+import { DEFAULT_OTP_CODE, otpVerifyRequest } from "./helpers/otpAuth";
 import { getTwilioMocks } from "./helpers/twilioMocks";
 
 const app = buildAppWithApiRoutes();
@@ -48,6 +48,9 @@ beforeEach(async () => {
   await resetDb();
   resetLoginRateLimit();
   phoneCounter = 300;
+  const twilioMocks = getTwilioMocks();
+  twilioMocks.createVerification.mockReset();
+  twilioMocks.createVerificationCheck.mockReset();
 });
 
 afterAll(async () => {
@@ -124,5 +127,61 @@ describe("auth otp contract", () => {
     expect(me.status).toBe(200);
     expect(me.body.ok).toBe(true);
     expect(me.body.data.role).toBe(ROLES.STAFF);
+  });
+
+  it("returns 200 on repeated OTP verify without calling Twilio", async () => {
+    const phone = nextPhone();
+    await createUserAccount({
+      email: "otp-repeat@example.com",
+      phoneNumber: phone,
+      role: ROLES.STAFF,
+    });
+
+    const twilioMocks = getTwilioMocks();
+    twilioMocks.createVerificationCheck.mockResolvedValueOnce({
+      status: "approved",
+    });
+
+    const first = await otpVerifyRequest(app, { phone });
+    expect(first.status).toBe(200);
+
+    const twilioError: any = new Error("not found");
+    twilioError.code = 20404;
+    twilioError.status = 404;
+    twilioMocks.createVerificationCheck.mockRejectedValueOnce(twilioError);
+
+    const second = await request(app)
+      .post("/api/auth/otp/verify")
+      .send({ phone, code: DEFAULT_OTP_CODE });
+
+    expect(second.status).toBe(200);
+    expect(second.body).toEqual({ ok: true, alreadyVerified: true });
+    expect(twilioMocks.createVerificationCheck).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns 200 when refresh token cookie is valid", async () => {
+    const phone = nextPhone();
+    await createUserAccount({
+      email: "otp-cookie@example.com",
+      phoneNumber: phone,
+      role: ROLES.STAFF,
+    });
+
+    const twilioMocks = getTwilioMocks();
+    twilioMocks.createVerificationCheck.mockResolvedValueOnce({
+      status: "approved",
+    });
+
+    const first = await otpVerifyRequest(app, { phone });
+    expect(first.status).toBe(200);
+
+    const res = await request(app)
+      .post("/api/auth/otp/verify")
+      .set("Cookie", `refreshToken=${first.body.refreshToken}`)
+      .send({ phone, code: "000000" });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, alreadyVerified: true });
+    expect(twilioMocks.createVerificationCheck).toHaveBeenCalledTimes(1);
   });
 });

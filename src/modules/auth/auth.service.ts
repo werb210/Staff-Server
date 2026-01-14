@@ -3,8 +3,12 @@ import { twilioClient, VERIFY_SERVICE_SID } from "../../services/twilio";
 import {
   createUser,
   consumeRefreshToken,
+  createOtpVerification,
+  expireOtpVerificationsForUser,
   findAuthUserByPhone,
   findAuthUserById,
+  findApprovedOtpVerificationByPhone,
+  findValidRefreshToken,
   incrementTokenVersion,
   revokeRefreshToken,
   revokeRefreshTokensForUser,
@@ -218,6 +222,34 @@ function normalizeEmail(email: string | null | undefined): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+async function hasValidRefreshSession(
+  refreshToken: string | undefined
+): Promise<boolean> {
+  if (!refreshToken) {
+    return false;
+  }
+  const trimmed = refreshToken.trim();
+  if (!trimmed) {
+    return false;
+  }
+  const tokenHash = hashRefreshToken(trimmed);
+  const record = await findValidRefreshToken(tokenHash);
+  return Boolean(record);
+}
+
+function resolveOtpStatus(status?: string): "pending" | "approved" | "expired" {
+  if (!status) {
+    return "expired";
+  }
+  if (status === "approved") {
+    return "approved";
+  }
+  if (status === "pending") {
+    return "pending";
+  }
+  return "expired";
+}
+
 function normalizeBootstrapPhone(
   phone: string | null | undefined
 ): string | null {
@@ -311,14 +343,20 @@ export async function startOtp(phone: unknown): Promise<StartOtpResult> {
 export async function verifyOtpCode(params: {
   phone: string;
   code: string;
+  refreshToken?: string;
   ip?: string;
   userAgent?: string;
   route?: string;
   method?: string;
 }): Promise<
   | { ok: true; accessToken: string; refreshToken: string }
+  | { ok: true; alreadyVerified: true }
   | { ok: false; status: number; error: string; twilioCode?: number | string }
 > {
+  if (await hasValidRefreshSession(params.refreshToken)) {
+    return { ok: true, alreadyVerified: true };
+  }
+
   const code = params.code?.trim() ?? "";
   if (!code) {
     logWarn("otp_verify_invalid_request", {
@@ -347,6 +385,13 @@ export async function verifyOtpCode(params: {
     };
   }
   const phoneTail = getPhoneTail(phoneE164);
+  const precheckApproved = await findApprovedOtpVerificationByPhone({
+    phone: phoneE164,
+  });
+  if (precheckApproved) {
+    return { ok: true, alreadyVerified: true };
+  }
+
   let status: string | undefined;
   let verificationSid: string | undefined;
   try {
@@ -369,6 +414,19 @@ export async function verifyOtpCode(params: {
       status: details.status,
       message: details.message,
     });
+    const approved = await findApprovedOtpVerificationByPhone({
+      phone: phoneE164,
+    });
+    if (approved) {
+      logWarn("twilio_verify_failed_post_auth", {
+        phoneTail,
+        serviceSid: VERIFY_SERVICE_SID,
+        twilioCode: details.code,
+        status: details.status,
+        message: details.message,
+      });
+      return { ok: true, alreadyVerified: true };
+    }
     return {
       ok: false,
       status: 502,
@@ -377,6 +435,16 @@ export async function verifyOtpCode(params: {
     };
   }
   if (status !== "approved") {
+    const userRecord = await findAuthUserByPhone(phoneE164);
+    if (userRecord) {
+      await createOtpVerification({
+        userId: userRecord.id,
+        phone: phoneE164,
+        verificationSid,
+        status: resolveOtpStatus(status),
+        verifiedAt: null,
+      });
+    }
     return { ok: false, status: 401, error: "Invalid or expired code" };
   }
 
@@ -433,6 +501,14 @@ export async function verifyOtpCode(params: {
     }
 
     await setPhoneVerified(userRecord.id, true, db);
+    await createOtpVerification({
+      userId: userRecord.id,
+      phone: phoneE164,
+      verificationSid,
+      status: "approved",
+      verifiedAt: new Date(),
+      client: db,
+    });
 
     const payload = {
       sub: userRecord.id,
@@ -649,6 +725,7 @@ export async function logoutUser(params: {
   const tokenHash = hashRefreshToken(params.refreshToken);
   const db = pool;
   await revokeRefreshToken(tokenHash, db);
+  await expireOtpVerificationsForUser(params.userId, db);
   await recordAuditEvent({
     action: "token_revoke",
     actorUserId: params.userId,
@@ -681,6 +758,7 @@ export async function logoutAll(params: {
       await client.query("begin");
       await incrementTokenVersion(params.userId, db);
       await revokeRefreshTokensForUser(params.userId, db);
+      await expireOtpVerificationsForUser(params.userId, db);
       await recordAuditEvent({
         action: "token_revoke",
         actorUserId: params.userId,
