@@ -5,6 +5,7 @@ import { runMigrations } from "../migrations";
 import { ROLES } from "../auth/roles";
 import { resetLoginRateLimit } from "../middleware/rateLimit";
 import { otpVerifyRequest } from "./helpers/otpAuth";
+import { seedAdminUser, SEEDED_ADMIN_PHONE } from "../db/seed";
 
 const app = buildAppWithApiRoutes();
 
@@ -75,8 +76,16 @@ describe("API auth otp verify eligibility", () => {
 
     const res = await otpVerifyRequest(app, { phone });
 
-    expect([401, 404]).toContain(res.status);
+    expect(res.status).toBe(404);
     expect(res.body.code).toBe("user_not_found");
+  });
+
+  it("returns 200 for the seeded admin user", async () => {
+    await seedAdminUser();
+
+    const res = await otpVerifyRequest(app, { phone: SEEDED_ADMIN_PHONE });
+
+    expect(res.status).toBe(200);
   });
 
   it("returns 200 when active is true and user is not disabled", async () => {
@@ -123,6 +132,22 @@ describe("API auth otp verify eligibility", () => {
 
     expect(res.status).toBe(403);
     expect(res.body.code).toBe("account_disabled");
+  });
+
+  it("returns 403 when is_active is false", async () => {
+    const phone = "+14155550015";
+    await insertUser({
+      phoneNumber: phone,
+      active: true,
+      isActive: false,
+      disabled: false,
+      lockedUntil: null,
+    });
+
+    const res = await otpVerifyRequest(app, { phone });
+
+    expect(res.status).toBe(403);
+    expect(res.body.code).toBe("user_disabled");
   });
 
   it("returns 403 when locked_until is in the future", async () => {
