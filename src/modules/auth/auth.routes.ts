@@ -10,7 +10,6 @@ import requireAuth, {
 } from "../../middleware/auth";
 import { CAPABILITIES, getCapabilitiesForRole } from "../../auth/capabilities";
 import { safeHandler } from "../../middleware/safeHandler";
-import { respondOk } from "../../utils/respondOk";
 import { getRequestId } from "../../middleware/requestContext";
 import {
   startOtp,
@@ -23,6 +22,42 @@ import {
 const router = Router();
 
 const REFRESH_TOKEN_COOKIE_NAMES = ["refreshToken", "refresh_token"];
+
+function getAuthRequestId(res: Response): string {
+  return res.locals.requestId ?? getRequestId() ?? "unknown";
+}
+
+function sanitizeAuthStatus(status: number): number {
+  if (status >= 500) {
+    return 503;
+  }
+  return status;
+}
+
+function respondAuthOk<T>(res: Response, data: T, status = 200): Response {
+  const requestId = getAuthRequestId(res);
+  return res.status(status).json({
+    ok: true,
+    data,
+    error: null,
+    requestId,
+  });
+}
+
+function respondAuthError(
+  res: Response,
+  status: number,
+  code: string,
+  message: string
+): Response {
+  const requestId = getAuthRequestId(res);
+  return res.status(sanitizeAuthStatus(status)).json({
+    ok: false,
+    data: null,
+    error: { code, message },
+    requestId,
+  });
+}
 
 function getCookieValue(header: string | undefined, name: string): string | null {
   if (!header) {
@@ -67,10 +102,12 @@ function handleTwilioAuthError(
   next: NextFunction
 ) {
   if (isTwilioAuthError(err)) {
-    return res.status(401).json({
-      code: "twilio_verify_failed",
-      message: "Invalid Twilio credentials",
-    });
+    return respondAuthError(
+      res,
+      401,
+      "twilio_verify_failed",
+      "Invalid Twilio credentials"
+    );
   }
   return next(err);
 }
@@ -80,14 +117,14 @@ router.post("/otp/start", otpRateLimit(), async (req, res, next) => {
     const { phone } = req.body ?? {};
     const result = await startOtp(phone);
     if (!result.ok) {
-      return res.status(result.status).json({
-        error: result.error,
-        ...(result.twilioCode !== undefined
-          ? { twilioCode: result.twilioCode }
-          : {}),
-      });
+      return respondAuthError(
+        res,
+        result.status,
+        result.error.code,
+        result.error.message
+      );
     }
-    res.status(204).send();
+    return respondAuthOk(res, { sent: true });
   } catch (err) {
     handleTwilioAuthError(err, res, next);
   }
@@ -98,36 +135,24 @@ router.post("/start", otpRateLimit(), async (req, res, next) => {
     const { phone } = req.body ?? {};
     const result = await startOtp(phone);
     if (!result.ok) {
-      return res.status(result.status).json({
-        error: result.error,
-        ...(result.twilioCode !== undefined
-          ? { twilioCode: result.twilioCode }
-          : {}),
-      });
+      return respondAuthError(
+        res,
+        result.status,
+        result.error.code,
+        result.error.message
+      );
     }
-    res.status(200).json({ success: true });
+    return respondAuthOk(res, { sent: true });
   } catch (err) {
     handleTwilioAuthError(err, res, next);
   }
 });
 
 router.post("/otp/verify", otpRateLimit(), async (req, res) => {
-  const requestId = res.locals.requestId ?? getRequestId() ?? "unknown";
-  const respondOtpError = (
-    status: number,
-    code: string,
-    message: string
-  ): Response => {
-    return res.status(status).json({
-      ok: false,
-      error: { code, message },
-      requestId,
-    });
-  };
   try {
     const authenticatedUser = getAuthenticatedUserFromRequest(req);
     if (authenticatedUser) {
-      return respondOk(res, { alreadyVerified: true });
+      return respondAuthOk(res, { alreadyVerified: true });
     }
     const { phone, code } = req.body ?? {};
     const result = await verifyOtpCode({
@@ -140,24 +165,26 @@ router.post("/otp/verify", otpRateLimit(), async (req, res) => {
       method: req.method,
     });
     if (!result.ok) {
-      return respondOtpError(
+      return respondAuthError(
+        res,
         result.status,
         result.error.code,
         result.error.message
       );
     }
     if ("alreadyVerified" in result) {
-      return respondOk(res, { alreadyVerified: true });
+      return respondAuthOk(res, { alreadyVerified: true });
     }
-    return respondOk(res, {
+    return respondAuthOk(res, {
       accessToken: result.accessToken,
       refreshToken: result.refreshToken,
     });
   } catch (err) {
     if (err instanceof AppError) {
-      return respondOtpError(err.status, err.code, err.message);
+      return respondAuthError(res, err.status, err.code, err.message);
     }
-    return respondOtpError(
+    return respondAuthError(
+      res,
       502,
       "service_unavailable",
       "Authentication service unavailable."
@@ -166,22 +193,10 @@ router.post("/otp/verify", otpRateLimit(), async (req, res) => {
 });
 
 router.post("/verify", otpRateLimit(), async (req, res) => {
-  const requestId = res.locals.requestId ?? getRequestId() ?? "unknown";
-  const respondOtpError = (
-    status: number,
-    code: string,
-    message: string
-  ): Response => {
-    return res.status(status).json({
-      ok: false,
-      error: { code, message },
-      requestId,
-    });
-  };
   try {
     const authenticatedUser = getAuthenticatedUserFromRequest(req);
     if (authenticatedUser) {
-      return respondOk(res, { alreadyVerified: true });
+      return respondAuthOk(res, { alreadyVerified: true });
     }
     const { phone, code } = req.body ?? {};
     const result = await verifyOtpCode({
@@ -194,24 +209,26 @@ router.post("/verify", otpRateLimit(), async (req, res) => {
       method: req.method,
     });
     if (!result.ok) {
-      return respondOtpError(
+      return respondAuthError(
+        res,
         result.status,
         result.error.code,
         result.error.message
       );
     }
     if ("alreadyVerified" in result) {
-      return respondOk(res, { alreadyVerified: true });
+      return respondAuthOk(res, { alreadyVerified: true });
     }
-    return respondOk(res, {
+    return respondAuthOk(res, {
       accessToken: result.accessToken,
       refreshToken: result.refreshToken,
     });
   } catch (err) {
     if (err instanceof AppError) {
-      return respondOtpError(err.status, err.code, err.message);
+      return respondAuthError(res, err.status, err.code, err.message);
     }
-    return respondOtpError(
+    return respondAuthError(
+      res,
       502,
       "service_unavailable",
       "Authentication service unavailable."
@@ -223,14 +240,22 @@ router.post("/refresh", refreshRateLimit(), async (req, res, next) => {
   try {
     const { refreshToken } = req.body ?? {};
     if (!refreshToken) {
-      throw new AppError("missing_token", "Refresh token is required.", 400);
+      return respondAuthError(
+        res,
+        400,
+        "missing_token",
+        "Refresh token is required."
+      );
     }
     const session = await refreshSession(
       refreshToken,
       req.ip,
       req.get("user-agent")
     );
-    res.json(session);
+    return respondAuthOk(res, {
+      accessToken: session.accessToken,
+      refreshToken: session.refreshToken,
+    });
   } catch (err) {
     next(err);
   }
@@ -243,14 +268,22 @@ router.post(
   safeHandler(async (req, res) => {
     const { refreshToken } = req.body ?? {};
     if (!refreshToken) {
-      throw new AppError("missing_token", "Refresh token is required.", 400);
+      respondAuthError(
+        res,
+        400,
+        "missing_token",
+        "Refresh token is required."
+      );
+      return;
     }
     if (!req.user) {
-      throw new AppError(
+      respondAuthError(
+        res,
+        401,
         "missing_token",
-        "Authorization token is required.",
-        401
+        "Authorization token is required."
       );
+      return;
     }
     await logoutUser({
       userId: req.user.userId,
@@ -258,7 +291,7 @@ router.post(
       ip: req.ip,
       userAgent: req.get("user-agent"),
     });
-    res.json({ ok: true });
+    respondAuthOk(res, { loggedOut: true });
   })
 );
 
@@ -268,18 +301,20 @@ router.post(
   requireCapability([CAPABILITIES.AUTH_SESSION]),
   safeHandler(async (req, res) => {
     if (!req.user) {
-      throw new AppError(
+      respondAuthError(
+        res,
+        401,
         "missing_token",
-        "Authorization token is required.",
-        401
+        "Authorization token is required."
       );
+      return;
     }
     await logoutAll({
       userId: req.user.userId,
       ip: req.ip,
       userAgent: req.get("user-agent"),
     });
-    res.json({ ok: true });
+    respondAuthOk(res, { loggedOut: true });
   })
 );
 
@@ -288,16 +323,18 @@ router.get(
   requireAuth,
   safeHandler(async (req, res) => {
     if (!req.user) {
-      throw new AppError(
+      respondAuthError(
+        res,
+        401,
         "missing_token",
-        "Authorization token is required.",
-        401
+        "Authorization token is required."
       );
+      return;
     }
     const role = req.user.role;
     const capabilities =
       req.user.capabilities ?? (role ? getCapabilitiesForRole(role) : []);
-    respondOk(res, {
+    respondAuthOk(res, {
       userId: req.user.userId,
       role,
       phone: req.user.phone,

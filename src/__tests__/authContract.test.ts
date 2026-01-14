@@ -182,7 +182,10 @@ describe("auth contract", () => {
       });
     } else {
       expect(second.body.ok).toBe(true);
-      expect(second.body.data).toEqual({ alreadyVerified: true });
+      expect(second.body).toMatchObject({
+        data: { alreadyVerified: true },
+        error: null,
+      });
     }
     expectRequestId(second, requestId);
   });

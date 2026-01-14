@@ -80,6 +80,16 @@ describe("API auth otp verify eligibility", () => {
     expect(res.body.error.code).toBe("user_not_found");
   });
 
+  it("returns 404 without 500 when otp_verifications is missing", async () => {
+    const phone = "+14155550099";
+    await pool.query("drop table if exists otp_verifications");
+
+    const res = await otpVerifyRequest(app, { phone });
+
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe("user_not_found");
+  });
+
   it("returns 200 for the seeded admin user", async () => {
     await seedAdminUser();
 

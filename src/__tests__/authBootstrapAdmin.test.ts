@@ -70,6 +70,7 @@ describe("auth bootstrap admin", () => {
     const twilioMocks = getTwilioMocks();
     twilioMocks.createVerificationCheck.mockResolvedValueOnce({
       status: "approved",
+      sid: "VE-CHECK-BOOT",
     });
 
     const res = await otpVerifyRequest(app, { phone });

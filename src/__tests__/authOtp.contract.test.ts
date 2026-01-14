@@ -57,6 +57,7 @@ beforeEach(async () => {
   }));
   twilioMocks.createVerificationCheck.mockImplementation(async (params) => ({
     status: params.code === DEFAULT_OTP_CODE ? "approved" : "pending",
+    sid: "VE-CHECK-DEFAULT",
   }));
 });
 
@@ -76,6 +77,7 @@ describe("auth otp contract", () => {
     const twilioMocks = getTwilioMocks();
     twilioMocks.createVerificationCheck.mockResolvedValueOnce({
       status: "approved",
+      sid: "VE-CHECK-001",
     });
 
     const res = await otpVerifyRequest(app, { phone });
@@ -95,6 +97,7 @@ describe("auth otp contract", () => {
     const twilioMocks = getTwilioMocks();
     twilioMocks.createVerificationCheck.mockResolvedValueOnce({
       status: "approved",
+      sid: "VE-CHECK-002",
     });
 
     delete process.env.AUTH_BOOTSTRAP_ADMIN_EMAIL;
@@ -122,6 +125,7 @@ describe("auth otp contract", () => {
     const twilioMocks = getTwilioMocks();
     twilioMocks.createVerificationCheck.mockResolvedValueOnce({
       status: "approved",
+      sid: "VE-CHECK-003",
     });
 
     const res = await otpVerifyRequest(app, { phone });
@@ -147,6 +151,7 @@ describe("auth otp contract", () => {
     const twilioMocks = getTwilioMocks();
     twilioMocks.createVerificationCheck.mockResolvedValueOnce({
       status: "approved",
+      sid: "VE-CHECK-004",
     });
 
     const first = await otpVerifyRequest(app, { phone });
@@ -162,7 +167,12 @@ describe("auth otp contract", () => {
       .send({ phone, code: DEFAULT_OTP_CODE });
 
     expect(second.status).toBe(200);
-    expect(second.body).toEqual({ ok: true, data: { alreadyVerified: true } });
+    expect(second.body).toMatchObject({
+      ok: true,
+      data: { alreadyVerified: true },
+      error: null,
+    });
+    expect(second.body.requestId).toBeDefined();
     expect(twilioMocks.createVerificationCheck).toHaveBeenCalledTimes(1);
   });
 
@@ -177,6 +187,7 @@ describe("auth otp contract", () => {
     const twilioMocks = getTwilioMocks();
     twilioMocks.createVerificationCheck.mockResolvedValueOnce({
       status: "approved",
+      sid: "VE-CHECK-005",
     });
 
     const first = await otpVerifyRequest(app, { phone });
@@ -188,7 +199,12 @@ describe("auth otp contract", () => {
       .send({ phone, code: "000000" });
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ ok: true, data: { alreadyVerified: true } });
+    expect(res.body).toMatchObject({
+      ok: true,
+      data: { alreadyVerified: true },
+      error: null,
+    });
+    expect(res.body.requestId).toBeDefined();
     expect(twilioMocks.createVerificationCheck).toHaveBeenCalledTimes(1);
   });
 
@@ -209,6 +225,7 @@ describe("auth otp contract", () => {
 
     expect(res.status).toBe(401);
     expect(res.body.ok).toBe(false);
+    expect(res.body.data).toBeNull();
     expect(res.body.error).toEqual({
       code: "invalid_code",
       message: "Invalid or expired code",
@@ -229,6 +246,7 @@ describe("auth otp contract", () => {
     const twilioMocks = getTwilioMocks();
     twilioMocks.createVerificationCheck.mockResolvedValueOnce({
       status: "approved",
+      sid: "VE-CHECK-006",
     });
 
     const res = await otpVerifyRequest(app, { phone });
@@ -249,6 +267,7 @@ describe("auth otp contract", () => {
     const twilioMocks = getTwilioMocks();
     twilioMocks.createVerificationCheck.mockResolvedValueOnce({
       status: "approved",
+      sid: "VE-CHECK-007",
     });
 
     const res = await otpVerifyRequest(app, { phone });

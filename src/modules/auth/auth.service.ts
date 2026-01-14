@@ -22,7 +22,7 @@ import { recordAuditEvent } from "../audit/audit.service";
 import { pool } from "../../db";
 import { getDbFailureCategory, isDbConnectionFailure } from "../../dbRuntime";
 import { ROLES, type Role, isRole } from "../../auth/roles";
-import { logInfo, logWarn } from "../../observability/logger";
+import { logError, logInfo, logWarn } from "../../observability/logger";
 import { trackEvent } from "../../observability/appInsights";
 import { buildTelemetryProperties } from "../../observability/telemetry";
 import { getRequestId } from "../../middleware/requestContext";
@@ -31,6 +31,7 @@ import {
   generateRefreshToken,
   hashRefreshToken,
 } from "../../auth/tokenUtils";
+import { ensureOtpTableExists } from "../../db/ensureOtpTable";
 
 type AccessTokenPayload = {
   sub: string;
@@ -313,53 +314,83 @@ async function requestTwilioVerificationCheck(
 
 type StartOtpResult =
   | { ok: true }
-  | { ok: false; status: number; error: string; twilioCode?: number | string };
+  | {
+      ok: false;
+      status: number;
+      error: { code: string; message: string };
+      twilioCode?: number | string;
+    };
 
 export async function startOtp(phone: unknown): Promise<StartOtpResult> {
-  let phoneE164: string;
   try {
-    phoneE164 = assertE164(phone);
-  } catch {
-    const phoneTail = typeof phone === "string" ? getPhoneTail(phone) : "";
-    logWarn("otp_start_invalid_phone", {
-      phoneTail,
-      status: "invalid_phone",
-    });
-    return {
-      ok: false,
-      status: 400,
-      error: "Invalid phone number",
-    };
-  }
+    const requestId = getRequestId() ?? "unknown";
+    try {
+      await ensureOtpTableExists();
+    } catch (err) {
+      logError("otp_schema_self_heal_failed", { err, requestId });
+    }
 
-  try {
+    let phoneE164: string;
+    try {
+      phoneE164 = assertE164(phone);
+    } catch {
+      const phoneTail = typeof phone === "string" ? getPhoneTail(phone) : "";
+      logWarn("otp_start_invalid_phone", {
+        phoneTail,
+        status: "invalid_phone",
+        requestId,
+      });
+      return {
+        ok: false,
+        status: 400,
+        error: { code: "invalid_phone", message: "Invalid phone number" },
+      };
+    }
+
     const phoneTail = getPhoneTail(phoneE164);
-    const verification = await twilioClient.verify.v2
-      .services(VERIFY_SERVICE_SID)
-      .verifications.create({ to: phoneE164, channel: "sms" });
-    logInfo("otp_start_success", {
-      phoneTail,
-      serviceSid: VERIFY_SERVICE_SID,
-      verificationSid: verification.sid,
-      status: verification.status,
-    });
-    return { ok: true };
-  } catch (err: any) {
-    const details = getTwilioErrorDetails(err);
-    const phoneTail = getPhoneTail(phoneE164);
-    logWarn("auth_twilio_verify_failed", {
-      action: "otp_start",
-      phoneTail,
-      serviceSid: VERIFY_SERVICE_SID,
-      twilioCode: details.code,
-      status: details.status,
-      message: details.message,
+    try {
+      const verification = await twilioClient.verify.v2
+        .services(VERIFY_SERVICE_SID)
+        .verifications.create({ to: phoneE164, channel: "sms" });
+      logInfo("otp_start_success", {
+        phoneTail,
+        serviceSid: VERIFY_SERVICE_SID,
+        verificationSid: verification.sid,
+        status: verification.status,
+        requestId,
+      });
+      return { ok: true };
+    } catch (err: any) {
+      const details = getTwilioErrorDetails(err);
+      logWarn("auth_twilio_verify_failed", {
+        action: "otp_start",
+        phoneTail,
+        serviceSid: VERIFY_SERVICE_SID,
+        twilioCode: details.code,
+        status: details.status,
+        message: details.message,
+        requestId,
+      });
+      return {
+        ok: false,
+        status: 502,
+        error: { code: "twilio_verify_failed", message: "Twilio verification failed" },
+        twilioCode: details.code,
+      };
+    }
+  } catch (err) {
+    const requestId = getRequestId() ?? "unknown";
+    logError("otp_start_failed", {
+      requestId,
+      error: err instanceof Error ? err.message : "unknown_error",
     });
     return {
       ok: false,
-      status: 502,
-      error: "Twilio verification failed",
-      twilioCode: details.code,
+      status: 503,
+      error: {
+        code: "otp_unavailable",
+        message: "OTP service unavailable",
+      },
     };
   }
 }
@@ -382,298 +413,347 @@ export async function verifyOtpCode(params: {
       twilioCode?: number | string;
     }
 > {
-  if (await hasValidRefreshSession(params.refreshToken)) {
-    return { ok: true, alreadyVerified: true };
-  }
-
-  const code = params.code?.trim() ?? "";
-  if (!code) {
-    logWarn("otp_verify_invalid_request", {
-      status: "missing_fields",
-    });
-    return {
-      ok: false,
-      status: 400,
-      error: { code: "invalid_request", message: "Phone and code are required" },
-    };
-  }
-  let phoneE164: string;
-  try {
-    phoneE164 = assertE164(params.phone);
-  } catch {
-    const phoneTail =
-      typeof params.phone === "string" ? getPhoneTail(params.phone) : "";
-    logWarn("otp_verify_invalid_phone", {
-      phoneTail,
-      status: "invalid_phone",
-    });
-    return {
-      ok: false,
-      status: 400,
-      error: { code: "invalid_phone", message: "Invalid phone number" },
-    };
-  }
-  const phoneTail = getPhoneTail(phoneE164);
   const requestId = getRequestId() ?? "unknown";
-  let otpVerificationsAvailable = true;
-  let precheckApproved: Awaited<
-    ReturnType<typeof findApprovedOtpVerificationByPhone>
-  > = null;
   try {
-    precheckApproved = await findApprovedOtpVerificationByPhone({
-      phone: phoneE164,
-    });
-  } catch (err) {
-    if (isOtpVerificationTableMissing(err)) {
-      otpVerificationsAvailable = false;
-      logWarn("otp_verify_db_missing", {
-        requestId,
-        phoneTail,
-        errorCode: "OTP_VERIFY_DB_MISSING",
-      });
-    } else {
-      throw err;
+    try {
+      await ensureOtpTableExists();
+    } catch (err) {
+      logError("otp_schema_self_heal_failed", { err, requestId });
     }
-  }
-  if (precheckApproved) {
-    return { ok: true, alreadyVerified: true };
-  }
 
-  let status: string | undefined;
-  let verificationSid: string | undefined;
-  try {
-    const check = await requestTwilioVerificationCheck(phoneE164, code);
-    status = check.status;
-    verificationSid = check.sid;
-    logInfo("otp_verify_result", {
-      phoneTail,
-      serviceSid: VERIFY_SERVICE_SID,
-      status,
-      verificationSid,
-    });
-  } catch (err) {
-    const details = getTwilioErrorDetails(err);
-    logWarn("auth_twilio_verify_failed", {
-      action: "otp_verify",
-      phoneTail,
-      serviceSid: VERIFY_SERVICE_SID,
-      twilioCode: details.code,
-      status: details.status,
-      message: details.message,
-      requestId,
-      errorCode: getTwilioFailureCode(details.status),
-    });
-    if (otpVerificationsAvailable) {
-      try {
-        const approved = await findApprovedOtpVerificationByPhone({
-          phone: phoneE164,
+    if (await hasValidRefreshSession(params.refreshToken)) {
+      return { ok: true, alreadyVerified: true };
+    }
+
+    const code = params.code?.trim() ?? "";
+    if (!code) {
+      logWarn("otp_verify_invalid_request", {
+        status: "missing_fields",
+        requestId,
+      });
+      return {
+        ok: false,
+        status: 400,
+        error: {
+          code: "invalid_request",
+          message: "Phone and code are required",
+        },
+      };
+    }
+    let phoneE164: string;
+    try {
+      phoneE164 = assertE164(params.phone);
+    } catch {
+      const phoneTail =
+        typeof params.phone === "string" ? getPhoneTail(params.phone) : "";
+      logWarn("otp_verify_invalid_phone", {
+        phoneTail,
+        status: "invalid_phone",
+        requestId,
+      });
+      return {
+        ok: false,
+        status: 400,
+        error: { code: "invalid_phone", message: "Invalid phone number" },
+      };
+    }
+    const phoneTail = getPhoneTail(phoneE164);
+    let otpVerificationsAvailable = true;
+    let precheckApproved: Awaited<
+      ReturnType<typeof findApprovedOtpVerificationByPhone>
+    > = null;
+    try {
+      precheckApproved = await findApprovedOtpVerificationByPhone({
+        phone: phoneE164,
+      });
+    } catch (err) {
+      if (isOtpVerificationTableMissing(err)) {
+        otpVerificationsAvailable = false;
+        logWarn("otp_verify_db_missing", {
+          requestId,
+          phoneTail,
+          errorCode: "OTP_VERIFY_DB_MISSING",
         });
-        if (approved) {
-          logWarn("twilio_verify_failed_post_auth", {
-            phoneTail,
-            serviceSid: VERIFY_SERVICE_SID,
-            twilioCode: details.code,
-            status: details.status,
-            message: details.message,
-            requestId,
-            errorCode: getTwilioFailureCode(details.status),
-          });
-          return { ok: true, alreadyVerified: true };
-        }
-      } catch (dbErr) {
-        if (isOtpVerificationTableMissing(dbErr)) {
-          otpVerificationsAvailable = false;
-          logWarn("otp_verify_db_missing", {
-            requestId,
-            phoneTail,
-            errorCode: "OTP_VERIFY_DB_MISSING",
-          });
-        } else {
-          throw dbErr;
-        }
+      } else {
+        throw err;
       }
     }
-    return {
-      ok: false,
-      status: 502,
-      error: {
-        code: "verification_unavailable",
-        message: "Verification service unavailable",
-      },
-      twilioCode: details.code,
-    };
-  }
-  if (status !== "approved") {
-    const userRecord = await findAuthUserByPhone(phoneE164);
-    if (userRecord && otpVerificationsAvailable) {
-      try {
+    if (precheckApproved) {
+      return { ok: true, alreadyVerified: true };
+    }
+
+    let status: string | undefined;
+    let verificationSid: string | undefined;
+    try {
+      const check = await requestTwilioVerificationCheck(phoneE164, code);
+      status = check.status;
+      verificationSid = check.sid;
+      logInfo("otp_verify_result", {
+        phoneTail,
+        serviceSid: VERIFY_SERVICE_SID,
+        status,
+        verificationSid,
+        requestId,
+      });
+    } catch (err) {
+      const details = getTwilioErrorDetails(err);
+      logWarn("auth_twilio_verify_failed", {
+        action: "otp_verify",
+        phoneTail,
+        serviceSid: VERIFY_SERVICE_SID,
+        twilioCode: details.code,
+        status: details.status,
+        message: details.message,
+        requestId,
+        errorCode: getTwilioFailureCode(details.status),
+      });
+      if (otpVerificationsAvailable) {
+        try {
+          const approved = await findApprovedOtpVerificationByPhone({
+            phone: phoneE164,
+          });
+          if (approved) {
+            logWarn("twilio_verify_failed_post_auth", {
+              phoneTail,
+              serviceSid: VERIFY_SERVICE_SID,
+              twilioCode: details.code,
+              status: details.status,
+              message: details.message,
+              requestId,
+              errorCode: getTwilioFailureCode(details.status),
+            });
+            return { ok: true, alreadyVerified: true };
+          }
+        } catch (dbErr) {
+          if (isOtpVerificationTableMissing(dbErr)) {
+            otpVerificationsAvailable = false;
+            logWarn("otp_verify_db_missing", {
+              requestId,
+              phoneTail,
+              errorCode: "OTP_VERIFY_DB_MISSING",
+            });
+          } else {
+            throw dbErr;
+          }
+        }
+      }
+      return {
+        ok: false,
+        status: 502,
+        error: {
+          code: "verification_unavailable",
+          message: "Verification service unavailable",
+        },
+        twilioCode: details.code,
+      };
+    }
+    if (!verificationSid) {
+      logWarn("otp_verify_missing_sid", {
+        phoneTail,
+        requestId,
+      });
+      return {
+        ok: false,
+        status: 503,
+        error: {
+          code: "otp_unavailable",
+          message: "OTP verification unavailable",
+        },
+      };
+    }
+    if (status !== "approved") {
+      const userRecord = await findAuthUserByPhone(phoneE164);
+      if (userRecord && otpVerificationsAvailable) {
+        try {
+          await createOtpVerification({
+            userId: userRecord.id,
+            phone: phoneE164,
+            verificationSid,
+            status: resolveOtpStatus(status),
+            verifiedAt: null,
+          });
+        } catch (err) {
+          if (isOtpVerificationTableMissing(err)) {
+            otpVerificationsAvailable = false;
+            logWarn("otp_verify_db_missing", {
+              requestId,
+              phoneTail,
+              errorCode: "OTP_VERIFY_DB_MISSING",
+            });
+          } else {
+            throw err;
+          }
+        }
+      }
+      return {
+        ok: false,
+        status: 401,
+        error: { code: "invalid_code", message: "Invalid or expired code" },
+      };
+    }
+
+    const client = await pool.connect();
+    const db = client;
+    try {
+      await client.query("begin");
+      const userRecord = await findAuthUserByPhone(phoneE164, db, {
+        forUpdate: true,
+      });
+      if (!userRecord) {
+        await client.query("commit");
+        throw new AppError("user_not_found", "User not found.", 404);
+      }
+      const isDisabled = userRecord.disabled === true;
+      if (isDisabled) {
+        await client.query("commit");
+        throw new AppError("account_disabled", "Account is disabled.", 403);
+      }
+      if (userRecord.isActive === false) {
+        logInfo("otp_verify_inactive_user", {
+          userId: userRecord.id,
+          phoneTail,
+          requestId,
+        });
+        await client.query("commit");
+        throw new AppError("user_disabled", "Account is inactive.", 403);
+      }
+      const isActive = userRecord.active === true || userRecord.isActive === true;
+      if (!isActive) {
+        logInfo("otp_verify_inactive_user", {
+          userId: userRecord.id,
+          phoneTail,
+          requestId,
+        });
+        await client.query("commit");
+        throw new AppError("user_disabled", "Account is inactive.", 403);
+      }
+      const isLocked =
+        userRecord.lockedUntil && userRecord.lockedUntil.getTime() > Date.now();
+      if (isLocked) {
+        await client.query("commit");
+        throw new AppError("locked", "Account is locked.", 403);
+      }
+      let role = userRecord.role;
+      if (!role || !isRole(role)) {
+        if (isBootstrapAdminUser(userRecord)) {
+          await updateUserRoleById(userRecord.id, ROLES.ADMIN, db);
+          role = ROLES.ADMIN;
+        } else {
+          await client.query("commit");
+          throw forbiddenError("User has no assigned role");
+        }
+      }
+
+      await setPhoneVerified(userRecord.id, true, db);
+      if (otpVerificationsAvailable) {
         await createOtpVerification({
           userId: userRecord.id,
           phone: phoneE164,
           verificationSid,
-          status: resolveOtpStatus(status),
-          verifiedAt: null,
+          status: "approved",
+          verifiedAt: new Date(),
+          client: db,
         });
-      } catch (err) {
-        if (isOtpVerificationTableMissing(err)) {
-          otpVerificationsAvailable = false;
-          logWarn("otp_verify_db_missing", {
-            requestId,
-            phoneTail,
-            errorCode: "OTP_VERIFY_DB_MISSING",
-          });
-        } else {
-          throw err;
+      }
+
+      const payload = {
+        sub: userRecord.id,
+        userId: userRecord.id,
+        role,
+        phone: userRecord.phoneNumber,
+        type: "access" as const,
+        tokenVersion: userRecord.tokenVersion,
+      };
+      const accessToken = issueAccessToken(payload);
+
+      let refreshToken: string;
+      let tokenHash: string;
+      try {
+        refreshToken = generateRefreshToken();
+        if (!refreshToken) {
+          throw new Error("refresh token generation failed");
         }
+        tokenHash = hashRefreshToken(refreshToken);
+      } catch (err) {
+        logWarn("auth_refresh_token_generation_failed", {
+          userId: userRecord.id,
+          requestId,
+          error: err instanceof Error ? err.message : "unknown_error",
+        });
+        throw err;
       }
-    }
-    return {
-      ok: false,
-      status: 401,
-      error: { code: "invalid_code", message: "Invalid or expired code" },
-    };
-  }
 
-  const client = await pool.connect();
-  const db = client;
-  try {
-    await client.query("begin");
-    const userRecord = await findAuthUserByPhone(phoneE164, db, {
-      forUpdate: true,
-    });
-    if (!userRecord) {
-      await client.query("commit");
-      throw new AppError("user_not_found", "User not found.", 404);
-    }
-    const isDisabled = userRecord.disabled === true;
-    if (isDisabled) {
-      await client.query("commit");
-      throw new AppError("account_disabled", "Account is disabled.", 403);
-    }
-    if (userRecord.isActive === false) {
-      logInfo("otp_verify_inactive_user", {
+      const refreshExpires = new Date();
+      refreshExpires.setSeconds(
+        refreshExpires.getSeconds() + msToSeconds(getRefreshTokenExpiresIn())
+      );
+      assertRefreshTokenInputs({
         userId: userRecord.id,
-        phoneTail,
-        requestId: getRequestId() ?? "unknown",
-      });
-      await client.query("commit");
-      throw new AppError("user_disabled", "Account is inactive.", 403);
-    }
-    const isActive = userRecord.active === true || userRecord.isActive === true;
-    if (!isActive) {
-      logInfo("otp_verify_inactive_user", {
-        userId: userRecord.id,
-        phoneTail,
-        requestId: getRequestId() ?? "unknown",
-      });
-      await client.query("commit");
-      throw new AppError("user_disabled", "Account is inactive.", 403);
-    }
-    const isLocked =
-      userRecord.lockedUntil && userRecord.lockedUntil.getTime() > Date.now();
-    if (isLocked) {
-      await client.query("commit");
-      throw new AppError("locked", "Account is locked.", 403);
-    }
-    let role = userRecord.role;
-    if (!role || !isRole(role)) {
-      if (isBootstrapAdminUser(userRecord)) {
-        await updateUserRoleById(userRecord.id, ROLES.ADMIN, db);
-        role = ROLES.ADMIN;
-      } else {
-        await client.query("commit");
-        throw forbiddenError("User has no assigned role");
-      }
-    }
-
-    await setPhoneVerified(userRecord.id, true, db);
-    if (otpVerificationsAvailable) {
-      await createOtpVerification({
-        userId: userRecord.id,
-        phone: phoneE164,
-        verificationSid,
-        status: "approved",
-        verifiedAt: new Date(),
-        client: db,
-      });
-    }
-
-    const payload = {
-      sub: userRecord.id,
-      userId: userRecord.id,
-      role,
-      phone: userRecord.phoneNumber,
-      type: "access" as const,
-      tokenVersion: userRecord.tokenVersion,
-    };
-    const accessToken = issueAccessToken(payload);
-
-    let refreshToken: string;
-    let tokenHash: string;
-    try {
-      refreshToken = generateRefreshToken();
-      if (!refreshToken) {
-        throw new Error("refresh token generation failed");
-      }
-      tokenHash = hashRefreshToken(refreshToken);
-    } catch (err) {
-      logWarn("auth_refresh_token_generation_failed", {
-        userId: userRecord.id,
-        requestId: getRequestId() ?? "unknown",
-        error: err instanceof Error ? err.message : "unknown_error",
-      });
-      throw err;
-    }
-
-    const refreshExpires = new Date();
-    refreshExpires.setSeconds(
-      refreshExpires.getSeconds() + msToSeconds(getRefreshTokenExpiresIn())
-    );
-    assertRefreshTokenInputs({
-      userId: userRecord.id,
-      tokenHash,
-      expiresAt: refreshExpires,
-      action: "otp_verify",
-    });
-    await revokeRefreshTokensForUser(userRecord.id, db);
-    try {
-      await storeRefreshToken({
-        userId: userRecord.id,
-        token: refreshToken,
         tokenHash,
         expiresAt: refreshExpires,
+        action: "otp_verify",
+      });
+      await revokeRefreshTokensForUser(userRecord.id, db);
+      try {
+        await storeRefreshToken({
+          userId: userRecord.id,
+          token: refreshToken,
+          tokenHash,
+          expiresAt: refreshExpires,
+          client: db,
+        });
+      } catch (err) {
+        logWarn("auth_refresh_token_persist_failed", {
+          userId: userRecord.id,
+          requestId,
+          error: err instanceof Error ? err.message : "unknown_error",
+        });
+        throw err;
+      }
+      logInfo("auth_refresh_token_issued", {
+        userId: userRecord.id,
+        expiresAt: refreshExpires.toISOString(),
+        requestId,
+      });
+      await recordAuditEvent({
+        action: "login",
+        actorUserId: userRecord.id,
+        targetUserId: userRecord.id,
+        ip: params.ip,
+        userAgent: params.userAgent,
+        success: true,
         client: db,
       });
-    } catch (err) {
-      logWarn("auth_refresh_token_persist_failed", {
-        userId: userRecord.id,
-        requestId: getRequestId() ?? "unknown",
-        error: err instanceof Error ? err.message : "unknown_error",
-      });
-      throw err;
-    }
-    logInfo("auth_refresh_token_issued", {
-      userId: userRecord.id,
-      expiresAt: refreshExpires.toISOString(),
-      requestId: getRequestId() ?? "unknown",
-    });
-    await recordAuditEvent({
-      action: "login",
-      actorUserId: userRecord.id,
-      targetUserId: userRecord.id,
-      ip: params.ip,
-      userAgent: params.userAgent,
-      success: true,
-      client: db,
-    });
 
-    await client.query("commit");
-    return { ok: true, accessToken, refreshToken };
+      await client.query("commit");
+      return { ok: true, accessToken, refreshToken };
+    } catch (err) {
+      await client.query("rollback");
+      throw err;
+    } finally {
+      client.release();
+    }
   } catch (err) {
-    await client.query("rollback");
-    throw err;
-  } finally {
-    client.release();
+    if (err instanceof AppError) {
+      const status = err.status >= 500 ? 503 : err.status;
+      return {
+        ok: false,
+        status,
+        error: { code: err.code, message: err.message },
+      };
+    }
+    logWarn("otp_verify_failed", {
+      requestId,
+      error: err instanceof Error ? err.message : "unknown_error",
+    });
+    return {
+      ok: false,
+      status: 503,
+      error: {
+        code: "service_unavailable",
+        message: "Authentication service unavailable.",
+      },
+    };
   }
 }
 
@@ -813,7 +893,18 @@ export async function logoutUser(params: {
   const tokenHash = hashRefreshToken(params.refreshToken);
   const db = pool;
   await revokeRefreshToken(tokenHash, db);
-  await expireOtpVerificationsForUser(params.userId, db);
+  try {
+    await expireOtpVerificationsForUser(params.userId, db);
+  } catch (err) {
+    if (isOtpVerificationTableMissing(err)) {
+      logWarn("otp_logout_missing_table", {
+        userId: params.userId,
+        requestId: getRequestId() ?? "unknown",
+      });
+    } else {
+      throw err;
+    }
+  }
   await recordAuditEvent({
     action: "token_revoke",
     actorUserId: params.userId,
@@ -846,7 +937,18 @@ export async function logoutAll(params: {
       await client.query("begin");
       await incrementTokenVersion(params.userId, db);
       await revokeRefreshTokensForUser(params.userId, db);
-      await expireOtpVerificationsForUser(params.userId, db);
+      try {
+        await expireOtpVerificationsForUser(params.userId, db);
+      } catch (err) {
+        if (isOtpVerificationTableMissing(err)) {
+          logWarn("otp_logout_missing_table", {
+            userId: params.userId,
+            requestId: getRequestId() ?? "unknown",
+          });
+        } else {
+          throw err;
+        }
+      }
       await recordAuditEvent({
         action: "token_revoke",
         actorUserId: params.userId,

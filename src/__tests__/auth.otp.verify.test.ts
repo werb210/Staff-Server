@@ -50,7 +50,7 @@ describe("POST /api/auth/otp/start Twilio Verify behaviors", () => {
     );
   });
 
-  it("returns 204 when Verify succeeds", async () => {
+  it("returns 200 when Verify succeeds", async () => {
     process.env.TWILIO_ACCOUNT_SID = "ACxxxx";
     process.env.TWILIO_AUTH_TOKEN = "token";
     process.env.TWILIO_VERIFY_SERVICE_SID = "VA00000000000000000000000000000000";
@@ -66,7 +66,9 @@ describe("POST /api/auth/otp/start Twilio Verify behaviors", () => {
       .post("/api/auth/otp/start")
       .send({ phone: "+15878881837" });
 
-    expect(res.status).toBe(204);
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.data).toEqual({ sent: true });
   });
 
   it("creates a Twilio client per request", async () => {

@@ -107,13 +107,14 @@ export function errorHandler(
       err instanceof AppError
         ? err.status
         : explicitStatus ?? (isDbConnectionFailure(err) ? 503 : 500);
+    const sanitizedStatus = status >= 500 ? 503 : status;
     logWarn("request_error", {
       requestId,
       route: req.originalUrl,
       durationMs,
       code: normalized.code,
       message: normalized.message,
-      status,
+      status: sanitizedStatus,
       failure_reason: "auth_failure",
     });
     trackException({
@@ -121,14 +122,18 @@ export function errorHandler(
       properties: {
         requestId,
         route: req.originalUrl,
-        status,
+        status: sanitizedStatus,
         code: normalized.code,
         failure_reason: "auth_failure",
       },
     });
-    res.status(status).json({
-      code: normalized.code,
-      message: normalized.message,
+    res.status(sanitizedStatus).json({
+      ok: false,
+      data: null,
+      error: {
+        code: normalized.code,
+        message: normalized.message,
+      },
       requestId,
     });
     return;
@@ -247,8 +252,17 @@ export function errorHandler(
   });
 }
 
-export function notFoundHandler(_req: Request, res: Response): void {
+export function notFoundHandler(req: Request, res: Response): void {
   const requestId = res.locals.requestId ?? "unknown";
+  if (isAuthRoute(req)) {
+    res.status(404).json({
+      ok: false,
+      data: null,
+      error: { code: "not_found", message: "Not Found" },
+      requestId,
+    });
+    return;
+  }
   res.status(404).json({
     code: "not_found",
     message: "Not Found",

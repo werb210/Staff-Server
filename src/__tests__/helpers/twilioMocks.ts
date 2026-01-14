@@ -17,7 +17,7 @@ type VerificationCreateMock = jest.MockedFunction<
 type VerificationCheckCreateMock = jest.MockedFunction<
   (
     params: VerificationCheckListInstanceCreateOptions
-  ) => Promise<Pick<VerificationCheckInstance, "status">>
+  ) => Promise<Pick<VerificationCheckInstance, "status" | "sid">>
 >;
 
 type TwilioConstructorMock = jest.MockedFunction<
