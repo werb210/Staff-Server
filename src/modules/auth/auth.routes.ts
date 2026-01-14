@@ -14,6 +14,7 @@ import { getRequestId } from "../../middleware/requestContext";
 import {
   startOtp,
   verifyOtpCode,
+  createOtpSession,
   refreshSession,
   logoutUser,
   logoutAll,
@@ -191,6 +192,30 @@ router.post("/otp/verify", otpRateLimit(), async (req, res) => {
     );
   }
 });
+
+router.post(
+  "/session",
+  safeHandler(async (req, res) => {
+    const { phone } = req.body ?? {};
+    const result = await createOtpSession({
+      phone,
+      ip: req.ip,
+      userAgent: req.get("user-agent"),
+    });
+    if (!result.ok) {
+      respondAuthError(
+        res,
+        result.status,
+        result.error.code,
+        result.error.message
+      );
+      return;
+    }
+    res.cookie("accessToken", result.accessToken, { httpOnly: true });
+    res.cookie("refreshToken", result.refreshToken, { httpOnly: true });
+    res.status(200).json({ ok: true });
+  })
+);
 
 router.post("/verify", otpRateLimit(), async (req, res) => {
   try {
