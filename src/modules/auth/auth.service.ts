@@ -397,7 +397,18 @@ export async function verifyOtpCode(params: {
     const userRecord = await findAuthUserByPhone(phoneE164, db, {
       forUpdate: true,
     });
-    if (!userRecord || !userRecord.active) {
+    if (!userRecord) {
+      await client.query("commit");
+      throw new AppError("account_disabled", "Account is disabled.", 403);
+    }
+    if (userRecord.active === false) {
+      await client.query("commit");
+      throw new AppError("account_disabled", "Account is disabled.", 403);
+    }
+    if (
+      userRecord.lockedUntil &&
+      userRecord.lockedUntil.getTime() > Date.now()
+    ) {
       await client.query("commit");
       throw new AppError("account_disabled", "Account is disabled.", 403);
     }
