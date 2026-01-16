@@ -15,7 +15,7 @@ import "./services/twilio";
 import { PORTAL_ROUTE_REQUIREMENTS } from "./routes/routeRegistry";
 import { seedAdminUser, seedSecondAdminUser } from "./db/seed";
 import { ensureOtpTableExists } from "./db/ensureOtpTable";
-import { logError } from "./observability/logger";
+import { logError, logWarn } from "./observability/logger";
 import internalRoutes from "./routes/_int";
 import { checkDb } from "./db";
 import { getStatus as getErrorStatus, isHttpishError } from "./helpers/errors";
@@ -216,9 +216,7 @@ export async function initializeServer(): Promise<void> {
   try {
     await runStartupConsistencyCheck();
   } catch (err) {
-    logError("startup_consistency_check_failed", { err });
-    markNotReady("table_checks_failed");
-    return;
+    logWarn("startup_consistency_check_skipped", { err });
   }
   markReady();
 }

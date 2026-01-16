@@ -5,7 +5,6 @@ import applicationRoutes from "../modules/applications/applications.routes";
 import { respondOk } from "../utils/respondOk";
 import { AppError } from "../middleware/errors";
 import { createApplication } from "../modules/applications/applications.repo";
-import { getClientSubmissionOwnerUserId } from "../config";
 import { safeHandler } from "../middleware/safeHandler";
 
 type ApplicationPayload = {
@@ -85,10 +84,11 @@ router.post(
       throw err;
     }
 
-    const ownerUserId = getClientSubmissionOwnerUserId();
+    const ownerUserId = (req as Request & { user?: { id?: string } }).user?.id ?? null;
     const created = await createApplication({
       ownerUserId,
       name: payload.business?.legalName ?? "New application",
+      pipelineState: "new",
       metadata: {
         source: payload.source ?? null,
         country: payload.country ?? null,

@@ -4,6 +4,14 @@ import { logError } from "../observability/logger";
 
 const app = buildApp();
 
+process.on("unhandledRejection", (err) => {
+  logError("unhandled_rejection", { err });
+});
+
+process.on("uncaughtException", (err) => {
+  logError("uncaught_exception", { err });
+});
+
 /* =========================
    START SERVER
 ========================= */

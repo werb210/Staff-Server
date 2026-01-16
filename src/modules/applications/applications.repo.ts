@@ -6,7 +6,7 @@ type Queryable = Pick<PoolClient, "query">;
 
 export type ApplicationRecord = {
   id: string;
-  owner_user_id: string;
+  owner_user_id: string | null;
   name: string;
   metadata: unknown | null;
   product_type: string;
@@ -42,13 +42,15 @@ export type DocumentVersionReviewRecord = {
 };
 
 export async function createApplication(params: {
-  ownerUserId: string;
+  ownerUserId: string | null;
   name: string;
   metadata: unknown | null;
   productType: string;
+  pipelineState?: string;
   client?: Queryable;
 }): Promise<ApplicationRecord> {
   const runner = params.client ?? pool;
+  const pipelineState = params.pipelineState ?? "NEW";
   const res = await runner.query<ApplicationRecord>(
     `insert into applications
      (id, owner_user_id, name, metadata, product_type, pipeline_state, created_at, updated_at)
@@ -60,7 +62,7 @@ export async function createApplication(params: {
       params.name,
       params.metadata,
       params.productType,
-      "NEW",
+      pipelineState,
     ]
   );
   return res.rows[0];
