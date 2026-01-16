@@ -1,7 +1,5 @@
 import request from "supertest";
 import { buildAppWithApiRoutes } from "../app";
-import { runMigrations } from "../migrations";
-
 const app = buildAppWithApiRoutes();
 
 beforeAll(async () => {
@@ -11,7 +9,6 @@ beforeAll(async () => {
   process.env.JWT_EXPIRES_IN = "1h";
   process.env.JWT_REFRESH_EXPIRES_IN = "1d";
   process.env.NODE_ENV = "test";
-  await runMigrations();
 });
 
 describe("auth routes never return 500", () => {

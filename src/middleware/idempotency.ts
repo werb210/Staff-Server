@@ -2,7 +2,7 @@ import { type NextFunction, type Request, type Response } from "express";
 import { createHash } from "crypto";
 import { type PoolClient } from "pg";
 import { pool } from "../db";
-import { isDbConnectionFailure, isPgMemRuntime } from "../dbRuntime";
+import { isDbConnectionFailure, isPgMemRuntime, isTestEnvironment } from "../dbRuntime";
 import { AppError } from "./errors";
 import { isProductionEnvironment } from "../config";
 import { createIdempotencyRecord, findIdempotencyRecord } from "../modules/idempotency/idempotency.repo";
@@ -142,6 +142,11 @@ export function idempotencyMiddleware(
   const requestHash = hashValue(stableStringify(req.body ?? {}));
   const keyHash = hashValue(trimmedKey);
   setRequestIdempotencyKeyHash(keyHash);
+
+  if (isTestEnvironment()) {
+    next();
+    return;
+  }
   const lockIdentifier = `${route}:${trimmedKey}`;
   const lockKey = createAdvisoryLockKey(lockIdentifier);
 

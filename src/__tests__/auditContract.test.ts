@@ -1,5 +1,4 @@
 import { pool } from "../db";
-import { runMigrations } from "../migrations";
 import { recordAuditEvent } from "../modules/audit/audit.service";
 import { ensureAuditEventSchema } from "./helpers/auditSchema";
 
@@ -16,7 +15,6 @@ beforeAll(async () => {
   process.env.JWT_EXPIRES_IN = "1h";
   process.env.JWT_REFRESH_EXPIRES_IN = "1d";
   process.env.NODE_ENV = "test";
-  await runMigrations();
   await ensureAuditEventSchema();
 });
 

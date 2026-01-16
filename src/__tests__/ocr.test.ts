@@ -1,5 +1,4 @@
 import { randomUUID } from "crypto";
-import { runMigrations } from "../migrations";
 import { pool } from "../db";
 import { createUserAccount } from "../modules/auth/auth.service";
 import { ROLES } from "../auth/roles";
@@ -46,7 +45,6 @@ async function seedDocument(): Promise<{ documentId: string; applicationId: stri
 
 describe("ocr jobs", () => {
   beforeAll(async () => {
-    await runMigrations();
     await ensureAuditEventSchema();
   });
 

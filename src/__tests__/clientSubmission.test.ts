@@ -1,7 +1,6 @@
 import request from "supertest";
 import { buildAppWithApiRoutes } from "../app";
 import { pool } from "../db";
-import { runMigrations } from "../migrations";
 import { ensureAuditEventSchema } from "./helpers/auditSchema";
 
 const app = buildAppWithApiRoutes();
@@ -36,7 +35,6 @@ beforeAll(async () => {
   process.env.LOGIN_LOCKOUT_MINUTES = "10";
   process.env.PASSWORD_MAX_AGE_DAYS = "30";
   process.env.NODE_ENV = "test";
-  await runMigrations();
   await ensureAuditEventSchema();
 });
 

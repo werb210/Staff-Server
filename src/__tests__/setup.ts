@@ -1,3 +1,4 @@
+import { initializeTestDatabase } from "../db";
 import { installProcessHandlers } from "../observability/processHandlers";
 import { markReady } from "../startupState";
 import type { ClientOpts } from "twilio/lib/base/BaseTwilio";
@@ -20,6 +21,10 @@ process.env.TWILIO_VERIFY_SERVICE_SID = "VA00000000000000000000000000000000";
 
 markReady();
 installProcessHandlers();
+
+beforeAll(async () => {
+  await initializeTestDatabase();
+});
 
 const createVerification = jest.fn<
   Promise<Pick<VerificationInstance, "sid" | "status">>,

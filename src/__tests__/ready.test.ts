@@ -40,14 +40,12 @@ beforeAll(async () => {
 
   jest.resetModules();
   const { buildAppWithApiRoutes } = await import("../app");
-  const { runMigrations } = await import("../migrations");
   const db = await import("../db");
   const { ensureAuditEventSchema } = await import("./helpers/auditSchema");
   const { markReady, resetStartupState } = await import("../startupState");
 
   app = buildAppWithApiRoutes();
   pool = db.pool;
-  await runMigrations();
   await ensureAuditEventSchema();
   resetStartupState();
   markReady();

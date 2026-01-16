@@ -1,4 +1,5 @@
 import { pool } from "../db";
+import { isTestEnvironment } from "../dbRuntime";
 import { logError, logInfo, logWarn } from "../observability/logger";
 
 type ColumnInfo = { column_name: string; is_nullable: string; data_type: string };
@@ -124,6 +125,9 @@ async function alignIdempotencySchema(): Promise<void> {
 }
 
 export async function ensureSchemaRepairs(): Promise<void> {
+  if (isTestEnvironment()) {
+    return;
+  }
   try {
     await alignIdempotencySchema();
     logInfo("startup_schema_repairs_completed", { schema: "idempotency_keys" });

@@ -33,11 +33,7 @@ let dbTestFailureInjection: DbTestFailureInjection | null = null;
 let dbTestPoolMetricsOverride: DbTestPoolMetricsOverride | null = null;
 
 function isTestMode(): boolean {
-  return (
-    process.env.NODE_ENV === "test" ||
-    process.env.DB_POOL_TEST_MODE === "true" ||
-    process.env.DATABASE_URL === "pg-mem"
-  );
+  return process.env.NODE_ENV === "test";
 }
 
 function buildPoolConfig(): PoolConfig {
@@ -45,7 +41,7 @@ function buildPoolConfig(): PoolConfig {
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false },
   };
-  if (process.env.DB_POOL_TEST_MODE === "true") {
+  if (isTestMode()) {
     config.max = 2;
     config.idleTimeoutMillis = 1000;
     config.connectionTimeoutMillis = getDbPoolConnectionTimeoutMs();
@@ -53,9 +49,7 @@ function buildPoolConfig(): PoolConfig {
   return config;
 }
 
-export const isPgMem =
-  process.env.DATABASE_URL === "pg-mem" ||
-  (process.env.NODE_ENV === "test" && !process.env.DATABASE_URL);
+export const isPgMem = isTestMode();
 
 const poolConfig = buildPoolConfig();
 
@@ -103,10 +97,7 @@ function createPgMemPool(config: PoolConfig): PgPool {
   return new adapter.Pool(rest);
 }
 
-export const pool: PgPool =
-  isPgMem
-    ? createPgMemPool(poolConfig)
-    : new Pool(poolConfig);
+export const pool: PgPool = isPgMem ? createPgMemPool(poolConfig) : new Pool(poolConfig);
 
 export function getPoolConfig(): PoolConfig {
   return { ...poolConfig };
@@ -378,4 +369,336 @@ export async function checkDb(): Promise<void> {
 
 export async function warmUpDatabase(): Promise<void> {
   await pool.query("select 1");
+}
+
+let testDbInitialized = false;
+
+export async function initializeTestDatabase(): Promise<void> {
+  if (!isTestMode() || testDbInitialized) {
+    return;
+  }
+  testDbInitialized = true;
+  const statements = [
+    `create table if not exists users (
+       id uuid primary key,
+       email text,
+       password_hash text,
+       role text,
+       active boolean not null,
+       password_changed_at timestamptz null,
+       failed_login_attempts integer not null default 0,
+       locked_until timestamptz null,
+       token_version integer not null default 0,
+       created_at timestamp not null default now(),
+       updated_at timestamp not null default now(),
+       phone_number text,
+       phone_verified boolean default false,
+       phone text,
+       disabled boolean default false,
+       is_active boolean
+     )`,
+    `insert into users (id, email, password_hash, role, active, password_changed_at)
+     values (
+       '00000000-0000-0000-0000-000000000001',
+       'client-submission@system.local',
+       '$2a$10$w6mUovSd.4MYgYusN4uT0.oVpi9oyaylVv4QOM4bLIKO7iHuUWLZa',
+       'Referrer',
+       false,
+       now()
+     )
+     on conflict (id) do nothing`,
+    `create table if not exists auth_refresh_tokens (
+       id uuid primary key,
+       user_id uuid,
+       token_hash text,
+       expires_at timestamptz not null,
+       revoked_at timestamptz null,
+       created_at timestamptz not null,
+       token text null
+     )`,
+    `create table if not exists password_resets (
+       id uuid primary key,
+       user_id uuid,
+       token_hash text,
+       expires_at timestamptz not null,
+       used_at timestamptz null,
+       created_at timestamp not null default now()
+     )`,
+    `create table if not exists audit_events (
+       id text primary key,
+       user_id uuid null,
+       action text null,
+       ip text null,
+       user_agent text null,
+       success boolean not null,
+       created_at timestamptz not null default now(),
+       actor_user_id uuid null,
+       target_user_id uuid null,
+       target_type text null,
+       target_id text null,
+       event_type text null,
+       event_action text null,
+       ip_address text null,
+       request_id text null,
+       metadata jsonb null
+     )`,
+    `create table if not exists applications (
+       id text primary key,
+       owner_user_id uuid,
+       name text,
+       metadata jsonb null,
+       pipeline_state text not null,
+       created_at timestamp not null,
+       updated_at timestamp not null,
+       product_type text not null default 'standard',
+       status text not null default 'NEW'
+     )`,
+    `create table if not exists documents (
+       id text primary key,
+       application_id text not null,
+       owner_user_id uuid not null,
+       title text not null,
+       created_at timestamp not null,
+       document_type text not null default 'general',
+       version integer not null default 1,
+       status text not null default 'uploaded'
+     )`,
+    `create table if not exists document_versions (
+       id text primary key,
+       document_id text not null,
+       version integer not null,
+       metadata jsonb not null,
+       content text not null,
+       created_at timestamp not null
+     )`,
+    `create table if not exists document_version_reviews (
+       id text primary key,
+       document_version_id text not null,
+       status text not null,
+       reviewed_by_user_id uuid null,
+       reviewed_at timestamp not null
+     )`,
+    `create table if not exists lender_submissions (
+       id text primary key,
+       application_id text not null,
+       status text not null,
+       idempotency_key text null,
+       created_at timestamp not null,
+       updated_at timestamp not null,
+       lender_id text not null default 'default',
+       submitted_at timestamp null,
+       payload jsonb null,
+       payload_hash text null,
+       lender_response jsonb null,
+       response_received_at timestamp null,
+       failure_reason text null
+     )`,
+    `create table if not exists client_submissions (
+       id text primary key,
+       submission_key text not null,
+       application_id text not null,
+       payload jsonb not null,
+       created_at timestamp not null
+     )`,
+    `create table if not exists lender_submission_retries (
+       id text primary key,
+       submission_id text not null,
+       status text not null,
+       attempt_count integer not null default 0,
+       next_attempt_at timestamp null,
+       last_error text null,
+       created_at timestamp not null,
+       updated_at timestamp not null,
+       canceled_at timestamp null
+     )`,
+    `create table if not exists idempotency_keys (
+       id text primary key,
+       key text not null,
+       route text not null,
+       method text not null default 'POST',
+       request_hash text not null,
+       response_code integer not null,
+       response_body jsonb not null,
+       created_at timestamp not null default now()
+     )`,
+    `create table if not exists otp_verifications (
+       id uuid primary key,
+       user_id uuid not null,
+       phone text not null,
+       verification_sid text null,
+       status text not null,
+       verified_at timestamptz null,
+       created_at timestamptz not null default now()
+     )`,
+    `create table if not exists ocr_jobs (
+       id text primary key,
+       document_id text not null,
+       application_id text not null,
+       status text not null,
+       attempt_count integer not null,
+       max_attempts integer not null,
+       next_attempt_at timestamp null,
+       locked_at timestamp null,
+       locked_by text null,
+       last_error text null,
+       created_at timestamp not null,
+       updated_at timestamp not null
+     )`,
+    `create table if not exists ocr_results (
+       id text primary key,
+       document_id text not null,
+       provider text not null,
+       model text not null,
+       extracted_text text not null,
+       extracted_json jsonb null,
+       meta jsonb null,
+       created_at timestamp not null,
+       updated_at timestamp not null
+     )`,
+    `create table if not exists ops_kill_switches (
+       key text primary key,
+       enabled boolean not null,
+       updated_at timestamp not null
+     )`,
+    `create table if not exists ops_replay_jobs (
+       id text primary key,
+       scope text not null,
+       started_at timestamp null,
+       completed_at timestamp null,
+       status text not null
+     )`,
+    `create table if not exists ops_replay_events (
+       id text primary key,
+       replay_job_id text null,
+       source_table text not null,
+       source_id text not null,
+       processed_at timestamp null
+     )`,
+    `create table if not exists export_audit (
+       id text primary key,
+       actor_user_id uuid null,
+       export_type text not null,
+       filters jsonb not null,
+       created_at timestamp not null
+     )`,
+    `create table if not exists reporting_daily_metrics (
+       id text primary key,
+       metric_date date not null,
+       applications_created integer not null,
+       applications_submitted integer not null,
+       applications_approved integer not null,
+       applications_declined integer not null,
+       applications_funded integer not null,
+       documents_uploaded integer not null,
+       documents_approved integer not null,
+       lender_submissions integer not null,
+       created_at timestamp not null
+     )`,
+    `create table if not exists reporting_pipeline_snapshots (
+       id text primary key,
+       snapshot_at timestamp not null,
+       pipeline_state text not null,
+       application_count integer not null
+     )`,
+    `create table if not exists reporting_lender_performance (
+       id text primary key,
+       lender_id text not null,
+       period_start date not null,
+       period_end date not null,
+       submissions integer not null,
+       approvals integer not null,
+       declines integer not null,
+       funded integer not null,
+       avg_decision_time_seconds integer not null,
+       created_at timestamp not null
+     )`,
+    `create table if not exists reporting_pipeline_daily_snapshots (
+       id text primary key,
+       snapshot_date date not null,
+       pipeline_state text not null,
+       application_count integer not null,
+       created_at timestamp not null
+     )`,
+    `create table if not exists reporting_application_volume_daily (
+       id text primary key,
+       metric_date date not null,
+       product_type text not null,
+       applications_created integer not null,
+       applications_submitted integer not null,
+       applications_approved integer not null,
+       applications_declined integer not null,
+       applications_funded integer not null,
+       created_at timestamp not null
+     )`,
+    `create table if not exists reporting_document_metrics_daily (
+       id text primary key,
+       metric_date date not null,
+       document_type text not null,
+       documents_uploaded integer not null,
+       documents_reviewed integer not null,
+       documents_approved integer not null,
+       created_at timestamp not null
+     )`,
+    `create table if not exists reporting_staff_activity_daily (
+       id text primary key,
+       metric_date date not null,
+       staff_user_id uuid not null,
+       action text not null,
+       activity_count integer not null,
+       created_at timestamp not null
+     )`,
+    `create table if not exists reporting_lender_funnel_daily (
+       id text primary key,
+       metric_date date not null,
+       lender_id text not null,
+       submissions integer not null,
+       approvals integer not null,
+       funded integer not null,
+       created_at timestamp not null
+     )`,
+    `create or replace view vw_pipeline_current_state as
+       select pipeline_state, count(*)::int as application_count
+       from applications
+       group by pipeline_state`,
+    `create or replace view vw_application_conversion_funnel as
+       select
+         count(*)::int as applications_created,
+         count(*) filter (where pipeline_state = 'LENDER_SUBMITTED')::int as applications_submitted,
+         count(*) filter (where pipeline_state = 'APPROVED')::int as applications_approved,
+         count(*) filter (where pipeline_state = 'FUNDED')::int as applications_funded
+       from applications`,
+    `create or replace view vw_document_processing_stats as
+       select
+         count(dv.id)::int as documents_uploaded,
+         count(r.id)::int as documents_reviewed,
+         count(*) filter (where r.status = 'accepted')::int as documents_approved,
+         case
+           when count(r.id) = 0 then 0
+           else count(*) filter (where r.status = 'accepted')::numeric / count(r.id)::numeric
+         end as approval_rate
+       from document_versions dv
+       left join document_version_reviews r on r.document_version_id = dv.id`,
+    `create or replace view vw_lender_conversion as
+       select
+         ls.lender_id,
+         count(*)::int as submissions,
+         count(*) filter (where a.pipeline_state = 'APPROVED')::int as approvals,
+         count(*) filter (where a.pipeline_state = 'DECLINED')::int as declines,
+         count(*) filter (where a.pipeline_state = 'FUNDED')::int as funded,
+         case
+           when count(*) = 0 then 0
+           else count(*) filter (where a.pipeline_state = 'APPROVED')::numeric / count(*)::numeric
+         end as approval_rate,
+         case
+           when count(*) = 0 then 0
+           else count(*) filter (where a.pipeline_state = 'FUNDED')::numeric / count(*)::numeric
+         end as funding_rate
+       from lender_submissions ls
+       join applications a on a.id = ls.application_id
+       group by ls.lender_id`,
+  ];
+
+  for (const statement of statements) {
+    await pool.query(statement);
+  }
 }

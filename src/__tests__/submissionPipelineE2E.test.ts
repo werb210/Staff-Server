@@ -6,7 +6,6 @@ import {
   setDbTestFailureInjection,
   setDbTestPoolMetricsOverride,
 } from "../db";
-import { runMigrations } from "../migrations";
 import { createUserAccount } from "../modules/auth/auth.service";
 import { ROLES } from "../auth/roles";
 import { ensureAuditEventSchema } from "./helpers/auditSchema";
@@ -162,7 +161,6 @@ beforeAll(async () => {
   process.env.LOGIN_LOCKOUT_MINUTES = "10";
   process.env.PASSWORD_MAX_AGE_DAYS = "30";
   process.env.NODE_ENV = "test";
-  await runMigrations();
   await ensureAuditEventSchema();
 });
 
