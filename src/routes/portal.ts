@@ -32,13 +32,13 @@ router.get(
     const result = await pool.query<{
       id: string;
       name: string;
-      metadata: unknown | null;
-      product_type: string;
-      pipeline_state: string;
+      pipeline_state: string | null;
       created_at: Date;
-      updated_at: Date;
     }>(
-      `select id, name, metadata, product_type, pipeline_state, created_at, updated_at
+      `select id,
+        coalesce(name, business_legal_name) as name,
+        pipeline_state,
+        created_at
        from applications
        order by created_at desc`
     );
@@ -46,11 +46,8 @@ router.get(
       items: result.rows.map((row) => ({
         id: row.id,
         name: row.name,
-        productType: row.product_type,
-        pipelineState: row.pipeline_state,
+        pipelineState: row.pipeline_state ?? "new",
         createdAt: row.created_at,
-        updatedAt: row.updated_at,
-        metadata: row.metadata ?? null,
       })),
       total: result.rows.length,
     });

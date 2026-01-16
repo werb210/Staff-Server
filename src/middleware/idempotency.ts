@@ -66,7 +66,7 @@ function stableStringify(value: unknown): string {
 }
 
 function getRequestRoute(req: Request): string {
-  return req.originalUrl.split("?")[0];
+  return req.path;
 }
 
 function emitTelemetry(event: string, params: { route: string; requestId: string; keyHash: string }): void {
@@ -173,6 +173,7 @@ export function idempotencyMiddleware(
       await createIdempotencyRecord({
         idempotencyKey: context.key,
         route: context.route,
+        method: req.method ?? "POST",
         requestHash: context.requestHash,
         responseCode: res.statusCode,
         responseBody,
