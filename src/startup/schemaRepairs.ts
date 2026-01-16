@@ -9,6 +9,7 @@ async function ensureIdempotencyTable(): Promise<void> {
        id text primary key,
        key text not null,
        route text not null,
+       method text not null default 'POST',
        request_hash text not null,
        response_code integer not null,
        response_body jsonb not null,
@@ -58,6 +59,7 @@ async function alignIdempotencySchema(): Promise<void> {
   await addColumnIfMissing(columns, "id", "id text");
   await addColumnIfMissing(columns, "key", "key text");
   await addColumnIfMissing(columns, "route", "route text");
+  await addColumnIfMissing(columns, "method", "method text");
   await addColumnIfMissing(columns, "request_hash", "request_hash text");
   await addColumnIfMissing(columns, "response_code", "response_code integer");
   await addColumnIfMissing(columns, "response_body", "response_body jsonb");
@@ -96,6 +98,15 @@ async function alignIdempotencySchema(): Promise<void> {
   await pool.query(
     "update idempotency_keys set created_at = now() where created_at is null"
   );
+  if (columns.has("method")) {
+    await pool.query(
+      "update idempotency_keys set method = 'POST' where method is null"
+    );
+    await pool.query(
+      "alter table idempotency_keys alter column method set default 'POST'"
+    );
+    await pool.query("alter table idempotency_keys alter column method set not null");
+  }
   const idColumn = columns.get("id");
   if (idColumn?.data_type !== "uuid") {
     await pool.query(

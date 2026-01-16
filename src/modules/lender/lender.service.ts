@@ -44,7 +44,7 @@ type IdempotentResult<T> = {
 type SubmissionPacket = {
   application: {
     id: string;
-    ownerUserId: string;
+    ownerUserId: string | null;
     name: string;
     metadata: unknown | null;
     productType: string;
@@ -203,7 +203,7 @@ function calculateNextAttempt(attemptCount: number): Date {
 async function recordSubmissionFailure(params: {
   submissionId: string;
   applicationId: string;
-  ownerUserId: string;
+  ownerUserId: string | null;
   failureReason: string;
   response: LenderResponse;
   retryable: boolean;
