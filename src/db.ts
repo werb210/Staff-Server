@@ -10,7 +10,7 @@ import pg, {
 import { getDbPoolConnectionTimeoutMs } from "./config";
 import { trackDependency } from "./observability/appInsights";
 import { logError, logInfo, logWarn } from "./observability/logger";
-import { setDbConnected } from "./startupState";
+import { markNotReady } from "./startupState";
 
 const { Pool } = pg;
 
@@ -337,7 +337,7 @@ pool.connect = ((callback?: (
 
 function handleDbError(scope: string, err: unknown): void {
   const error = err instanceof Error ? err : new Error(String(err));
-  setDbConnected(false);
+  markNotReady("db_unavailable");
   logWarn("db_connection_error", {
     scope,
     message: error.message,
@@ -346,7 +346,6 @@ function handleDbError(scope: string, err: unknown): void {
 }
 
 pool.on("connect", (client) => {
-  setDbConnected(true);
   logInfo("db_client_connected");
   client.on("error", (err) => {
     handleDbError("client", err);

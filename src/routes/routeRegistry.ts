@@ -18,6 +18,7 @@ import settingsRoutes from "./settings";
 import staffRoutes from "./staff";
 import tasksRoutes from "./tasks";
 import usersRoutes from "./users";
+import portalRoutes from "./portal";
 
 export type ApiRoute = {
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -56,6 +57,7 @@ export const API_ROUTE_MOUNTS: ApiRouteMount[] = [
   { path: "/staff", router: staffRoutes },
   { path: "/tasks", router: tasksRoutes },
   { path: "/users", router: usersRoutes },
+  { path: "/portal", router: portalRoutes },
 ];
 
 export const PORTAL_ROUTE_REQUIREMENTS: Pick<ApiRoute, "method" | "path">[] = [

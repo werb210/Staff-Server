@@ -1,5 +1,5 @@
 import { installProcessHandlers } from "../observability/processHandlers";
-import { setCriticalServicesReady, setDbConnected, setMigrationsState, setSchemaReady } from "../startupState";
+import { markReady } from "../startupState";
 import type { ClientOpts } from "twilio/lib/base/BaseTwilio";
 import type {
   VerificationInstance,
@@ -18,10 +18,7 @@ process.env.TWILIO_ACCOUNT_SID = "ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
 process.env.TWILIO_AUTH_TOKEN = "test-auth-token-1234567890";
 process.env.TWILIO_VERIFY_SERVICE_SID = "VA00000000000000000000000000000000";
 
-setDbConnected(true);
-setMigrationsState([]);
-setSchemaReady(true);
-setCriticalServicesReady(true);
+markReady();
 installProcessHandlers();
 
 const createVerification = jest.fn<

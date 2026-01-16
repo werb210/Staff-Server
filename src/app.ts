@@ -2,9 +2,7 @@ import express from "express";
 import cors from "cors";
 
 import apiRouter from "./api";
-import internalRoutes from "./routes/_int";
-import authRoutes from "./routes/auth";
-import { healthHandler } from "./routes/ready";
+import { healthHandler, readyHandler } from "./routes/ready";
 import { printRoutes } from "./debug/printRoutes";
 import { getPendingMigrations, runMigrations } from "./migrations";
 import { shouldRunMigrations } from "./config";
@@ -12,12 +10,16 @@ import { requestId } from "./middleware/requestId";
 import { requestLogger } from "./middleware/requestLogger";
 import { requestTimeout } from "./middleware/requestTimeout";
 import { runStartupConsistencyCheck } from "./startup/consistencyCheck";
-import { setCriticalServicesReady, setMigrationsState } from "./startupState";
+import { getStatus, isReady, markNotReady, markReady } from "./startupState";
 import "./services/twilio";
 import { PORTAL_ROUTE_REQUIREMENTS } from "./routes/routeRegistry";
 import { seedAdminUser, seedSecondAdminUser } from "./db/seed";
 import { ensureOtpTableExists } from "./db/ensureOtpTable";
 import { logError } from "./observability/logger";
+import applicationsRoutes from "./routes/applications";
+import portalRoutes from "./routes/portal";
+import internalRoutes from "./routes/_int";
+import { checkDb } from "./db";
 
 type RouteEntry = { method: string; path: string };
 
@@ -140,6 +142,9 @@ function assertRoutesMounted(app: express.Express): void {
 export function buildApp(): express.Express {
   const app = express();
 
+  app.use(requestId);
+  app.use(express.json({ limit: "10mb" }));
+  app.use(express.urlencoded({ extended: true }));
   app.use(
     cors({
       origin: "https://staff.boreal.financial",
@@ -149,71 +154,131 @@ export function buildApp(): express.Express {
     })
   );
   app.options("*", cors());
-  app.use(express.json({ limit: "10mb" }));
-  app.use(express.urlencoded({ extended: true }));
-
-  app.use(requestId);
   app.use(requestLogger);
   app.use(requestTimeout);
 
   app.use("/api/_int", internalRoutes);
-
   app.get("/health", healthHandler);
-  app.get("/ready", healthHandler);
-  app.get("/__boot", (req, res) => {
-    const appPort = req.app.get("port");
-    const envPort = Number(process.env.PORT);
-    res.status(200).json({
-      pid: process.pid,
-      uptime: process.uptime(),
-      port: typeof appPort === "number" ? appPort : envPort,
-      nodeVersion: process.version,
-      envKeys: Object.keys(process.env).sort(),
-      timestamp: new Date().toISOString(),
-    });
-  });
-
-  app.get("/", (_req, res) => {
-    res.json({ status: "ok" });
-  });
+  app.get("/ready", readyHandler);
 
   return app;
 }
 
 export async function initializeServer(): Promise<void> {
+  markNotReady("initializing");
   const hasDatabase =
     process.env.DATABASE_URL === "pg-mem" || Boolean(process.env.DATABASE_URL);
   if (!hasDatabase) {
+    markNotReady("database_not_configured");
+    return;
+  }
+
+  try {
+    await checkDb();
+  } catch (err) {
+    logError("startup_db_check_failed", { err });
+    markNotReady("db_unavailable");
     return;
   }
 
   if (shouldRunMigrations()) {
-    await runMigrations();
-    await seedAdminUser();
-    await seedSecondAdminUser();
+    try {
+      await runMigrations();
+      await seedAdminUser();
+      await seedSecondAdminUser();
+    } catch (err) {
+      logError("startup_migrations_failed", { err });
+      markNotReady("migrations_failed");
+      return;
+    }
   }
 
   try {
     await ensureOtpTableExists();
   } catch (err) {
     logError("otp_schema_self_heal_failed", { err });
+    markNotReady("otp_table_check_failed");
+    return;
   }
 
   const pendingMigrations = await getPendingMigrations();
-  setMigrationsState(pendingMigrations);
-  await runStartupConsistencyCheck();
-  setCriticalServicesReady(true);
+  if (pendingMigrations.length > 0) {
+    markNotReady("pending_migrations");
+    return;
+  }
+  try {
+    await runStartupConsistencyCheck();
+  } catch (err) {
+    logError("startup_consistency_check_failed", { err });
+    markNotReady("table_checks_failed");
+    return;
+  }
+  markReady();
 }
 
 export function registerApiRoutes(app: express.Express): void {
+  app.use((req, res, next) => {
+    if (req.path.startsWith("/api/_int")) {
+      next();
+      return;
+    }
+    const shouldGate =
+      req.path.startsWith("/api/portal") || req.path.startsWith("/api/applications");
+    if (!shouldGate) {
+      next();
+      return;
+    }
+    if (!isReady()) {
+      const status = getStatus();
+      res.status(503).json({
+        ok: false,
+        code: "service_not_ready",
+        reason: status.reason,
+      });
+      return;
+    }
+    next();
+  });
+
+  app.use("/api/applications", applicationsRoutes);
+  app.use("/api/portal", portalRoutes);
+
   // Ensure API routes are registered before any auth guards are applied.
-  app.use("/api/auth", authRoutes);
   app.use("/api", apiRouter);
   app.use("/api", (req, res) => {
     const requestId = res.locals.requestId ?? "unknown";
     res.status(404).json({
       code: "not_found",
       message: "Not Found",
+      requestId,
+    });
+  });
+  app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    const requestId =
+      (req as express.Request & { id?: string }).id ?? res.locals.requestId ?? "unknown";
+    const explicitStatus =
+      typeof (err as { status?: unknown }).status === "number"
+        ? (err as { status: number }).status
+        : undefined;
+    const status = explicitStatus ?? (res.statusCode >= 400 ? res.statusCode : 500);
+    const errCode = (err as { code?: unknown }).code;
+    const code =
+      status >= 500
+        ? "internal_error"
+        : errCode === "validation_error"
+        ? "validation_error"
+        : "bad_request";
+    const message =
+      err instanceof Error && err.message
+        ? err.message
+        : status >= 500
+        ? "Internal server error."
+        : "Bad request.";
+    const details = (err as { details?: unknown }).details;
+    res.status(status).json({
+      code,
+      message,
+      ...(details ? { details } : {}),
       requestId,
     });
   });

@@ -47,7 +47,11 @@ export default function requireAuth(
       ip: req.ip,
       userAgent: req.get("user-agent"),
     });
-    res.sendStatus(401);
+    res.status(401).json({
+      code: "unauthorized",
+      message: "Unauthorized.",
+      requestId: res.locals.requestId ?? "unknown",
+    });
     return;
   }
 
@@ -63,7 +67,11 @@ export default function requireAuth(
         ip: req.ip,
         userAgent: req.get("user-agent"),
       });
-      res.sendStatus(401);
+      res.status(401).json({
+        code: "unauthorized",
+        message: "Unauthorized.",
+        requestId: res.locals.requestId ?? "unknown",
+      });
       return;
     }
     req.user = user;
@@ -99,7 +107,11 @@ export default function requireAuth(
       userAgent: req.get("user-agent"),
       error: message,
     });
-    res.sendStatus(401);
+    res.status(401).json({
+      code: "unauthorized",
+      message: "Unauthorized.",
+      requestId: res.locals.requestId ?? "unknown",
+    });
   }
 }
 
