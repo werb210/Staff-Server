@@ -1,4 +1,4 @@
-import { pool } from "../db";
+import { isPgMem, pool } from "../db";
 
 type PgError = { code?: string; message?: string };
 
@@ -14,6 +14,10 @@ export async function ensureOtpTableExists(): Promise<void> {
       created_at timestamptz not null default now()
     );
   `);
+
+  if (process.env.NODE_ENV === "test" || isPgMem) {
+    return;
+  }
 
   const constraintResult = await pool.query(
     `

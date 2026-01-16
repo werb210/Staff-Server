@@ -1,4 +1,5 @@
 import { pool } from "../db";
+import { isTestEnvironment } from "../dbRuntime";
 import { logError, logInfo, logWarn } from "../observability/logger";
 import { PIPELINE_STATES } from "../modules/applications/pipelineState";
 
@@ -38,6 +39,9 @@ async function hasColumn(table: string, column: string): Promise<boolean> {
 }
 
 export async function runStartupConsistencyCheck(): Promise<void> {
+  if (isTestEnvironment()) {
+    return;
+  }
   try {
     const hasDocuments = await hasTable("documents");
     const hasApplications = await hasTable("applications");

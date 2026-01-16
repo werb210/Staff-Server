@@ -1,7 +1,6 @@
 import { randomUUID } from "crypto";
 import { buildAppWithApiRoutes } from "../app";
 import { pool } from "../db";
-import { runMigrations } from "../migrations";
 import { ROLES } from "../auth/roles";
 import { resetLoginRateLimit } from "../middleware/rateLimit";
 import { otpVerifyRequest } from "./helpers/otpAuth";
@@ -58,7 +57,6 @@ beforeAll(async () => {
   process.env.JWT_EXPIRES_IN = "1h";
   process.env.JWT_REFRESH_EXPIRES_IN = "1d";
   process.env.NODE_ENV = "test";
-  await runMigrations();
 });
 
 beforeEach(async () => {

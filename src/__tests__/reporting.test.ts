@@ -2,7 +2,6 @@ import request from "supertest";
 import { randomUUID } from "crypto";
 import { buildAppWithApiRoutes } from "../app";
 import { pool } from "../db";
-import { runMigrations } from "../migrations";
 import { createUserAccount } from "../modules/auth/auth.service";
 import { ROLES } from "../auth/roles";
 import { listDailyMetrics } from "../modules/reporting/dailyMetrics.service";
@@ -65,7 +64,6 @@ beforeAll(async () => {
   process.env.LOGIN_LOCKOUT_MINUTES = "10";
   process.env.PASSWORD_MAX_AGE_DAYS = "30";
   process.env.NODE_ENV = "test";
-  await runMigrations();
   await ensureAuditEventSchema();
 });
 

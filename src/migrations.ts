@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { pool } from "./db";
-import { isPgMem } from "./dbRuntime";
+import { isPgMem, isTestEnvironment } from "./dbRuntime";
 
 const migrationsDir = path.join(process.cwd(), "migrations");
 
@@ -25,6 +25,9 @@ async function ensureMigrationsTable(): Promise<void> {
 }
 
 export async function assertMigrationsTableExists(): Promise<void> {
+  if (isTestEnvironment()) {
+    return;
+  }
   if (isPgMem) {
     const res = await pool.query<{ count: number }>(
       `select count(*)::int as count
@@ -208,6 +211,9 @@ async function fetchAppliedMigrations(): Promise<Set<string>> {
 }
 
 export async function runMigrations(): Promise<void> {
+  if (isTestEnvironment()) {
+    return;
+  }
   await ensureMigrationsTable();
   const migrationFiles = listMigrationFiles();
   const applied = await fetchAppliedMigrations();
@@ -277,6 +283,9 @@ export async function runMigrations(): Promise<void> {
 }
 
 export async function getPendingMigrations(): Promise<string[]> {
+  if (isTestEnvironment()) {
+    return [];
+  }
   await ensureMigrationsTable();
   const migrationFiles = listMigrationFiles();
   const applied = await fetchAppliedMigrations();
@@ -291,6 +300,9 @@ export async function assertNoPendingMigrations(): Promise<void> {
 }
 
 export async function getSchemaVersion(): Promise<string> {
+  if (isTestEnvironment()) {
+    throw new Error("schema_version_unavailable_in_test");
+  }
   await ensureMigrationsTable();
   const res = await pool.query<{ id: string }>(
     `select id

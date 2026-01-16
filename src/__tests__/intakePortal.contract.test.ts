@@ -1,7 +1,6 @@
 import path from "path";
 import request from "supertest";
 import { buildAppWithApiRoutes } from "../app";
-import { runMigrations } from "../migrations";
 import { pool } from "../db";
 import { ensureAuditEventSchema } from "./helpers/auditSchema";
 
@@ -26,7 +25,6 @@ beforeAll(async () => {
   process.env.JWT_EXPIRES_IN = "1h";
   process.env.JWT_REFRESH_EXPIRES_IN = "1d";
   process.env.NODE_ENV = "test";
-  await runMigrations();
   await ensureAuditEventSchema();
 });
 

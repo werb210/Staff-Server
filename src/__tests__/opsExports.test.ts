@@ -3,7 +3,6 @@ import { buildAppWithApiRoutes } from "../app";
 import { pool } from "../db";
 import { createUserAccount } from "../modules/auth/auth.service";
 import { ROLES } from "../auth/roles";
-import { runMigrations } from "../migrations";
 import { recordAuditEvent } from "../modules/audit/audit.service";
 import { ensureAuditEventSchema } from "./helpers/auditSchema";
 import { otpVerifyRequest } from "./helpers/otpAuth";
@@ -60,7 +59,6 @@ beforeAll(async () => {
   process.env.JWT_EXPIRES_IN = "1h";
   process.env.JWT_REFRESH_EXPIRES_IN = "1d";
   process.env.NODE_ENV = "test";
-  await runMigrations();
   await ensureAuditEventSchema();
 });
 

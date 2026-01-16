@@ -97,7 +97,6 @@ describe("application insights telemetry", () => {
       "../observability/appInsights"
     );
     const { buildAppWithApiRoutes } = await import("../app");
-    const { runMigrations } = await import("../migrations");
     const { createUserAccount } = await import(
       "../modules/auth/auth.service"
     );
@@ -106,7 +105,6 @@ describe("application insights telemetry", () => {
     initializeAppInsights();
 
     const app = buildAppWithApiRoutes();
-    await runMigrations();
     await ensureAuditEventSchema();
     const phone = "+14155550123";
     await createUserAccount({

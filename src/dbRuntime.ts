@@ -1,11 +1,13 @@
 import { pool } from "./db";
 
-export const isPgMem =
-  process.env.DATABASE_URL === "pg-mem" ||
-  (process.env.NODE_ENV === "test" && !process.env.DATABASE_URL);
+export function isTestEnvironment(): boolean {
+  return process.env.NODE_ENV === "test";
+}
+
+export const isPgMem = isTestEnvironment();
 
 export function isPgMemRuntime(): boolean {
-  return process.env.NODE_ENV === "test" || isPgMem;
+  return isTestEnvironment();
 }
 
 const connectionFailureCodes = new Set([

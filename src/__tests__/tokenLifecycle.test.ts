@@ -3,7 +3,6 @@ import request from "supertest";
 import { buildAppWithApiRoutes } from "../app";
 import { ROLES } from "../auth/roles";
 import { pool } from "../db";
-import { runMigrations } from "../migrations";
 import { resetLoginRateLimit } from "../middleware/rateLimit";
 import { createUserAccount } from "../modules/auth/auth.service";
 import { otpVerifyRequest } from "./helpers/otpAuth";
@@ -43,7 +42,6 @@ describe("token lifecycle stability", () => {
     process.env.JWT_EXPIRES_IN = "1h";
     process.env.JWT_REFRESH_EXPIRES_IN = "1d";
     process.env.NODE_ENV = "test";
-    await runMigrations();
     app = buildAppWithApiRoutes();
   });
 
