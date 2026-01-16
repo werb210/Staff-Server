@@ -16,9 +16,12 @@ export function requestId(
   const id = hasHeader ? trimmedHeader : randomUUID();
   const path = req.originalUrl.split("?")[0];
   const isAuthRoute = path.startsWith("/api/auth/");
-  const requiresRequestId = MUTATION_METHODS.has(req.method) && !isAuthRoute;
+  const isApplicationCreate = req.method === "POST" && path === "/api/applications";
+  const requiresRequestId =
+    MUTATION_METHODS.has(req.method) && !isAuthRoute && !isApplicationCreate;
   res.locals.requestId = id;
   res.locals.requestRoute = req.originalUrl;
+  (req as Request & { id?: string }).id = id;
   res.setHeader("x-request-id", id);
   runWithRequestContext({ requestId: id, route: req.originalUrl, dbProcessIds: new Set() }, () => {
     if (requiresRequestId && !hasHeader) {

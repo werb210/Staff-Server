@@ -7,7 +7,7 @@ import { createUserAccount } from "../modules/auth/auth.service";
 import { ROLES } from "../auth/roles";
 import { otpVerifyRequest } from "./helpers/otpAuth";
 import { getTwilioMocks } from "./helpers/twilioMocks";
-import { setMigrationsState } from "../startupState";
+import { markNotReady, markReady } from "../startupState";
 
 const app = buildAppWithApiRoutes();
 const requestId = "test-request-id";
@@ -72,13 +72,13 @@ afterAll(async () => {
 
 describe("server boot and health readiness", () => {
   it("serves health even when migrations are pending", async () => {
-    setMigrationsState(["pending-migration"]);
+    markNotReady("pending_migrations");
 
     const res = await request(app).get("/api/_int/health");
 
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
-    setMigrationsState([]);
+    markReady();
   });
 });
 

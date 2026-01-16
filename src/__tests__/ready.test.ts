@@ -43,16 +43,13 @@ beforeAll(async () => {
   const { runMigrations } = await import("../migrations");
   const db = await import("../db");
   const { ensureAuditEventSchema } = await import("./helpers/auditSchema");
-  const { setCriticalServicesReady, setDbConnected, setMigrationsState, setSchemaReady } = await import("../startupState");
+  const { markReady } = await import("../startupState");
 
   app = buildAppWithApiRoutes();
   pool = db.pool;
   await runMigrations();
   await ensureAuditEventSchema();
-  setDbConnected(true);
-  setMigrationsState([]);
-  setSchemaReady(true);
-  setCriticalServicesReady(true);
+  markReady();
 });
 
 beforeEach(() => {
