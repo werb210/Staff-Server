@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@azure/storage-blob": "^12.29.1",
+    "@types/multer": "^2.0.0",
     "applicationinsights": "^3.12.1",
     "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.6",
@@ -21,6 +22,7 @@
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.3",
     "libphonenumber-js": "^1.12.34",
+    "multer": "^2.0.2",
     "pg": "^8.11.5",
     "twilio": "^5.5.0",
     "zod": "^3.23.8"

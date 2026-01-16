@@ -130,10 +130,6 @@ export function idempotencyMiddleware(
         requestId: res.locals.requestId ?? "unknown",
       });
     }
-    if (route === "/api/applications") {
-      next();
-      return;
-    }
     next(new AppError("missing_idempotency_key", "Idempotency-Key header is required.", 400));
     return;
   }

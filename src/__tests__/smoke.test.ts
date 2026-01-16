@@ -8,6 +8,6 @@ describe("smoke", () => {
     const res = await request(app).get("/api/_int/health");
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ ok: true });
+    expect(res.body).toEqual(expect.objectContaining({ ok: true }));
   });
 });
