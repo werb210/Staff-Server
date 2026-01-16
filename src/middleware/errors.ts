@@ -2,6 +2,7 @@ import { type NextFunction, type Request, type Response } from "express";
 import { isDbConnectionFailure } from "../dbRuntime";
 import { logError, logWarn } from "../observability/logger";
 import { trackException } from "../observability/appInsights";
+import { getStatus as getErrorStatus, isHttpishError } from "../helpers/errors";
 
 export class AppError extends Error {
   status: number;
@@ -99,14 +100,14 @@ export function errorHandler(
   const isApiRequest = req.path.startsWith("/api/");
   if (isAuthRoute(req)) {
     const normalized = normalizeAuthError(err);
-    const explicitStatus =
-      typeof (err as { status?: unknown }).status === "number"
-        ? (err as unknown as { status: number }).status
-        : undefined;
     const status =
       err instanceof AppError
         ? err.status
-        : explicitStatus ?? (isDbConnectionFailure(err) ? 503 : 500);
+        : isHttpishError(err)
+        ? getErrorStatus(err)
+        : isDbConnectionFailure(err)
+        ? 503
+        : 500;
     const sanitizedStatus = status >= 500 ? 503 : status;
     logWarn("request_error", {
       requestId,
@@ -159,9 +160,11 @@ export function errorHandler(
         failure_reason: failureReason,
       },
     });
+    const details = (err as { details?: unknown }).details;
     res.status(err.status).json({
       code: err.code,
       message: err.message,
+      ...(details ? { details } : {}),
       requestId,
     });
     return;

@@ -8,6 +8,7 @@ import clientRoutes from "./client";
 import communicationsRoutes from "./communications";
 import crmRoutes from "./crm";
 import dashboardRoutes from "./dashboard";
+import documentsRoutes from "./documents";
 import internalRoutes from "./internal";
 import lenderRoutes from "./lender";
 import lendersRoutes from "./lenders";
@@ -47,6 +48,7 @@ export const API_ROUTE_MOUNTS: ApiRouteMount[] = [
   { path: "/communications", router: communicationsRoutes },
   { path: "/crm", router: crmRoutes },
   { path: "/dashboard", router: dashboardRoutes },
+  { path: "/documents", router: documentsRoutes },
   { path: "/lender", router: lenderRoutes },
   { path: "/lenders", router: lendersRoutes },
   { path: "/admin", router: adminRoutes },

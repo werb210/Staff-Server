@@ -43,12 +43,13 @@ beforeAll(async () => {
   const { runMigrations } = await import("../migrations");
   const db = await import("../db");
   const { ensureAuditEventSchema } = await import("./helpers/auditSchema");
-  const { markReady } = await import("../startupState");
+  const { markReady, resetStartupState } = await import("../startupState");
 
   app = buildAppWithApiRoutes();
   pool = db.pool;
   await runMigrations();
   await ensureAuditEventSchema();
+  resetStartupState();
   markReady();
 });
 
@@ -64,15 +65,28 @@ afterAll(async () => {
 });
 
 describe("readiness", () => {
-  it("always reports readiness without blocking", async () => {
-    const requestId = "ready-ok";
-    const res = await request(app)
+  it("returns 503 before readiness and 200 after markReady", async () => {
+    const { resetStartupState, markReady } = await import("../startupState");
+    resetStartupState();
+    const requestId = "ready-wait";
+    const waiting = await request(app)
       .get("/api/_int/ready")
       .set("x-request-id", requestId);
 
+    expect(waiting.status).toBe(503);
+    expect(waiting.body.ok).toBe(false);
+    expect(waiting.body.code).toBe("service_not_ready");
+    expectRequestId(waiting, requestId);
+
+    markReady();
+    const requestId2 = "ready-ok";
+    const res = await request(app)
+      .get("/api/_int/ready")
+      .set("x-request-id", requestId2);
+
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
-    expectRequestId(res, requestId);
+    expectRequestId(res, requestId2);
     expectNoStackTrace(res);
     expect(trackDependency).not.toHaveBeenCalled();
   });

@@ -1,24 +1,34 @@
 import { Router, type Request, type Response } from "express";
-import { randomUUID, createHash } from "crypto";
 import requireAuth, { requireCapability } from "../middleware/auth";
 import { CAPABILITIES } from "../auth/capabilities";
 import applicationRoutes from "../modules/applications/applications.routes";
 import { respondOk } from "../utils/respondOk";
+import { AppError } from "../middleware/errors";
+import { createApplication } from "../modules/applications/applications.repo";
+import { getClientSubmissionOwnerUserId } from "../config";
+import { safeHandler } from "../middleware/safeHandler";
 
 type ApplicationPayload = {
   country?: string;
   productCategory?: string;
+  source?: string;
   business?: { legalName?: string };
   applicant?: { firstName?: string; lastName?: string; email?: string };
-};
-
-type IdempotencyRecord = {
-  applicationId: string;
-  payloadHash: string;
+  financialProfile?: unknown;
+  match?: unknown;
 };
 
 const router = Router();
-const idempotencyCache = new Map<string, IdempotencyRecord>();
+const intakeFields = [
+  "source",
+  "country",
+  "productCategory",
+  "business",
+  "applicant",
+  "financialProfile",
+  "match",
+];
+const legacyFields = ["name", "metadata", "productType"];
 
 router.get(
   "/",
@@ -46,61 +56,58 @@ router.get(
   }
 );
 
-router.post("/", (req: Request, res: Response) => {
-  const payload = (req.body ?? {}) as ApplicationPayload;
-  const missingFields: string[] = [];
-  if (!payload.country) missingFields.push("country");
-  if (!payload.productCategory) missingFields.push("productCategory");
-  if (!payload.business?.legalName) missingFields.push("business.legalName");
-  if (!payload.applicant?.firstName) missingFields.push("applicant.firstName");
-  if (!payload.applicant?.lastName) missingFields.push("applicant.lastName");
-  if (!payload.applicant?.email) missingFields.push("applicant.email");
-
-  if (missingFields.length > 0) {
-    res.status(400).json({
-      code: "validation_error",
-      message: "Missing required fields.",
-      details: { fields: missingFields },
-      requestId: res.locals.requestId ?? "unknown",
-    });
-    return;
-  }
-
-  const idempotencyKey = req.get("idempotency-key")?.trim() ?? "";
-  if (idempotencyKey) {
-    const payloadHash = createHash("sha256")
-      .update(JSON.stringify(payload))
-      .digest("hex");
-    const existing = idempotencyCache.get(idempotencyKey);
-    if (existing) {
-      if (existing.payloadHash !== payloadHash) {
-        res.status(409).json({
-          code: "idempotency_conflict",
-          message: "Idempotency-Key reuse with different payload.",
-          requestId: res.locals.requestId ?? "unknown",
-        });
-        return;
-      }
-      res.status(201).json({
-        applicationId: existing.applicationId,
-        status: "created",
-      });
+router.post(
+  "/",
+  safeHandler(async (req: Request, res: Response, next) => {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const hasAuthHeader = Boolean(req.get("authorization"));
+    const isIntakePayload = intakeFields.some((field) => field in body);
+    const isLegacyPayload = legacyFields.some((field) => field in body);
+    if (hasAuthHeader && (isLegacyPayload || !isIntakePayload)) {
+      next();
       return;
     }
-    const applicationId = randomUUID();
-    idempotencyCache.set(idempotencyKey, { applicationId, payloadHash });
-    res.status(201).json({
-      applicationId,
-      status: "created",
-    });
-    return;
-  }
+    const payload = (req.body ?? {}) as ApplicationPayload;
+    const missingFields: string[] = [];
+    if (!payload.source) missingFields.push("source");
+    if (!payload.country) missingFields.push("country");
+    if (!payload.productCategory) missingFields.push("productCategory");
+    if (!payload.business?.legalName) missingFields.push("business.legalName");
+    if (!payload.applicant?.firstName) missingFields.push("applicant.firstName");
+    if (!payload.applicant?.lastName) missingFields.push("applicant.lastName");
+    if (!payload.applicant?.email) missingFields.push("applicant.email");
+    if (!payload.financialProfile) missingFields.push("financialProfile");
+    if (!payload.match) missingFields.push("match");
 
-  res.status(201).json({
-    applicationId: randomUUID(),
-    status: "created",
-  });
-});
+    if (missingFields.length > 0) {
+      const err = new AppError("validation_error", "Missing required fields.", 400);
+      (err as { details?: unknown }).details = { fields: missingFields };
+      throw err;
+    }
+
+    const ownerUserId = getClientSubmissionOwnerUserId();
+    const created = await createApplication({
+      ownerUserId,
+      name: payload.business?.legalName ?? "New application",
+      metadata: {
+        source: payload.source ?? null,
+        country: payload.country ?? null,
+        productCategory: payload.productCategory ?? null,
+        business: payload.business ?? null,
+        applicant: payload.applicant ?? null,
+        financialProfile: payload.financialProfile ?? null,
+        match: payload.match ?? null,
+      },
+      productType: payload.productCategory ?? "standard",
+    });
+    res.status(201).json({
+      applicationId: created.id,
+      createdAt: created.created_at,
+      pipelineState: created.pipeline_state,
+      match: payload.match ?? null,
+    });
+  })
+);
 
 router.use("/", applicationRoutes);
 
