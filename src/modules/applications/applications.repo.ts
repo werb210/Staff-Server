@@ -18,7 +18,7 @@ export type ApplicationRecord = {
 export type DocumentRecord = {
   id: string;
   application_id: string;
-  owner_user_id: string;
+  owner_user_id: string | null;
   title: string;
   document_type: string;
   created_at: Date;
@@ -99,7 +99,7 @@ export async function updateApplicationPipelineState(params: {
 
 export async function createDocument(params: {
   applicationId: string;
-  ownerUserId: string;
+  ownerUserId: string | null;
   title: string;
   documentType: string;
   client?: Queryable;

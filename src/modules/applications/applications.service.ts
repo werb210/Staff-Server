@@ -31,7 +31,7 @@ import { recordTransactionRollback } from "../../observability/transactionTeleme
 
 export type ApplicationResponse = {
   id: string;
-  ownerUserId: string;
+  ownerUserId: string | null;
   name: string;
   metadata: unknown | null;
   productType: string;
@@ -103,8 +103,12 @@ async function recordDocumentUploadFailure(params: {
   });
 }
 
-function canAccessApplication(role: Role, ownerUserId: string, actorId: string): boolean {
-  if (actorId === ownerUserId) {
+function canAccessApplication(
+  role: Role,
+  ownerUserId: string | null,
+  actorId: string
+): boolean {
+  if (ownerUserId && actorId === ownerUserId) {
     return true;
   }
   return role === ROLES.ADMIN || role === ROLES.STAFF;
