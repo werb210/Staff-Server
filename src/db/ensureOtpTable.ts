@@ -1,5 +1,7 @@
 import { pool } from "../db";
 
+type PgError = { code?: string; message?: string };
+
 export async function ensureOtpTableExists(): Promise<void> {
   await pool.query(`
     create table if not exists otp_verifications (
@@ -13,17 +15,27 @@ export async function ensureOtpTableExists(): Promise<void> {
     );
   `);
 
-  await pool.query(`
-    do $$
-    begin
-      if not exists (
-        select 1 from pg_constraint
-        where conname = 'otp_verifications_status_check'
-      ) then
+  const constraintResult = await pool.query(
+    `
+      select 1
+      from pg_constraint
+      where conname = $1
+    `,
+    ["otp_verifications_status_check"],
+  );
+
+  if (constraintResult.rowCount === 0) {
+    try {
+      await pool.query(`
         alter table otp_verifications
         add constraint otp_verifications_status_check
         check (status in ('pending','approved','expired'));
-      end if;
-    end$$;
-  `);
+      `);
+    } catch (err) {
+      const error = err as PgError;
+      if (error.code !== "42P07" && !error.message?.includes("already exists")) {
+        throw err;
+      }
+    }
+  }
 }
