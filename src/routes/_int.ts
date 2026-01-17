@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { twilioClient } from "../services/twilio";
+import { isTwilioEnabled } from "../services/twilio";
 import { healthHandler, readyHandler } from "./ready";
 
 const router = Router();
@@ -9,7 +9,7 @@ router.get("/ready", readyHandler);
 
 router.get("/env", (_req, res) =>
   res.json({
-    twilioAvailable: Boolean(twilioClient),
+    twilioAvailable: isTwilioEnabled(),
   })
 );
 

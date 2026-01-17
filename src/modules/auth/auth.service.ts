@@ -1,5 +1,9 @@
 import jwt, { type SignOptions } from "jsonwebtoken";
-import { twilioClient, VERIFY_SERVICE_SID } from "../../services/twilio";
+import {
+  getTwilioClient,
+  isTwilioEnabled,
+  VERIFY_SERVICE_SID,
+} from "../../services/twilio";
 import {
   createUser,
   consumeRefreshToken,
@@ -302,11 +306,12 @@ function isBootstrapAdminUser(params: {
 }
 
 async function requestTwilioVerificationCheck(
+  client: NonNullable<ReturnType<typeof getTwilioClient>>,
   phoneE164: string,
   code: string
 ): Promise<{ status?: string; sid?: string }> {
-  const result = await twilioClient.verify.v2
-    .services(VERIFY_SERVICE_SID)
+  const result = await client.verify.v2
+    .services(VERIFY_SERVICE_SID ?? "")
     .verificationChecks.create({ to: phoneE164, code });
   const verificationSid = (result as { sid?: string }).sid;
   return { status: result.status, sid: verificationSid };
@@ -347,9 +352,32 @@ export async function startOtp(phone: unknown): Promise<StartOtpResult> {
       };
     }
 
+    if (!isTwilioEnabled()) {
+      if (process.env.NODE_ENV === "production") {
+        throw new AppError("twilio_unavailable", "Twilio is not configured.", 503);
+      }
+      logWarn("otp_start_twilio_disabled", {
+        phoneTail: getPhoneTail(phoneE164),
+        requestId,
+      });
+      return {
+        ok: false,
+        status: 424,
+        error: {
+          code: "twilio_unavailable",
+          message: "Twilio is not configured.",
+        },
+      };
+    }
+
+    const client = getTwilioClient();
+    if (!client || !VERIFY_SERVICE_SID) {
+      throw new AppError("twilio_unavailable", "Twilio is not configured.", 503);
+    }
+
     const phoneTail = getPhoneTail(phoneE164);
     try {
-      const verification = await twilioClient.verify.v2
+      const verification = await client.verify.v2
         .services(VERIFY_SERVICE_SID)
         .verifications.create({ to: phoneE164, channel: "sms" });
       logInfo("otp_start_success", {
@@ -485,7 +513,34 @@ export async function verifyOtpCode(params: {
     let status: string | undefined;
     let verificationSid: string | undefined;
     try {
-      const check = await requestTwilioVerificationCheck(phoneE164, code);
+      const client = getTwilioClient();
+      if (!isTwilioEnabled() || !client || !VERIFY_SERVICE_SID) {
+        if (process.env.NODE_ENV === "production") {
+          throw new AppError(
+            "twilio_unavailable",
+            "Twilio is not configured.",
+            503
+          );
+        }
+        logWarn("otp_verify_twilio_disabled", {
+          phoneTail,
+          requestId,
+        });
+        return {
+          ok: false,
+          status: 424,
+          error: {
+            code: "twilio_unavailable",
+            message: "Twilio is not configured.",
+          },
+        };
+      }
+
+      const check = await requestTwilioVerificationCheck(
+        client,
+        phoneE164,
+        code
+      );
       status = check.status;
       verificationSid = check.sid;
       logInfo("otp_verify_result", {
