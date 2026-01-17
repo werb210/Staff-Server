@@ -31,7 +31,7 @@ describe("auth me contract", () => {
     querySpy.mockRestore();
   });
 
-  it("accepts a valid JWT without role", async () => {
+  it("rejects a JWT without role", async () => {
     const querySpy = jest.spyOn(pool, "query");
     const token = jwt.sign(
       { sub: "user-2" },
@@ -43,10 +43,7 @@ describe("auth me contract", () => {
       .get("/api/auth/me")
       .set("Authorization", `Bearer ${token}`);
 
-    expect(res.status).toBe(200);
-    expect(res.body.ok).toBe(true);
-    expect(res.body.data.userId).toBe("user-2");
-    expect(res.body.data.role).toBeNull();
+    expect(res.status).toBe(401);
     expect(querySpy).not.toHaveBeenCalled();
     querySpy.mockRestore();
   });

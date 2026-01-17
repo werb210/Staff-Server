@@ -25,7 +25,6 @@ async function resetDb(): Promise<void> {
   await pool.query("delete from documents");
   await pool.query("delete from applications");
   await pool.query("delete from idempotency_keys");
-  await pool.query("delete from auth_refresh_tokens");
   await pool.query("delete from password_resets");
   await pool.query("delete from audit_events");
   await pool.query("delete from otp_verifications");
@@ -37,9 +36,6 @@ beforeAll(async () => {
   process.env.BUILD_TIMESTAMP = "2024-01-01T00:00:00.000Z";
   process.env.COMMIT_SHA = "test-commit";
   process.env.JWT_SECRET = "test-access-secret";
-  process.env.JWT_REFRESH_SECRET = "test-refresh-secret";
-  process.env.JWT_EXPIRES_IN = "1h";
-  process.env.JWT_REFRESH_EXPIRES_IN = "1d";
   process.env.LOGIN_LOCKOUT_THRESHOLD = "2";
   process.env.LOGIN_LOCKOUT_MINUTES = "10";
   process.env.PASSWORD_MAX_AGE_DAYS = "30";
@@ -125,7 +121,7 @@ describe("otp verification persistence", () => {
     });
 
     expect(second.status).toBe(200);
-    expect(second.body.alreadyVerified).toBe(true);
+    expect(second.body.accessToken).toBeTruthy();
 
     const repeatCount = await pool.query(
       "select count(*)::int as count from otp_verifications where phone = $1",

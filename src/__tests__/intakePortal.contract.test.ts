@@ -21,9 +21,6 @@ async function resetDb(): Promise<void> {
 beforeAll(async () => {
   process.env.DATABASE_URL = "pg-mem";
   process.env.JWT_SECRET = "test-access-secret";
-  process.env.JWT_REFRESH_SECRET = "test-refresh-secret";
-  process.env.JWT_EXPIRES_IN = "1h";
-  process.env.JWT_REFRESH_EXPIRES_IN = "1d";
   process.env.NODE_ENV = "test";
   await ensureAuditEventSchema();
 });

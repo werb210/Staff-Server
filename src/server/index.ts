@@ -1,4 +1,5 @@
 import { buildApp, initializeServer, registerApiRoutes } from "../app";
+import { assertEnv } from "../config";
 import { runMigrations } from "../migrations";
 import { logError, logWarn } from "../observability/logger";
 
@@ -51,6 +52,7 @@ export async function startServer(): Promise<
   ReturnType<ReturnType<typeof buildApp>["listen"]>
 > {
   installProcessHandlers();
+  assertEnv();
 
   const app = buildApp();
   registerApiRoutes(app);

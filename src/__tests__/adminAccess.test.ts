@@ -26,41 +26,24 @@ async function resetDb(): Promise<void> {
   await pool.query("delete from applications");
   await pool.query("delete from idempotency_keys");
   await pool.query("delete from otp_verifications");
-  await pool.query("delete from auth_refresh_tokens");
   await pool.query("delete from password_resets");
   await pool.query("delete from audit_events");
   await pool.query("delete from users where id <> '00000000-0000-0000-0000-000000000001'");
 }
 
 async function loginWithOtp(phone: string): Promise<string> {
-  const session = await loginWithOtpSession(phone);
-  return session.accessToken;
-}
-
-async function loginWithOtpSession(phone: string): Promise<{
-  accessToken: string;
-  refreshToken: string;
-}> {
   const start = await otpStartRequest(app, { phone });
   expect(start.status).toBe(200);
 
   const verify = await otpVerifyRequest(app, { phone });
   expect(verify.status).toBe(200);
   expect(verify.body.accessToken).toBeTruthy();
-  expect(verify.body.refreshToken).toBeTruthy();
-
-  return {
-    accessToken: verify.body.accessToken as string,
-    refreshToken: verify.body.refreshToken as string,
-  };
+  return verify.body.accessToken as string;
 }
 
 beforeAll(async () => {
   process.env.DATABASE_URL = "pg-mem";
   process.env.JWT_SECRET = "test-access-secret";
-  process.env.JWT_REFRESH_SECRET = "test-refresh-secret";
-  process.env.JWT_EXPIRES_IN = "1h";
-  process.env.JWT_REFRESH_EXPIRES_IN = "1d";
   process.env.NODE_ENV = "test";
   await ensureAuditEventSchema();
 });
@@ -118,37 +101,6 @@ describe("admin access coverage", () => {
     }
   });
 
-  it("persists session across refresh and route navigation", async () => {
-    const { accessToken, refreshToken } = await loginWithOtpSession(
-      SEEDED_ADMIN_PHONE
-    );
-
-    const initialMe = await request(app)
-      .get("/api/auth/me")
-      .set("Authorization", `Bearer ${accessToken}`);
-    expect(initialMe.status).toBe(200);
-
-    const applications = await request(app)
-      .get("/api/applications")
-      .set("Authorization", `Bearer ${accessToken}`);
-    expect(applications.status).toBe(200);
-
-    const refresh = await request(app)
-      .post("/api/auth/refresh")
-      .send({ refreshToken });
-    expect(refresh.status).toBe(200);
-    expect(refresh.body.ok).toBe(true);
-    expect(refresh.body.data.accessToken).toBeTruthy();
-    expect(refresh.body.data.refreshToken).toBeTruthy();
-
-    const refreshedMe = await request(app)
-      .get("/api/auth/me")
-      .set("Authorization", `Bearer ${refresh.body.data.accessToken}`);
-    expect(refreshedMe.status).toBe(200);
-    expect(refreshedMe.body.ok).toBe(true);
-    expect(refreshedMe.body.data.role).toBe(ROLES.ADMIN);
-  });
-
   it("maintains auth across Dashboard → Applications → Dashboard navigation", async () => {
     const token = await loginWithOtp(SEEDED_ADMIN_PHONE);
 
@@ -201,6 +153,5 @@ describe("admin access coverage", () => {
     expect(me.status).toBe(200);
     expect(me.body.ok).toBe(true);
     expect(me.body.data.role).toBe(ROLES.ADMIN);
-    expect(me.body.data.phone).toBe(SEEDED_ADMIN2_PHONE);
   });
 });

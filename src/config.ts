@@ -6,7 +6,6 @@ import {
   getGlobalRateLimitMax,
   getGlobalRateLimitWindowMs,
   getJwtExpiresIn,
-  getJwtRefreshExpiresIn,
   isProductionEnv,
   isTestEnv,
 } from "./config/env";
@@ -84,10 +83,6 @@ export function getAccessTokenExpiresIn(): string {
 
 export function getAccessTokenSecret(): string | undefined {
   return getAccessTokenSecretValue();
-}
-
-export function getRefreshTokenExpiresIn(): string {
-  return getJwtRefreshExpiresIn();
 }
 
 export function getLoginLockoutThreshold(): number {

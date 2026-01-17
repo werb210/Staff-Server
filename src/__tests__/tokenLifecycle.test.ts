@@ -25,7 +25,6 @@ describe("token lifecycle stability", () => {
     await pool.query("delete from applications");
     await pool.query("delete from idempotency_keys");
     await pool.query("delete from otp_verifications");
-    await pool.query("delete from auth_refresh_tokens");
     await pool.query("delete from password_resets");
     await pool.query("delete from audit_events");
     await pool.query(
@@ -38,9 +37,6 @@ describe("token lifecycle stability", () => {
     process.env.BUILD_TIMESTAMP = "2024-01-01T00:00:00.000Z";
     process.env.COMMIT_SHA = "test-commit";
     process.env.JWT_SECRET = "test-access-secret";
-    process.env.JWT_REFRESH_SECRET = "test-refresh-secret";
-    process.env.JWT_EXPIRES_IN = "1h";
-    process.env.JWT_REFRESH_EXPIRES_IN = "1d";
     process.env.NODE_ENV = "test";
     app = buildAppWithApiRoutes();
   });
@@ -100,7 +96,7 @@ describe("token lifecycle stability", () => {
     expect(res.status).toBe(401);
   });
 
-  it("keeps refresh tokens valid after repeated OTP verify requests", async () => {
+  it("returns a token on repeated OTP verify requests", async () => {
     const phone = nextPhone();
     await createUserAccount({
       email: "otp-lifecycle@example.com",
@@ -127,20 +123,11 @@ describe("token lifecycle stability", () => {
       .send({ phone, code: "123456" });
 
     expect(second.status).toBe(200);
-    expect(second.body).toMatchObject({
-      ok: true,
-      data: { alreadyVerified: true },
-      error: null,
+    expect(second.body.token).toBeTruthy();
+    expect(second.body.user).toMatchObject({
+      role: ROLES.STAFF,
+      email: "otp-lifecycle@example.com",
     });
-    expect(second.body.requestId).toBeDefined();
     expect(twilioMocks.createVerificationCheck).toHaveBeenCalledTimes(1);
-
-    const refreshed = await request(app)
-      .post("/api/auth/refresh")
-      .send({ refreshToken: first.body.data.refreshToken });
-
-    expect(refreshed.status).toBe(200);
-    expect(refreshed.body.ok).toBe(true);
-    expect(refreshed.body.data.accessToken).toBeTruthy();
   });
 });
