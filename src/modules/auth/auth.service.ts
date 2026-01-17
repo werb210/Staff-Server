@@ -2,7 +2,7 @@ import jwt, { type SignOptions } from "jsonwebtoken";
 import {
   getTwilioClient,
   isTwilioEnabled,
-  VERIFY_SERVICE_SID,
+  getTwilioVerifyServiceSid,
 } from "../../services/twilio";
 import {
   createUser,
@@ -307,11 +307,12 @@ function isBootstrapAdminUser(params: {
 
 async function requestTwilioVerificationCheck(
   client: NonNullable<ReturnType<typeof getTwilioClient>>,
+  verifyServiceSid: string,
   phoneE164: string,
   code: string
 ): Promise<{ status?: string; sid?: string }> {
   const result = await client.verify.v2
-    .services(VERIFY_SERVICE_SID ?? "")
+    .services(verifyServiceSid)
     .verificationChecks.create({ to: phoneE164, code });
   const verificationSid = (result as { sid?: string }).sid;
   return { status: result.status, sid: verificationSid };
@@ -371,18 +372,19 @@ export async function startOtp(phone: unknown): Promise<StartOtpResult> {
     }
 
     const client = getTwilioClient();
-    if (!client || !VERIFY_SERVICE_SID) {
+    const verifyServiceSid = getTwilioVerifyServiceSid();
+    if (!client || !verifyServiceSid) {
       throw new AppError("twilio_unavailable", "Twilio is not configured.", 503);
     }
 
     const phoneTail = getPhoneTail(phoneE164);
     try {
       const verification = await client.verify.v2
-        .services(VERIFY_SERVICE_SID)
+        .services(verifyServiceSid)
         .verifications.create({ to: phoneE164, channel: "sms" });
       logInfo("otp_start_success", {
         phoneTail,
-        serviceSid: VERIFY_SERVICE_SID,
+        serviceSid: verifyServiceSid,
         verificationSid: verification.sid,
         status: verification.status,
         requestId,
@@ -393,7 +395,7 @@ export async function startOtp(phone: unknown): Promise<StartOtpResult> {
       logWarn("auth_twilio_verify_failed", {
         action: "otp_start",
         phoneTail,
-        serviceSid: VERIFY_SERVICE_SID,
+        serviceSid: verifyServiceSid,
         twilioCode: details.code,
         status: details.status,
         message: details.message,
@@ -512,9 +514,11 @@ export async function verifyOtpCode(params: {
 
     let status: string | undefined;
     let verificationSid: string | undefined;
+    let verifyServiceSid: string | null = null;
     try {
       const client = getTwilioClient();
-      if (!isTwilioEnabled() || !client || !VERIFY_SERVICE_SID) {
+      verifyServiceSid = getTwilioVerifyServiceSid();
+      if (!isTwilioEnabled() || !client || !verifyServiceSid) {
         if (process.env.NODE_ENV === "production") {
           throw new AppError(
             "twilio_unavailable",
@@ -538,6 +542,7 @@ export async function verifyOtpCode(params: {
 
       const check = await requestTwilioVerificationCheck(
         client,
+        verifyServiceSid,
         phoneE164,
         code
       );
@@ -545,7 +550,7 @@ export async function verifyOtpCode(params: {
       verificationSid = check.sid;
       logInfo("otp_verify_result", {
         phoneTail,
-        serviceSid: VERIFY_SERVICE_SID,
+        serviceSid: verifyServiceSid,
         status,
         verificationSid,
         requestId,
@@ -555,7 +560,7 @@ export async function verifyOtpCode(params: {
       logWarn("auth_twilio_verify_failed", {
         action: "otp_verify",
         phoneTail,
-        serviceSid: VERIFY_SERVICE_SID,
+        serviceSid: verifyServiceSid ?? "unknown",
         twilioCode: details.code,
         status: details.status,
         message: details.message,
@@ -570,7 +575,7 @@ export async function verifyOtpCode(params: {
           if (approved) {
             logWarn("twilio_verify_failed_post_auth", {
               phoneTail,
-              serviceSid: VERIFY_SERVICE_SID,
+              serviceSid: verifyServiceSid ?? "unknown",
               twilioCode: details.code,
               status: details.status,
               message: details.message,

@@ -1,7 +1,7 @@
-import type { Express } from "express";
+import type { Application, Express } from "express";
 import { logInfo } from "../observability/logger";
 
-type RouteEntry = { method: string; path: string };
+export type RouteEntry = { method: string; path: string };
 
 type Layer = {
   route?: {
@@ -59,7 +59,12 @@ function joinPaths(prefix: string, suffix: string): string {
   return combined.startsWith("/") ? combined : `/${combined}`;
 }
 
-function addRoute(routes: RouteEntry[], prefix: string, method: string, routePath: string) {
+function addRoute(
+  routes: RouteEntry[],
+  prefix: string,
+  method: string,
+  routePath: string
+) {
   const fullPath = joinPaths(prefix, routePath);
   routes.push({ method, path: fullPath });
 }
@@ -83,13 +88,17 @@ function walkStack(stack: Layer[], prefix: string, routes: RouteEntry[]) {
   });
 }
 
-export function printRoutes(app: Express) {
+export function listRoutes(app: Express | Application): RouteEntry[] {
   const routes: RouteEntry[] = [];
   const stack = (app as unknown as { _router?: { stack?: Layer[] } })._router?.stack;
   if (stack) {
     walkStack(stack, "", routes);
   }
-
   routes.sort((a, b) => a.path.localeCompare(b.path) || a.method.localeCompare(b.method));
+  return routes;
+}
+
+export function printRoutes(app: Express | Application) {
+  const routes = listRoutes(app);
   logInfo("routes_registered", { routes });
 }

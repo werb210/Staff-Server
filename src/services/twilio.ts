@@ -8,7 +8,7 @@ type TwilioConfig = {
   verifyServiceSid: string;
 };
 
-function getTwilioConfig(): TwilioConfig | null {
+function readTwilioConfig(): TwilioConfig | null {
   const { TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_VERIFY_SERVICE_SID } =
     process.env;
   if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_VERIFY_SERVICE_SID) {
@@ -21,12 +21,12 @@ function getTwilioConfig(): TwilioConfig | null {
   };
 }
 
-export const isTwilioEnabled = (): boolean => Boolean(getTwilioConfig());
+export const isTwilioEnabled = (): boolean => Boolean(readTwilioConfig());
 
 export let twilioClient: TwilioClient | null = null;
 
 export function getTwilioClient(): TwilioClient | null {
-  const config = getTwilioConfig();
+  const config = readTwilioConfig();
   if (!config) {
     return null;
   }
@@ -36,5 +36,6 @@ export function getTwilioClient(): TwilioClient | null {
   return twilioClient;
 }
 
-export const VERIFY_SERVICE_SID =
-  process.env.TWILIO_VERIFY_SERVICE_SID ?? null;
+export function getTwilioVerifyServiceSid(): string | null {
+  return readTwilioConfig()?.verifyServiceSid ?? null;
+}
