@@ -19,15 +19,23 @@ describe("POST /api/auth/otp/start", () => {
     process.env = originalEnv;
   });
 
-  it("returns 503 when Verify service SID missing", async () => {
+  it("returns 424 when Verify service SID missing", async () => {
     process.env.TWILIO_ACCOUNT_SID = "ACxxxx";
     process.env.TWILIO_AUTH_TOKEN = "token";
     delete process.env.TWILIO_VERIFY_SERVICE_SID;
     jest.resetModules();
 
-    expect(() => buildTestApp()).toThrow(
-      "Missing required Twilio environment variables"
-    );
+    const app = buildTestApp();
+    const res = await request(app)
+      .post("/api/auth/otp/start")
+      .send({ phone: "+15878881337" });
+
+    expect(res.status).toBe(424);
+    expect(res.body.ok).toBe(false);
+    expect(res.body.error).toEqual({
+      code: "twilio_unavailable",
+      message: "Twilio is not configured.",
+    });
   });
 
   it("returns 204 with CORS headers on preflight", async () => {

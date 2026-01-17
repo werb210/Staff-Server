@@ -5,7 +5,7 @@ import apiRouter from "./api";
 import { healthHandler, readyHandler } from "./routes/ready";
 import { printRoutes } from "./debug/printRoutes";
 import { getPendingMigrations, runMigrations } from "./migrations";
-import { shouldRunMigrations } from "./config";
+import { isTestEnvironment, shouldRunMigrations } from "./config";
 import { requestId } from "./middleware/requestId";
 import { requestLogger } from "./middleware/requestLogger";
 import { requestTimeout } from "./middleware/requestTimeout";
@@ -17,7 +17,7 @@ import { seedAdminUser, seedSecondAdminUser } from "./db/seed";
 import { ensureOtpTableExists } from "./db/ensureOtpTable";
 import { logError, logWarn } from "./observability/logger";
 import internalRoutes from "./routes/_int";
-import { checkDb } from "./db";
+import { checkDb, initializeTestDatabase } from "./db";
 import { getStatus as getErrorStatus, isHttpishError } from "./helpers/errors";
 import { isProductionEnvironment, getRequestBodyLimit } from "./config";
 
@@ -178,6 +178,10 @@ export async function initializeServer(): Promise<void> {
   if (!hasDatabase) {
     markNotReady("database_not_configured");
     return;
+  }
+
+  if (isTestEnvironment()) {
+    await initializeTestDatabase();
   }
 
   try {
