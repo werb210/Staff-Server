@@ -69,6 +69,21 @@ afterAll(async () => {
 });
 
 describe("constraint enforcement", () => {
+  let originalTestLogging: string | undefined;
+
+  beforeEach(() => {
+    originalTestLogging = process.env.TEST_LOGGING;
+    process.env.TEST_LOGGING = "true";
+  });
+
+  afterEach(() => {
+    if (originalTestLogging === undefined) {
+      delete process.env.TEST_LOGGING;
+    } else {
+      process.env.TEST_LOGGING = originalTestLogging;
+    }
+  });
+
   it("returns a clean 4xx on unique constraint violations", async () => {
     const token = await loginAdmin();
 

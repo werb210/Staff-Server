@@ -397,6 +397,8 @@ export async function initializeTestDatabase(): Promise<void> {
        disabled boolean default false,
        is_active boolean
      )`,
+    "create unique index if not exists users_email_unique on users (email)",
+    "create unique index if not exists users_phone_number_unique on users (phone_number)",
     `insert into users (id, email, password_hash, role, active, password_changed_at)
      values (
        '00000000-0000-0000-0000-000000000001',
@@ -442,10 +444,13 @@ export async function initializeTestDatabase(): Promise<void> {
        request_id text null,
        metadata jsonb null
      )`,
+    "create sequence if not exists audit_events_id_seq",
+    "alter table audit_events alter column id set default nextval('audit_events_id_seq')::text",
     `create table if not exists applications (
        id text primary key,
        owner_user_id uuid,
        name text,
+       business_legal_name text,
        metadata jsonb null,
        pipeline_state text not null,
        created_at timestamp not null,
@@ -478,6 +483,7 @@ export async function initializeTestDatabase(): Promise<void> {
        reviewed_by_user_id uuid null,
        reviewed_at timestamp not null
      )`,
+    "create unique index if not exists document_version_reviews_document_version_id_unique on document_version_reviews (document_version_id)",
     `create table if not exists lender_submissions (
        id text primary key,
        application_id text not null,
@@ -574,6 +580,7 @@ export async function initializeTestDatabase(): Promise<void> {
        source_id text not null,
        processed_at timestamp null
      )`,
+    "create unique index if not exists ops_replay_events_source_unique on ops_replay_events (source_table, source_id)",
     `create table if not exists export_audit (
        id text primary key,
        actor_user_id uuid null,
@@ -594,12 +601,14 @@ export async function initializeTestDatabase(): Promise<void> {
        lender_submissions integer not null,
        created_at timestamp not null
      )`,
+    "create unique index if not exists reporting_daily_metrics_metric_date_unique_idx on reporting_daily_metrics (metric_date)",
     `create table if not exists reporting_pipeline_snapshots (
        id text primary key,
        snapshot_at timestamp not null,
        pipeline_state text not null,
        application_count integer not null
      )`,
+    "create unique index if not exists reporting_pipeline_snapshots_unique_idx on reporting_pipeline_snapshots (snapshot_at, pipeline_state)",
     `create table if not exists reporting_lender_performance (
        id text primary key,
        lender_id text not null,
@@ -612,6 +621,7 @@ export async function initializeTestDatabase(): Promise<void> {
        avg_decision_time_seconds integer not null,
        created_at timestamp not null
      )`,
+    "create unique index if not exists reporting_lender_performance_unique_idx on reporting_lender_performance (lender_id, period_start, period_end)",
     `create table if not exists reporting_pipeline_daily_snapshots (
        id text primary key,
        snapshot_date date not null,
@@ -619,6 +629,7 @@ export async function initializeTestDatabase(): Promise<void> {
        application_count integer not null,
        created_at timestamp not null
      )`,
+    "create unique index if not exists reporting_pipeline_daily_unique_idx on reporting_pipeline_daily_snapshots (snapshot_date, pipeline_state)",
     `create table if not exists reporting_application_volume_daily (
        id text primary key,
        metric_date date not null,
@@ -630,6 +641,7 @@ export async function initializeTestDatabase(): Promise<void> {
        applications_funded integer not null,
        created_at timestamp not null
      )`,
+    "create unique index if not exists reporting_application_volume_daily_unique_idx on reporting_application_volume_daily (metric_date, product_type)",
     `create table if not exists reporting_document_metrics_daily (
        id text primary key,
        metric_date date not null,
@@ -639,6 +651,7 @@ export async function initializeTestDatabase(): Promise<void> {
        documents_approved integer not null,
        created_at timestamp not null
      )`,
+    "create unique index if not exists reporting_document_metrics_daily_unique_idx on reporting_document_metrics_daily (metric_date, document_type)",
     `create table if not exists reporting_staff_activity_daily (
        id text primary key,
        metric_date date not null,
@@ -647,6 +660,7 @@ export async function initializeTestDatabase(): Promise<void> {
        activity_count integer not null,
        created_at timestamp not null
      )`,
+    "create unique index if not exists reporting_staff_activity_daily_unique_idx on reporting_staff_activity_daily (metric_date, staff_user_id, action)",
     `create table if not exists reporting_lender_funnel_daily (
        id text primary key,
        metric_date date not null,
@@ -656,6 +670,7 @@ export async function initializeTestDatabase(): Promise<void> {
        funded integer not null,
        created_at timestamp not null
      )`,
+    "create unique index if not exists reporting_lender_funnel_daily_unique_idx on reporting_lender_funnel_daily (metric_date, lender_id)",
     `create or replace view vw_pipeline_current_state as
        select pipeline_state, count(*)::int as application_count
        from applications
@@ -701,4 +716,12 @@ export async function initializeTestDatabase(): Promise<void> {
   for (const statement of statements) {
     await pool.query(statement);
   }
+}
+
+export async function resetTestDatabase(): Promise<void> {
+  if (!isTestMode()) {
+    return;
+  }
+  testDbInitialized = false;
+  await initializeTestDatabase();
 }

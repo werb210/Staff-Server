@@ -1,6 +1,6 @@
 import request from "supertest";
 import { buildAppWithApiRoutes } from "../app";
-import { pool } from "../db";
+import { initializeTestDatabase, pool } from "../db";
 import { createUserAccount } from "../modules/auth/auth.service";
 import { ROLES } from "../auth/roles";
 import { issueRefreshTokenForUser } from "./helpers/refreshTokens";
@@ -16,6 +16,7 @@ const nextPhone = (): string =>
   `+1415555${String(phoneCounter++).padStart(4, "0")}`;
 
 async function resetDb(): Promise<void> {
+  await initializeTestDatabase();
   await pool.query("delete from client_submissions");
   await pool.query("delete from lender_submission_retries");
   await pool.query("delete from lender_submissions");
@@ -24,6 +25,7 @@ async function resetDb(): Promise<void> {
   await pool.query("delete from documents");
   await pool.query("delete from applications");
   await pool.query("delete from idempotency_keys");
+  await pool.query("delete from otp_verifications");
   await pool.query("delete from auth_refresh_tokens");
   await pool.query("delete from password_resets");
   await pool.query("delete from audit_events");

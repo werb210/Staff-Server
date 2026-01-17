@@ -18,6 +18,13 @@ process.env.DB_READY_BASE_DELAY_MS = "1";
 process.env.TWILIO_ACCOUNT_SID = "ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
 process.env.TWILIO_AUTH_TOKEN = "test-auth-token-1234567890";
 process.env.TWILIO_VERIFY_SERVICE_SID = "VA00000000000000000000000000000000";
+process.env.JWT_SECRET = "test-access-secret";
+process.env.JWT_REFRESH_SECRET = "test-refresh-secret";
+process.env.JWT_EXPIRES_IN = "1h";
+process.env.JWT_REFRESH_EXPIRES_IN = "1d";
+process.env.LOGIN_LOCKOUT_THRESHOLD = "2";
+process.env.LOGIN_LOCKOUT_MINUTES = "10";
+process.env.PASSWORD_MAX_AGE_DAYS = "30";
 
 markReady();
 installProcessHandlers();

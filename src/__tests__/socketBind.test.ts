@@ -33,7 +33,8 @@ describe("socket bind", () => {
         buildApp: () => ({ listen: listenSpy, use: jest.fn() }),
         registerApiRoutes: jest.fn(),
       }));
-      require("../index");
+      const { startServer } = require("../index");
+      startServer();
     });
 
     expect(listenSpy).toHaveBeenCalledTimes(1);
@@ -56,7 +57,8 @@ describe("socket bind", () => {
         buildApp: () => ({ listen: listenSpy, use: jest.fn() }),
         registerApiRoutes: jest.fn(),
       }));
-      require("../index");
+      const { startServer } = require("../index");
+      startServer();
     });
 
     expect(listenSpy).toHaveBeenCalledWith(4999, "0.0.0.0", expect.any(Function));

@@ -25,6 +25,7 @@ async function resetDb(): Promise<void> {
   await pool.query("delete from documents");
   await pool.query("delete from applications");
   await pool.query("delete from idempotency_keys");
+  await pool.query("delete from otp_verifications");
   await pool.query("delete from auth_refresh_tokens");
   await pool.query("delete from password_resets");
   await pool.query("delete from audit_events");
