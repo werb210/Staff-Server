@@ -8,13 +8,27 @@ import {
   getCapabilitiesForRole,
 } from "../auth/capabilities";
 import { type AuthenticatedUser } from "../types/auth";
+import { getAccessTokenSecret, getJwtClockSkewSeconds } from "../config";
 
 type AccessTokenPayload = JwtPayload & {
   sub?: string;
   role?: string;
+  tokenVersion?: number;
 };
 
 const AUTH_ME_GRACE_WINDOW_MS = 5 * 60 * 1000;
+
+const PUBLIC_PATHS = new Set([
+  "/health",
+  "/ready",
+  "/api/health",
+  "/api/ready",
+  "/api/_int/health",
+  "/api/_int/ready",
+  "/api/_int/build",
+  "/api/_int/routes",
+  "/api/_int/env",
+]);
 
 function parseBearer(req: Request): string | null {
   const header = req.headers.authorization;
@@ -22,21 +36,22 @@ function parseBearer(req: Request): string | null {
     return null;
   }
   const [scheme, token] = header.split(" ");
-  if (scheme !== "Bearer" || !token) {
+  if (!scheme || scheme.toLowerCase() !== "bearer" || !token) {
     return null;
   }
   return token;
 }
 
 function isPublicPath(path: string): boolean {
-  return (
-    path === "/health" ||
-    path === "/ready" ||
-    path === "/api/health" ||
-    path === "/api/ready" ||
-    path.startsWith("/api/_int") ||
-    path.startsWith("/_int")
-  );
+  return PUBLIC_PATHS.has(path);
+}
+
+function resolveAuthError(res: Response): void {
+  res.status(503).json({
+    code: "auth_unavailable",
+    message: "Authentication is not configured.",
+    requestId: res.locals.requestId ?? "unknown",
+  });
 }
 
 export default function requireAuth(
@@ -44,11 +59,8 @@ export default function requireAuth(
   res: Response,
   next: NextFunction
 ): void {
-  if (
-    req.path.startsWith("/api/auth") ||
-    req.path.startsWith("/api/_int") ||
-    isPublicPath(req.path)
-  ) {
+  const requestPath = req.originalUrl ?? req.path;
+  if (isPublicPath(requestPath)) {
     next();
     return;
   }
@@ -68,9 +80,19 @@ export default function requireAuth(
     return;
   }
 
+  const secret = getAccessTokenSecret();
+  if (!secret) {
+    logWarn("auth_secret_missing", {
+      route: req.originalUrl,
+    });
+    resolveAuthError(res);
+    return;
+  }
+
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET ?? "", {
+    const decoded = jwt.verify(token, secret, {
       algorithms: ["HS256"],
+      clockTolerance: getJwtClockSkewSeconds(),
     });
     const user = normalizeAuthenticatedUser(decoded);
     if (!user) {
@@ -93,7 +115,7 @@ export default function requireAuth(
     const error = err instanceof Error ? err : null;
     const message = error?.message ?? "unknown_error";
     const isExpired = error?.name === "TokenExpiredError";
-    if (isExpired && req.originalUrl.startsWith("/api/auth/me")) {
+    if (isExpired && requestPath.startsWith("/api/auth/me")) {
       const decoded = jwt.decode(token);
       const user = decoded ? normalizeAuthenticatedUser(decoded) : null;
       const exp =
@@ -135,9 +157,14 @@ export function getAuthenticatedUserFromRequest(
   if (!token) {
     return null;
   }
+  const secret = getAccessTokenSecret();
+  if (!secret) {
+    return null;
+  }
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET ?? "", {
+    const decoded = jwt.verify(token, secret, {
       algorithms: ["HS256"],
+      clockTolerance: getJwtClockSkewSeconds(),
     });
     return normalizeAuthenticatedUser(decoded);
   } catch {
@@ -157,7 +184,7 @@ function normalizeAuthenticatedUser(
     return null;
   }
   if (typeof payload.role !== "string" || !isRole(payload.role)) {
-    throw forbiddenError("Unknown role.");
+    return null;
   }
   const role = payload.role;
   return {

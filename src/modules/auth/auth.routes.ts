@@ -1,6 +1,6 @@
 import { Router, type NextFunction, type Request, type Response } from "express";
 import { AppError } from "../../middleware/errors";
-import { otpRateLimit } from "../../middleware/rateLimit";
+import { otpRateLimit, refreshRateLimit } from "../../middleware/rateLimit";
 import requireAuth from "../../middleware/auth";
 import { getCapabilitiesForRole } from "../../auth/capabilities";
 import { safeHandler } from "../../middleware/safeHandler";
@@ -8,6 +8,7 @@ import { getRequestId } from "../../middleware/requestContext";
 import {
   startOtp,
   verifyOtpCode,
+  refreshSession,
 } from "./auth.service";
 
 const router = Router();
@@ -114,6 +115,41 @@ router.post("/otp/verify", otpRateLimit(), async (req, res) => {
     }
     return res.status(200).json({
       token: result.token,
+      refreshToken: result.refreshToken,
+      user: result.user,
+    });
+  } catch (err) {
+    if (err instanceof AppError) {
+      return respondAuthError(res, err.status, err.code, err.message);
+    }
+    return respondAuthError(
+      res,
+      502,
+      "service_unavailable",
+      "Authentication service unavailable."
+    );
+  }
+});
+
+router.post("/refresh", refreshRateLimit(), async (req, res) => {
+  try {
+    const { refreshToken } = req.body ?? {};
+    const result = await refreshSession({
+      refreshToken,
+      ip: req.ip,
+      userAgent: req.get("user-agent"),
+    });
+    if (!result.ok) {
+      return respondAuthError(
+        res,
+        result.status,
+        result.error.code,
+        result.error.message
+      );
+    }
+    return res.status(200).json({
+      token: result.token,
+      refreshToken: result.refreshToken,
       user: result.user,
     });
   } catch (err) {

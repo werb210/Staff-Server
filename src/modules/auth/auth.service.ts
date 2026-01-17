@@ -1,4 +1,5 @@
-import jwt from "jsonwebtoken";
+import jwt, { type JwtPayload, type SignOptions } from "jsonwebtoken";
+import { randomUUID } from "crypto";
 import {
   getTwilioClient,
   isTwilioEnabled,
@@ -12,6 +13,8 @@ import {
   findApprovedOtpVerificationByPhone,
   setPhoneVerified,
   updateUserRoleById,
+  storeRefreshToken,
+  consumeRefreshToken,
 } from "./auth.repo";
 import { AppError, forbiddenError } from "../../middleware/errors";
 import { recordAuditEvent } from "../audit/audit.service";
@@ -21,10 +24,27 @@ import { logError, logInfo, logWarn } from "../../observability/logger";
 import { getRequestId } from "../../middleware/requestContext";
 import { normalizePhoneNumber } from "./phone";
 import { ensureOtpTableExists } from "../../db/ensureOtpTable";
+import {
+  getAccessTokenExpiresIn,
+  getAccessTokenSecret,
+  getRefreshTokenExpiresIn,
+  getRefreshTokenExpiresInMs,
+  getRefreshTokenSecret,
+  getJwtClockSkewSeconds,
+} from "../../config";
+import { hashRefreshToken } from "../../auth/tokenUtils";
 
 type AccessTokenPayload = {
   sub: string;
   role: Role;
+  tokenVersion: number;
+};
+
+type RefreshTokenPayload = JwtPayload & {
+  sub?: string;
+  tokenVersion?: number;
+  type?: string;
+  jti?: string;
 };
 
 function assertE164(phone: unknown): string {
@@ -36,19 +56,121 @@ function assertE164(phone: unknown): string {
 }
 
 function issueAccessToken(payload: AccessTokenPayload): string {
-  const secret = process.env.JWT_SECRET;
+  const secret = getAccessTokenSecret();
   if (!secret) {
     throw new AppError("auth_misconfigured", "Auth is not configured.", 503);
   }
+  const expiresIn = getAccessTokenExpiresIn() as SignOptions["expiresIn"];
   return jwt.sign(payload, secret, {
     algorithm: "HS256",
-    expiresIn: "15m",
+    expiresIn,
   });
 }
 
+function issueRefreshToken(params: {
+  userId: string;
+  tokenVersion: number;
+}): { token: string; tokenHash: string; expiresAt: Date } {
+  const secret = getRefreshTokenSecret();
+  if (!secret) {
+    throw new AppError("auth_misconfigured", "Auth is not configured.", 503);
+  }
+  const payload: RefreshTokenPayload = {
+    sub: params.userId,
+    tokenVersion: params.tokenVersion,
+    type: "refresh",
+    jti: randomUUID(),
+  };
+  const expiresIn = getRefreshTokenExpiresIn() as SignOptions["expiresIn"];
+  const token = jwt.sign(payload, secret, {
+    algorithm: "HS256",
+    expiresIn,
+  });
+  return {
+    token,
+    tokenHash: hashRefreshToken(token),
+    expiresAt: new Date(Date.now() + getRefreshTokenExpiresInMs()),
+  };
+}
+
+function verifyRefreshToken(token: string): RefreshTokenPayload {
+  const secret = getRefreshTokenSecret();
+  if (!secret) {
+    throw new AppError("auth_misconfigured", "Auth is not configured.", 503);
+  }
+  try {
+    return jwt.verify(token, secret, {
+      algorithms: ["HS256"],
+      clockTolerance: getJwtClockSkewSeconds(),
+    }) as RefreshTokenPayload;
+  } catch {
+    throw new AppError("invalid_refresh_token", "Invalid refresh token.", 401);
+  }
+}
+
+function resolveRefreshPayload(payload: RefreshTokenPayload): {
+  userId: string;
+  tokenVersion: number;
+} {
+  const userId = typeof payload.sub === "string" ? payload.sub : null;
+  const tokenVersion =
+    typeof payload.tokenVersion === "number" ? payload.tokenVersion : null;
+  const type = payload.type;
+  if (!userId || tokenVersion === null || type !== "refresh") {
+    throw new AppError("invalid_refresh_token", "Invalid refresh token.", 401);
+  }
+  return { userId, tokenVersion };
+}
+
+function resolveAuthRole(role: string | null): Role {
+  if (role && isRole(role)) {
+    return role;
+  }
+  throw forbiddenError("User has no assigned role");
+}
+
+function assertUserActive(params: {
+  user: {
+    id: string;
+    active: boolean;
+    isActive: boolean | null;
+    disabled: boolean | null;
+    lockedUntil: Date | null;
+  };
+  requestId: string;
+  phoneTail?: string;
+}): void {
+  const { user, requestId, phoneTail } = params;
+  if (user.disabled === true) {
+    throw new AppError("account_disabled", "Account is disabled.", 403);
+  }
+  if (user.isActive === false) {
+    logInfo("otp_verify_inactive_user", {
+      userId: user.id,
+      phoneTail,
+      requestId,
+    });
+    throw new AppError("user_disabled", "Account is inactive.", 403);
+  }
+  const isActive = user.active === true || user.isActive === true;
+  if (!isActive) {
+    logInfo("otp_verify_inactive_user", {
+      userId: user.id,
+      phoneTail,
+      requestId,
+    });
+    throw new AppError("user_disabled", "Account is inactive.", 403);
+  }
+  const isLocked = user.lockedUntil && user.lockedUntil.getTime() > Date.now();
+  if (isLocked) {
+    throw new AppError("locked", "Account is locked.", 403);
+  }
+}
+
 export function assertAuthSubsystem(): void {
-  const accessSecret = process.env.JWT_SECRET;
-  if (!accessSecret) {
+  const accessSecret = getAccessTokenSecret();
+  const refreshSecret = getRefreshTokenSecret();
+  if (!accessSecret || !refreshSecret) {
     throw new AppError("auth_misconfigured", "Auth is not configured.", 503);
   }
 }
@@ -284,7 +406,12 @@ export async function verifyOtpCode(params: {
   route?: string;
   method?: string;
 }): Promise<
-  | { ok: true; token: string; user: { id: string; role: Role; email: string | null } }
+  | {
+      ok: true;
+      token: string;
+      refreshToken: string;
+      user: { id: string; role: Role; email: string | null };
+    }
   | {
       ok: false;
       status: number;
@@ -514,36 +641,9 @@ export async function verifyOtpCode(params: {
         await client.query("commit");
         throw new AppError("user_not_found", "User not found.", 404);
       }
-      const isDisabled = userRecord.disabled === true;
-      if (isDisabled) {
-        await client.query("commit");
-        throw new AppError("account_disabled", "Account is disabled.", 403);
-      }
-      if (userRecord.isActive === false) {
-        logInfo("otp_verify_inactive_user", {
-          userId: userRecord.id,
-          phoneTail,
-          requestId,
-        });
-        await client.query("commit");
-        throw new AppError("user_disabled", "Account is inactive.", 403);
-      }
-      const isActive = userRecord.active === true || userRecord.isActive === true;
-      if (!isActive) {
-        logInfo("otp_verify_inactive_user", {
-          userId: userRecord.id,
-          phoneTail,
-          requestId,
-        });
-        await client.query("commit");
-        throw new AppError("user_disabled", "Account is inactive.", 403);
-      }
-      const isLocked =
-        userRecord.lockedUntil && userRecord.lockedUntil.getTime() > Date.now();
-      if (isLocked) {
-        await client.query("commit");
-        throw new AppError("locked", "Account is locked.", 403);
-      }
+
+      assertUserActive({ user: userRecord, requestId, phoneTail });
+
       let role = userRecord.role;
       if (!role || !isRole(role)) {
         if (isBootstrapAdminUser(userRecord)) {
@@ -567,11 +667,25 @@ export async function verifyOtpCode(params: {
         });
       }
 
+      const tokenVersion = userRecord.tokenVersion ?? 0;
       const payload: AccessTokenPayload = {
         sub: userRecord.id,
         role,
+        tokenVersion,
       };
       const token = issueAccessToken(payload);
+      const refresh = issueRefreshToken({
+        userId: userRecord.id,
+        tokenVersion,
+      });
+      await storeRefreshToken({
+        userId: userRecord.id,
+        token: refresh.token,
+        tokenHash: refresh.tokenHash,
+        expiresAt: refresh.expiresAt,
+        client: db,
+      });
+
       await recordAuditEvent({
         action: "login",
         actorUserId: userRecord.id,
@@ -586,6 +700,7 @@ export async function verifyOtpCode(params: {
       return {
         ok: true,
         token,
+        refreshToken: refresh.token,
         user: {
           id: userRecord.id,
           role,
@@ -621,6 +736,149 @@ export async function verifyOtpCode(params: {
     };
   }
 }
+
+export async function refreshSession(params: {
+  refreshToken: string;
+  ip?: string;
+  userAgent?: string;
+}): Promise<
+  | {
+      ok: true;
+      token: string;
+      refreshToken: string;
+      user: { id: string; role: Role; email: string | null };
+    }
+  | {
+      ok: false;
+      status: number;
+      error: { code: string; message: string };
+    }
+> {
+  const requestId = getRequestId() ?? "unknown";
+  try {
+    const refreshToken = params.refreshToken?.trim();
+    if (!refreshToken) {
+      return {
+        ok: false,
+        status: 400,
+        error: { code: "invalid_request", message: "Refresh token is required." },
+      };
+    }
+    const payload = resolveRefreshPayload(verifyRefreshToken(refreshToken));
+    const tokenHash = hashRefreshToken(refreshToken);
+
+    const client = await pool.connect();
+    const db = client;
+    try {
+      await client.query("begin");
+      const consumed = await consumeRefreshToken(tokenHash, db);
+      if (!consumed || consumed.userId !== payload.userId) {
+        await client.query("commit");
+        return {
+          ok: false,
+          status: 401,
+          error: { code: "invalid_refresh_token", message: "Invalid refresh token." },
+        };
+      }
+
+      const userRecord = await findAuthUserById(payload.userId, db);
+      if (!userRecord) {
+        await client.query("commit");
+        return {
+          ok: false,
+          status: 401,
+          error: { code: "invalid_refresh_token", message: "Invalid refresh token." },
+        };
+      }
+
+      assertUserActive({ user: userRecord, requestId });
+
+      let role: Role;
+      try {
+        role = resolveAuthRole(userRecord.role);
+      } catch (err) {
+        await client.query("commit");
+        throw err;
+      }
+
+      const tokenVersion = userRecord.tokenVersion ?? 0;
+      if (payload.tokenVersion !== tokenVersion) {
+        await client.query("commit");
+        return {
+          ok: false,
+          status: 401,
+          error: { code: "invalid_refresh_token", message: "Invalid refresh token." },
+        };
+      }
+
+      const token = issueAccessToken({
+        sub: userRecord.id,
+        role,
+        tokenVersion,
+      });
+      const refreshed = issueRefreshToken({
+        userId: userRecord.id,
+        tokenVersion,
+      });
+      await storeRefreshToken({
+        userId: userRecord.id,
+        token: refreshed.token,
+        tokenHash: refreshed.tokenHash,
+        expiresAt: refreshed.expiresAt,
+        client: db,
+      });
+
+      await recordAuditEvent({
+        action: "token_refreshed",
+        actorUserId: userRecord.id,
+        targetUserId: userRecord.id,
+        ip: params.ip,
+        userAgent: params.userAgent,
+        success: true,
+        client: db,
+      });
+
+      await client.query("commit");
+      return {
+        ok: true,
+        token,
+        refreshToken: refreshed.token,
+        user: {
+          id: userRecord.id,
+          role,
+          email: userRecord.email,
+        },
+      };
+    } catch (err) {
+      await client.query("rollback");
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    if (err instanceof AppError) {
+      const status = err.status >= 500 ? 503 : err.status;
+      return {
+        ok: false,
+        status,
+        error: { code: err.code, message: err.message },
+      };
+    }
+    logWarn("refresh_failed", {
+      requestId,
+      error: err instanceof Error ? err.message : "unknown_error",
+    });
+    return {
+      ok: false,
+      status: 503,
+      error: {
+        code: "service_unavailable",
+        message: "Authentication service unavailable.",
+      },
+    };
+  }
+}
+
 export async function createUserAccount(params: {
   email?: string | null;
   phoneNumber: string;

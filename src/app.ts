@@ -5,7 +5,13 @@ import apiRouter from "./api";
 import { healthHandler, readyHandler } from "./routes/ready";
 import { listRoutes, printRoutes } from "./debug/printRoutes";
 import { getPendingMigrations, runMigrations } from "./migrations";
-import { isTestEnvironment, shouldRunMigrations } from "./config";
+import {
+  isTestEnvironment,
+  shouldRunMigrations,
+  getCorsAllowlistConfig,
+  getRequestBodyLimit,
+  isProductionEnvironment,
+} from "./config";
 import { requestId } from "./middleware/requestId";
 import { requestLogger } from "./middleware/requestLogger";
 import { requestTimeout } from "./middleware/requestTimeout";
@@ -19,7 +25,6 @@ import { logError, logWarn } from "./observability/logger";
 import internalRoutes from "./routes/_int";
 import { checkDb, initializeTestDatabase } from "./db";
 import { getStatus as getErrorStatus, isHttpishError } from "./helpers/errors";
-import { isProductionEnvironment, getRequestBodyLimit } from "./config";
 
 function assertRoutesMounted(app: express.Express): void {
   const mountedRoutes = listRoutes(app);
@@ -38,21 +43,40 @@ function assertRoutesMounted(app: express.Express): void {
   }
 }
 
+function buildCorsOptions(): cors.CorsOptions {
+  const allowlist = getCorsAllowlistConfig();
+  return {
+    origin: (origin, callback) => {
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+      if (allowlist.includes("*") || allowlist.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(new Error("CORS origin not allowed"));
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "Idempotency-Key",
+      "X-Request-Id",
+    ],
+  };
+}
+
 export function buildApp(): express.Express {
   const app = express();
 
   app.use(requestId);
   app.use(express.json({ limit: getRequestBodyLimit() }));
   app.use(express.urlencoded({ extended: true }));
-  app.use(
-    cors({
-      origin: "https://staff.boreal.financial",
-      credentials: true,
-      methods: ["GET", "POST", "OPTIONS"],
-      allowedHeaders: ["Content-Type", "Authorization"],
-    })
-  );
-  app.options("*", cors());
+  const corsOptions = buildCorsOptions();
+  app.use(cors(corsOptions));
+  app.options("*", cors(corsOptions));
   app.use(requestLogger);
   app.use(requestTimeout);
 
