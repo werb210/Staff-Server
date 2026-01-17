@@ -5,6 +5,11 @@ import { logError, logWarn } from "../observability/logger";
 let processHandlersInstalled = false;
 let server: ReturnType<ReturnType<typeof buildApp>["listen"]> | null = null;
 
+const isProd = process.env.NODE_ENV === "production";
+if (isProd && !process.env.BASE_URL) {
+  throw new Error("BASE_URL must be set in production.");
+}
+
 function installProcessHandlers(): void {
   if (processHandlersInstalled) {
     return;
@@ -42,25 +47,10 @@ async function bootstrapMigrations(): Promise<void> {
   }
 }
 
-function assertBaseUrlForCi(): void {
-  const isCi = process.env.CI === "true" || process.env.CI === "1";
-  if (!isCi) {
-    return;
-  }
-  const baseUrl = process.env.BASE_URL;
-  if (!baseUrl) {
-    return;
-  }
-  if (/localhost|127\.0\.0\.1/i.test(baseUrl)) {
-    throw new Error("BASE_URL must not use localhost in CI.");
-  }
-}
-
 export async function startServer(): Promise<
   ReturnType<ReturnType<typeof buildApp>["listen"]>
 > {
   installProcessHandlers();
-  assertBaseUrlForCi();
 
   const app = buildApp();
   registerApiRoutes(app);

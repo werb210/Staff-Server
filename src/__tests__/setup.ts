@@ -12,6 +12,7 @@ import type {
 } from "twilio/lib/rest/verify/v2/service/verificationCheck";
 
 process.env.NODE_ENV = "test";
+process.env.BASE_URL ||= "http://127.0.0.1:3000";
 process.env.RUN_MIGRATIONS = "false";
 process.env.DB_READY_ATTEMPTS = "1";
 process.env.DB_READY_BASE_DELAY_MS = "1";

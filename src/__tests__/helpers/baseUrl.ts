@@ -13,7 +13,11 @@ function formatHost(host: string): string {
 
 export function resolveBaseUrl(server?: Server): string {
   const baseUrl = process.env.BASE_URL;
-  if (baseUrl) {
+  const shouldPreferServer =
+    process.env.NODE_ENV === "test" &&
+    Boolean(server) &&
+    (!baseUrl || localhostPattern.test(baseUrl));
+  if (baseUrl && !shouldPreferServer) {
     if (isCodespaces && localhostPattern.test(baseUrl)) {
       throw new Error("BASE_URL must be a real Codespaces URL (no localhost).");
     }
