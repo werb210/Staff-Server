@@ -8,9 +8,14 @@ import { createUserAccount } from "../modules/auth/auth.service";
 import { ROLES } from "../auth/roles";
 import { AppError } from "../middleware/errors";
 import { logInfo, logWarn } from "../observability/logger";
+import requireAuth, { requireCapability } from "../middleware/auth";
+import { CAPABILITIES } from "../auth/capabilities";
 
 const router = Router();
 let bootstrapAdminDisabled = false;
+
+router.use(requireAuth);
+router.use(requireCapability([CAPABILITIES.OPS_MANAGE]));
 
 router.get("/version", (_req, res) => {
   const { commitHash, buildTimestamp } = getBuildInfo();

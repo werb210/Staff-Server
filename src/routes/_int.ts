@@ -3,8 +3,19 @@ import { isTwilioEnabled } from "../services/twilio";
 import { healthHandler, readyHandler } from "./ready";
 import { getBuildInfo } from "../config";
 import { listRoutes } from "../debug/printRoutes";
+import requireAuth from "../middleware/auth";
 
 const router = Router();
+
+const publicPaths = new Set(["/health", "/ready", "/build", "/routes", "/env"]);
+
+router.use((req, res, next) => {
+  if (publicPaths.has(req.path)) {
+    next();
+    return;
+  }
+  requireAuth(req, res, next);
+});
 
 router.get("/health", healthHandler);
 router.get("/ready", readyHandler);

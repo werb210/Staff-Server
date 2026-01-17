@@ -1,6 +1,5 @@
 import { buildApp, initializeServer, registerApiRoutes } from "../app";
 import { assertEnv } from "../config";
-import { runMigrations } from "../migrations";
 import { logError, logWarn } from "../observability/logger";
 
 let processHandlersInstalled = false;
@@ -38,14 +37,6 @@ function resolvePort(): number {
     return 3000;
   }
   return port;
-}
-
-async function bootstrapMigrations(): Promise<void> {
-  try {
-    await runMigrations();
-  } catch (err) {
-    logError("migrations_failed_nonfatal", { err });
-  }
 }
 
 export async function startServer(): Promise<
@@ -86,12 +77,6 @@ export async function startServer(): Promise<
       app.set("server", listener);
     }
   });
-
-  if (process.env.NODE_ENV !== "test") {
-    bootstrapMigrations().catch((err) => {
-      logError("server_bootstrap_failed", { err });
-    });
-  }
 
   if (!server) {
     throw new Error("Server failed to start.");

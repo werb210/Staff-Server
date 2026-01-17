@@ -1,11 +1,15 @@
 import {
   assertEnv as assertRuntimeEnv,
   getAccessTokenSecret as getAccessTokenSecretValue,
+  getRefreshTokenSecret as getRefreshTokenSecretValue,
   getAppInsightsConnectionString,
   getCorsAllowlist,
   getGlobalRateLimitMax,
   getGlobalRateLimitWindowMs,
   getJwtExpiresIn,
+  getJwtRefreshExpiresIn,
+  getJwtRefreshExpiresInMs,
+  getJwtClockSkewSeconds as getJwtClockSkewSecondsValue,
   isProductionEnv,
   isTestEnv,
 } from "./config/env";
@@ -83,6 +87,22 @@ export function getAccessTokenExpiresIn(): string {
 
 export function getAccessTokenSecret(): string | undefined {
   return getAccessTokenSecretValue();
+}
+
+export function getRefreshTokenSecret(): string | undefined {
+  return getRefreshTokenSecretValue() ?? (isTestEnvironment() ? "test-refresh" : undefined);
+}
+
+export function getRefreshTokenExpiresIn(): string {
+  return getJwtRefreshExpiresIn();
+}
+
+export function getRefreshTokenExpiresInMs(): number {
+  return getJwtRefreshExpiresInMs();
+}
+
+export function getJwtClockSkewSeconds(): number {
+  return getJwtClockSkewSecondsValue();
 }
 
 export function getLoginLockoutThreshold(): number {

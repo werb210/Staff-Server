@@ -21,6 +21,7 @@ import {
   isTestEnvironment,
 } from "../config";
 import { logWarn } from "../observability/logger";
+import { hashRefreshToken } from "../auth/tokenUtils";
 
 type RateLimitEntry = {
   count: number;
@@ -98,8 +99,6 @@ export function otpRateLimit(
   );
 }
 
-type RefreshPayload = { userId?: string };
-
 export function refreshRateLimit(
   maxAttempts = getRefreshRateLimitMax(),
   windowMs = getRefreshRateLimitWindowMs()
@@ -109,9 +108,10 @@ export function refreshRateLimit(
       const ip = req.ip || "unknown";
       const token =
         typeof req.body?.refreshToken === "string" ? req.body.refreshToken : "";
-      const decoded = token ? (jwt.decode(token) as RefreshPayload | null) : null;
-      const userId = decoded?.userId ?? "unknown";
-      return `refresh:${ip}:${userId}`;
+      const decoded = token ? (jwt.decode(token) as jwt.JwtPayload | null) : null;
+      const userId = typeof decoded?.sub === "string" ? decoded.sub : "unknown";
+      const tokenHash = token ? hashRefreshToken(token).slice(0, 8) : "none";
+      return `refresh:${ip}:${userId}:${tokenHash}`;
     },
     maxAttempts,
     windowMs
