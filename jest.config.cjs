@@ -5,7 +5,7 @@ module.exports = {
   testEnvironment: "node",
   testMatch: ["**/__tests__/**/*.test.ts"],
   clearMocks: true,
-  maxWorkers: 1,
+  maxWorkers: "50%",
   setupFilesAfterEnv: ["<rootDir>/src/__tests__/setup.ts"],
   testTimeout: 30000,
   verbose: false,

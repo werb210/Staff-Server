@@ -6,7 +6,7 @@ create table if not exists client_submissions (
   created_at timestamp not null
 );
 
-alter table lender_submissions
+alter table if exists lender_submissions
   add column if not exists payload_hash text null,
   add column if not exists lender_response jsonb null,
   add column if not exists response_received_at timestamp null,

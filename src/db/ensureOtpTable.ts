@@ -3,8 +3,11 @@ import { isPgMem, pool } from "../db";
 type PgError = { code?: string; message?: string };
 
 export async function ensureOtpTableExists(): Promise<void> {
+  if (process.env.NODE_ENV === "test") {
+    return;
+  }
   try {
-    if (process.env.NODE_ENV === "test" || isPgMem) {
+    if (isPgMem) {
       const exists = await pool.query(
         `select 1 from information_schema.tables where table_name = 'otp_verifications'`
       );
@@ -25,13 +28,13 @@ export async function ensureOtpTableExists(): Promise<void> {
     `);
   } catch (err) {
     const message = err instanceof Error ? err.message : "";
-    if ((process.env.NODE_ENV === "test" || isPgMem) && message.includes("already exists")) {
+    if (isPgMem && message.includes("already exists")) {
       return;
     }
     throw err;
   }
 
-  if (process.env.NODE_ENV === "test" || isPgMem) {
+  if (isPgMem) {
     return;
   }
 

@@ -25,6 +25,7 @@ process.env.JWT_REFRESH_EXPIRES_IN = "1d";
 process.env.LOGIN_LOCKOUT_THRESHOLD = "2";
 process.env.LOGIN_LOCKOUT_MINUTES = "10";
 process.env.PASSWORD_MAX_AGE_DAYS = "30";
+process.env.BASE_URL = "http://localhost:3000";
 
 markReady();
 installProcessHandlers();

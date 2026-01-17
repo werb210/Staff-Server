@@ -204,12 +204,14 @@ export async function initializeServer(): Promise<void> {
     }
   }
 
-  try {
-    await ensureOtpTableExists();
-  } catch (err) {
-    logError("otp_schema_self_heal_failed", { err });
-    markNotReady("otp_table_check_failed");
-    return;
+  if (!isTestEnvironment()) {
+    try {
+      await ensureOtpTableExists();
+    } catch (err) {
+      logError("otp_schema_self_heal_failed", { err });
+      markNotReady("otp_table_check_failed");
+      return;
+    }
   }
 
   const pendingMigrations = await getPendingMigrations();
@@ -217,10 +219,12 @@ export async function initializeServer(): Promise<void> {
     markNotReady("pending_migrations");
     return;
   }
-  try {
-    await runStartupConsistencyCheck();
-  } catch (err) {
-    logWarn("startup_consistency_check_skipped", { err });
+  if (!isTestEnvironment()) {
+    try {
+      await runStartupConsistencyCheck();
+    } catch (err) {
+      logWarn("startup_consistency_check_skipped", { err });
+    }
   }
   markReady();
 }

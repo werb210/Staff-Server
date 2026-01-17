@@ -1,2 +1,2 @@
-alter table audit_events
+alter table if exists audit_events
   add column if not exists request_id text;
