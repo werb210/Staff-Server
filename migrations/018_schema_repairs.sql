@@ -7,7 +7,7 @@ create table if not exists password_resets (
   created_at timestamptz not null default now()
 );
 
-alter table password_resets
+alter table if exists password_resets
   add column if not exists used_at timestamptz null,
   add column if not exists created_at timestamptz not null default now();
 
@@ -22,7 +22,7 @@ create table if not exists idempotency_keys (
   unique (key, route)
 );
 
-alter table idempotency_keys
+alter table if exists idempotency_keys
   add column if not exists id text,
   add column if not exists key text,
   add column if not exists route text,
@@ -90,11 +90,11 @@ set id = md5(
 )
 where id is null;
 
-alter table idempotency_keys
+alter table if exists idempotency_keys
   alter column id set not null;
 
 create unique index if not exists idempotency_keys_id_unique_idx
   on idempotency_keys (id);
 
-alter table applications
+alter table if exists applications
   add column if not exists owner_user_id uuid;

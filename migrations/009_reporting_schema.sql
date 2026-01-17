@@ -1,7 +1,7 @@
-alter table audit_events
+alter table if exists audit_events
   add column if not exists target_type text null;
 
-alter table audit_events
+alter table if exists audit_events
   add column if not exists target_id text null;
 
 create table if not exists reporting_daily_metrics (

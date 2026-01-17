@@ -378,27 +378,55 @@ export async function initializeTestDatabase(): Promise<void> {
     return;
   }
   testDbInitialized = true;
-  const statements = [
+  const baseStatements = [
     `create table if not exists users (
        id uuid primary key,
-       email text,
-       password_hash text,
-       role text,
+       email text not null,
+       password_hash text not null,
+       role text not null,
        active boolean not null,
        password_changed_at timestamptz null,
        failed_login_attempts integer not null default 0,
        locked_until timestamptz null,
-       token_version integer not null default 0,
-       created_at timestamp not null default now(),
-       updated_at timestamp not null default now(),
-       phone_number text,
-       phone_verified boolean default false,
-       phone text,
-       disabled boolean default false,
-       is_active boolean
+       token_version integer not null default 0
      )`,
-    "create unique index if not exists users_email_unique on users (email)",
-    "create unique index if not exists users_phone_number_unique on users (phone_number)",
+    `create table if not exists applications (
+       id text primary key,
+       owner_user_id uuid null,
+       name text null,
+       business_legal_name text null,
+       metadata jsonb null,
+       pipeline_state text null,
+       created_at timestamp null,
+       updated_at timestamp null
+     )`,
+    `create table if not exists documents (
+       id text primary key,
+       application_id text null,
+       owner_user_id uuid null,
+       title text null,
+       created_at timestamp null
+     )`,
+    `create table if not exists idempotency_keys (
+       id text primary key,
+       key text null,
+       route text null,
+       method text null,
+       request_hash text null,
+       response_code integer null,
+       response_body jsonb null,
+       created_at timestamp null
+     )`,
+  ];
+
+  for (const statement of baseStatements) {
+    await pool.query(statement);
+  }
+
+  const { runMigrations } = await import("./migrations");
+  await runMigrations({ allowTest: true });
+
+  await pool.query(
     `insert into users (id, email, password_hash, role, active, password_changed_at)
      values (
        '00000000-0000-0000-0000-000000000001',
@@ -408,314 +436,8 @@ export async function initializeTestDatabase(): Promise<void> {
        false,
        now()
      )
-     on conflict (id) do nothing`,
-    `create table if not exists auth_refresh_tokens (
-       id uuid primary key,
-       user_id uuid,
-       token_hash text,
-       expires_at timestamptz not null,
-       revoked_at timestamptz null,
-       created_at timestamptz not null,
-       token text null
-     )`,
-    `create table if not exists password_resets (
-       id uuid primary key,
-       user_id uuid,
-       token_hash text,
-       expires_at timestamptz not null,
-       used_at timestamptz null,
-       created_at timestamp not null default now()
-     )`,
-    `create table if not exists audit_events (
-       id text primary key,
-       user_id uuid null,
-       action text null,
-       ip text null,
-       user_agent text null,
-       success boolean not null,
-       created_at timestamptz not null default now(),
-       actor_user_id uuid null,
-       target_user_id uuid null,
-       target_type text null,
-       target_id text null,
-       event_type text null,
-       event_action text null,
-       ip_address text null,
-       request_id text null,
-       metadata jsonb null
-     )`,
-    "create sequence if not exists audit_events_id_seq",
-    "alter table audit_events alter column id set default nextval('audit_events_id_seq')::text",
-    `create table if not exists applications (
-       id text primary key,
-       owner_user_id uuid,
-       name text,
-       business_legal_name text,
-       metadata jsonb null,
-       pipeline_state text not null,
-       created_at timestamp not null,
-       updated_at timestamp not null,
-       product_type text not null default 'standard',
-       status text not null default 'NEW'
-     )`,
-    `create table if not exists documents (
-       id text primary key,
-       application_id text not null,
-       owner_user_id uuid not null,
-       title text not null,
-       created_at timestamp not null,
-       document_type text not null default 'general',
-       version integer not null default 1,
-       status text not null default 'uploaded'
-     )`,
-    `create table if not exists document_versions (
-       id text primary key,
-       document_id text not null,
-       version integer not null,
-       metadata jsonb not null,
-       content text not null,
-       created_at timestamp not null
-     )`,
-    `create table if not exists document_version_reviews (
-       id text primary key,
-       document_version_id text not null,
-       status text not null,
-       reviewed_by_user_id uuid null,
-       reviewed_at timestamp not null
-     )`,
-    "create unique index if not exists document_version_reviews_document_version_id_unique on document_version_reviews (document_version_id)",
-    `create table if not exists lender_submissions (
-       id text primary key,
-       application_id text not null,
-       status text not null,
-       idempotency_key text null,
-       created_at timestamp not null,
-       updated_at timestamp not null,
-       lender_id text not null default 'default',
-       submitted_at timestamp null,
-       payload jsonb null,
-       payload_hash text null,
-       lender_response jsonb null,
-       response_received_at timestamp null,
-       failure_reason text null
-     )`,
-    `create table if not exists client_submissions (
-       id text primary key,
-       submission_key text not null,
-       application_id text not null,
-       payload jsonb not null,
-       created_at timestamp not null
-     )`,
-    `create table if not exists lender_submission_retries (
-       id text primary key,
-       submission_id text not null,
-       status text not null,
-       attempt_count integer not null default 0,
-       next_attempt_at timestamp null,
-       last_error text null,
-       created_at timestamp not null,
-       updated_at timestamp not null,
-       canceled_at timestamp null
-     )`,
-    `create table if not exists idempotency_keys (
-       id text primary key,
-       key text not null,
-       route text not null,
-       method text not null default 'POST',
-       request_hash text not null,
-       response_code integer not null,
-       response_body jsonb not null,
-       created_at timestamp not null default now()
-     )`,
-    `create table if not exists otp_verifications (
-       id uuid primary key,
-       user_id uuid not null,
-       phone text not null,
-       verification_sid text null,
-       status text not null,
-       verified_at timestamptz null,
-       created_at timestamptz not null default now()
-     )`,
-    `create table if not exists ocr_jobs (
-       id text primary key,
-       document_id text not null,
-       application_id text not null,
-       status text not null,
-       attempt_count integer not null,
-       max_attempts integer not null,
-       next_attempt_at timestamp null,
-       locked_at timestamp null,
-       locked_by text null,
-       last_error text null,
-       created_at timestamp not null,
-       updated_at timestamp not null
-     )`,
-    `create table if not exists ocr_results (
-       id text primary key,
-       document_id text not null,
-       provider text not null,
-       model text not null,
-       extracted_text text not null,
-       extracted_json jsonb null,
-       meta jsonb null,
-       created_at timestamp not null,
-       updated_at timestamp not null
-     )`,
-    `create table if not exists ops_kill_switches (
-       key text primary key,
-       enabled boolean not null,
-       updated_at timestamp not null
-     )`,
-    `create table if not exists ops_replay_jobs (
-       id text primary key,
-       scope text not null,
-       started_at timestamp null,
-       completed_at timestamp null,
-       status text not null
-     )`,
-    `create table if not exists ops_replay_events (
-       id text primary key,
-       replay_job_id text null,
-       source_table text not null,
-       source_id text not null,
-       processed_at timestamp null
-     )`,
-    "create unique index if not exists ops_replay_events_source_unique on ops_replay_events (source_table, source_id)",
-    `create table if not exists export_audit (
-       id text primary key,
-       actor_user_id uuid null,
-       export_type text not null,
-       filters jsonb not null,
-       created_at timestamp not null
-     )`,
-    `create table if not exists reporting_daily_metrics (
-       id text primary key,
-       metric_date date not null,
-       applications_created integer not null,
-       applications_submitted integer not null,
-       applications_approved integer not null,
-       applications_declined integer not null,
-       applications_funded integer not null,
-       documents_uploaded integer not null,
-       documents_approved integer not null,
-       lender_submissions integer not null,
-       created_at timestamp not null
-     )`,
-    "create unique index if not exists reporting_daily_metrics_metric_date_unique_idx on reporting_daily_metrics (metric_date)",
-    `create table if not exists reporting_pipeline_snapshots (
-       id text primary key,
-       snapshot_at timestamp not null,
-       pipeline_state text not null,
-       application_count integer not null
-     )`,
-    "create unique index if not exists reporting_pipeline_snapshots_unique_idx on reporting_pipeline_snapshots (snapshot_at, pipeline_state)",
-    `create table if not exists reporting_lender_performance (
-       id text primary key,
-       lender_id text not null,
-       period_start date not null,
-       period_end date not null,
-       submissions integer not null,
-       approvals integer not null,
-       declines integer not null,
-       funded integer not null,
-       avg_decision_time_seconds integer not null,
-       created_at timestamp not null
-     )`,
-    "create unique index if not exists reporting_lender_performance_unique_idx on reporting_lender_performance (lender_id, period_start, period_end)",
-    `create table if not exists reporting_pipeline_daily_snapshots (
-       id text primary key,
-       snapshot_date date not null,
-       pipeline_state text not null,
-       application_count integer not null,
-       created_at timestamp not null
-     )`,
-    "create unique index if not exists reporting_pipeline_daily_unique_idx on reporting_pipeline_daily_snapshots (snapshot_date, pipeline_state)",
-    `create table if not exists reporting_application_volume_daily (
-       id text primary key,
-       metric_date date not null,
-       product_type text not null,
-       applications_created integer not null,
-       applications_submitted integer not null,
-       applications_approved integer not null,
-       applications_declined integer not null,
-       applications_funded integer not null,
-       created_at timestamp not null
-     )`,
-    "create unique index if not exists reporting_application_volume_daily_unique_idx on reporting_application_volume_daily (metric_date, product_type)",
-    `create table if not exists reporting_document_metrics_daily (
-       id text primary key,
-       metric_date date not null,
-       document_type text not null,
-       documents_uploaded integer not null,
-       documents_reviewed integer not null,
-       documents_approved integer not null,
-       created_at timestamp not null
-     )`,
-    "create unique index if not exists reporting_document_metrics_daily_unique_idx on reporting_document_metrics_daily (metric_date, document_type)",
-    `create table if not exists reporting_staff_activity_daily (
-       id text primary key,
-       metric_date date not null,
-       staff_user_id uuid not null,
-       action text not null,
-       activity_count integer not null,
-       created_at timestamp not null
-     )`,
-    "create unique index if not exists reporting_staff_activity_daily_unique_idx on reporting_staff_activity_daily (metric_date, staff_user_id, action)",
-    `create table if not exists reporting_lender_funnel_daily (
-       id text primary key,
-       metric_date date not null,
-       lender_id text not null,
-       submissions integer not null,
-       approvals integer not null,
-       funded integer not null,
-       created_at timestamp not null
-     )`,
-    "create unique index if not exists reporting_lender_funnel_daily_unique_idx on reporting_lender_funnel_daily (metric_date, lender_id)",
-    `create or replace view vw_pipeline_current_state as
-       select pipeline_state, count(*)::int as application_count
-       from applications
-       group by pipeline_state`,
-    `create or replace view vw_application_conversion_funnel as
-       select
-         count(*)::int as applications_created,
-         count(*) filter (where pipeline_state = 'LENDER_SUBMITTED')::int as applications_submitted,
-         count(*) filter (where pipeline_state = 'APPROVED')::int as applications_approved,
-         count(*) filter (where pipeline_state = 'FUNDED')::int as applications_funded
-       from applications`,
-    `create or replace view vw_document_processing_stats as
-       select
-         count(dv.id)::int as documents_uploaded,
-         count(r.id)::int as documents_reviewed,
-         count(*) filter (where r.status = 'accepted')::int as documents_approved,
-         case
-           when count(r.id) = 0 then 0
-           else count(*) filter (where r.status = 'accepted')::numeric / count(r.id)::numeric
-         end as approval_rate
-       from document_versions dv
-       left join document_version_reviews r on r.document_version_id = dv.id`,
-    `create or replace view vw_lender_conversion as
-       select
-         ls.lender_id,
-         count(*)::int as submissions,
-         count(*) filter (where a.pipeline_state = 'APPROVED')::int as approvals,
-         count(*) filter (where a.pipeline_state = 'DECLINED')::int as declines,
-         count(*) filter (where a.pipeline_state = 'FUNDED')::int as funded,
-         case
-           when count(*) = 0 then 0
-           else count(*) filter (where a.pipeline_state = 'APPROVED')::numeric / count(*)::numeric
-         end as approval_rate,
-         case
-           when count(*) = 0 then 0
-           else count(*) filter (where a.pipeline_state = 'FUNDED')::numeric / count(*)::numeric
-         end as funding_rate
-       from lender_submissions ls
-       join applications a on a.id = ls.application_id
-       group by ls.lender_id`,
-  ];
-
-  for (const statement of statements) {
-    await pool.query(statement);
-  }
+     on conflict (id) do nothing`
+  );
 }
 
 export async function resetTestDatabase(): Promise<void> {

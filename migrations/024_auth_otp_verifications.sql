@@ -8,7 +8,7 @@ create table if not exists otp_verifications (
   created_at timestamptz not null default now()
 );
 
-alter table otp_verifications
+alter table if exists otp_verifications
   add constraint otp_verifications_status_check
   check (status in ('pending', 'approved', 'expired'));
 

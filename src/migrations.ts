@@ -166,6 +166,7 @@ function normalizeStatementForPgMem(statement: string): string {
   let normalized = statement;
   normalized = normalized.replace(/create index if not exists/gi, "create index");
   normalized = normalized.replace(/drop index if exists/gi, "drop index");
+  normalized = normalized.replace(/alter table if exists/gi, "alter table");
   normalized = normalized.replace(
     /alter table ([\w".]+)\s+add column if not exists/gi,
     "alter table $1 add column"
@@ -210,8 +211,8 @@ async function fetchAppliedMigrations(): Promise<Set<string>> {
   return new Set(res.rows.map((row) => row.id));
 }
 
-export async function runMigrations(): Promise<void> {
-  if (isTestEnvironment()) {
+export async function runMigrations(options?: { allowTest?: boolean }): Promise<void> {
+  if (isTestEnvironment() && !options?.allowTest) {
     return;
   }
   await ensureMigrationsTable();

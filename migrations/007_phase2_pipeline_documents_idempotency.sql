@@ -1,4 +1,4 @@
-alter table applications
+alter table if exists applications
   add column if not exists product_type text not null default 'standard';
 
 update applications
@@ -13,7 +13,7 @@ set pipeline_state = case pipeline_state
   else pipeline_state
 end;
 
-alter table documents
+alter table if exists documents
   add column if not exists document_type text not null default 'general';
 
 create table if not exists document_version_reviews (
@@ -36,12 +36,12 @@ create table if not exists idempotency_keys (
   unique (actor_user_id, scope, idempotency_key)
 );
 
-alter table lender_submissions
+alter table if exists lender_submissions
   add column if not exists lender_id text not null default 'default',
   add column if not exists submitted_at timestamp null,
   add column if not exists payload jsonb null;
 
-alter table lender_submissions
+alter table if exists lender_submissions
   alter column idempotency_key drop not null;
 
 create unique index if not exists lender_submissions_application_id_unique

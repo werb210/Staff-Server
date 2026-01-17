@@ -1,7 +1,7 @@
-alter table audit_events
+alter table if exists audit_events
   add column if not exists actor_user_id uuid null references users(id) on delete set null;
 
-alter table audit_events
+alter table if exists audit_events
   add column if not exists target_user_id uuid null references users(id) on delete set null;
 
 update audit_events
