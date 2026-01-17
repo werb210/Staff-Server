@@ -113,7 +113,7 @@ function handleTwilioAuthError(
   return next(err);
 }
 
-router.post("/otp/start", otpRateLimit(), async (req, res, next) => {
+async function handleOtpStart(req: Request, res: Response, next: NextFunction) {
   try {
     const { phone } = req.body ?? {};
     const result = await startOtp(phone);
@@ -129,7 +129,10 @@ router.post("/otp/start", otpRateLimit(), async (req, res, next) => {
   } catch (err) {
     handleTwilioAuthError(err, res, next);
   }
-});
+}
+
+router.post("/otp/start", otpRateLimit(), handleOtpStart);
+router.post("/otp/request", otpRateLimit(), handleOtpStart);
 
 router.post("/start", otpRateLimit(), async (req, res, next) => {
   try {

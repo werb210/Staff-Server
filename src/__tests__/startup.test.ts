@@ -1,5 +1,5 @@
-import type { AddressInfo } from "net";
 import { resetStartupState } from "../startupState";
+import { resolveBaseUrl } from "./helpers/baseUrl";
 
 async function waitForCondition(condition: () => boolean, timeoutMs: number): Promise<void> {
   const start = Date.now();
@@ -38,11 +38,19 @@ describe("startup behavior", () => {
 
     await waitForCondition(() => Boolean(server?.listening), 2000);
 
-    const address = server?.address() as AddressInfo;
-    const healthRes = await fetch(`http://127.0.0.1:${address.port}/health`);
+    const address = server?.address();
+    if (!address || typeof address === "string") {
+      throw new Error("Failed to resolve server address.");
+    }
+    const baseUrl = resolveBaseUrl(server ?? undefined);
+    const healthRes = await fetch(new URL("/health", baseUrl), {
+      redirect: "manual",
+    });
     expect(healthRes.status).toBe(200);
 
-    const readyRes = await fetch(`http://127.0.0.1:${address.port}/api/_int/ready`);
+    const readyRes = await fetch(new URL("/api/_int/ready", baseUrl), {
+      redirect: "manual",
+    });
     expect(readyRes.status).toBe(503);
   });
 

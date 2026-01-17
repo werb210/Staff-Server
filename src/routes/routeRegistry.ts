@@ -76,6 +76,7 @@ export const PORTAL_ROUTE_REQUIREMENTS: Pick<ApiRoute, "method" | "path">[] = [
 
 export const ROUTES: ApiRoute[] = [
   { method: "POST", path: "/api/auth/otp/start", roles: ALL_ROLES },
+  { method: "POST", path: "/api/auth/otp/request", roles: ALL_ROLES },
   { method: "POST", path: "/api/auth/otp/verify", roles: ALL_ROLES },
   { method: "POST", path: "/api/auth/start", roles: ALL_ROLES },
   { method: "POST", path: "/api/auth/verify", roles: ALL_ROLES },

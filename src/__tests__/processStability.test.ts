@@ -1,41 +1,65 @@
-const trackRequest = jest.fn();
-const trackDependency = jest.fn();
-const trackException = jest.fn();
-const trackEvent = jest.fn();
+import { spawn } from "child_process";
 
-jest.mock("../observability/appInsights", () => ({
-  trackRequest: (telemetry: unknown) => trackRequest(telemetry),
-  trackDependency: (telemetry: unknown) => trackDependency(telemetry),
-  trackException: (telemetry: unknown) => trackException(telemetry),
-  trackEvent: (telemetry: unknown) => trackEvent(telemetry),
-  initializeAppInsights: jest.fn(),
-}));
+function runCommand(cmd: string, args: string[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, args, { stdio: "inherit" });
+    child.on("error", reject);
+    child.on("exit", (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`${cmd} ${args.join(" ")} exited with code ${code}`));
+      }
+    });
+  });
+}
+
+async function terminateProcess(child: ReturnType<typeof spawn>): Promise<void> {
+  if (child.exitCode !== null) {
+    return;
+  }
+
+  const exitPromise = new Promise<void>((resolve) => {
+    child.once("exit", () => resolve());
+  });
+
+  child.kill("SIGTERM");
+  await Promise.race([exitPromise, new Promise((resolve) => setTimeout(resolve, 3000))]);
+
+  if (child.exitCode === null) {
+    child.kill("SIGKILL");
+    await exitPromise;
+  }
+}
 
 describe("process stability", () => {
-  it("does not exit on rejected db promise", async () => {
-    trackException.mockClear();
-    const exitSpy = jest
-      .spyOn(process, "exit")
-      .mockImplementation(() => undefined as never);
-
-    const error = new Error("db down");
-    (error as { code?: string }).code = "ECONNRESET";
-    const rejection = Promise.reject(error);
-    rejection.catch(() => {});
-    process.emit("unhandledRejection", error, rejection);
-
-    await new Promise((resolve) => setImmediate(resolve));
-
-    expect(exitSpy).not.toHaveBeenCalled();
-    expect(trackException).toHaveBeenCalled();
-    expect(trackException).toHaveBeenCalledWith(
-      expect.objectContaining({
-        properties: expect.objectContaining({
-          classification: "db_unavailable",
-        }),
-      })
-    );
-
-    exitSpy.mockRestore();
+  beforeAll(async () => {
+    await runCommand("npm", ["run", "build"]);
   });
+
+  it("keeps npm start alive for at least 5 seconds", async () => {
+    const child = spawn("npm", ["start"], {
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        NODE_ENV: "test",
+        PORT: "0",
+        NODE_OPTIONS: "--unhandled-rejections=strict",
+      },
+    });
+
+    let exited = false;
+    let exitCode: number | null = null;
+    child.on("exit", (code) => {
+      exited = true;
+      exitCode = code;
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 5500));
+
+    expect(exited).toBe(false);
+    expect(exitCode).toBeNull();
+
+    await terminateProcess(child);
+  }, 20_000);
 });

@@ -1,29 +1,18 @@
 import type { Server } from "http";
-
-const isCodespaces =
-  process.env.CODESPACES === "true" ||
-  Boolean(process.env.CODESPACE_NAME) ||
-  Boolean(process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN);
-
-let baseUrl = process.env.BASE_URL;
-
-if (isCodespaces) {
-  if (!baseUrl) {
-    throw new Error("BASE_URL is required for Codespaces runtime health checks.");
-  }
-  if (/localhost|127\.0\.0\.1/i.test(baseUrl)) {
-    throw new Error("BASE_URL must be a real Codespaces URL (no localhost).");
-  }
-}
+import { resolveBaseUrl } from "./helpers/baseUrl";
 
 describe("Codespaces runtime health", () => {
-  const endpoints = ["/api/health", "/api/ready", "/api/_int/health"];
+  const endpoints = [
+    "/api/health",
+    "/api/ready",
+    "/api/_int/health",
+    "/api/_int/build",
+    "/api/_int/routes",
+  ];
   let server: Server | null = null;
+  let baseUrl: string | undefined;
 
   beforeAll(async () => {
-    if (isCodespaces) {
-      return;
-    }
     const { buildApp, registerApiRoutes } = await import("../app");
     const app = buildApp();
     registerApiRoutes(app);
@@ -31,11 +20,7 @@ describe("Codespaces runtime health", () => {
     await new Promise<void>((resolve) => {
       server?.once("listening", resolve);
     });
-    const address = server.address();
-    if (!address || typeof address === "string") {
-      throw new Error("Failed to resolve server address.");
-    }
-    baseUrl = `http://127.0.0.1:${address.port}`;
+    baseUrl = resolveBaseUrl(server);
   });
 
   afterAll(async () => {
@@ -49,13 +34,13 @@ describe("Codespaces runtime health", () => {
   });
 
   it.each(endpoints)("returns 200 for %s", async (path) => {
-    if (!baseUrl) {
-      throw new Error("BASE_URL was not configured for runtime health checks.");
-    }
+    baseUrl = baseUrl ?? resolveBaseUrl(server ?? undefined);
     const url = new URL(path, baseUrl).toString();
     const response = await fetch(url, { redirect: "manual" });
 
     expect(response.status).toBe(200);
     expect(response.status).not.toBe(302);
+    const payload = await response.json();
+    expect(payload).toEqual(expect.any(Object));
   });
 });

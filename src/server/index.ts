@@ -1,7 +1,6 @@
 import { buildApp, initializeServer, registerApiRoutes } from "../app";
 import { runMigrations } from "../migrations";
-import { logError } from "../observability/logger";
-import { isProductionEnvironment } from "../config";
+import { logError, logWarn } from "../observability/logger";
 
 let processHandlersInstalled = false;
 let server: ReturnType<ReturnType<typeof buildApp>["listen"]> | null = null;
@@ -24,17 +23,13 @@ function installProcessHandlers(): void {
 function resolvePort(): number {
   const rawPort = process.env.PORT;
   if (rawPort === undefined || rawPort === "") {
-    if (!isProductionEnvironment()) {
-      return 3000;
-    }
-    throw new Error("PORT env var missing");
+    logWarn("port_missing_defaulting", { fallback: 3000 });
+    return 3000;
   }
   const port = Number(rawPort);
   if (Number.isNaN(port)) {
-    if (!isProductionEnvironment()) {
-      return 3000;
-    }
-    throw new Error("PORT env var missing");
+    logWarn("port_invalid_defaulting", { value: rawPort, fallback: 3000 });
+    return 3000;
   }
   return port;
 }
