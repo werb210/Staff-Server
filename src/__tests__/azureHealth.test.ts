@@ -36,24 +36,29 @@ describe("azure health endpoints", () => {
     expect(after.status).toBe(200);
   });
 
-  it("respects the configured PORT env", () => {
+  it("respects the configured PORT env", async () => {
     process.env.PORT = "4777";
     process.env.STARTUP_WATCHDOG_MS = "25";
 
-    const listenSpy = jest.fn(() => {
+    const listenSpy = jest.fn((_port, _host, cb?: () => void) => {
       const server = createMockServer();
       server.listening = true;
-      process.nextTick(() => server.emit("listening"));
+      process.nextTick(() => {
+        server.emit("listening");
+        cb?.();
+      });
       return server as unknown as import("http").Server;
     });
 
-    jest.isolateModules(() => {
-      jest.doMock("../app", () => ({
-        buildApp: () => ({ listen: listenSpy, use: jest.fn() }),
-        registerApiRoutes: jest.fn(),
-      }));
-      const { startServer } = require("../index");
-      startServer();
+    await new Promise<void>((resolve, reject) => {
+      jest.isolateModules(() => {
+        jest.doMock("../app", () => ({
+          buildApp: () => ({ listen: listenSpy, use: jest.fn() }),
+          registerApiRoutes: jest.fn(),
+        }));
+        const { startServer } = require("../index");
+        startServer().then(() => resolve()).catch(reject);
+      });
     });
 
     expect(listenSpy).toHaveBeenCalledWith(4777, "0.0.0.0", expect.any(Function));
