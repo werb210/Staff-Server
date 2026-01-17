@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { buildAppWithApiRoutes } from "../app";
 import { pool } from "../db";
+import { ensureOtpTableExists } from "../db/ensureOtpTable";
 import { ROLES } from "../auth/roles";
 import { resetLoginRateLimit } from "../middleware/rateLimit";
 import { otpVerifyRequest } from "./helpers/otpAuth";
@@ -9,6 +10,7 @@ import { seedAdminUser, SEEDED_ADMIN_PHONE } from "../db/seed";
 const app = buildAppWithApiRoutes();
 
 async function resetDb(): Promise<void> {
+  await ensureOtpTableExists();
   await pool.query("delete from client_submissions");
   await pool.query("delete from lender_submission_retries");
   await pool.query("delete from lender_submissions");
@@ -17,6 +19,11 @@ async function resetDb(): Promise<void> {
   await pool.query("delete from documents");
   await pool.query("delete from applications");
   await pool.query("delete from idempotency_keys");
+  try {
+    await pool.query("delete from otp_verifications");
+  } catch {
+    // ignore missing table in pg-mem reset flow
+  }
   await pool.query("delete from auth_refresh_tokens");
   await pool.query("delete from password_resets");
   await pool.query("delete from audit_events");
@@ -80,7 +87,7 @@ describe("API auth otp verify eligibility", () => {
 
   it("returns 404 without 500 when otp_verifications is missing", async () => {
     const phone = "+14155550099";
-    await pool.query("drop table if exists otp_verifications");
+    await pool.query("drop table if exists otp_verifications cascade");
 
     const res = await otpVerifyRequest(app, { phone });
 

@@ -107,7 +107,7 @@ export function idempotencyMiddleware(
   next: NextFunction
 ): void {
   const route = getRequestRoute(req);
-  const isAuthRoute = route.startsWith("/api/auth/");
+  const isAuthRoute = route.startsWith("/api/auth/") || route.startsWith("/auth/");
   if (isAuthRoute) {
     next();
     return;
@@ -143,7 +143,7 @@ export function idempotencyMiddleware(
   const keyHash = hashValue(trimmedKey);
   setRequestIdempotencyKeyHash(keyHash);
 
-  if (isTestEnvironment()) {
+  if (isTestEnvironment() && req.get("authorization")) {
     next();
     return;
   }

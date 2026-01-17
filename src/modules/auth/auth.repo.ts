@@ -15,7 +15,9 @@ async function runAuthQuery<T extends QueryResultRow = QueryResultRow>(
   try {
     return await runner.query<T>(text, params);
   } catch (err: any) {
-    console.error("[AUTH QUERY ERROR]", err?.message ?? "unknown_error");
+    if (process.env.NODE_ENV !== "test") {
+      console.error("[AUTH QUERY ERROR]", err?.message ?? "unknown_error");
+    }
     throw err;
   }
 }

@@ -35,6 +35,21 @@ function captureLogs(): {
 }
 
 describe("request logging lifecycle", () => {
+  let originalTestLogging: string | undefined;
+
+  beforeEach(() => {
+    originalTestLogging = process.env.TEST_LOGGING;
+    process.env.TEST_LOGGING = "true";
+  });
+
+  afterEach(() => {
+    if (originalTestLogging === undefined) {
+      delete process.env.TEST_LOGGING;
+    } else {
+      process.env.TEST_LOGGING = originalTestLogging;
+    }
+  });
+
   it("logs start and completion with duration", async () => {
     const app = express();
     app.use(requestId);

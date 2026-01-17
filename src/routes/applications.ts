@@ -4,6 +4,7 @@ import { CAPABILITIES } from "../auth/capabilities";
 import applicationRoutes from "../modules/applications/applications.routes";
 import { respondOk } from "../utils/respondOk";
 import { AppError } from "../middleware/errors";
+import { getClientSubmissionOwnerUserId } from "../config";
 import { createApplication } from "../modules/applications/applications.repo";
 import { safeHandler } from "../middleware/safeHandler";
 
@@ -84,7 +85,9 @@ router.post(
       throw err;
     }
 
-    const ownerUserId = (req as Request & { user?: { id?: string } }).user?.id ?? null;
+    const ownerUserId =
+      (req as Request & { user?: { id?: string } }).user?.id ??
+      getClientSubmissionOwnerUserId();
     const created = await createApplication({
       ownerUserId,
       name: payload.business?.legalName ?? "New application",

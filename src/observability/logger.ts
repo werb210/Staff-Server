@@ -27,6 +27,9 @@ function buildPayload(level: LogLevel, event: string, fields: LogFields = {}): R
 }
 
 function writeLog(level: LogLevel, event: string, fields?: LogFields): void {
+  if (process.env.NODE_ENV === "test" && process.env.TEST_LOGGING !== "true") {
+    return;
+  }
   try {
     const payload = buildPayload(level, event, fields);
     const output = JSON.stringify(payload);

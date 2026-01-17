@@ -1,9 +1,11 @@
-import { isPgMem, pool } from "../../db";
+import { initializeTestDatabase, isPgMem, pool } from "../../db";
 
 export async function ensureAuditEventSchema(): Promise<void> {
   if (!isPgMem) {
     return;
   }
+
+  await initializeTestDatabase();
 
   const missingColumns: Array<{ name: string; type: string }> = [
     { name: "event_type", type: "text" },

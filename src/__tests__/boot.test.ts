@@ -29,6 +29,7 @@ describe("boot behavior", () => {
     process.env = {
       PORT: "0",
       STARTUP_WATCHDOG_MS: "2000",
+      NODE_ENV: "test",
       JWT_SECRET: "test-access-secret",
       JWT_REFRESH_SECRET: "test-refresh-secret",
       JWT_EXPIRES_IN: "1h",
@@ -45,8 +46,8 @@ describe("boot behavior", () => {
         .mockImplementation((() => undefined) as never);
       jest.resetModules();
       jest.isolateModules(() => {
-        const { server: importedServer } = require("../index");
-        server = importedServer as import("http").Server;
+        const { startServer } = require("../index");
+        server = startServer() as import("http").Server;
       });
 
       await waitForCondition(() => Boolean(server?.listening), 2000);

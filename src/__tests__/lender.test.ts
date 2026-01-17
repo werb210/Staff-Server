@@ -23,6 +23,7 @@ async function resetDb(): Promise<void> {
   await pool.query("delete from documents");
   await pool.query("delete from applications");
   await pool.query("delete from idempotency_keys");
+  await pool.query("delete from otp_verifications");
   await pool.query("delete from auth_refresh_tokens");
   await pool.query("delete from password_resets");
   await pool.query("delete from audit_events");
@@ -132,7 +133,7 @@ describe("lender submissions", () => {
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
       .send({ applicationId });
-    expect(submission2.status).toBe(submission1.status);
+    expect(submission2.status).toBe(200);
     expect(submission2.body.submission.id).toBe(submission1.body.submission.id);
 
     const status = await request(app)
@@ -149,6 +150,7 @@ describe("lender submissions", () => {
     );
     expect(audit.rows.map((row) => row.action)).toEqual([
       "lender_submission_created",
+      "lender_submission_retried",
     ]);
   });
 

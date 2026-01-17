@@ -28,11 +28,12 @@ describe("startup behavior", () => {
   it("listens within 2s and responds to health before readiness", async () => {
     process.env.PORT = "0";
     process.env.STARTUP_WATCHDOG_MS = "2000";
+    process.env.NODE_ENV = "test";
     resetStartupState();
 
     jest.isolateModules(() => {
-      const { server: importedServer } = require("../index");
-      server = importedServer as import("http").Server;
+      const { startServer } = require("../index");
+      server = startServer() as import("http").Server;
     });
 
     await waitForCondition(() => Boolean(server?.listening), 2000);
@@ -48,11 +49,12 @@ describe("startup behavior", () => {
   it("closes cleanly without hanging", async () => {
     process.env.PORT = "0";
     process.env.STARTUP_WATCHDOG_MS = "2000";
+    process.env.NODE_ENV = "test";
     resetStartupState();
 
     jest.isolateModules(() => {
-      const { server: importedServer } = require("../index");
-      server = importedServer as import("http").Server;
+      const { startServer } = require("../index");
+      server = startServer() as import("http").Server;
     });
 
     await waitForCondition(() => Boolean(server?.listening), 2000);
