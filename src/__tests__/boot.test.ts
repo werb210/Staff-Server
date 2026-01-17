@@ -45,9 +45,16 @@ describe("boot behavior", () => {
         .spyOn(process, "exit")
         .mockImplementation((() => undefined) as never);
       jest.resetModules();
-      jest.isolateModules(() => {
-        const { startServer } = require("../index");
-        server = startServer() as import("http").Server;
+      await new Promise<void>((resolve, reject) => {
+        jest.isolateModules(() => {
+          const { startServer } = require("../index");
+          startServer()
+            .then((listener: import("http").Server) => {
+              server = listener;
+              resolve();
+            })
+            .catch(reject);
+        });
       });
 
       await waitForCondition(() => Boolean(server?.listening), 2000);

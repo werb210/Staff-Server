@@ -22,17 +22,26 @@ describe("twilio startup without configuration", () => {
     process.env.NODE_ENV = "test";
 
     jest.resetModules();
-    jest.isolateModules(() => {
-      const { startServer } = require("../index");
-      const { getTwilioClient, isTwilioEnabled } = require("../services/twilio");
-      expect(isTwilioEnabled()).toBe(false);
-      expect(getTwilioClient()).toBeNull();
-      server = startServer() as import("http").Server;
+    await new Promise<void>((resolve, reject) => {
+      jest.isolateModules(() => {
+        const { startServer } = require("../index");
+        const { getTwilioClient, isTwilioEnabled } = require("../services/twilio");
+        expect(isTwilioEnabled()).toBe(false);
+        expect(getTwilioClient()).toBeNull();
+        startServer()
+          .then((listener: import("http").Server) => {
+            server = listener;
+            resolve();
+          })
+          .catch(reject);
+      });
     });
 
-    await new Promise<void>((resolve) => {
-      server?.once("listening", resolve);
-    });
+    if (!server?.listening) {
+      await new Promise<void>((resolve) => {
+        server?.once("listening", resolve);
+      });
+    }
     expect(server?.listening).toBe(true);
 
   });

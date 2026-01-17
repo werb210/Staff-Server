@@ -30,12 +30,27 @@ function parseBearer(req: Request): string | null {
   return token;
 }
 
+function isPublicPath(path: string): boolean {
+  return (
+    path === "/health" ||
+    path === "/ready" ||
+    path === "/api/health" ||
+    path === "/api/ready" ||
+    path.startsWith("/api/_int") ||
+    path.startsWith("/_int")
+  );
+}
+
 export default function requireAuth(
   req: Request,
   res: Response,
   next: NextFunction
 ): void {
-  if (req.path.startsWith("/api/_int") || req.path.startsWith("/api/auth")) {
+  if (
+    req.path.startsWith("/api/auth") ||
+    req.path.startsWith("/api/_int") ||
+    isPublicPath(req.path)
+  ) {
     next();
     return;
   }

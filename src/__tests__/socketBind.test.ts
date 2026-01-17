@@ -17,48 +17,58 @@ describe("socket bind", () => {
     jest.resetModules();
   });
 
-  it("uses a single listener with the configured port", () => {
+  it("uses a single listener with the configured port", async () => {
     process.env.PORT = "4555";
     process.env.STARTUP_WATCHDOG_MS = "25";
 
-    const listenSpy = jest.fn(() => {
+    const listenSpy = jest.fn((_port, _host, cb?: () => void) => {
       const server = createMockServer();
       server.listening = true;
-      process.nextTick(() => server.emit("listening"));
+      process.nextTick(() => {
+        server.emit("listening");
+        cb?.();
+      });
       return server as unknown as import("http").Server;
     });
 
-    jest.isolateModules(() => {
-      jest.doMock("../app", () => ({
-        buildApp: () => ({ listen: listenSpy, use: jest.fn() }),
-        registerApiRoutes: jest.fn(),
-      }));
-      const { startServer } = require("../index");
-      startServer();
+    await new Promise<void>((resolve, reject) => {
+      jest.isolateModules(() => {
+        jest.doMock("../app", () => ({
+          buildApp: () => ({ listen: listenSpy, use: jest.fn() }),
+          registerApiRoutes: jest.fn(),
+        }));
+        const { startServer } = require("../index");
+        startServer().then(() => resolve()).catch(reject);
+      });
     });
 
     expect(listenSpy).toHaveBeenCalledTimes(1);
     expect(listenSpy).toHaveBeenCalledWith(4555, "0.0.0.0", expect.any(Function));
   });
 
-  it("binds to 0.0.0.0 on the env port", () => {
+  it("binds to 0.0.0.0 on the env port", async () => {
     process.env.PORT = "4999";
     process.env.STARTUP_WATCHDOG_MS = "25";
 
-    const listenSpy = jest.fn(() => {
+    const listenSpy = jest.fn((_port, _host, cb?: () => void) => {
       const server = createMockServer();
       server.listening = true;
-      process.nextTick(() => server.emit("listening"));
+      process.nextTick(() => {
+        server.emit("listening");
+        cb?.();
+      });
       return server as unknown as import("http").Server;
     });
 
-    jest.isolateModules(() => {
-      jest.doMock("../app", () => ({
-        buildApp: () => ({ listen: listenSpy, use: jest.fn() }),
-        registerApiRoutes: jest.fn(),
-      }));
-      const { startServer } = require("../index");
-      startServer();
+    await new Promise<void>((resolve, reject) => {
+      jest.isolateModules(() => {
+        jest.doMock("../app", () => ({
+          buildApp: () => ({ listen: listenSpy, use: jest.fn() }),
+          registerApiRoutes: jest.fn(),
+        }));
+        const { startServer } = require("../index");
+        startServer().then(() => resolve()).catch(reject);
+      });
     });
 
     expect(listenSpy).toHaveBeenCalledWith(4999, "0.0.0.0", expect.any(Function));

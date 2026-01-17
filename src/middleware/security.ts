@@ -6,6 +6,26 @@ function isLoopback(req: Request): boolean {
   return ip === "127.0.0.1" || ip === "::1" || ip.startsWith("::ffff:127.0.0.1");
 }
 
+function isCodespacesRuntime(): boolean {
+  return (
+    process.env.CODESPACES === "true" ||
+    Boolean(process.env.CODESPACE_NAME) ||
+    Boolean(process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN)
+  );
+}
+
+function isPublicHealthPath(req: Request): boolean {
+  const path = req.path;
+  return (
+    path === "/health" ||
+    path === "/ready" ||
+    path === "/api/health" ||
+    path === "/api/ready" ||
+    path.startsWith("/api/_int") ||
+    path.startsWith("/_int")
+  );
+}
+
 function isAzureHttps(req: Request): boolean {
   // Azure sets one or more of these when TLS is terminated upstream
   return (
@@ -19,7 +39,7 @@ export function requireHttps(req: Request, res: Response, next: NextFunction): v
   if (!isProductionEnvironment()) return next();
 
   // Always allow internal routes (health/ready) and loopback
-  if (req.path.startsWith("/api/_int") || isLoopback(req)) return next();
+  if (isPublicHealthPath(req) || isLoopback(req) || isCodespacesRuntime()) return next();
 
   if (!isAzureHttps(req)) {
     res.status(400).json({

@@ -42,36 +42,58 @@ async function bootstrapMigrations(): Promise<void> {
   }
 }
 
-export function startServer(): ReturnType<ReturnType<typeof buildApp>["listen"]> {
+function assertBaseUrlForCi(): void {
+  const isCi = process.env.CI === "true" || process.env.CI === "1";
+  if (!isCi) {
+    return;
+  }
+  const baseUrl = process.env.BASE_URL;
+  if (!baseUrl) {
+    return;
+  }
+  if (/localhost|127\.0\.0\.1/i.test(baseUrl)) {
+    throw new Error("BASE_URL must not use localhost in CI.");
+  }
+}
+
+export async function startServer(): Promise<
+  ReturnType<ReturnType<typeof buildApp>["listen"]>
+> {
   installProcessHandlers();
+  assertBaseUrlForCi();
 
   const app = buildApp();
   registerApiRoutes(app);
 
-  const port = resolvePort();
-  server = app.listen(port, "0.0.0.0", () => {
-    if (typeof app.set === "function") {
-      const address = typeof server?.address === "function" ? server.address() : null;
-      if (address && typeof address === "object" && "port" in address) {
-        app.set("port", address.port);
-      } else {
-        app.set("port", port);
-      }
+  if (typeof initializeServer === "function") {
+    try {
+      await initializeServer();
+    } catch (err) {
+      logError("server_initialize_failed", { err });
     }
-    if (process.env.NODE_ENV !== "test") {
-      console.log(`API server listening on ${port}`);
+  }
+
+  const port = resolvePort();
+  server = await new Promise((resolve) => {
+    const listener = app.listen(port, "0.0.0.0", () => {
+      if (typeof app.set === "function") {
+        const address =
+          typeof listener?.address === "function" ? listener.address() : null;
+        if (address && typeof address === "object" && "port" in address) {
+          app.set("port", address.port);
+        } else {
+          app.set("port", port);
+        }
+      }
+      if (process.env.NODE_ENV !== "test") {
+        console.log(`API server listening on ${port}`);
+      }
+      resolve(listener);
+    });
+    if (typeof app.set === "function") {
+      app.set("server", listener);
     }
   });
-
-  if (typeof app.set === "function") {
-    app.set("server", server);
-  }
-
-  if (typeof initializeServer === "function") {
-    initializeServer().catch((err) => {
-      logError("server_initialize_failed", { err });
-    });
-  }
 
   if (process.env.NODE_ENV !== "test") {
     bootstrapMigrations().catch((err) => {
@@ -79,11 +101,16 @@ export function startServer(): ReturnType<ReturnType<typeof buildApp>["listen"]>
     });
   }
 
+  if (!server) {
+    throw new Error("Server failed to start.");
+  }
   return server;
 }
 
 if (require.main === module) {
-  startServer();
+  startServer().catch((err) => {
+    logError("server_start_failed", { err });
+  });
 }
 
 export { server };
