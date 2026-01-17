@@ -13,8 +13,11 @@ function requireBaseUrl(): string | null {
     }
     return null;
   }
-  if (/localhost|127\.0\.0\.1/i.test(baseUrl)) {
+  if (isCodespaces && /localhost|127\.0\.0\.1/i.test(baseUrl)) {
     throw new Error("BASE_URL must not use localhost.");
+  }
+  if (!isCodespaces && /localhost|127\.0\.0\.1/i.test(baseUrl)) {
+    return null;
   }
   return baseUrl;
 }

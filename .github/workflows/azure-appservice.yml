@@ -26,6 +26,9 @@ jobs:
         run: npm run build
 
       - name: Test
+        env:
+          NODE_ENV: test
+          BASE_URL: http://127.0.0.1:3000
         run: npm test
 
       - name: Create deployment package
