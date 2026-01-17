@@ -5,7 +5,6 @@ import { createUserAccount } from "../modules/auth/auth.service";
 import { ROLES } from "../auth/roles";
 import { resetLoginRateLimit } from "../middleware/rateLimit";
 import { ensureAuditEventSchema } from "./helpers/auditSchema";
-import { issueRefreshTokenForUser } from "./helpers/refreshTokens";
 import { otpVerifyRequest } from "./helpers/otpAuth";
 
 const app = buildAppWithApiRoutes();
@@ -24,7 +23,6 @@ async function resetDb(): Promise<void> {
   await pool.query("delete from applications");
   await pool.query("delete from idempotency_keys");
   await pool.query("delete from otp_verifications");
-  await pool.query("delete from auth_refresh_tokens");
   await pool.query("delete from password_resets");
   await pool.query("delete from audit_events");
   await pool.query("delete from users where id <> '00000000-0000-0000-0000-000000000001'");
@@ -35,9 +33,6 @@ beforeAll(async () => {
   process.env.BUILD_TIMESTAMP = "2024-01-01T00:00:00.000Z";
   process.env.COMMIT_SHA = "test-commit";
   process.env.JWT_SECRET = "test-access-secret";
-  process.env.JWT_REFRESH_SECRET = "test-refresh-secret";
-  process.env.JWT_EXPIRES_IN = "1h";
-  process.env.JWT_REFRESH_EXPIRES_IN = "1d";
   process.env.NODE_ENV = "test";
   await ensureAuditEventSchema();
 });
@@ -53,7 +48,7 @@ afterAll(async () => {
 });
 
 describe("auth otp", () => {
-  it("verifies otp and returns access tokens", async () => {
+  it("verifies otp and returns a jwt token", async () => {
     const phone = nextPhone();
     await createUserAccount({
       email: "admin@example.com",
@@ -67,15 +62,18 @@ describe("auth otp", () => {
     });
 
     expect(res.status).toBe(200);
-    expect(res.body.data.accessToken).toBeTruthy();
-    expect(res.body.data.refreshToken).toBeTruthy();
+    expect(res.body.token).toBeTruthy();
+    expect(res.body.user).toEqual({
+      id: expect.any(String),
+      role: ROLES.ADMIN,
+      email: "admin@example.com",
+    });
 
     const me = await request(app)
       .get("/api/auth/me")
-      .set("Authorization", `Bearer ${res.body.data.accessToken}`);
+      .set("Authorization", `Bearer ${res.body.token}`);
     expect(me.status).toBe(200);
     expect(me.body.ok).toBe(true);
-    expect(me.body.data.phone).toBe(phone);
     expect(me.body.data.role).toBe(ROLES.ADMIN);
   });
 
@@ -104,41 +102,6 @@ describe("auth otp", () => {
 
     expect(res.status).toBe(404);
     expect(res.body.error.code).toBe("user_not_found");
-  });
-
-  it("persists refresh token metadata on otp verification", async () => {
-    const phone = nextPhone();
-    const user = await createUserAccount({
-      email: "token-check@example.com",
-      phoneNumber: phone,
-      role: ROLES.STAFF,
-    });
-
-    const res = await otpVerifyRequest(app, {
-      phone,
-      requestId,
-    });
-
-    expect(res.status).toBe(200);
-    expect(res.body.data.refreshToken).toBeTruthy();
-
-    const stored = await pool.query(
-      `select user_id as "userId",
-              token_hash as "tokenHash",
-              expires_at as "expiresAt",
-              revoked_at as "revokedAt",
-              created_at as "createdAt"
-       from auth_refresh_tokens
-       where user_id = $1`,
-      [user.id]
-    );
-    expect(stored.rows).toHaveLength(1);
-    const record = stored.rows[0];
-    expect(record.userId).toBe(user.id);
-    expect(record.tokenHash).toBeTruthy();
-    expect(record.expiresAt).toBeTruthy();
-    expect(record.createdAt).toBeTruthy();
-    expect(record.revokedAt).toBeNull();
   });
 
   it("rejects otp verification when code is invalid", async () => {
@@ -180,56 +143,4 @@ describe("auth otp", () => {
     expect(res.body.error.code).toBe("account_disabled");
   });
 
-  it("refreshes and revokes sessions on logout", async () => {
-    const phone = nextPhone();
-    const user = await createUserAccount({
-      email: "cycle@example.com",
-      phoneNumber: phone,
-      role: ROLES.STAFF,
-    });
-
-    const login = await otpVerifyRequest(app, { phone, requestId });
-    expect(login.status).toBe(200);
-
-    const refreshed = await request(app)
-      .post("/api/auth/refresh")
-      .set("x-request-id", requestId)
-      .send({ refreshToken: login.body.data.refreshToken });
-    expect(refreshed.status).toBe(200);
-    expect(refreshed.body.ok).toBe(true);
-
-    const logout = await request(app)
-      .post("/api/auth/logout")
-      .set("Authorization", `Bearer ${refreshed.body.data.accessToken}`)
-      .set("x-request-id", requestId)
-      .send({ refreshToken: refreshed.body.data.refreshToken });
-    expect(logout.status).toBe(200);
-    expect(logout.body.ok).toBe(true);
-
-    const reuse = await request(app)
-      .post("/api/auth/refresh")
-      .set("x-request-id", requestId)
-      .send({ refreshToken: refreshed.body.data.refreshToken });
-    expect(reuse.status).toBe(401);
-    expect(reuse.body.error.code).toBe("invalid_token");
-
-    const token = await issueRefreshTokenForUser(user.id);
-    const freshLogin = await otpVerifyRequest(app, { phone, requestId });
-    expect(freshLogin.status).toBe(200);
-
-    const logoutAll = await request(app)
-      .post("/api/auth/logout-all")
-      .set("Authorization", `Bearer ${freshLogin.body.data.accessToken}`)
-      .set("x-request-id", requestId)
-      .send({});
-    expect(logoutAll.status).toBe(200);
-    expect(logoutAll.body.ok).toBe(true);
-
-    const refreshAfterLogoutAll = await request(app)
-      .post("/api/auth/refresh")
-      .set("x-request-id", requestId)
-      .send({ refreshToken: token });
-    expect(refreshAfterLogoutAll.status).toBe(401);
-    expect(refreshAfterLogoutAll.body.error.code).toBe("invalid_token");
-  });
 });

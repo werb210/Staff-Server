@@ -30,7 +30,6 @@ async function resetDb(): Promise<void> {
     await client.query("delete from documents");
     await client.query("delete from applications");
     await client.query("delete from idempotency_keys");
-    await client.query("delete from auth_refresh_tokens");
     await client.query("delete from password_resets");
     await client.query("delete from audit_events");
     await client.query("delete from users where id <> '00000000-0000-0000-0000-000000000001'");
@@ -59,9 +58,6 @@ beforeAll(async () => {
   process.env.BUILD_TIMESTAMP = "2024-01-01T00:00:00.000Z";
   process.env.COMMIT_SHA = "test-commit";
   process.env.JWT_SECRET = "test-access-secret";
-  process.env.JWT_REFRESH_SECRET = "test-refresh-secret";
-  process.env.JWT_EXPIRES_IN = "1h";
-  process.env.JWT_REFRESH_EXPIRES_IN = "1d";
   process.env.LOGIN_LOCKOUT_THRESHOLD = "2";
   process.env.LOGIN_LOCKOUT_MINUTES = "10";
   process.env.PASSWORD_MAX_AGE_DAYS = "30";
@@ -99,7 +95,7 @@ describe("auth contract", () => {
 
     expect([200, 401]).toContain(res.status);
     if (res.status === 200) {
-      expect(res.body.accessToken).toBeDefined();
+      expect(res.body.token).toBeDefined();
     }
     expectRequestId(res, requestId);
   });
@@ -179,11 +175,7 @@ describe("auth contract", () => {
         message: "Invalid or expired code",
       });
     } else {
-      expect(second.body.ok).toBe(true);
-      expect(second.body).toMatchObject({
-        data: { alreadyVerified: true },
-        error: null,
-      });
+      expect(second.body.token).toBeDefined();
     }
     expectRequestId(second, requestId);
   });

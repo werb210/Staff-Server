@@ -23,16 +23,11 @@ export async function otpVerifyRequest(
     phone: params.phone,
     code: params.code ?? DEFAULT_OTP_CODE,
   });
-  if (res.body?.data) {
-    if (res.body.data.accessToken) {
-      res.body.accessToken = res.body.data.accessToken;
-    }
-    if (res.body.data.refreshToken) {
-      res.body.refreshToken = res.body.data.refreshToken;
-    }
-    if (res.body.data.alreadyVerified) {
-      res.body.alreadyVerified = res.body.data.alreadyVerified;
-    }
+  if (res.body?.token) {
+    res.body.accessToken = res.body.token;
+  }
+  if (res.body?.user) {
+    res.body.user = res.body.user;
   }
   if (res.body?.error?.code && !res.body.code) {
     res.body.code = res.body.error.code;

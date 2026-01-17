@@ -28,7 +28,7 @@ describe("OTP endpoints when Twilio is disabled", () => {
   it("returns a controlled error for OTP request", async () => {
     const app = buildTestApp();
     const res = await request(app)
-      .post("/api/auth/otp/request")
+      .post("/api/auth/otp/start")
       .send({ phone: "+15878881337" });
 
     expect(res.status).toBe(424);

@@ -31,7 +31,6 @@ async function resetDb(): Promise<void> {
   } catch {
     // ignore missing table in pg-mem reset flow
   }
-  await pool.query("delete from auth_refresh_tokens");
   await pool.query("delete from password_resets");
   await pool.query("delete from audit_events");
   await pool.query("delete from users where id <> '00000000-0000-0000-0000-000000000001'");
@@ -42,9 +41,6 @@ beforeAll(async () => {
   process.env.BUILD_TIMESTAMP = "2024-01-01T00:00:00.000Z";
   process.env.COMMIT_SHA = "test-commit";
   process.env.JWT_SECRET = "test-access-secret";
-  process.env.JWT_REFRESH_SECRET = "test-refresh-secret";
-  process.env.JWT_EXPIRES_IN = "1h";
-  process.env.JWT_REFRESH_EXPIRES_IN = "1d";
   process.env.NODE_ENV = "test";
   await ensureAuditEventSchema();
 });
@@ -89,7 +85,7 @@ describe("auth otp contract", () => {
     expect(res.status).toBe(200);
 
     const payload = jwt.verify(
-      res.body.data.accessToken,
+      res.body.token,
       process.env.JWT_SECRET ?? "test-access-secret"
     ) as jwt.JwtPayload;
 
@@ -138,7 +134,7 @@ describe("auth otp contract", () => {
 
     const me = await request(app)
       .get("/api/auth/me")
-      .set("Authorization", `Bearer ${res.body.data.accessToken}`);
+      .set("Authorization", `Bearer ${res.body.token}`);
 
     expect(me.status).toBe(200);
     expect(me.body.ok).toBe(true);
@@ -172,44 +168,11 @@ describe("auth otp contract", () => {
       .send({ phone, code: DEFAULT_OTP_CODE });
 
     expect(second.status).toBe(200);
-    expect(second.body).toMatchObject({
-      ok: true,
-      data: { alreadyVerified: true },
-      error: null,
-    });
-    expect(second.body.requestId).toBeDefined();
-    expect(twilioMocks.createVerificationCheck).toHaveBeenCalledTimes(1);
-  });
-
-  it("returns 200 when refresh token cookie is valid", async () => {
-    const phone = nextPhone();
-    await createUserAccount({
-      email: "otp-cookie@example.com",
-      phoneNumber: phone,
+    expect(second.body.token).toBeTruthy();
+    expect(second.body.user).toMatchObject({
       role: ROLES.STAFF,
+      email: "otp-repeat@example.com",
     });
-
-    const twilioMocks = getTwilioMocks();
-    twilioMocks.createVerificationCheck.mockResolvedValueOnce({
-      status: "approved",
-      sid: "VE-CHECK-005",
-    });
-
-    const first = await otpVerifyRequest(app, { phone });
-    expect(first.status).toBe(200);
-
-    const res = await request(app)
-      .post("/api/auth/otp/verify")
-      .set("Cookie", `refreshToken=${first.body.data.refreshToken}`)
-      .send({ phone, code: "000000" });
-
-    expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({
-      ok: true,
-      data: { alreadyVerified: true },
-      error: null,
-    });
-    expect(res.body.requestId).toBeDefined();
     expect(twilioMocks.createVerificationCheck).toHaveBeenCalledTimes(1);
   });
 
@@ -256,9 +219,11 @@ describe("auth otp contract", () => {
 
     const res = await otpVerifyRequest(app, { phone });
     expect(res.status).toBe(200);
-    expect(res.body.ok).toBe(true);
-    expect(res.body.data.accessToken).toBeTruthy();
-    expect(res.body.data.refreshToken).toBeTruthy();
+    expect(res.body.token).toBeTruthy();
+    expect(res.body.user).toMatchObject({
+      role: ROLES.STAFF,
+      email: "otp-missing-table@example.com",
+    });
   });
 
   it("uses the Verify check endpoint with the configured service SID", async () => {

@@ -12,8 +12,6 @@ import { type AuthenticatedUser } from "../types/auth";
 type AccessTokenPayload = JwtPayload & {
   sub?: string;
   role?: string;
-  phone?: string;
-  capabilities?: Capability[] | string[];
 };
 
 const AUTH_ME_GRACE_WINDOW_MS = 5 * 60 * 1000;
@@ -158,22 +156,14 @@ function normalizeAuthenticatedUser(
   if (!userId) {
     return null;
   }
-  if (typeof payload.role === "string" && !isRole(payload.role)) {
+  if (typeof payload.role !== "string" || !isRole(payload.role)) {
     throw forbiddenError("Unknown role.");
   }
-  const role =
-    typeof payload.role === "string" && isRole(payload.role) ? payload.role : null;
-  const phone = typeof payload.phone === "string" ? payload.phone : null;
-  const capabilities = Array.isArray(payload.capabilities)
-    ? (payload.capabilities.filter(
-        (capability): capability is Capability => typeof capability === "string"
-      ) as Capability[])
-    : undefined;
+  const role = payload.role;
   return {
     userId,
     role,
-    phone,
-    capabilities: capabilities ?? (role ? getCapabilitiesForRole(role) : []),
+    capabilities: getCapabilitiesForRole(role),
   };
 }
 

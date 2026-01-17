@@ -15,7 +15,6 @@ describe("auth me smoke", () => {
       {
         sub: "user-123",
         role: ROLES.STAFF,
-        phone: "+14155551234",
       },
       process.env.JWT_SECRET ?? "test-access-secret",
       { expiresIn: "1h" }
@@ -31,7 +30,7 @@ describe("auth me smoke", () => {
     expect(res.body.data.role).toBe(ROLES.STAFF);
   });
 
-  it("returns null role when token has no role claim", async () => {
+  it("rejects tokens without role claim", async () => {
     const token = jwt.sign(
       {
         sub: "test-user-123",
@@ -44,9 +43,6 @@ describe("auth me smoke", () => {
       .get("/api/auth/me")
       .set("Authorization", `Bearer ${token}`);
 
-    expect(res.status).toBe(200);
-    expect(res.body.ok).toBe(true);
-    expect(res.body.data.userId).toBe("test-user-123");
-    expect(res.body.data.role).toBeNull();
+    expect(res.status).toBe(401);
   });
 });

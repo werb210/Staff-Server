@@ -48,9 +48,6 @@ async function loginAdmin(): Promise<string> {
 beforeAll(async () => {
   process.env.DATABASE_URL = "pg-mem";
   process.env.JWT_SECRET = "test-access-secret";
-  process.env.JWT_REFRESH_SECRET = "test-refresh-secret";
-  process.env.JWT_EXPIRES_IN = "1h";
-  process.env.JWT_REFRESH_EXPIRES_IN = "1d";
   process.env.LOGIN_LOCKOUT_THRESHOLD = "2";
   process.env.LOGIN_LOCKOUT_MINUTES = "10";
   process.env.PASSWORD_MAX_AGE_DAYS = "30";

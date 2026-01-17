@@ -3,7 +3,6 @@ import { buildAppWithApiRoutes } from "../app";
 import { initializeTestDatabase, pool } from "../db";
 import { createUserAccount } from "../modules/auth/auth.service";
 import { ROLES } from "../auth/roles";
-import { issueRefreshTokenForUser } from "./helpers/refreshTokens";
 import { ensureAuditEventSchema } from "./helpers/auditSchema";
 import { otpVerifyRequest } from "./helpers/otpAuth";
 
@@ -26,7 +25,6 @@ async function resetDb(): Promise<void> {
   await pool.query("delete from applications");
   await pool.query("delete from idempotency_keys");
   await pool.query("delete from otp_verifications");
-  await pool.query("delete from auth_refresh_tokens");
   await pool.query("delete from password_resets");
   await pool.query("delete from audit_events");
   await pool.query("delete from users where id <> '00000000-0000-0000-0000-000000000001'");
@@ -37,9 +35,6 @@ beforeAll(async () => {
   process.env.BUILD_TIMESTAMP = "2024-01-01T00:00:00.000Z";
   process.env.COMMIT_SHA = "test-commit";
   process.env.JWT_SECRET = "test-access-secret";
-  process.env.JWT_REFRESH_SECRET = "test-refresh-secret";
-  process.env.JWT_EXPIRES_IN = "1h";
-  process.env.JWT_REFRESH_EXPIRES_IN = "1d";
   process.env.LOGIN_LOCKOUT_THRESHOLD = "2";
   process.env.LOGIN_LOCKOUT_MINUTES = "10";
   process.env.PASSWORD_MAX_AGE_DAYS = "30";
@@ -86,7 +81,7 @@ describe("admin lifecycle", () => {
     expect(res.body.code).toBe("forbidden");
   });
 
-  it("invalidates sessions on disable", async () => {
+  it("blocks new OTP logins after disable", async () => {
     const adminPhone = nextPhone();
     const userPhone = nextPhone();
     await createUserAccount({
@@ -118,15 +113,13 @@ describe("admin lifecycle", () => {
       .set("x-request-id", requestId);
     expect(disable.status).toBe(200);
 
-    const refresh = await request(app)
-      .post("/api/auth/refresh")
-      .set("Idempotency-Key", nextIdempotencyKey())
-      .set("x-request-id", requestId)
-      .send({
-      refreshToken: await issueRefreshTokenForUser(user.id),
+    const deniedLogin = await otpVerifyRequest(app, {
+      phone: userPhone,
+      requestId,
+      idempotencyKey: nextIdempotencyKey(),
     });
-    expect(refresh.status).toBe(401);
-    expect(refresh.body.error.code).toBe("invalid_token");
+    expect(deniedLogin.status).toBe(403);
+    expect(deniedLogin.body.code).toBe("user_disabled");
 
     const me = await request(app)
       .get("/api/auth/me")
@@ -134,7 +127,6 @@ describe("admin lifecycle", () => {
     expect(me.status).toBe(200);
     expect(me.body.ok).toBe(true);
     expect(me.body.data.role).toBe(ROLES.STAFF);
-    expect(me.body.data.phone).toBe(userPhone);
   });
 
   it("records audit events for lifecycle actions", async () => {

@@ -3,7 +3,7 @@ import { type Role } from "../auth/roles";
 
 export interface AuthenticatedUser {
   userId: string;
-  role: Role | null;
+  role: Role;
   phone?: string | null;
   capabilities?: Capability[];
 }

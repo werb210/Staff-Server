@@ -6,9 +6,6 @@ dotenv.config();
 const requiredRuntimeEnv = [
   "NODE_ENV",
   "DATABASE_URL",
-  "JWT_REFRESH_SECRET",
-  "JWT_EXPIRES_IN",
-  "JWT_REFRESH_EXPIRES_IN",
   "CORS_ALLOWED_ORIGINS",
   "RATE_LIMIT_WINDOW_MS",
   "RATE_LIMIT_MAX",
@@ -19,9 +16,6 @@ type EnvConfig = {
   nodeEnv: string;
   databaseUrl: string;
   jwtSecret: string;
-  jwtRefreshSecret: string;
-  jwtExpiresIn: string;
-  jwtRefreshExpiresIn: string;
   corsAllowlist: string[];
   rateLimitWindowMs: number;
   rateLimitMax: number;
@@ -84,11 +78,13 @@ export function assertEnv(): void {
   const missing: string[] = requiredRuntimeEnv.filter(
     (key) => !getEnvValue(key)
   );
-  if (!getEnvValue("JWT_SECRET")) {
+  const jwtSecret = getEnvValue("JWT_SECRET");
+  if (!jwtSecret) {
     missing.push("JWT_SECRET");
   }
   if (missing.length > 0) {
     logError("missing_env", { keys: missing });
+    throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
   }
   const allowlist = parseCsv(
     getEnvValue("CORS_ALLOWED_ORIGINS") ?? getEnvValue("CORS_ALLOWLIST"),
@@ -113,8 +109,6 @@ export function getEnvConfig(): EnvConfig {
   }
 
   const testDefaults = {
-    jwtExpiresIn: "1h",
-    jwtRefreshExpiresIn: "30d",
     corsAllowlist: ["*"],
     rateLimitWindowMs: 60_000,
     rateLimitMax: 100,
@@ -125,14 +119,6 @@ export function getEnvConfig(): EnvConfig {
   const databaseUrl =
     getEnvValue("DATABASE_URL") ?? (treatAsTest ? "" : "");
   const jwtSecret = getAccessTokenSecret() ?? (treatAsTest ? "test" : "");
-  const jwtRefreshSecret =
-    getEnvValue("JWT_REFRESH_SECRET") ?? (treatAsTest ? "test" : "");
-  const jwtExpiresIn =
-    getEnvValue("JWT_EXPIRES_IN") ??
-    (treatAsTest ? testDefaults.jwtExpiresIn : "");
-  const jwtRefreshExpiresIn =
-    getEnvValue("JWT_REFRESH_EXPIRES_IN") ??
-    (treatAsTest ? testDefaults.jwtRefreshExpiresIn : "");
   const corsAllowlist = parseCsv(
     getEnvValue("CORS_ALLOWED_ORIGINS") ?? getEnvValue("CORS_ALLOWLIST"),
     testDefaults.corsAllowlist
@@ -156,9 +142,6 @@ export function getEnvConfig(): EnvConfig {
     nodeEnv,
     databaseUrl,
     jwtSecret,
-    jwtRefreshSecret,
-    jwtExpiresIn,
-    jwtRefreshExpiresIn,
     corsAllowlist,
     rateLimitWindowMs,
     rateLimitMax,
@@ -189,11 +172,7 @@ export function getGlobalRateLimitMax(): number {
 }
 
 export function getJwtExpiresIn(): string {
-  return getEnvConfig().jwtExpiresIn;
-}
-
-export function getJwtRefreshExpiresIn(): string {
-  return getEnvConfig().jwtRefreshExpiresIn;
+  return "15m";
 }
 
 export function getAppInsightsConnectionString(): string {

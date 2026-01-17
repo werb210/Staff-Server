@@ -56,9 +56,6 @@ beforeAll(async () => {
   process.env.BUILD_TIMESTAMP = "2024-01-01T00:00:00.000Z";
   process.env.COMMIT_SHA = "test-commit";
   process.env.JWT_SECRET = "test-access-secret";
-  process.env.JWT_REFRESH_SECRET = "test-refresh-secret";
-  process.env.JWT_EXPIRES_IN = "1h";
-  process.env.JWT_REFRESH_EXPIRES_IN = "1d";
   process.env.NODE_ENV = "test";
   await ensureAuditEventSchema();
 });
