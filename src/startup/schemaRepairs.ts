@@ -1,3 +1,5 @@
+throw new Error("startup schema repairs are permanently disabled");
+
 import { pool } from "../db";
 import { isTestEnvironment } from "../dbRuntime";
 import { logError, logInfo, logWarn } from "../observability/logger";
