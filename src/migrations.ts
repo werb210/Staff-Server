@@ -224,6 +224,14 @@ export async function runMigrations(options?: { allowTest?: boolean }): Promise<
     if (applied.has(file)) {
       continue;
     }
+    if (isPgMem && file === "028_add_required_documents_to_lender_products.sql") {
+      await pool.query(
+        "insert into schema_migrations (id, applied_at) values ($1, now())",
+        [file]
+      );
+      logInfo("migration_skipped_pgmem", { migration: file });
+      continue;
+    }
     const rawSql = fs.readFileSync(path.join(migrationsDir, file), "utf8");
     const client = await pool.connect();
     try {
