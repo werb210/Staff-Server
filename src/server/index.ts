@@ -1,4 +1,4 @@
-import { buildApp, initializeServer, registerApiRoutes } from "../app";
+import { buildApp, registerApiRoutes } from "../app";
 import { assertEnv } from "../config";
 import { logError, logWarn } from "../observability/logger";
 
@@ -47,15 +47,6 @@ export async function startServer(): Promise<
 
   const app = buildApp();
   registerApiRoutes(app);
-
-  if (typeof initializeServer === "function") {
-    try {
-      await initializeServer();
-    } catch (err) {
-      logError("server_initialize_failed", { err });
-      throw err;
-    }
-  }
 
   const port = resolvePort();
   server = await new Promise((resolve) => {
