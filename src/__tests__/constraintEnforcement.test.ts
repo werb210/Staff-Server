@@ -46,7 +46,6 @@ async function loginAdmin(): Promise<string> {
 }
 
 beforeAll(async () => {
-  process.env.DATABASE_URL = "pg-mem";
   process.env.JWT_SECRET = "test-access-secret";
   process.env.LOGIN_LOCKOUT_THRESHOLD = "2";
   process.env.LOGIN_LOCKOUT_MINUTES = "10";

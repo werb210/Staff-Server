@@ -32,7 +32,6 @@ function expectNoStackTrace(res: request.Response): void {
 
 beforeAll(async () => {
   process.env.NODE_ENV = "test";
-  process.env.DATABASE_URL = "pg-mem";
   process.env.JWT_SECRET = "test-access-secret";
 
   jest.resetModules();

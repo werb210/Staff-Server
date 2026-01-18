@@ -26,7 +26,7 @@ import { migrateDatabase } from "./db/migrate";
 import { seedAdminUser, seedBaselineLenders, seedSecondAdminUser } from "./db/seed";
 import { ensureOtpTableExists } from "./db/ensureOtpTable";
 import { logError, logWarn } from "./observability/logger";
-import { checkDb, initializeTestDatabase } from "./db";
+import { checkDb } from "./db";
 import { enforceSecureCookies, requireHttps } from "./middleware/security";
 import { idempotencyMiddleware } from "./middleware/idempotency";
 import { ensureIdempotencyKey } from "./middleware/idempotencyKey";
@@ -108,15 +108,10 @@ export function buildApp(): express.Express {
 
 export async function initializeServer(): Promise<void> {
   markNotReady("initializing");
-  const hasDatabase =
-    process.env.DATABASE_URL === "pg-mem" || Boolean(process.env.DATABASE_URL);
+  const hasDatabase = Boolean(process.env.DATABASE_URL);
   if (!hasDatabase) {
     markNotReady("database_not_configured");
     return;
-  }
-
-  if (isTestEnvironment()) {
-    await initializeTestDatabase();
   }
 
   try {

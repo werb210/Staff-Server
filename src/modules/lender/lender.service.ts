@@ -2,7 +2,6 @@ import { AppError } from "../../middleware/errors";
 import { createHash } from "crypto";
 import { recordAuditEvent } from "../audit/audit.service";
 import { pool } from "../../db";
-import { isPgMemRuntime } from "../../dbRuntime";
 import { type PoolClient } from "pg";
 import {
   findApplicationById,
@@ -556,12 +555,10 @@ export async function submitApplication(params: {
   try {
     await client.query("begin");
 
-    if (!isPgMemRuntime()) {
-      const lockKey = createAdvisoryLockKey(
-        `transmission:${params.applicationId}:${params.lenderId}`
-      );
-      await client.query("select pg_advisory_xact_lock($1, $2)", lockKey);
-    }
+    const lockKey = createAdvisoryLockKey(
+      `transmission:${params.applicationId}:${params.lenderId}`
+    );
+    await client.query("select pg_advisory_xact_lock($1, $2)", lockKey);
 
     await client.query("select id from applications where id = $1 for update", [
       params.applicationId,

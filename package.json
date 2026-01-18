@@ -38,7 +38,6 @@
     "@types/pg": "^8.16.0",
     "@types/supertest": "^6.0.2",
     "jest": "^30.0.5",
-    "pg-mem": "^3.0.5",
     "supertest": "^7.1.4",
     "ts-jest": "^29.4.0",
     "tsx": "^4.7.0",

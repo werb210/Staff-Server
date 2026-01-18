@@ -2,7 +2,7 @@ import { type NextFunction, type Request, type Response } from "express";
 import { createHash } from "crypto";
 import { type PoolClient } from "pg";
 import { pool } from "../db";
-import { isDbConnectionFailure, isPgMemRuntime, isTestEnvironment } from "../dbRuntime";
+import { isDbConnectionFailure, isTestEnvironment } from "../dbRuntime";
 import { AppError } from "./errors";
 import { isProductionEnvironment } from "../config";
 import { createIdempotencyRecord, findIdempotencyRecord } from "../modules/idempotency/idempotency.repo";
@@ -17,12 +17,10 @@ type IdempotencyContext = {
   requestHash: string;
   lockClient: PoolClient | null;
   lockKey: [number, number] | null;
-  releaseLock: (() => void) | null;
   shouldStore: boolean;
 };
 
 const IDEMPOTENCY_HEADER = "idempotency-key";
-const inMemoryLocks = new Map<string, Promise<void>>();
 
 function hashValue(value: string): string {
   return createHash("sha256").update(value).digest("hex");
@@ -33,21 +31,6 @@ function createAdvisoryLockKey(value: string): [number, number] {
   return [hash.readInt32BE(0), hash.readInt32BE(4)];
 }
 
-async function acquireInMemoryLock(key: string): Promise<() => void> {
-  const previous = inMemoryLocks.get(key) ?? Promise.resolve();
-  let release: () => void;
-  const current = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  inMemoryLocks.set(key, previous.then(() => current));
-  await previous;
-  return () => {
-    release();
-    if (inMemoryLocks.get(key) === current) {
-      inMemoryLocks.delete(key);
-    }
-  };
-}
 
 function stableStringify(value: unknown): string {
   if (value === null || value === undefined) {
@@ -166,9 +149,6 @@ export function idempotencyMiddleware(
     const responseBody = res.locals.idempotencyResponseBody ?? null;
     const shouldPersist = res.statusCode < 500;
     if (!shouldPersist) {
-      if (context.releaseLock) {
-        context.releaseLock();
-      }
       if (context.lockClient && context.lockKey) {
         try {
           await context.lockClient.query("select pg_advisory_unlock($1, $2)", context.lockKey);
@@ -196,9 +176,6 @@ export function idempotencyMiddleware(
         error: error instanceof Error ? error.message : "unknown_error",
       });
     } finally {
-      if (context.releaseLock) {
-        context.releaseLock();
-      }
       if (context.lockClient && context.lockKey) {
         try {
           await context.lockClient.query("select pg_advisory_unlock($1, $2)", context.lockKey);
@@ -212,14 +189,9 @@ export function idempotencyMiddleware(
 
   const handle = async (): Promise<void> => {
     let lockClient: PoolClient | null = null;
-    let releaseLock: (() => void) | null = null;
     try {
-      const useInMemoryLock = isPgMemRuntime();
-      lockClient = useInMemoryLock ? null : await pool.connect();
-      releaseLock = useInMemoryLock ? await acquireInMemoryLock(lockIdentifier) : null;
-      if (lockClient) {
-        await lockClient.query("select pg_advisory_lock($1, $2)", lockKey);
-      }
+      lockClient = await pool.connect();
+      await lockClient.query("select pg_advisory_lock($1, $2)", lockKey);
       let existing = null;
       try {
         existing = await findIdempotencyRecord({
@@ -234,9 +206,6 @@ export function idempotencyMiddleware(
             route,
             error: error instanceof Error ? error.message : "unknown_error",
           });
-          if (releaseLock) {
-            releaseLock();
-          }
           if (lockClient) {
             await lockClient.query("select pg_advisory_unlock($1, $2)", lockKey);
             lockClient.release();
@@ -249,9 +218,6 @@ export function idempotencyMiddleware(
       if (existing) {
         if (existing.request_hash && existing.request_hash !== requestHash) {
           emitTelemetry("idempotency_conflict", { route, requestId, keyHash });
-          if (releaseLock) {
-            releaseLock();
-          }
           if (lockClient) {
             await lockClient.query("select pg_advisory_unlock($1, $2)", lockKey);
             lockClient.release();
@@ -265,9 +231,6 @@ export function idempotencyMiddleware(
         }
         emitTelemetry("idempotency_cache_hit", { route, requestId, keyHash });
         emitTelemetry("duplicate_submission_blocked", { route, requestId, keyHash });
-        if (releaseLock) {
-          releaseLock();
-        }
         if (lockClient) {
           await lockClient.query("select pg_advisory_unlock($1, $2)", lockKey);
           lockClient.release();
@@ -283,7 +246,6 @@ export function idempotencyMiddleware(
         requestHash,
         lockClient,
         lockKey,
-        releaseLock,
         shouldStore: true,
       };
 
@@ -313,9 +275,6 @@ export function idempotencyMiddleware(
 
       next();
     } catch (error) {
-      if (releaseLock) {
-        releaseLock();
-      }
       if (lockClient) {
         try {
           await lockClient.query("select pg_advisory_unlock($1, $2)", lockKey);

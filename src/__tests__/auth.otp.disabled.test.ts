@@ -12,7 +12,6 @@ describe("OTP endpoints when Twilio is disabled", () => {
   beforeEach(() => {
     process.env = {
       ...originalEnv,
-      DATABASE_URL: "pg-mem",
       NODE_ENV: "test",
     };
     delete process.env.TWILIO_ACCOUNT_SID;

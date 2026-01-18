@@ -63,7 +63,6 @@ function requestRoute(route: ApiRoute, token: string) {
 }
 
 beforeAll(async () => {
-  process.env.DATABASE_URL = "pg-mem";
   process.env.JWT_SECRET = "test-access-secret";
   process.env.NODE_ENV = "test";
   await ensureAuditEventSchema();

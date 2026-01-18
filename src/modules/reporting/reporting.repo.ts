@@ -57,64 +57,6 @@ export async function upsertDailyMetricsWindow(params: {
   client?: Queryable;
 }): Promise<number> {
   const runner = params.client ?? pool;
-  if (process.env.NODE_ENV === "test" && process.env.DATABASE_URL === "pg-mem") {
-    const [
-      applicationsCreated,
-      applicationsSubmitted,
-      applicationsApproved,
-      applicationsDeclined,
-      applicationsFunded,
-      documentsUploaded,
-      documentsApproved,
-      lenderSubmissions,
-    ] = await Promise.all([
-      runner.query<{ count: string }>(
-        "select count(*) from applications where created_at >= $1 and created_at < $2",
-        [params.start, params.end]
-      ),
-      runner.query<{ count: string }>(
-        "select count(*) from applications where pipeline_state = 'LENDER_SUBMITTED' and updated_at >= $1 and updated_at < $2",
-        [params.start, params.end]
-      ),
-      runner.query<{ count: string }>(
-        "select count(*) from applications where pipeline_state = 'APPROVED' and updated_at >= $1 and updated_at < $2",
-        [params.start, params.end]
-      ),
-      runner.query<{ count: string }>(
-        "select count(*) from applications where pipeline_state = 'DECLINED' and updated_at >= $1 and updated_at < $2",
-        [params.start, params.end]
-      ),
-      runner.query<{ count: string }>(
-        "select count(*) from applications where pipeline_state = 'FUNDED' and updated_at >= $1 and updated_at < $2",
-        [params.start, params.end]
-      ),
-      runner.query<{ count: string }>(
-        "select count(*) from document_versions where created_at >= $1 and created_at < $2",
-        [params.start, params.end]
-      ),
-      runner.query<{ count: string }>(
-        "select count(*) from document_version_reviews where status = 'accepted' and reviewed_at >= $1 and reviewed_at < $2",
-        [params.start, params.end]
-      ),
-      runner.query<{ count: string }>(
-        "select count(*) from lender_submissions where created_at >= $1 and created_at < $2",
-        [params.start, params.end]
-      ),
-    ]);
-
-    return upsertDailyMetrics({
-      metricDate: params.start.toISOString().slice(0, 10),
-      applicationsCreated: Number(applicationsCreated.rows[0]?.count ?? 0),
-      applicationsSubmitted: Number(applicationsSubmitted.rows[0]?.count ?? 0),
-      applicationsApproved: Number(applicationsApproved.rows[0]?.count ?? 0),
-      applicationsDeclined: Number(applicationsDeclined.rows[0]?.count ?? 0),
-      applicationsFunded: Number(applicationsFunded.rows[0]?.count ?? 0),
-      documentsUploaded: Number(documentsUploaded.rows[0]?.count ?? 0),
-      documentsApproved: Number(documentsApproved.rows[0]?.count ?? 0),
-      lenderSubmissions: Number(lenderSubmissions.rows[0]?.count ?? 0),
-      client: runner,
-    });
-  }
   const result = await runner.query(
     `insert into reporting_daily_metrics
      (id, metric_date, applications_created, applications_submitted, applications_approved, applications_declined,
@@ -256,36 +198,6 @@ export async function upsertLenderPerformanceWindow(params: {
   client?: Queryable;
 }): Promise<number> {
   const runner = params.client ?? pool;
-  if (process.env.NODE_ENV === "test" && process.env.DATABASE_URL === "pg-mem") {
-    const result = await runner.query(
-      `insert into reporting_lender_performance
-       (id, lender_id, period_start, period_end, submissions, approvals, declines, funded, avg_decision_time_seconds, created_at)
-       select
-         ls.lender_id || ':' || $1::text || ':' || $2::text,
-         ls.lender_id,
-         $1::date,
-         $2::date,
-         count(*)::int as submissions,
-         sum(case when a.pipeline_state = 'APPROVED' then 1 else 0 end)::int as approvals,
-         sum(case when a.pipeline_state = 'DECLINED' then 1 else 0 end)::int as declines,
-         sum(case when a.pipeline_state = 'FUNDED' then 1 else 0 end)::int as funded,
-         0,
-         $3::timestamp
-       from lender_submissions ls
-       join applications a on a.id = ls.application_id
-       where ls.created_at >= $1
-         and ls.created_at < $2
-       group by ls.lender_id
-       on conflict (lender_id, period_start, period_end) do update
-       set submissions = excluded.submissions,
-           approvals = excluded.approvals,
-           declines = excluded.declines,
-           funded = excluded.funded,
-           avg_decision_time_seconds = excluded.avg_decision_time_seconds`,
-      [params.periodStart, params.periodEnd, params.createdAt]
-    );
-    return result.rowCount ?? 0;
-  }
   const result = await runner.query(
     `insert into reporting_lender_performance
      (id, lender_id, period_start, period_end, submissions, approvals, declines, funded, avg_decision_time_seconds, created_at)

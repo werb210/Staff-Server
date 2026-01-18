@@ -105,14 +105,6 @@ async function streamQueryAsCsv(params: {
   columns: string[];
   write: (chunk: string) => void;
 }): Promise<void> {
-  if (process.env.NODE_ENV === "test" || process.env.DATABASE_URL === "pg-mem") {
-    const result = await pool.query<Record<string, unknown>>(params.query, params.values);
-    result.rows.forEach((row) => {
-      const line = params.columns.map((col) => csvValue(row[col])).join(",");
-      params.write(`${line}\n`);
-    });
-    return;
-  }
   const client = await pool.connect();
   const query = new Query(params.query, params.values);
   return new Promise((resolve, reject) => {

@@ -54,7 +54,6 @@ describe("application insights telemetry", () => {
     initializeAppInsights();
 
     process.env.NODE_ENV = "test";
-    process.env.DATABASE_URL = "pg-mem";
 
     const { requestId } = await import("../middleware/requestId");
     const { requestLogger } = await import("../middleware/requestLogger");
@@ -90,7 +89,6 @@ describe("application insights telemetry", () => {
     const originalNodeEnv = process.env.NODE_ENV;
 
     process.env.APPINSIGHTS_CONNECTION_STRING = validConnectionString;
-    process.env.DATABASE_URL = "pg-mem";
     process.env.NODE_ENV = "test";
 
     const { initializeAppInsights } = await import(
