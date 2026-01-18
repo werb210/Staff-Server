@@ -68,6 +68,24 @@ export async function createApplication(params: {
   return res.rows[0];
 }
 
+export async function listApplications(params?: {
+  limit?: number;
+  offset?: number;
+  client?: Queryable;
+}): Promise<ApplicationRecord[]> {
+  const runner = params?.client ?? pool;
+  const limit = params?.limit ?? 50;
+  const offset = params?.offset ?? 0;
+  const res = await runner.query<ApplicationRecord>(
+    `select id, owner_user_id, name, metadata, product_type, pipeline_state, created_at, updated_at
+     from applications
+     order by created_at desc
+     limit $1 offset $2`,
+    [limit, offset]
+  );
+  return res.rows;
+}
+
 export async function findApplicationById(
   id: string,
   client?: Queryable
