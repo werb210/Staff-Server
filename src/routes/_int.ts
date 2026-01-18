@@ -1,24 +1,16 @@
 import { Router } from "express";
 import { isTwilioEnabled } from "../services/twilio";
-import { healthHandler, readyHandler } from "./ready";
 import { getBuildInfo } from "../config";
 import { listRoutes } from "../debug/printRoutes";
-import requireAuth from "../middleware/auth";
+import { readyHandler } from "./ready";
+import requireAuth from "../middleware/requireAuth";
 import internalRoutes from "./internal";
 
 const router = Router();
 
-const publicPaths = new Set(["/health", "/ready", "/build", "/routes", "/env"]);
-
-router.use((req, res, next) => {
-  if (publicPaths.has(req.path)) {
-    next();
-    return;
-  }
-  requireAuth(req, res, next);
+router.get("/health", (_req, res) => {
+  res.status(200).json({ ok: true });
 });
-
-router.get("/health", healthHandler);
 router.get("/ready", readyHandler);
 router.get("/build", (_req, res) => {
   const { commitHash, buildTimestamp } = getBuildInfo();
@@ -39,7 +31,7 @@ router.get("/env", (_req, res) =>
   })
 );
 
-router.post("/twilio-test", async (_req, res) => {
+router.post("/twilio-test", requireAuth, async (_req, res) => {
   return res.json({ ok: true });
 });
 

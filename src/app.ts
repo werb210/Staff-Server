@@ -33,6 +33,7 @@ import authRoutes from "./routes/auth";
 import lendersRoutes from "./routes/lenders";
 import lenderProductsRoutes from "./routes/lenderProducts";
 import applicationsRoutes from "./routes/applications";
+import internalRoutes from "./routes/_int";
 
 function assertRoutesMounted(app: express.Express): void {
   const mountedRoutes = listRoutes(app);
@@ -86,10 +87,10 @@ export function buildApp(): express.Express {
   app.use(requestLogger);
   app.use(requestTimeout);
 
+  app.use("/api/_int", internalRoutes);
+
   app.get("/api/health", healthHandler);
   app.get("/api/ready", readyHandler);
-  app.get("/api/_int/health", healthHandler);
-  app.get("/api/_int/ready", readyHandler);
   app.get("/health", healthHandler);
   app.get("/ready", readyHandler);
   app.get("/__boot", (_req, res) => {
@@ -198,7 +199,10 @@ export function registerApiRoutes(app: express.Express): void {
     { path: "/lender-products", router: lenderProductsRoutes },
     { path: "/applications", router: applicationsRoutes },
   ];
-  const explicitPaths = new Set(explicitMounts.map((entry) => entry.path));
+  const explicitPaths = new Set([
+    "/_int",
+    ...explicitMounts.map((entry) => entry.path),
+  ]);
   explicitMounts.forEach((entry) => {
     app.use(`/api${entry.path}`, entry.router);
   });
