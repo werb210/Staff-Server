@@ -9,7 +9,6 @@ import {
   shouldRunMigrations,
   getCorsAllowlistConfig,
   getRequestBodyLimit,
-  isProductionEnvironment,
 } from "./config";
 import { requestId } from "./middleware/requestId";
 import { requestLogger } from "./middleware/requestLogger";
@@ -27,7 +26,6 @@ import { seedAdminUser, seedBaselineLenders, seedSecondAdminUser } from "./db/se
 import { ensureOtpTableExists } from "./db/ensureOtpTable";
 import { logError, logWarn } from "./observability/logger";
 import { checkDb, initializeTestDatabase } from "./db";
-import { getStatus as getErrorStatus, isHttpishError } from "./helpers/errors";
 import { enforceSecureCookies, requireHttps } from "./middleware/security";
 import { idempotencyMiddleware } from "./middleware/idempotency";
 import { errorHandler, notFoundHandler } from "./middleware/errors";
