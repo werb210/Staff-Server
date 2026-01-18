@@ -26,12 +26,30 @@ function toLenderResponse(record: LenderRecord): LenderResponse {
   };
 }
 
+function assertLenderRecord(record: LenderRecord): void {
+  if (
+    !record ||
+    typeof record.id !== "string" ||
+    typeof record.name !== "string" ||
+    typeof record.phone !== "string" ||
+    typeof record.active !== "boolean" ||
+    !(record.created_at instanceof Date) ||
+    !(record.updated_at instanceof Date)
+  ) {
+    throw new AppError("data_error", "Invalid lender record.", 500);
+  }
+}
+
 export async function listLendersHandler(
   _req: Request,
   res: Response
 ): Promise<void> {
   const lenders = await listLenders();
-  res.status(200).json({ items: lenders.map(toLenderResponse) });
+  if (!Array.isArray(lenders)) {
+    throw new AppError("data_error", "Invalid lenders list.", 500);
+  }
+  lenders.forEach(assertLenderRecord);
+  res.status(200).json(lenders.map(toLenderResponse));
 }
 
 export async function createLenderHandler(
@@ -44,6 +62,19 @@ export async function createLenderHandler(
   }
   if (typeof phone !== "string" || phone.trim().length === 0) {
     throw new AppError("validation_error", "phone is required.", 400);
+  }
+  if (website !== undefined && website !== null && typeof website !== "string") {
+    throw new AppError("validation_error", "website must be a string.", 400);
+  }
+  if (
+    description !== undefined &&
+    description !== null &&
+    typeof description !== "string"
+  ) {
+    throw new AppError("validation_error", "description must be a string.", 400);
+  }
+  if (active !== undefined && typeof active !== "boolean") {
+    throw new AppError("validation_error", "active must be a boolean.", 400);
   }
   const created = await createLender({
     name: name.trim(),

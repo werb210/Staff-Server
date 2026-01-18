@@ -38,14 +38,18 @@ export async function createLenderProduct(params: {
   return res.rows[0];
 }
 
-export async function listLenderProducts(
-  client?: Queryable
-): Promise<LenderProductRecord[]> {
-  const runner = client ?? pool;
+export async function listLenderProducts(params?: {
+  activeOnly?: boolean;
+  client?: Queryable;
+}): Promise<LenderProductRecord[]> {
+  const runner = params?.client ?? pool;
+  const activeOnly = params?.activeOnly === true;
   const res = await runner.query<LenderProductRecord>(
     `select id, lender_id, name, description, active, created_at, updated_at
      from lender_products
-     order by created_at desc`
+     where ($1::boolean is false or active = true)
+     order by created_at desc`,
+    [activeOnly]
   );
   return res.rows;
 }

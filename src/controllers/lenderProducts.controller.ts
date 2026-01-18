@@ -29,11 +29,30 @@ function toLenderProductResponse(record: LenderProductRecord): LenderProductResp
   };
 }
 
+function assertLenderProductRecord(record: LenderProductRecord): void {
+  if (
+    !record ||
+    typeof record.id !== "string" ||
+    typeof record.lender_id !== "string" ||
+    typeof record.name !== "string" ||
+    typeof record.active !== "boolean" ||
+    !(record.created_at instanceof Date) ||
+    !(record.updated_at instanceof Date)
+  ) {
+    throw new AppError("data_error", "Invalid lender product record.", 500);
+  }
+}
+
 export async function listLenderProductsHandler(
-  _req: Request,
+  req: Request,
   res: Response
 ): Promise<void> {
-  const products = await listLenderProducts();
+  const activeOnly = req.query.active === "true";
+  const products = await listLenderProducts({ activeOnly });
+  if (!Array.isArray(products)) {
+    throw new AppError("data_error", "Invalid lender products list.", 500);
+  }
+  products.forEach(assertLenderProductRecord);
   res.status(200).json(products.map(toLenderProductResponse));
 }
 
@@ -47,6 +66,16 @@ export async function createLenderProductHandler(
   }
   if (typeof name !== "string" || name.trim().length === 0) {
     throw new AppError("validation_error", "name is required.", 400);
+  }
+  if (
+    description !== undefined &&
+    description !== null &&
+    typeof description !== "string"
+  ) {
+    throw new AppError("validation_error", "description must be a string.", 400);
+  }
+  if (active !== undefined && typeof active !== "boolean") {
+    throw new AppError("validation_error", "active must be a boolean.", 400);
   }
   const lender = await getLenderById(lenderId.trim());
   if (!lender) {

@@ -86,6 +86,14 @@ export async function listApplications(params?: {
   return res.rows;
 }
 
+export async function countApplications(client?: Queryable): Promise<number> {
+  const runner = client ?? pool;
+  const res = await runner.query<{ total: number }>(
+    "select count(*)::int as total from applications"
+  );
+  return Number(res.rows[0]?.total ?? 0);
+}
+
 export async function findApplicationById(
   id: string,
   client?: Queryable

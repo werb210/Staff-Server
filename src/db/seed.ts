@@ -8,6 +8,9 @@ export const SEEDED_ADMIN_EMAIL = "seeded-admin@boreal.financial";
 export const SEEDED_ADMIN2_PHONE = "+1-780-264-8467";
 export const SEEDED_ADMIN2_ID = "00000000-0000-0000-0000-000000000100";
 export const SEEDED_ADMIN2_EMAIL = "seeded-admin-2@boreal.financial";
+export const SEEDED_LENDER_ID = "00000000-0000-0000-0000-000000000200";
+export const SEEDED_LENDER_PRODUCT_TERM_ID = "00000000-0000-0000-0000-000000000201";
+export const SEEDED_LENDER_PRODUCT_LOC_ID = "00000000-0000-0000-0000-000000000202";
 
 export async function seedAdminUser(): Promise<{ id: string; phoneNumber: string }> {
   const phoneNumber = SEEDED_ADMIN_PHONE;
@@ -72,10 +75,49 @@ export async function seedSecondAdminUser(): Promise<{
   return { id: SEEDED_ADMIN2_ID, phoneNumber };
 }
 
+export async function seedBaselineLenders(): Promise<void> {
+  const { rows } = await pool.query<{ count: number }>(
+    "select count(*)::int as count from lenders"
+  );
+  if ((rows[0]?.count ?? 0) > 0) {
+    return;
+  }
+
+  await pool.query(
+    `insert into lenders (id, name, phone, website, description, active, created_at, updated_at)
+     values ($1, $2, $3, $4, $5, true, now(), now())`,
+    [
+      SEEDED_LENDER_ID,
+      "Atlas Capital",
+      "+1-555-0100",
+      "https://atlascapital.example.com",
+      "Seeded lender for staff flow validation.",
+    ]
+  );
+
+  await pool.query(
+    `insert into lender_products
+     (id, lender_id, name, description, active, created_at, updated_at)
+     values
+     ($1, $2, $3, $4, true, now(), now()),
+     ($5, $2, $6, $7, true, now(), now())`,
+    [
+      SEEDED_LENDER_PRODUCT_TERM_ID,
+      SEEDED_LENDER_ID,
+      "Term Loan",
+      "Term loan product (category: term).",
+      SEEDED_LENDER_PRODUCT_LOC_ID,
+      "Line of Credit",
+      "Revolving line of credit product (category: loc).",
+    ]
+  );
+}
+
 export async function seedDatabase(): Promise<void> {
   await runMigrations();
   await seedAdminUser();
   await seedSecondAdminUser();
+  await seedBaselineLenders();
 }
 
 if (require.main === module) {
