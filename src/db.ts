@@ -53,6 +53,8 @@ export const isPgMem = isTestMode();
 
 const poolConfig = buildPoolConfig();
 
+let pgMemPoolClass: (new (...args: never[]) => PgPool) | null = null;
+
 function createPgMemPool(config: PoolConfig): PgPool {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { DataType, newDb } = require("pg-mem") as typeof import("pg-mem");
@@ -93,11 +95,19 @@ function createPgMemPool(config: PoolConfig): PgPool {
     },
   });
   const adapter = db.adapters.createPg();
+  pgMemPoolClass = adapter.Pool;
   const { connectionString, ...rest } = config;
   return new adapter.Pool(rest);
 }
 
 export const pool: PgPool = isPgMem ? createPgMemPool(poolConfig) : new Pool(poolConfig);
+
+export function isPgMemPool(candidate: unknown): boolean {
+  if (!pgMemPoolClass || !candidate) {
+    return false;
+  }
+  return candidate instanceof pgMemPoolClass;
+}
 
 export function getPoolConfig(): PoolConfig {
   return { ...poolConfig };

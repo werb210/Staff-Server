@@ -1,14 +1,14 @@
-import { pool } from "./db";
+import { isPgMemPool, pool } from "./db";
 
 export function isTestEnvironment(): boolean {
   return process.env.NODE_ENV === "test";
 }
 
-export const isPgMem = isTestEnvironment();
-
 export function isPgMemRuntime(): boolean {
-  return isTestEnvironment();
+  return isTestEnvironment() || isPgMemPool(pool);
 }
+
+export const isPgMem = isPgMemRuntime();
 
 const connectionFailureCodes = new Set([
   "57P01",
