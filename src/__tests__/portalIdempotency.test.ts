@@ -66,7 +66,7 @@ describe("portal idempotency behavior", () => {
       .post("/api/lenders")
       .set("Authorization", `Bearer ${token}`)
       .set("x-request-id", requestId)
-      .send({ name: "Portal Lender", phone: "+1-555-0100" });
+      .send({ name: "Portal Lender", country: "US", phone: "+1-555-0100" });
 
     expect(response.status).toBe(201);
     expect(response.body.id).toBeDefined();
@@ -76,7 +76,7 @@ describe("portal idempotency behavior", () => {
     const response = await request(app)
       .post("/api/lenders")
       .set("x-request-id", requestId)
-      .send({ name: "No Auth Lender", phone: "+1-555-0101" });
+      .send({ name: "No Auth Lender", country: "US", phone: "+1-555-0101" });
 
     expect(response.status).toBe(400);
     expect(response.body.code).toBe("missing_idempotency_key");
@@ -88,7 +88,7 @@ describe("portal idempotency behavior", () => {
       .post("/api/lenders")
       .set("Authorization", `Bearer ${token}`)
       .set("x-request-id", requestId)
-      .send({ name: "Portal Products Lender", phone: "+1-555-0102" });
+      .send({ name: "Portal Products Lender", country: "US", phone: "+1-555-0102" });
 
     const response = await request(app)
       .post("/api/lender-products")
