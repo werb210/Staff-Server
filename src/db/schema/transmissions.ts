@@ -16,8 +16,7 @@ export type TransmissionRecord = {
 
 export const TRANSMISSIONS_PARTIAL_UNIQUE_INDEXES = [
   {
-    name: "transmissions_idempotency_key_unique",
-    columns: ["idempotency_key"],
-    where: "idempotency_key is not null",
+    name: "transmissions_idempotency_key_route_uq",
+    columns: ["idempotency_key", "route"],
   },
 ] as const;
