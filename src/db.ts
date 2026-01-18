@@ -171,46 +171,10 @@ function createQueryWrapper<T extends (...args: any[]) => Promise<any>>(original
 const originalPoolQuery = pool.query.bind(pool);
 pool.query = createQueryWrapper<typeof originalPoolQuery>(originalPoolQuery);
 
-// Capture the original connect so we can wrap returned clients. We need
-// the exact type of pool.connect (including overloads) to satisfy TypeScript.
-const originalConnect = pool.connect.bind(pool);
-
-/*
- * Override pool.connect() while preserving its overloads (callback and promise styles).
- * We use Parameters<typeof originalConnect> and ReturnType<typeof originalConnect> to ensure
- * the wrapper's signature matches exactly. Without this, TypeScript infers
- * incompatible types which can trigger TS2322 or TS2339 errors.
- */
-const patchedConnect: typeof originalConnect = ((
-  ...args: Parameters<typeof originalConnect>
-) => {
-  // If the first argument is a function, assume callback style. The return type is void.
-  if (args.length > 0 && typeof args[0] === "function") {
-    const callback = args[0] as (
-      err: Error | undefined,
-      client: PoolClient,
-      done: (release?: any) => void
-    ) => void;
-    return originalConnect((err: any, client: any, done: any) => {
-      if (!err && client) {
-        (client as any).query = createQueryWrapper((client as any).query.bind(client));
-      }
-      callback(err, client, done);
-    }) as ReturnType<typeof originalConnect>;
-  }
-  // Promise style: connect returns a Promise<PoolClient>.
-  return (originalConnect() as unknown as Promise<PoolClient>).then((client: any) => {
-    if (client) {
-      (client as any).query = createQueryWrapper((client as any).query.bind(client));
-    }
-    return client;
-  }) as ReturnType<typeof originalConnect>;
-}) as unknown as typeof originalConnect;
-
-// Assign patched connect to the pool. Casting to any is necessary because
-// pg.Pool.connect has multiple overload signatures that TypeScript
-// otherwise cannot reconcile with our wrapper implementation.
-pool.connect = patchedConnect as any;
+// Unlike pool.query, we do not override pool.connect here because pg.Pool.connect
+// has multiple overloads (callback and promise forms) that TypeScript cannot
+// reconcile when wrapped. Overriding connect leads to type errors.
+// Instead, when tests need an instrumented client, use getInstrumentedClient().
 
 // Log when clients connect and when errors occur on the pool.
 pool.on("connect", () => logInfo("db_client_connected"));
@@ -289,6 +253,19 @@ export async function checkDb(): Promise<void> {
 export async function warmUpDatabase(): Promise<void> {
   await pool.query("select 1");
   assertPoolHealthy();
+}
+
+/**
+ * Acquire a client from the pool and wrap its query method to record
+ * telemetry. This helper should be used instead of calling pool.connect()
+ * directly when you need an instrumented client. It returns a promise
+ * resolving to a PoolClient. The client must be released via client.release().
+ */
+export async function getInstrumentedClient(): Promise<PoolClient> {
+  const client = await pool.connect();
+  // Wrap the client's query function to emit telemetry like pool.query.
+  (client as any).query = createQueryWrapper((client as any).query.bind(client));
+  return client;
 }
 
 /**
