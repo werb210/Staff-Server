@@ -28,6 +28,7 @@ import { logError, logWarn } from "./observability/logger";
 import { checkDb, initializeTestDatabase } from "./db";
 import { enforceSecureCookies, requireHttps } from "./middleware/security";
 import { idempotencyMiddleware } from "./middleware/idempotency";
+import { ensureIdempotencyKey } from "./middleware/idempotencyKey";
 import { errorHandler, notFoundHandler } from "./middleware/errors";
 import authRoutes from "./routes/auth";
 import lendersRoutes from "./routes/lenders";
@@ -191,7 +192,13 @@ export function registerApiRoutes(app: express.Express): void {
     next();
   });
 
-  app.use("/api", requireHttps, enforceSecureCookies, idempotencyMiddleware);
+  app.use(
+    "/api",
+    requireHttps,
+    enforceSecureCookies,
+    ensureIdempotencyKey,
+    idempotencyMiddleware
+  );
 
   const explicitMounts = [
     { path: "/auth", router: authRoutes },
