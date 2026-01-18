@@ -1,3 +1,4 @@
+// src/db.ts
 import { createHash } from "crypto";
 import pg, {
   type Pool as PgPool,
@@ -161,6 +162,10 @@ export async function initializeTestDatabase(): Promise<void> {
     )
   `);
 
+  // Ensure audit_events table includes actor_user_id and target_user_id columns so
+  // that tests relying on these fields don't fail. These columns mirror the
+  // production schema but do not include foreign key constraints to keep
+  // pg-mem happy.
   await pool.query(`
     create table if not exists audit_events (
       id uuid primary key,
