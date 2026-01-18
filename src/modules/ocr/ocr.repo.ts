@@ -2,7 +2,6 @@ import { randomUUID } from "crypto";
 import { pool } from "../../db";
 import { type PoolClient } from "pg";
 import { getOcrLockTimeoutMinutes } from "../../config";
-import { isPgMemRuntime } from "../../dbRuntime";
 import { type OcrJobRecord, type OcrJobStatus, type OcrResultRecord } from "./ocr.types";
 
 export type Queryable = Pick<PoolClient, "query">;
@@ -14,36 +13,6 @@ export async function createOcrJob(params: {
   client?: Queryable;
 }): Promise<OcrJobRecord> {
   const runner = params.client ?? pool;
-  if (isPgMemRuntime()) {
-    const existing = await runner.query<OcrJobRecord>(
-      `select id, document_id, application_id, status, attempt_count, max_attempts,
-              next_attempt_at, locked_at, locked_by, last_error, created_at, updated_at
-       from ocr_jobs
-       where document_id = $1
-       limit 1`,
-      [params.documentId]
-    );
-    if (existing.rows[0]) {
-      const refreshed = await runner.query<OcrJobRecord>(
-        `update ocr_jobs
-         set updated_at = updated_at
-         where document_id = $1
-         returning id, document_id, application_id, status, attempt_count, max_attempts,
-                   next_attempt_at, locked_at, locked_by, last_error, created_at, updated_at`,
-        [params.documentId]
-      );
-      return refreshed.rows[0];
-    }
-    const inserted = await runner.query<OcrJobRecord>(
-      `insert into ocr_jobs
-       (id, document_id, application_id, status, attempt_count, max_attempts, next_attempt_at, created_at, updated_at)
-       values ($1, $2, $3, 'queued', 0, $4, now(), now(), now())
-       returning id, document_id, application_id, status, attempt_count, max_attempts,
-                 next_attempt_at, locked_at, locked_by, last_error, created_at, updated_at`,
-      [randomUUID(), params.documentId, params.applicationId, params.maxAttempts]
-    );
-    return inserted.rows[0];
-  }
   const res = await runner.query<OcrJobRecord>(
     `insert into ocr_jobs
      (id, document_id, application_id, status, attempt_count, max_attempts, next_attempt_at, created_at, updated_at)
@@ -64,43 +33,6 @@ export async function lockOcrJobs(params: {
 }): Promise<OcrJobRecord[]> {
   const runner = params.client ?? pool;
   const lockTimeoutMinutes = getOcrLockTimeoutMinutes();
-  const lockCutoff = new Date(Date.now() - lockTimeoutMinutes * 60 * 1000);
-  if (process.env.NODE_ENV === "test" || process.env.DATABASE_URL === "pg-mem") {
-    const ids = await runner.query<{ id: string }>(
-      `select id
-       from ocr_jobs
-       where (
-         (status in ('queued', 'failed') and (next_attempt_at is null or next_attempt_at <= now()::timestamp))
-         or status = 'processing'
-       )
-         and (locked_at is null or locked_at <= $2)
-       order by created_at asc
-       limit $1`,
-      [params.limit, lockCutoff]
-    );
-    if (ids.rows.length === 0) {
-      return [];
-    }
-    const locked: OcrJobRecord[] = [];
-    for (const row of ids.rows) {
-      const res = await runner.query<OcrJobRecord>(
-        `update ocr_jobs
-         set status = 'processing',
-             locked_at = now()::timestamp,
-             locked_by = $2,
-             updated_at = now()::timestamp
-         where id = $1
-           and (locked_at is null or locked_at <= $3)
-         returning id, document_id, application_id, status, attempt_count, max_attempts,
-                   next_attempt_at, locked_at, locked_by, last_error, created_at, updated_at`,
-        [row.id, params.lockedBy, lockCutoff]
-      );
-      if (res.rows[0]) {
-        locked.push(res.rows[0]);
-      }
-    }
-    return locked;
-  }
   const res = await runner.query<OcrJobRecord>(
     `with candidates as (
        select id
@@ -157,65 +89,27 @@ export async function markOcrJobSuccess(params: {
   const release = params.client ? null : () => (runner as PoolClient).release();
   await runner.query("begin");
   try {
-    if (isPgMemRuntime()) {
-      const updated = await runner.query<OcrResultRecord>(
-        `update ocr_results
-         set provider = $2,
-             model = $3,
-             extracted_text = $4,
-             extracted_json = $5,
-             meta = $6,
-             updated_at = now()
-         where document_id = $1
-         returning id, document_id, provider, model, extracted_text, extracted_json, meta, created_at, updated_at`,
-        [
-          params.documentId,
-          params.provider,
-          params.model,
-          params.extractedText,
-          params.extractedJson,
-          params.meta,
-        ]
-      );
-      if (!updated.rows[0]) {
-        await runner.query(
-          `insert into ocr_results
-           (id, document_id, provider, model, extracted_text, extracted_json, meta, created_at, updated_at)
-           values ($1, $2, $3, $4, $5, $6, $7, now(), now())`,
-          [
-            randomUUID(),
-            params.documentId,
-            params.provider,
-            params.model,
-            params.extractedText,
-            params.extractedJson,
-            params.meta,
-          ]
-        );
-      }
-    } else {
-      await runner.query(
-        `insert into ocr_results
-         (id, document_id, provider, model, extracted_text, extracted_json, meta, created_at, updated_at)
-         values ($1, $2, $3, $4, $5, $6, $7, now(), now())
-         on conflict (document_id)
-         do update set provider = excluded.provider,
-                       model = excluded.model,
-                       extracted_text = excluded.extracted_text,
-                       extracted_json = excluded.extracted_json,
-                       meta = excluded.meta,
-                       updated_at = excluded.updated_at`,
-        [
-          randomUUID(),
-          params.documentId,
-          params.provider,
-          params.model,
-          params.extractedText,
-          params.extractedJson,
-          params.meta,
-        ]
-      );
-    }
+    await runner.query(
+      `insert into ocr_results
+       (id, document_id, provider, model, extracted_text, extracted_json, meta, created_at, updated_at)
+       values ($1, $2, $3, $4, $5, $6, $7, now(), now())
+       on conflict (document_id)
+       do update set provider = excluded.provider,
+                     model = excluded.model,
+                     extracted_text = excluded.extracted_text,
+                     extracted_json = excluded.extracted_json,
+                     meta = excluded.meta,
+                     updated_at = excluded.updated_at`,
+      [
+        randomUUID(),
+        params.documentId,
+        params.provider,
+        params.model,
+        params.extractedText,
+        params.extractedJson,
+        params.meta,
+      ]
+    );
     await runner.query(
       `update ocr_jobs
        set status = 'succeeded',

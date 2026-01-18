@@ -2,7 +2,6 @@ import { randomUUID } from "crypto";
 import {
   upsertApplicationVolumeWindow,
   upsertDailyMetricsWindow,
-  upsertDailyMetrics,
   upsertDocumentMetricsWindow,
   upsertLenderFunnelWindow,
   upsertLenderPerformanceWindow,
@@ -19,7 +18,6 @@ import {
 import { runWithRequestContext } from "../../middleware/requestContext";
 import { logError, logInfo } from "../../observability/logger";
 import { type PoolClient } from "pg";
-import { computeDailyMetricsForDate } from "./dailyMetrics.service";
 
 function startOfDay(date: Date): Date {
   const value = new Date(date);
@@ -80,23 +78,6 @@ export async function runDailyMetricsJob(date = new Date()): Promise<number> {
   const start = startOfDay(date);
   const end = addDays(start, 1);
   const createdAt = new Date(date);
-  if (process.env.NODE_ENV === "test" && process.env.DATABASE_URL === "pg-mem") {
-    return runWithTransaction(async (client) => {
-      const metrics = await computeDailyMetricsForDate({ start, end, client });
-      return upsertDailyMetrics({
-        metricDate: start.toISOString().slice(0, 10),
-        applicationsCreated: metrics.applicationsCreated,
-        applicationsSubmitted: metrics.applicationsSubmitted,
-        applicationsApproved: metrics.applicationsApproved,
-        applicationsDeclined: metrics.applicationsDeclined,
-        applicationsFunded: metrics.applicationsFunded,
-        documentsUploaded: metrics.documentsUploaded,
-        documentsApproved: metrics.documentsApproved,
-        lenderSubmissions: metrics.lenderSubmissions,
-        client,
-      });
-    });
-  }
   return runWithTransaction((client) =>
     upsertDailyMetricsWindow({ start, end, createdAt, client })
   );

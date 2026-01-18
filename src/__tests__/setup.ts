@@ -27,8 +27,8 @@ markReady();
 installProcessHandlers();
 
 beforeAll(async () => {
-  const { initializeTestDatabase } = await import("../db");
-  await initializeTestDatabase();
+  const { runMigrations } = await import("../migrations");
+  await runMigrations();
 });
 
 const createVerification = jest.fn<

@@ -29,7 +29,6 @@ async function resetDb(): Promise<void> {
   try {
     await pool.query("delete from otp_verifications");
   } catch {
-    // ignore missing table in pg-mem reset flow
   }
   await pool.query("delete from password_resets");
   await pool.query("delete from audit_events");
@@ -37,7 +36,6 @@ async function resetDb(): Promise<void> {
 }
 
 beforeAll(async () => {
-  process.env.DATABASE_URL = "pg-mem";
   process.env.BUILD_TIMESTAMP = "2024-01-01T00:00:00.000Z";
   process.env.COMMIT_SHA = "test-commit";
   process.env.JWT_SECRET = "test-access-secret";

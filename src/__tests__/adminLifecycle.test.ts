@@ -1,6 +1,6 @@
 import request from "supertest";
 import { buildAppWithApiRoutes } from "../app";
-import { initializeTestDatabase, pool } from "../db";
+import { pool } from "../db";
 import { createUserAccount } from "../modules/auth/auth.service";
 import { ROLES } from "../auth/roles";
 import { ensureAuditEventSchema } from "./helpers/auditSchema";
@@ -15,7 +15,6 @@ const nextPhone = (): string =>
   `+1415555${String(phoneCounter++).padStart(4, "0")}`;
 
 async function resetDb(): Promise<void> {
-  await initializeTestDatabase();
   await pool.query("delete from client_submissions");
   await pool.query("delete from lender_submission_retries");
   await pool.query("delete from lender_submissions");
@@ -31,7 +30,6 @@ async function resetDb(): Promise<void> {
 }
 
 beforeAll(async () => {
-  process.env.DATABASE_URL = "pg-mem";
   process.env.BUILD_TIMESTAMP = "2024-01-01T00:00:00.000Z";
   process.env.COMMIT_SHA = "test-commit";
   process.env.JWT_SECRET = "test-access-secret";

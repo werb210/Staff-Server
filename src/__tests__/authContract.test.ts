@@ -54,7 +54,6 @@ function expectRequestId(res: request.Response, expected: string): void {
 }
 
 beforeAll(async () => {
-  process.env.DATABASE_URL = "pg-mem";
   process.env.BUILD_TIMESTAMP = "2024-01-01T00:00:00.000Z";
   process.env.COMMIT_SHA = "test-commit";
   process.env.JWT_SECRET = "test-access-secret";
