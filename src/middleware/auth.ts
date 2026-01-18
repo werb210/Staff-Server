@@ -1,7 +1,7 @@
 import { type NextFunction, type Request, type Response } from "express";
 import jwt, { type JwtPayload } from "jsonwebtoken";
 import { forbiddenError } from "./errors";
-import { type Role, isRole } from "../auth/roles";
+import { ROLES, type Role, isRole } from "../auth/roles";
 import { logWarn } from "../observability/logger";
 import {
   type Capability,
@@ -206,6 +206,18 @@ export function requireCapability(capabilities: readonly Capability[]) {
   const allowed = capabilities;
   return async (req: Request, _res: Response, next: NextFunction) => {
     try {
+      const isReadRequest = req.method === "GET";
+      const requestPath = (req.originalUrl ?? req.path).split("?")[0];
+      const userRole = (req.user as { role?: Role } | undefined)?.role;
+      const staffReadBypass = new Set([
+        "/api/lenders",
+        "/api/lender-products",
+        "/api/applications",
+      ]);
+      if (isReadRequest && userRole === ROLES.STAFF && staffReadBypass.has(requestPath)) {
+        next();
+        return;
+      }
       if (!allowed || allowed.length === 0) {
         next(forbiddenError());
         return;

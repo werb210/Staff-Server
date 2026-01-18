@@ -88,7 +88,7 @@ export const ROUTES: ApiRoute[] = [
   { method: "GET", path: "/api/calendar/events", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "GET", path: "/api/tasks", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "GET", path: "/api/marketing", roles: [ROLES.ADMIN, ROLES.STAFF] },
-  { method: "GET", path: "/api/lenders", roles: [ROLES.ADMIN] },
+  { method: "GET", path: "/api/lenders", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "GET", path: "/api/settings", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "GET", path: "/api/staff/overview", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "GET", path: "/api/dashboard", roles: [ROLES.ADMIN, ROLES.STAFF] },

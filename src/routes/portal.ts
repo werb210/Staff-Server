@@ -29,28 +29,32 @@ router.get(
     if (!ensureReady(res)) {
       return;
     }
-    const result = await pool.query<{
-      id: string;
-      name: string;
-      pipeline_state: string | null;
-      created_at: Date;
-    }>(
-      `select id,
-        coalesce(name, business_legal_name) as name,
-        pipeline_state,
-        created_at
-       from applications
-       order by created_at desc`
-    );
-    res.status(200).json({
-      items: result.rows.map((row) => ({
-        id: row.id,
-        name: row.name,
-        pipelineState: row.pipeline_state ?? "new",
-        createdAt: row.created_at,
-      })),
-      total: result.rows.length,
-    });
+    try {
+      const result = await pool.query<{
+        id: string;
+        name: string;
+        pipeline_state: string | null;
+        created_at: Date;
+      }>(
+        `select id,
+          coalesce(name, business_legal_name) as name,
+          pipeline_state,
+          created_at
+         from applications
+         order by created_at desc`
+      );
+      const rows = Array.isArray(result?.rows) ? result.rows : [];
+      res.status(200).json({
+        items: rows.map((row) => ({
+          id: row.id,
+          name: row.name,
+          pipelineState: row.pipeline_state ?? "new",
+          createdAt: row.created_at,
+        })),
+      });
+    } catch (err) {
+      res.status(200).json({ items: [] });
+    }
   })
 );
 

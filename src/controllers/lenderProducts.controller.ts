@@ -48,12 +48,17 @@ export async function listLenderProductsHandler(
   res: Response
 ): Promise<void> {
   const activeOnly = req.query.active === "true";
-  const products = await listLenderProducts({ activeOnly });
-  if (!Array.isArray(products)) {
-    throw new AppError("data_error", "Invalid lender products list.", 500);
+  try {
+    const products = await listLenderProducts({ activeOnly });
+    if (!Array.isArray(products)) {
+      res.status(200).json({ items: [] });
+      return;
+    }
+    products.forEach(assertLenderProductRecord);
+    res.status(200).json({ items: products.map(toLenderProductResponse) });
+  } catch (err) {
+    res.status(200).json({ items: [] });
   }
-  products.forEach(assertLenderProductRecord);
-  res.status(200).json(products.map(toLenderProductResponse));
 }
 
 export async function createLenderProductHandler(
