@@ -58,7 +58,12 @@ let pgMemPoolClass: (new (...args: never[]) => PgPool) | null = null;
 function createPgMemPool(config: PoolConfig): PgPool {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { DataType, newDb } = require("pg-mem") as typeof import("pg-mem");
-  const db = newDb({ noAstCoverageCheck: true, autoCreateForeignKeyIndices: true });
+
+  const db = newDb({
+    noAstCoverageCheck: true,
+    autoCreateForeignKeyIndices: true,
+  });
+
   db.public.registerFunction({
     name: "md5",
     args: [DataType.text],
@@ -66,6 +71,7 @@ function createPgMemPool(config: PoolConfig): PgPool {
     implementation: (value: string) =>
       createHash("md5").update(value ?? "").digest("hex"),
   });
+
   db.public.registerFunction({
     name: "regexp_replace",
     args: [DataType.text, DataType.text, DataType.text, DataType.text],
@@ -76,36 +82,35 @@ function createPgMemPool(config: PoolConfig): PgPool {
       replacement: string,
       flags: string
     ) => {
-      if (value === null) {
-        return null;
-      }
+      if (value === null) return null;
       const regex = new RegExp(pattern, flags ?? "");
       return value.replace(regex, replacement);
     },
   });
+
   db.public.registerFunction({
     name: "length",
     args: [DataType.text],
     returns: DataType.integer,
     implementation: (value: string | null) => {
-      if (value === null) {
-        return null;
-      }
+      if (value === null) return null;
       return value.length;
     },
   });
+
   const adapter = db.adapters.createPg();
   pgMemPoolClass = adapter.Pool;
+
   const { connectionString, ...rest } = config;
   return new adapter.Pool(rest);
 }
 
-export const pool: PgPool = isPgMem ? createPgMemPool(poolConfig) : new Pool(poolConfig);
+export const pool: PgPool = isPgMem
+  ? createPgMemPool(poolConfig)
+  : new Pool(poolConfig);
 
 export function isPgMemPool(candidate: unknown): boolean {
-  if (!pgMemPoolClass || !candidate) {
-    return false;
-  }
+  if (!pgMemPoolClass || !candidate) return false;
   return candidate instanceof pgMemPoolClass;
 }
 
@@ -131,13 +136,9 @@ export function setDbTestPoolMetricsOverride(
 }
 
 function extractQueryText(args: unknown[]): string | null {
-  if (!args.length) {
-    return null;
-  }
+  if (!args.length) return null;
   const first = args[0] as string | QueryConfig | undefined;
-  if (typeof first === "string") {
-    return first;
-  }
+  if (typeof first === "string") return first;
   if (first && typeof (first as { text?: unknown }).text === "string") {
     return (first as { text: string }).text;
   }
@@ -167,22 +168,21 @@ function getPoolMetrics(): Required<DbTestPoolMetricsOverride> {
     waitingCount?: number;
     options?: { max?: number };
   };
+
   const max = dbTestPoolMetricsOverride?.max ?? poolState.options?.max ?? 10;
+
   return {
     totalCount: dbTestPoolMetricsOverride?.totalCount ?? poolState.totalCount ?? 0,
     idleCount: dbTestPoolMetricsOverride?.idleCount ?? poolState.idleCount ?? 0,
-    waitingCount: dbTestPoolMetricsOverride?.waitingCount ?? poolState.waitingCount ?? 0,
+    waitingCount:
+      dbTestPoolMetricsOverride?.waitingCount ?? poolState.waitingCount ?? 0,
     max,
   };
 }
 
 function shouldFailForPoolExhaustion(): boolean {
-  if (!isTestMode()) {
-    return false;
-  }
-  if (process.env.DB_TEST_FORCE_POOL_EXHAUSTION === "true") {
-    return true;
-  }
+  if (!isTestMode()) return false;
+  if (process.env.DB_TEST_FORCE_POOL_EXHAUSTION === "true") return true;
   const metrics = getPoolMetrics();
   return metrics.waitingCount > 0 && metrics.totalCount >= metrics.max;
 }
@@ -194,66 +194,57 @@ export function assertPoolHealthy(): void {
 }
 
 function getSlowQueryDelayMs(queryText: string | null): number {
-  if (!isTestMode()) {
-    return 0;
-  }
+  if (!isTestMode()) return 0;
   const pattern = process.env.DB_TEST_SLOW_QUERY_PATTERN;
   const delayMs = Number(process.env.DB_TEST_SLOW_QUERY_MS ?? "0");
-  if (!pattern || delayMs <= 0) {
-    return 0;
-  }
-  if (!queryText) {
-    return 0;
-  }
-  return queryText.toLowerCase().includes(pattern.toLowerCase()) ? delayMs : 0;
+  if (!pattern || delayMs <= 0 || !queryText) return 0;
+  return queryText.toLowerCase().includes(pattern.toLowerCase())
+    ? delayMs
+    : 0;
 }
 
 function getQueryTimeoutMs(): number {
-  if (!isTestMode()) {
-    return 0;
-  }
+  if (!isTestMode()) return 0;
   const timeoutMs = Number(process.env.DB_TEST_QUERY_TIMEOUT_MS ?? "0");
   return Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 0;
 }
 
 function applyTestFailureInjection(queryText: string | null): void {
-  if (!isTestMode() || !dbTestFailureInjection) {
-    return;
-  }
+  if (!isTestMode() || !dbTestFailureInjection) return;
   if (dbTestFailureInjection.remaining <= 0) {
     dbTestFailureInjection = null;
     return;
   }
+
   const matchQuery = dbTestFailureInjection.matchQuery;
   if (matchQuery && (!queryText || !queryText.toLowerCase().includes(matchQuery))) {
     return;
   }
+
   const mode = dbTestFailureInjection.mode;
   dbTestFailureInjection.remaining -= 1;
   if (dbTestFailureInjection.remaining <= 0) {
     dbTestFailureInjection = null;
   }
+
   throw makeTestError(mode);
 }
 
 async function delay(ms: number): Promise<void> {
-  if (ms <= 0) {
-    return;
-  }
+  if (ms <= 0) return;
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function createQueryWrapper<
   T extends (...args: unknown[]) => Promise<unknown>
 >(originalQuery: T): T {
-  const wrapped = (async (...args: unknown[]): Promise<unknown> => {
+  return (async (...args: unknown[]) => {
     const queryText = extractQueryText(args);
     const start = Date.now();
     try {
-      if (shouldFailForPoolExhaustion()) {
-        throw makePoolExhaustedError();
-      }
+      if (shouldFailForPoolExhaustion()) throw makePoolExhaustedError();
       applyTestFailureInjection(queryText);
+
       const slowDelayMs = getSlowQueryDelayMs(queryText);
       if (slowDelayMs > 0) {
         const timeoutMs = getQueryTimeoutMs();
@@ -263,6 +254,7 @@ function createQueryWrapper<
         }
         await delay(slowDelayMs);
       }
+
       const result = await originalQuery(...args);
       trackDependency({
         name: "postgres",
@@ -283,16 +275,13 @@ function createQueryWrapper<
       throw err;
     }
   }) as T;
-  return wrapped;
 }
 
 function wrapClientQuery(client: PoolClient): void {
-  const clientWithFlag = client as PoolClient & { __dbWrapped?: boolean };
-  if (clientWithFlag.__dbWrapped) {
-    return;
-  }
-  clientWithFlag.__dbWrapped = true;
-  clientWithFlag.query = createQueryWrapper(clientWithFlag.query.bind(clientWithFlag));
+  const wrapped = client as PoolClient & { __dbWrapped?: boolean };
+  if (wrapped.__dbWrapped) return;
+  wrapped.__dbWrapped = true;
+  wrapped.query = createQueryWrapper(wrapped.query.bind(wrapped));
 }
 
 const originalPoolQuery = pool.query.bind(pool);
@@ -309,11 +298,7 @@ const originalConnect = pool.connect.bind(pool) as {
   ): void;
 };
 
-pool.connect = ((callback?: (
-  err: Error | undefined,
-  client: PoolClient | undefined,
-  done: (release?: any) => void
-) => void) => {
+pool.connect = ((callback?: any) => {
   if (shouldFailForPoolExhaustion()) {
     const error = makePoolExhaustedError();
     if (callback) {
@@ -322,14 +307,14 @@ pool.connect = ((callback?: (
     }
     return Promise.reject(error);
   }
+
   if (callback) {
     return originalConnect((err, client, done) => {
-      if (client) {
-        wrapClientQuery(client);
-      }
+      if (client) wrapClientQuery(client);
       callback(err, client, done);
     });
   }
+
   return originalConnect().then((client) => {
     wrapClientQuery(client);
     return client;
@@ -348,14 +333,11 @@ function handleDbError(scope: string, err: unknown): void {
 
 pool.on("connect", (client) => {
   logInfo("db_client_connected");
-  client.on("error", (err) => {
-    handleDbError("client", err);
-  });
+  client.on("error", (err) => handleDbError("client", err));
 });
 
 pool.on("error", (err) => {
   handleDbError("pool", err);
-  // IMPORTANT: do not crash process
 });
 
 export async function dbQuery<T extends QueryResultRow = QueryResultRow>(
@@ -384,49 +366,48 @@ export async function warmUpDatabase(): Promise<void> {
 let testDbInitialized = false;
 
 export async function initializeTestDatabase(): Promise<void> {
-  if (!isTestMode() || testDbInitialized) {
-    return;
-  }
+  if (!isTestMode() || testDbInitialized) return;
   testDbInitialized = true;
+
   const baseStatements = [
     `create table if not exists users (
-       id uuid primary key,
-       email text not null,
-       password_hash text not null,
-       role text not null,
-       active boolean not null,
-       password_changed_at timestamptz null,
-       failed_login_attempts integer not null default 0,
-       locked_until timestamptz null,
-       token_version integer not null default 0
-     )`,
+      id uuid primary key,
+      email text not null,
+      password_hash text not null,
+      role text not null,
+      active boolean not null,
+      password_changed_at timestamptz null,
+      failed_login_attempts integer not null default 0,
+      locked_until timestamptz null,
+      token_version integer not null default 0
+    )`,
     `create table if not exists applications (
-       id text primary key,
-       owner_user_id uuid null,
-       name text null,
-       business_legal_name text null,
-       metadata jsonb null,
-       pipeline_state text null,
-       created_at timestamp null,
-       updated_at timestamp null
-     )`,
+      id text primary key,
+      owner_user_id uuid null,
+      name text null,
+      business_legal_name text null,
+      metadata jsonb null,
+      pipeline_state text null,
+      created_at timestamp null,
+      updated_at timestamp null
+    )`,
     `create table if not exists documents (
-       id text primary key,
-       application_id text null,
-       owner_user_id uuid null,
-       title text null,
-       created_at timestamp null
-     )`,
+      id text primary key,
+      application_id text null,
+      owner_user_id uuid null,
+      title text null,
+      created_at timestamp null
+    )`,
     `create table if not exists idempotency_keys (
-       id text primary key,
-       key text null,
-       route text null,
-       method text null,
-       request_hash text null,
-       response_code integer null,
-       response_body jsonb null,
-       created_at timestamp null
-     )`,
+      id text primary key,
+      key text null,
+      route text null,
+      method text null,
+      request_hash text null,
+      response_code integer null,
+      response_body jsonb null,
+      created_at timestamp null
+    )`,
   ];
 
   for (const statement of baseStatements) {
@@ -435,30 +416,36 @@ export async function initializeTestDatabase(): Promise<void> {
 
   const { runMigrations } = await import("./migrations");
   await runMigrations({ allowTest: true });
+
   if (isPgMem) {
+    await pool.query(`
+      alter table audit_events
+        add column if not exists actor_user_id uuid,
+        add column if not exists target_user_id uuid
+    `);
+
     await pool.query(
       "alter table lender_products add column if not exists required_documents jsonb"
     );
   }
 
-  await pool.query(
-    `insert into users (id, email, password_hash, role, active, password_changed_at)
-     values (
-       '00000000-0000-0000-0000-000000000001',
-       'client-submission@system.local',
-       '$2a$10$w6mUovSd.4MYgYusN4uT0.oVpi9oyaylVv4QOM4bLIKO7iHuUWLZa',
-       'Referrer',
-       false,
-       now()
-     )
-     on conflict (id) do nothing`
-  );
+  await pool.query(`
+    insert into users (
+      id, email, password_hash, role, active, password_changed_at
+    ) values (
+      '00000000-0000-0000-0000-000000000001',
+      'client-submission@system.local',
+      '$2a$10$w6mUovSd.4MYgYusN4uT0.oVpi9oyaylVv4QOM4bLIKO7iHuUWLZa',
+      'Referrer',
+      false,
+      now()
+    )
+    on conflict (id) do nothing
+  `);
 }
 
 export async function resetTestDatabase(): Promise<void> {
-  if (!isTestMode()) {
-    return;
-  }
+  if (!isTestMode()) return;
   testDbInitialized = false;
   await initializeTestDatabase();
 }
