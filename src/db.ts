@@ -169,21 +169,48 @@ function createQueryWrapper<T extends (...args: any[]) => Promise<any>>(original
 
 // Wrap pool.query() and client.query() so telemetry is recorded for all queries.
 const originalPoolQuery = pool.query.bind(pool);
-pool.query = createQueryWrapper(originalPoolQuery);
+pool.query = createQueryWrapper<typeof originalPoolQuery>(originalPoolQuery);
+
+// Capture the original connect so we can wrap returned clients. We need
+// the exact type of pool.connect (including overloads) to satisfy TypeScript.
 const originalConnect = pool.connect.bind(pool);
-// Create a typed wrapper for pool.connect() that preserves the argument and return types.
-const wrappedConnect: typeof pool.connect = async (
+
+/*
+ * Override pool.connect() while preserving its overloads (callback and promise styles).
+ * We use Parameters<typeof originalConnect> and ReturnType<typeof originalConnect> to ensure
+ * the wrapper's signature matches exactly. Without this, TypeScript infers
+ * incompatible types which can trigger TS2322 or TS2339 errors.
+ */
+const patchedConnect: typeof originalConnect = ((
   ...args: Parameters<typeof originalConnect>
 ) => {
-  const client = await originalConnect(...args);
-  // Wrap the client's query method with telemetry.
-  (client as any).query = createQueryWrapper((client as any).query.bind(client));
-  // Cast the client to the correct return type. Without this cast, TypeScript
-  // may infer the return type as Promise<void> & PoolClient, leading to TS2339
-  // when accessing properties on the resolved client.
-  return client as unknown as ReturnType<typeof originalConnect>;
-};
-pool.connect = wrappedConnect;
+  // If the first argument is a function, assume callback style. The return type is void.
+  if (args.length > 0 && typeof args[0] === "function") {
+    const callback = args[0] as (
+      err: Error | undefined,
+      client: PoolClient,
+      done: (release?: any) => void
+    ) => void;
+    return originalConnect((err: any, client: any, done: any) => {
+      if (!err && client) {
+        (client as any).query = createQueryWrapper((client as any).query.bind(client));
+      }
+      callback(err, client, done);
+    }) as ReturnType<typeof originalConnect>;
+  }
+  // Promise style: connect returns a Promise<PoolClient>.
+  return (originalConnect() as unknown as Promise<PoolClient>).then((client: any) => {
+    if (client) {
+      (client as any).query = createQueryWrapper((client as any).query.bind(client));
+    }
+    return client;
+  }) as ReturnType<typeof originalConnect>;
+}) as unknown as typeof originalConnect;
+
+// Assign patched connect to the pool. Casting to any is necessary because
+// pg.Pool.connect has multiple overload signatures that TypeScript
+// otherwise cannot reconcile with our wrapper implementation.
+pool.connect = patchedConnect as any;
 
 // Log when clients connect and when errors occur on the pool.
 pool.on("connect", () => logInfo("db_client_connected"));
