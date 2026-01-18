@@ -425,6 +425,11 @@ export async function initializeTestDatabase(): Promise<void> {
 
   const { runMigrations } = await import("./migrations");
   await runMigrations({ allowTest: true });
+  if (isPgMem) {
+    await pool.query(
+      "alter table lender_products add column if not exists required_documents jsonb"
+    );
+  }
 
   await pool.query(
     `insert into users (id, email, password_hash, role, active, password_changed_at)

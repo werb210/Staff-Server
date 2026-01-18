@@ -1,4 +1,3 @@
-import { initializeTestDatabase } from "../db";
 import { installProcessHandlers } from "../observability/processHandlers";
 import { markReady } from "../startupState";
 import type { ClientOpts } from "twilio/lib/base/BaseTwilio";
@@ -28,6 +27,7 @@ markReady();
 installProcessHandlers();
 
 beforeAll(async () => {
+  const { initializeTestDatabase } = await import("../db");
   await initializeTestDatabase();
 });
 
