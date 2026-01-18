@@ -3,7 +3,7 @@ import cors from "cors";
 
 import { healthHandler, readyHandler } from "./routes/ready";
 import { listRoutes, printRoutes } from "./debug/printRoutes";
-import { getPendingMigrations, runMigrations } from "./migrations";
+import { getPendingMigrations } from "./migrations";
 import {
   isTestEnvironment,
   shouldRunMigrations,
@@ -22,6 +22,7 @@ import {
 } from "./startupState";
 import "./services/twilio";
 import { PORTAL_ROUTE_REQUIREMENTS, API_ROUTE_MOUNTS } from "./routes/routeRegistry";
+import { migrateDatabase } from "./db/migrate";
 import { seedAdminUser, seedBaselineLenders, seedSecondAdminUser } from "./db/seed";
 import { ensureOtpTableExists } from "./db/ensureOtpTable";
 import { logError, logWarn } from "./observability/logger";
@@ -128,13 +129,13 @@ export async function initializeServer(): Promise<void> {
 
   if (shouldRunMigrations()) {
     try {
-      await runMigrations();
+      await migrateDatabase();
       await seedAdminUser();
       await seedSecondAdminUser();
     } catch (err) {
       logError("startup_migrations_failed", { err });
       markNotReady("migrations_failed");
-      return;
+      throw err;
     }
   }
 

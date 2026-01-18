@@ -53,6 +53,7 @@ export async function startServer(): Promise<
       await initializeServer();
     } catch (err) {
       logError("server_initialize_failed", { err });
+      throw err;
     }
   }
 

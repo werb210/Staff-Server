@@ -87,4 +87,43 @@ describe("portal smoke endpoints", () => {
     expect(calendarRes.status).toBe(200);
     expect(calendarRes.body).toEqual({ items: [] });
   });
+
+  it("creates and lists lenders", async () => {
+    const staffPhone = nextPhone();
+    await createUserAccount({
+      email: "portal.staff+lenders@apps.com",
+      phoneNumber: staffPhone,
+      role: ROLES.STAFF,
+    });
+
+    const login = await otpVerifyRequest(app, {
+      phone: staffPhone,
+      requestId,
+      idempotencyKey: nextIdempotencyKey(),
+    });
+
+    const createRes = await request(app)
+      .post("/api/lenders")
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .set("Idempotency-Key", nextIdempotencyKey())
+      .send({ name: "Smoke Lender", country: "US", active: true });
+
+    expect(createRes.status).toBe(201);
+    expect(createRes.body.id).toBeDefined();
+    expect(createRes.body.name).toBe("Smoke Lender");
+    expect(createRes.body.country).toBe("US");
+
+    const listRes = await request(app)
+      .get("/api/lenders")
+      .set("Authorization", `Bearer ${login.body.accessToken}`);
+
+    expect(listRes.status).toBe(200);
+    expect(listRes.body.items).toHaveLength(1);
+    expect(listRes.body.items[0]).toMatchObject({
+      id: createRes.body.id,
+      name: "Smoke Lender",
+      country: "US",
+      active: true,
+    });
+  });
 });

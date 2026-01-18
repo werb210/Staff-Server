@@ -323,5 +323,5 @@ export function getDbPoolConnectionTimeoutMs(): number {
 }
 
 export function shouldRunMigrations(): boolean {
-  return process.env.RUN_MIGRATIONS === "true";
+  return isProductionEnvironment() || process.env.RUN_MIGRATIONS === "true";
 }

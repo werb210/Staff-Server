@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { pool } from "./db";
 import { isPgMem, isTestEnvironment } from "./dbRuntime";
+import { logInfo } from "./observability/logger";
 
 const migrationsDir = path.join(process.cwd(), "migrations");
 
@@ -267,6 +268,7 @@ export async function runMigrations(options?: { allowTest?: boolean }): Promise<
         "insert into schema_migrations (id, applied_at) values ($1, now())",
         [file]
       );
+      logInfo("migration_applied", { migration: file });
       await client.query("commit");
     } catch (err) {
       await client.query("rollback");
