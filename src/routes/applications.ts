@@ -2,10 +2,13 @@ import { Router, type Request, type Response } from "express";
 import requireAuth, { requireCapability } from "../middleware/auth";
 import { CAPABILITIES } from "../auth/capabilities";
 import applicationRoutes from "../modules/applications/applications.routes";
-import { respondOk } from "../utils/respondOk";
 import { AppError } from "../middleware/errors";
 import { getClientSubmissionOwnerUserId } from "../config";
-import { createApplication } from "../modules/applications/applications.repo";
+import {
+  createApplication,
+  listApplications,
+  type ApplicationRecord,
+} from "../modules/applications/applications.repo";
 import { safeHandler } from "../middleware/safeHandler";
 
 type ApplicationPayload = {
@@ -16,6 +19,17 @@ type ApplicationPayload = {
   applicant?: { firstName?: string; lastName?: string; email?: string };
   financialProfile?: unknown;
   match?: unknown;
+};
+
+type ApplicationResponse = {
+  id: string;
+  ownerUserId: string | null;
+  name: string;
+  metadata: unknown | null;
+  productType: string;
+  pipelineState: string;
+  createdAt: Date;
+  updatedAt: Date;
 };
 
 const router = Router();
@@ -30,30 +44,32 @@ const intakeFields = [
 ];
 const legacyFields = ["name", "metadata", "productType"];
 
+function toApplicationResponse(record: ApplicationRecord): ApplicationResponse {
+  return {
+    id: record.id,
+    ownerUserId: record.owner_user_id,
+    name: record.name,
+    metadata: record.metadata,
+    productType: record.product_type,
+    pipelineState: record.pipeline_state,
+    createdAt: record.created_at,
+    updatedAt: record.updated_at,
+  };
+}
+
 router.get(
   "/",
   requireAuth,
   requireCapability([CAPABILITIES.APPLICATION_READ]),
-  (req, res) => {
-    const page = Number(req.query.page) || 1;
-    const pageSize = Number(req.query.pageSize) || 25;
-    const stage =
-      typeof req.query.stage === "string" && req.query.stage.trim().length > 0
-        ? req.query.stage.trim()
-        : "new";
-    respondOk(
-      res,
-      {
-        applications: [],
-        total: 0,
-        stage,
-      },
-      {
-        page,
-        pageSize,
-      }
-    );
-  }
+  safeHandler(async (req, res) => {
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const pageSize = Math.max(1, Number(req.query.pageSize) || 25);
+    const applications = await listApplications({
+      limit: pageSize,
+      offset: (page - 1) * pageSize,
+    });
+    res.status(200).json({ items: applications.map(toApplicationResponse) });
+  })
 );
 
 router.post(

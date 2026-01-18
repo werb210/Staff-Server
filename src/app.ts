@@ -1,7 +1,6 @@
 import express from "express";
 import cors from "cors";
 
-import apiRouter from "./api";
 import { healthHandler, readyHandler } from "./routes/ready";
 import { listRoutes, printRoutes } from "./debug/printRoutes";
 import { getPendingMigrations, runMigrations } from "./migrations";
@@ -16,15 +15,26 @@ import { requestId } from "./middleware/requestId";
 import { requestLogger } from "./middleware/requestLogger";
 import { requestTimeout } from "./middleware/requestTimeout";
 import { runStartupConsistencyCheck } from "./startup/consistencyCheck";
-import { getStatus as getStartupStatus, isReady, markNotReady, markReady } from "./startupState";
+import {
+  getStatus as getStartupStatus,
+  isReady,
+  markNotReady,
+  markReady,
+} from "./startupState";
 import "./services/twilio";
-import { PORTAL_ROUTE_REQUIREMENTS } from "./routes/routeRegistry";
+import { PORTAL_ROUTE_REQUIREMENTS, API_ROUTE_MOUNTS } from "./routes/routeRegistry";
 import { seedAdminUser, seedSecondAdminUser } from "./db/seed";
 import { ensureOtpTableExists } from "./db/ensureOtpTable";
 import { logError, logWarn } from "./observability/logger";
-import internalRoutes from "./routes/_int";
 import { checkDb, initializeTestDatabase } from "./db";
 import { getStatus as getErrorStatus, isHttpishError } from "./helpers/errors";
+import { enforceSecureCookies, requireHttps } from "./middleware/security";
+import { idempotencyMiddleware } from "./middleware/idempotency";
+import { errorHandler, notFoundHandler } from "./middleware/errors";
+import authRoutes from "./routes/auth";
+import lendersRoutes from "./routes/lenders";
+import lenderProductsRoutes from "./routes/lenderProducts";
+import applicationsRoutes from "./routes/applications";
 
 function assertRoutesMounted(app: express.Express): void {
   const mountedRoutes = listRoutes(app);
@@ -44,14 +54,15 @@ function assertRoutesMounted(app: express.Express): void {
 }
 
 function buildCorsOptions(): cors.CorsOptions {
-  const allowlist = getCorsAllowlistConfig();
+  const allowlist = new Set(getCorsAllowlistConfig());
+  allowlist.add("https://staff.boreal.financial");
   return {
     origin: (origin, callback) => {
       if (!origin) {
         callback(null, true);
         return;
       }
-      if (allowlist.includes("*") || allowlist.includes(origin)) {
+      if (allowlist.has(origin)) {
         callback(null, true);
         return;
       }
@@ -59,12 +70,8 @@ function buildCorsOptions(): cors.CorsOptions {
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: [
-      "Content-Type",
-      "Authorization",
-      "Idempotency-Key",
-      "X-Request-Id",
-    ],
+    allowedHeaders: ["Authorization", "Content-Type", "Idempotency-Key"],
+    optionsSuccessStatus: 204,
   };
 }
 
@@ -80,7 +87,6 @@ export function buildApp(): express.Express {
   app.use(requestLogger);
   app.use(requestTimeout);
 
-  app.use("/api/_int", internalRoutes);
   app.get("/api/health", healthHandler);
   app.get("/api/ready", readyHandler);
   app.get("/health", healthHandler);
@@ -178,49 +184,31 @@ export function registerApiRoutes(app: express.Express): void {
     next();
   });
 
-  // Ensure API routes are registered before any auth guards are applied.
-  app.use("/api", apiRouter);
-  app.use(
-    (
-      err: Error,
-      req: express.Request,
-      res: express.Response,
-      _next: express.NextFunction
-    ) => {
-      const requestId =
-        (req as express.Request & { id?: string }).id ??
-        res.locals.requestId ??
-        "unknown";
-      const status = getErrorStatus(err);
-      const errCode =
-        isHttpishError(err) && typeof err.code === "string" ? err.code : undefined;
-      const code =
-        status >= 500
-          ? "internal_error"
-          : errCode === "validation_error"
-          ? "validation_error"
-          : errCode ?? "bad_request";
-      const shouldExposeMessage = !isProductionEnvironment() || status < 500;
-      const message =
-        shouldExposeMessage && err instanceof Error && err.message
-          ? err.message
-          : status >= 500
-          ? "Internal server error."
-          : "Bad request.";
-      const details =
-        isHttpishError(err) && "details" in err
-          ? (err as { details?: unknown }).details
-          : undefined;
-      res.status(status).json({
-        code,
-        message,
-        ...(details ? { details } : {}),
-        requestId,
-      });
+  app.use("/api", requireHttps, enforceSecureCookies, idempotencyMiddleware);
+
+  const explicitMounts = [
+    { path: "/auth", router: authRoutes },
+    { path: "/lenders", router: lendersRoutes },
+    { path: "/lender-products", router: lenderProductsRoutes },
+    { path: "/applications", router: applicationsRoutes },
+  ];
+  const explicitPaths = new Set(explicitMounts.map((entry) => entry.path));
+  explicitMounts.forEach((entry) => {
+    app.use(`/api${entry.path}`, entry.router);
+  });
+  API_ROUTE_MOUNTS.filter((entry) => !explicitPaths.has(entry.path)).forEach(
+    (entry) => {
+      app.use(`/api${entry.path}`, entry.router);
     }
   );
+
+  app.use("/api", notFoundHandler);
+  app.use("/api", errorHandler);
+
+  const mountedRoutes = listRoutes(app);
+  printRoutes(app);
   if (process.env.PRINT_ROUTES === "true") {
-    printRoutes(app);
+    console.log(mountedRoutes.map((route) => `${route.method} ${route.path}`).join("\n"));
   }
   assertRoutesMounted(app);
 }

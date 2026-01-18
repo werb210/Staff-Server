@@ -30,6 +30,10 @@ const PUBLIC_PATHS = new Set([
   "/api/_int/env",
 ]);
 
+function normalizePath(path: string): string {
+  return path.split("?")[0];
+}
+
 function parseBearer(req: Request): string | null {
   const header = req.headers.authorization;
   if (!header) {
@@ -43,7 +47,7 @@ function parseBearer(req: Request): string | null {
 }
 
 function isPublicPath(path: string): boolean {
-  return PUBLIC_PATHS.has(path);
+  return PUBLIC_PATHS.has(normalizePath(path));
 }
 
 function resolveAuthError(res: Response): void {
@@ -59,7 +63,7 @@ export default function requireAuth(
   res: Response,
   next: NextFunction
 ): void {
-  const requestPath = req.originalUrl ?? req.path;
+  const requestPath = normalizePath(req.originalUrl ?? req.path);
   if (isPublicPath(requestPath)) {
     next();
     return;
