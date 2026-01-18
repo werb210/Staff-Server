@@ -5,6 +5,7 @@ import { safeHandler } from "../middleware/safeHandler";
 import {
   createLenderProductHandler,
   listLenderProductsHandler,
+  updateLenderProductHandler,
 } from "../controllers/lenderProducts.controller";
 
 const router = Router();
@@ -20,6 +21,11 @@ router.post(
   "/",
   requireCapability([CAPABILITIES.LENDERS_READ]),
   safeHandler(createLenderProductHandler)
+);
+router.patch(
+  "/:id",
+  requireCapability([CAPABILITIES.LENDERS_READ]),
+  safeHandler(updateLenderProductHandler)
 );
 
 export default router;

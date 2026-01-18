@@ -1,7 +1,11 @@
 import { type Request, type Response } from "express";
 import { AppError } from "../middleware/errors";
-import { createLender, listLenders, type LenderRecord } from "../repositories/lenders.repo";
-import { LENDER_SUBMISSION_METHODS } from "../db/schema/lenders";
+import { createLender, listLenders } from "../repositories/lenders.repo";
+import {
+  LENDER_SUBMISSION_METHODS,
+  type LenderRecord,
+  type LenderSubmissionMethod,
+} from "../db/schema/lenders";
 
 export type LenderResponse = {
   id: string;
@@ -159,7 +163,9 @@ export async function createLenderHandler(
     submissionMethod !== undefined &&
     submissionMethod !== null &&
     (typeof submissionMethod !== "string" ||
-      !LENDER_SUBMISSION_METHODS.includes(submissionMethod))
+      !LENDER_SUBMISSION_METHODS.includes(
+        submissionMethod as LenderSubmissionMethod
+      ))
   ) {
     throw new AppError(
       "validation_error",
@@ -191,7 +197,9 @@ export async function createLenderHandler(
     contactPhone:
       typeof contactPhone === "string" ? contactPhone.trim() || null : null,
     submissionMethod:
-      typeof submissionMethod === "string" ? submissionMethod : null,
+      typeof submissionMethod === "string"
+        ? (submissionMethod as LenderSubmissionMethod)
+        : null,
     submissionEmail:
       typeof submissionEmail === "string" ? submissionEmail.trim() || null : null,
   });
