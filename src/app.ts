@@ -23,7 +23,7 @@ import {
 } from "./startupState";
 import "./services/twilio";
 import { PORTAL_ROUTE_REQUIREMENTS, API_ROUTE_MOUNTS } from "./routes/routeRegistry";
-import { seedAdminUser, seedSecondAdminUser } from "./db/seed";
+import { seedAdminUser, seedBaselineLenders, seedSecondAdminUser } from "./db/seed";
 import { ensureOtpTableExists } from "./db/ensureOtpTable";
 import { logError, logWarn } from "./observability/logger";
 import { checkDb, initializeTestDatabase } from "./db";
@@ -149,6 +149,11 @@ export async function initializeServer(): Promise<void> {
   if (pendingMigrations.length > 0) {
     markNotReady("pending_migrations");
     return;
+  }
+  try {
+    await seedBaselineLenders();
+  } catch (err) {
+    logWarn("baseline_lenders_seed_skipped", { err });
   }
   if (!isTestEnvironment()) {
     try {

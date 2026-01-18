@@ -6,6 +6,7 @@ import { AppError } from "../middleware/errors";
 import { getClientSubmissionOwnerUserId } from "../config";
 import {
   createApplication,
+  countApplications,
   listApplications,
   type ApplicationRecord,
 } from "../modules/applications/applications.repo";
@@ -57,6 +58,20 @@ function toApplicationResponse(record: ApplicationRecord): ApplicationResponse {
   };
 }
 
+function assertApplicationRecord(record: ApplicationRecord): void {
+  if (
+    !record ||
+    typeof record.id !== "string" ||
+    typeof record.name !== "string" ||
+    typeof record.product_type !== "string" ||
+    typeof record.pipeline_state !== "string" ||
+    !(record.created_at instanceof Date) ||
+    !(record.updated_at instanceof Date)
+  ) {
+    throw new AppError("data_error", "Invalid application record.", 500);
+  }
+}
+
 router.get(
   "/",
   requireAuth,
@@ -64,11 +79,20 @@ router.get(
   safeHandler(async (req, res) => {
     const page = Math.max(1, Number(req.query.page) || 1);
     const pageSize = Math.max(1, Number(req.query.pageSize) || 25);
-    const applications = await listApplications({
-      limit: pageSize,
-      offset: (page - 1) * pageSize,
-    });
-    res.status(200).json({ items: applications.map(toApplicationResponse) });
+    const [applications, total] = await Promise.all([
+      listApplications({
+        limit: pageSize,
+        offset: (page - 1) * pageSize,
+      }),
+      countApplications(),
+    ]);
+    if (!Array.isArray(applications)) {
+      throw new AppError("data_error", "Invalid applications list.", 500);
+    }
+    applications.forEach(assertApplicationRecord);
+    res
+      .status(200)
+      .json({ items: applications.map(toApplicationResponse), total });
   })
 );
 
