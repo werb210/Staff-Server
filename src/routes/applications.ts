@@ -11,6 +11,7 @@ import {
   type ApplicationRecord,
 } from "../modules/applications/applications.repo";
 import { safeHandler } from "../middleware/safeHandler";
+import { respondOk } from "../utils/respondOk";
 
 type ApplicationPayload = {
   country?: string;
@@ -79,6 +80,10 @@ router.get(
   safeHandler(async (req, res) => {
     const page = Math.max(1, Number(req.query.page) || 1);
     const pageSize = Math.max(1, Number(req.query.pageSize) || 25);
+    const stage =
+      typeof req.query.stage === "string" && req.query.stage.trim().length > 0
+        ? req.query.stage
+        : "new";
     const [applications, total] = await Promise.all([
       listApplications({
         limit: pageSize,
@@ -90,9 +95,15 @@ router.get(
       throw new AppError("data_error", "Invalid applications list.", 500);
     }
     applications.forEach(assertApplicationRecord);
-    res
-      .status(200)
-      .json({ items: applications.map(toApplicationResponse), total });
+    respondOk(
+      res,
+      {
+        applications: applications.map(toApplicationResponse),
+        total,
+        stage,
+      },
+      { page, pageSize }
+    );
   })
 );
 

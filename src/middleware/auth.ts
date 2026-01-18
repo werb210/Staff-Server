@@ -63,6 +63,10 @@ export default function requireAuth(
   res: Response,
   next: NextFunction
 ): void {
+  if (req.path.startsWith("/api/_int/")) {
+    next();
+    return;
+  }
   const requestPath = normalizePath(req.originalUrl ?? req.path);
   if (isPublicPath(requestPath)) {
     next();

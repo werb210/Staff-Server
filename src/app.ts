@@ -88,6 +88,8 @@ export function buildApp(): express.Express {
 
   app.get("/api/health", healthHandler);
   app.get("/api/ready", readyHandler);
+  app.get("/api/_int/health", healthHandler);
+  app.get("/api/_int/ready", readyHandler);
   app.get("/health", healthHandler);
   app.get("/ready", readyHandler);
   app.get("/__boot", (_req, res) => {

@@ -1,5 +1,6 @@
 import { type Request, type Response } from "express";
 import { AppError } from "../middleware/errors";
+import { respondOk } from "../utils/respondOk";
 import { createLender, listLenders, type LenderRecord } from "../repositories/lenders.repo";
 
 export type LenderResponse = {
@@ -41,15 +42,21 @@ function assertLenderRecord(record: LenderRecord): void {
 }
 
 export async function listLendersHandler(
-  _req: Request,
+  req: Request,
   res: Response
 ): Promise<void> {
+  const page = Math.max(1, Number(req.query.page) || 1);
+  const pageSize = Math.max(1, Number(req.query.pageSize) || 25);
   const lenders = await listLenders();
   if (!Array.isArray(lenders)) {
     throw new AppError("data_error", "Invalid lenders list.", 500);
   }
   lenders.forEach(assertLenderRecord);
-  res.status(200).json(lenders.map(toLenderResponse));
+  respondOk(
+    res,
+    { lenders: lenders.map(toLenderResponse), total: lenders.length },
+    { page, pageSize }
+  );
 }
 
 export async function createLenderHandler(

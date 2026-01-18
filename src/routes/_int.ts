@@ -4,6 +4,7 @@ import { healthHandler, readyHandler } from "./ready";
 import { getBuildInfo } from "../config";
 import { listRoutes } from "../debug/printRoutes";
 import requireAuth from "../middleware/auth";
+import internalRoutes from "./internal";
 
 const router = Router();
 
@@ -41,5 +42,7 @@ router.get("/env", (_req, res) =>
 router.post("/twilio-test", async (_req, res) => {
   return res.json({ ok: true });
 });
+
+router.use(internalRoutes);
 
 export default router;
