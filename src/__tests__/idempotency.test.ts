@@ -218,11 +218,9 @@ describe("idempotency enforcement", () => {
     delete process.env.DB_TEST_SLOW_QUERY_MS;
   });
 
-  it("rejects missing idempotency keys", async () => {
-    const token = await loginUser("idem-missing@example.com");
+  it("rejects missing idempotency keys for unauthenticated requests", async () => {
     const res = await request(app)
       .post("/api/applications")
-      .set("Authorization", `Bearer ${token}`)
       .set("x-request-id", requestId)
       .send({ name: "Missing Key", metadata: { source: "web" }, productType: "standard" });
     expect(res.status).toBe(400);

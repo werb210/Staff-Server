@@ -1,6 +1,7 @@
 import { pool } from "../db";
 import { ROLES } from "../auth/roles";
 import { runMigrations } from "../migrations";
+import { logInfo } from "../observability/logger";
 
 export const SEEDED_ADMIN_PHONE = "+15878881837";
 export const SEEDED_ADMIN_ID = "00000000-0000-0000-0000-000000000099";
@@ -76,6 +77,23 @@ export async function seedSecondAdminUser(): Promise<{
 }
 
 export async function seedBaselineLenders(): Promise<void> {
+  const { rows: tableRows } = await pool.query<{
+    lenders: string | null;
+    lender_products: string | null;
+  }>(
+    "select to_regclass('public.lenders') as lenders, to_regclass('public.lender_products') as lender_products"
+  );
+  const lendersTable = tableRows[0]?.lenders ?? null;
+  const lenderProductsTable = tableRows[0]?.lender_products ?? null;
+  if (!lendersTable || !lenderProductsTable) {
+    logInfo("baseline_lenders_seed_skipped", {
+      reason: "tables_missing",
+      lendersTableExists: Boolean(lendersTable),
+      lenderProductsTableExists: Boolean(lenderProductsTable),
+    });
+    return;
+  }
+
   const { rows } = await pool.query<{ count: number }>(
     "select count(*)::int as count from lenders"
   );

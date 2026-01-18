@@ -138,6 +138,11 @@ export function idempotencyMiddleware(
     return;
   }
 
+  if (res.locals.idempotencyKeyGenerated) {
+    next();
+    return;
+  }
+
   const requestId = res.locals.requestId ?? "unknown";
   const requestHash = hashValue(stableStringify(req.body ?? {}));
   const keyHash = hashValue(trimmedKey);

@@ -92,5 +92,6 @@ export async function createLenderProductHandler(
     description: typeof description === "string" ? description.trim() : null,
     active: typeof active === "boolean" ? active : true,
   });
+  // Portal contract: POST /api/lender-products returns the created lender product object.
   res.status(201).json(toLenderProductResponse(created));
 }
