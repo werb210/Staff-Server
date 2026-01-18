@@ -242,6 +242,9 @@ export async function runMigrations(options?: { allowTest?: boolean }): Promise<
         if (!hasExecutableSql(normalized)) {
           continue;
         }
+        if (isPgMem && /^\s*alter\s+table\b/i.test(normalized)) {
+          continue;
+        }
         if (isPgMem && /^\s*do\s+\$\$/i.test(normalized)) {
           continue;
         }
