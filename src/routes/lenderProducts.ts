@@ -10,9 +10,16 @@ import {
 const router = Router();
 
 router.use(requireAuth);
-router.use(requireCapability([CAPABILITIES.LENDERS_READ]));
 
-router.get("/", safeHandler(listLenderProductsHandler));
-router.post("/", safeHandler(createLenderProductHandler));
+router.get(
+  "/",
+  requireCapability([CAPABILITIES.LENDERS_READ]),
+  safeHandler(listLenderProductsHandler)
+);
+router.post(
+  "/",
+  requireCapability([CAPABILITIES.LENDERS_READ]),
+  safeHandler(createLenderProductHandler)
+);
 
 export default router;

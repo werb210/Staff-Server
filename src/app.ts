@@ -214,6 +214,22 @@ export function registerApiRoutes(app: express.Express): void {
 
   app.use("/api", notFoundHandler);
   app.use("/api", errorHandler);
+  app.use(
+    (
+      err: Error,
+      _req: express.Request,
+      res: express.Response,
+      _next: express.NextFunction
+    ) => {
+      if (res.headersSent) {
+        return;
+      }
+      res.status(500).json({
+        code: "internal_error",
+        message: "Unexpected error",
+      });
+    }
+  );
 
   const mountedRoutes = listRoutes(app);
   printRoutes(app);

@@ -15,5 +15,13 @@ export default function requireAuthWithInternalBypass(
     next();
     return;
   }
+  if (req.method === "GET") {
+    const user = getAuthenticatedUserFromRequest(req);
+    if (user) {
+      req.user = user;
+      next();
+      return;
+    }
+  }
   requireAuth(req, res, next);
 }

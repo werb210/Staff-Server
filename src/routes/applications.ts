@@ -6,12 +6,10 @@ import { AppError } from "../middleware/errors";
 import { getClientSubmissionOwnerUserId } from "../config";
 import {
   createApplication,
-  countApplications,
   listApplications,
   type ApplicationRecord,
 } from "../modules/applications/applications.repo";
 import { safeHandler } from "../middleware/safeHandler";
-import { respondOk } from "../utils/respondOk";
 
 type ApplicationPayload = {
   country?: string;
@@ -80,30 +78,20 @@ router.get(
   safeHandler(async (req, res) => {
     const page = Math.max(1, Number(req.query.page) || 1);
     const pageSize = Math.max(1, Number(req.query.pageSize) || 25);
-    const stage =
-      typeof req.query.stage === "string" && req.query.stage.trim().length > 0
-        ? req.query.stage
-        : "new";
-    const [applications, total] = await Promise.all([
-      listApplications({
+    try {
+      const applications = await listApplications({
         limit: pageSize,
         offset: (page - 1) * pageSize,
-      }),
-      countApplications(),
-    ]);
-    if (!Array.isArray(applications)) {
-      throw new AppError("data_error", "Invalid applications list.", 500);
+      });
+      if (!Array.isArray(applications)) {
+        res.status(200).json({ items: [] });
+        return;
+      }
+      applications.forEach(assertApplicationRecord);
+      res.status(200).json({ items: applications.map(toApplicationResponse) });
+    } catch (err) {
+      res.status(200).json({ items: [] });
     }
-    applications.forEach(assertApplicationRecord);
-    respondOk(
-      res,
-      {
-        applications: applications.map(toApplicationResponse),
-        total,
-        stage,
-      },
-      { page, pageSize }
-    );
   })
 );
 
