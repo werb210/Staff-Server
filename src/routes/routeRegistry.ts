@@ -9,7 +9,7 @@ import communicationsRoutes from "./communications";
 import crmRoutes from "./crm";
 import dashboardRoutes from "./dashboard";
 import documentsRoutes from "./documents";
-import internalRoutes from "./internal";
+import internalRoutes from "./_int";
 import lenderRoutes from "./lender";
 import lenderProductsRoutes from "./lenderProducts";
 import lendersRoutes from "./lenders";
