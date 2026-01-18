@@ -53,14 +53,15 @@ function assertRoutesMounted(app: express.Express): void {
 
 function buildCorsOptions(): cors.CorsOptions {
   const allowlist = new Set(getCorsAllowlistConfig());
-  allowlist.add("https://staff.boreal.financial");
+  const portalOrigin = "https://staff.boreal.financial";
+  allowlist.add(portalOrigin);
   return {
     origin: (origin, callback) => {
       if (!origin) {
         callback(null, true);
         return;
       }
-      if (allowlist.has(origin)) {
+      if (allowlist.has(origin) || origin.startsWith(`${portalOrigin}/`)) {
         callback(null, true);
         return;
       }
