@@ -3,17 +3,10 @@ import cors from "cors";
 
 import { healthHandler, readyHandler } from "./routes/ready";
 import { listRoutes, printRoutes } from "./debug/printRoutes";
-import { getPendingMigrations } from "./migrations";
-import {
-  isTestEnvironment,
-  shouldRunMigrations,
-  getCorsAllowlistConfig,
-  getRequestBodyLimit,
-} from "./config";
+import { getCorsAllowlistConfig, getRequestBodyLimit } from "./config";
 import { requestId } from "./middleware/requestId";
 import { requestLogger } from "./middleware/requestLogger";
 import { requestTimeout } from "./middleware/requestTimeout";
-import { runStartupConsistencyCheck } from "./startup/consistencyCheck";
 import {
   getStatus as getStartupStatus,
   isReady,
@@ -22,10 +15,7 @@ import {
 } from "./startupState";
 import "./services/twilio";
 import { PORTAL_ROUTE_REQUIREMENTS, API_ROUTE_MOUNTS } from "./routes/routeRegistry";
-import { migrateDatabase } from "./db/migrate";
-import { seedAdminUser, seedBaselineLenders, seedSecondAdminUser } from "./db/seed";
-import { ensureOtpTableExists } from "./db/ensureOtpTable";
-import { logError, logWarn } from "./observability/logger";
+import { logError } from "./observability/logger";
 import { checkDb } from "./db";
 import { enforceSecureCookies, requireHttps } from "./middleware/security";
 import { idempotencyMiddleware } from "./middleware/idempotency";
@@ -120,46 +110,6 @@ export async function initializeServer(): Promise<void> {
     logError("startup_db_check_failed", { err });
     markNotReady("db_unavailable");
     return;
-  }
-
-  if (shouldRunMigrations()) {
-    try {
-      await migrateDatabase();
-      await seedAdminUser();
-      await seedSecondAdminUser();
-    } catch (err) {
-      logError("startup_migrations_failed", { err });
-      markNotReady("migrations_failed");
-      throw err;
-    }
-  }
-
-  if (!isTestEnvironment()) {
-    try {
-      await ensureOtpTableExists();
-    } catch (err) {
-      logError("otp_schema_self_heal_failed", { err });
-      markNotReady("otp_table_check_failed");
-      return;
-    }
-  }
-
-  const pendingMigrations = await getPendingMigrations();
-  if (pendingMigrations.length > 0) {
-    markNotReady("pending_migrations");
-    return;
-  }
-  try {
-    await seedBaselineLenders();
-  } catch (err) {
-    logWarn("baseline_lenders_seed_skipped", { err });
-  }
-  if (!isTestEnvironment()) {
-    try {
-      await runStartupConsistencyCheck();
-    } catch (err) {
-      logWarn("startup_consistency_check_skipped", { err });
-    }
   }
   markReady();
 }
