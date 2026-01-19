@@ -1,5 +1,6 @@
 import { Router } from "express";
-import requireAuth, { requireCapability } from "../middleware/auth";
+import requireAuth from "../middleware/requireAuth";
+import { requireCapabilities } from "../middleware/requireCapabilities";
 import { CAPABILITIES } from "../auth/capabilities";
 import { safeHandler } from "../middleware/safeHandler";
 import {
@@ -11,10 +12,14 @@ const router = Router();
 
 router.use(requireAuth);
 
-router.get("/", requireCapability([CAPABILITIES.LENDERS_READ]), safeHandler(listLendersHandler));
+router.get(
+  "/",
+  requireCapabilities(CAPABILITIES.LENDERS_READ),
+  safeHandler(listLendersHandler)
+);
 router.post(
   "/",
-  requireCapability([CAPABILITIES.OPS_MANAGE]),
+  requireCapabilities(CAPABILITIES.OPS_MANAGE),
   safeHandler(createLenderHandler)
 );
 
