@@ -9,9 +9,7 @@ import {
 
 const router = Router();
 
-/**
- * Preflight must never require auth
- */
+// Preflight must never require auth
 router.options("/", (_req, res) => res.sendStatus(204));
 
 router.get(
