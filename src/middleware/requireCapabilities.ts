@@ -10,8 +10,7 @@ export function requireCapabilities(...required: string[]) {
       return next();
     }
 
-    const hasAll = required.every((cap) => userCaps.includes(cap));
-
+    const hasAll = required.every(cap => userCaps.includes(cap));
     if (!hasAll) {
       return res.status(403).json({ error: "insufficient_capabilities" });
     }
