@@ -1,4 +1,5 @@
 import { buildApp, registerApiRoutes } from "../app";
+import otpRouter from "../routes/auth/otp";
 import { assertEnv } from "../config";
 import { logError, logWarn } from "../observability/logger";
 import { markReady } from "../startupState";
@@ -47,6 +48,7 @@ export async function startServer(): Promise<
   assertEnv();
   const app = buildApp();
   registerApiRoutes(app);
+  app.use("/auth/otp", otpRouter);
 
   const port = resolvePort();
   server = await new Promise((resolve) => {

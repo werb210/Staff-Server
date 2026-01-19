@@ -28,6 +28,8 @@ const PUBLIC_PATHS = new Set([
   "/api/_int/build",
   "/api/_int/routes",
   "/api/_int/env",
+  "/auth/otp/start",
+  "/auth/otp/verify",
 ]);
 
 function normalizePath(path: string): string {
