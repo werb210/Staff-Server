@@ -45,7 +45,6 @@ export async function startServer(): Promise<
 > {
   installProcessHandlers();
   assertEnv();
-
   const app = buildApp();
   registerApiRoutes(app);
 
