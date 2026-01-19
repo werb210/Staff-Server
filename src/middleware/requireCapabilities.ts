@@ -5,7 +5,7 @@ export function requireCapabilities(...required: string[]) {
   return (req: Request, res: Response, next: NextFunction) => {
     const userCaps: string[] = req.user?.capabilities ?? [];
 
-    // OPS_MANAGE is a superset – always allow
+    // OPS_MANAGE is a superset
     if (userCaps.includes(CAPABILITIES.OPS_MANAGE)) {
       return next();
     }
@@ -15,6 +15,6 @@ export function requireCapabilities(...required: string[]) {
       return res.status(403).json({ error: "insufficient_capabilities" });
     }
 
-    next();
+    return next();
   };
 }
