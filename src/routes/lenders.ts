@@ -14,7 +14,7 @@ router.use(requireAuth);
 router.get("/", requireCapability([CAPABILITIES.LENDERS_READ]), safeHandler(listLendersHandler));
 router.post(
   "/",
-  requireCapability([CAPABILITIES.LENDERS_READ]),
+  requireCapability([CAPABILITIES.LENDERS_WRITE]),
   safeHandler(createLenderHandler)
 );
 
