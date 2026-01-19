@@ -62,6 +62,48 @@ function assertLenderRecord(record: LenderRecord): void {
   }
 }
 
+function respondWithError(
+  res: Response,
+  status: number,
+  code: string,
+  message: string
+): void {
+  const requestId = res.locals.requestId ?? "unknown";
+  res.status(status).json({ code, message, requestId });
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function normalizeOptionalString(value: unknown): string | null {
+  return typeof value === "string" ? value.trim() || null : null;
+}
+
+function detectDbErrorStatus(err: unknown): { status: number; code: string; message: string } {
+  const error = err as { code?: string; message?: string };
+  const dbCode = typeof error.code === "string" ? error.code : null;
+  if (dbCode === "23505") {
+    return {
+      status: 409,
+      code: "duplicate_lender",
+      message: "A lender with that name already exists.",
+    };
+  }
+  if (dbCode === "23502" || dbCode === "23503" || dbCode === "23514") {
+    return {
+      status: 409,
+      code: "constraint_violation",
+      message: "Request violates a database constraint.",
+    };
+  }
+  return {
+    status: 500,
+    code: "server_error",
+    message: error.message ?? "An unexpected error occurred.",
+  };
+}
+
 export async function listLendersHandler(
   req: Request,
   res: Response
@@ -83,81 +125,94 @@ export async function createLenderHandler(
   req: Request,
   res: Response
 ): Promise<void> {
-  const {
-    name,
-    country,
-    active,
-    phone,
-    website,
-    description,
-    street,
-    city,
-    region,
-    postalCode,
-    contactName,
-    contactEmail,
-    contactPhone,
-    submissionMethod,
-    submissionEmail,
-  } = req.body ?? {};
+  const body = isPlainObject(req.body) ? req.body : {};
+  const name = body.name;
+  const country = body.country;
+  const active = body.active;
+  const phone = body.phone;
+  const website = body.website;
+  const description = body.description;
+  const street = body.street;
+  const city = body.city;
+  const region = body.region;
+  const postalCode = body.postalCode;
+  const contactName = body.contactName;
+  const contactEmail = body.contactEmail;
+  const contactPhone = body.contactPhone;
+  const submissionMethod = body.submissionMethod;
+  const submissionEmail = body.submissionEmail;
+
   if (typeof name !== "string" || name.trim().length === 0) {
-    throw new AppError("validation_error", "name is required.", 400);
+    respondWithError(res, 400, "validation_error", "name is required.");
+    return;
   }
-  if (typeof country !== "string" || country.trim().length === 0) {
-    throw new AppError("validation_error", "country is required.", 400);
+  if (country !== undefined && country !== null && typeof country !== "string") {
+    respondWithError(res, 400, "validation_error", "country must be a string.");
+    return;
   }
   if (phone !== undefined && phone !== null && typeof phone !== "string") {
-    throw new AppError("validation_error", "phone must be a string.", 400);
+    respondWithError(res, 400, "validation_error", "phone must be a string.");
+    return;
   }
   if (website !== undefined && website !== null && typeof website !== "string") {
-    throw new AppError("validation_error", "website must be a string.", 400);
+    respondWithError(res, 400, "validation_error", "website must be a string.");
+    return;
   }
   if (
     description !== undefined &&
     description !== null &&
     typeof description !== "string"
   ) {
-    throw new AppError("validation_error", "description must be a string.", 400);
+    respondWithError(res, 400, "validation_error", "description must be a string.");
+    return;
   }
   if (active !== undefined && typeof active !== "boolean") {
-    throw new AppError("validation_error", "active must be a boolean.", 400);
+    respondWithError(res, 400, "validation_error", "active must be a boolean.");
+    return;
   }
   if (street !== undefined && street !== null && typeof street !== "string") {
-    throw new AppError("validation_error", "street must be a string.", 400);
+    respondWithError(res, 400, "validation_error", "street must be a string.");
+    return;
   }
   if (city !== undefined && city !== null && typeof city !== "string") {
-    throw new AppError("validation_error", "city must be a string.", 400);
+    respondWithError(res, 400, "validation_error", "city must be a string.");
+    return;
   }
   if (region !== undefined && region !== null && typeof region !== "string") {
-    throw new AppError("validation_error", "region must be a string.", 400);
+    respondWithError(res, 400, "validation_error", "region must be a string.");
+    return;
   }
   if (
     postalCode !== undefined &&
     postalCode !== null &&
     typeof postalCode !== "string"
   ) {
-    throw new AppError("validation_error", "postalCode must be a string.", 400);
+    respondWithError(res, 400, "validation_error", "postalCode must be a string.");
+    return;
   }
   if (
     contactName !== undefined &&
     contactName !== null &&
     typeof contactName !== "string"
   ) {
-    throw new AppError("validation_error", "contactName must be a string.", 400);
+    respondWithError(res, 400, "validation_error", "contactName must be a string.");
+    return;
   }
   if (
     contactEmail !== undefined &&
     contactEmail !== null &&
     typeof contactEmail !== "string"
   ) {
-    throw new AppError("validation_error", "contactEmail must be a string.", 400);
+    respondWithError(res, 400, "validation_error", "contactEmail must be a string.");
+    return;
   }
   if (
     contactPhone !== undefined &&
     contactPhone !== null &&
     typeof contactPhone !== "string"
   ) {
-    throw new AppError("validation_error", "contactPhone must be a string.", 400);
+    respondWithError(res, 400, "validation_error", "contactPhone must be a string.");
+    return;
   }
   if (
     submissionMethod !== undefined &&
@@ -167,42 +222,53 @@ export async function createLenderHandler(
         submissionMethod as LenderSubmissionMethod
       ))
   ) {
-    throw new AppError(
+    respondWithError(
+      res,
+      400,
       "validation_error",
-      "submissionMethod must be EMAIL or API.",
-      400
+      "submissionMethod must be EMAIL or API."
     );
+    return;
   }
   if (
     submissionEmail !== undefined &&
     submissionEmail !== null &&
     typeof submissionEmail !== "string"
   ) {
-    throw new AppError("validation_error", "submissionEmail must be a string.", 400);
+    respondWithError(res, 400, "validation_error", "submissionEmail must be a string.");
+    return;
   }
-  const created = await createLender({
-    name: name.trim(),
-    active: typeof active === "boolean" ? active : true,
-    country: country.trim(),
-    phone: typeof phone === "string" ? phone.trim() || null : null,
-    website: typeof website === "string" ? website.trim() || null : null,
-    description: typeof description === "string" ? description.trim() || null : null,
-    street: typeof street === "string" ? street.trim() || null : null,
-    city: typeof city === "string" ? city.trim() || null : null,
-    region: typeof region === "string" ? region.trim() || null : null,
-    postalCode: typeof postalCode === "string" ? postalCode.trim() || null : null,
-    contactName: typeof contactName === "string" ? contactName.trim() || null : null,
-    contactEmail:
-      typeof contactEmail === "string" ? contactEmail.trim() || null : null,
-    contactPhone:
-      typeof contactPhone === "string" ? contactPhone.trim() || null : null,
-    submissionMethod:
-      typeof submissionMethod === "string"
-        ? (submissionMethod as LenderSubmissionMethod)
-        : null,
-    submissionEmail:
-      typeof submissionEmail === "string" ? submissionEmail.trim() || null : null,
-  });
-  // Portal contract: POST /api/lenders returns the created lender object (not wrapped).
-  res.status(201).json(toLenderResponse(created));
+
+  const resolvedCountry =
+    typeof country === "string" && country.trim().length > 0
+      ? country.trim()
+      : "US";
+
+  try {
+    const created = await createLender({
+      name: name.trim(),
+      active: typeof active === "boolean" ? active : true,
+      country: resolvedCountry,
+      phone: normalizeOptionalString(phone),
+      website: normalizeOptionalString(website),
+      description: normalizeOptionalString(description),
+      street: normalizeOptionalString(street),
+      city: normalizeOptionalString(city),
+      region: normalizeOptionalString(region),
+      postalCode: normalizeOptionalString(postalCode),
+      contactName: normalizeOptionalString(contactName),
+      contactEmail: normalizeOptionalString(contactEmail),
+      contactPhone: normalizeOptionalString(contactPhone),
+      submissionMethod:
+        typeof submissionMethod === "string"
+          ? (submissionMethod as LenderSubmissionMethod)
+          : null,
+      submissionEmail: normalizeOptionalString(submissionEmail),
+    });
+    // Portal contract: POST /api/lenders returns the created lender object (not wrapped).
+    res.status(201).json(toLenderResponse(created));
+  } catch (err) {
+    const failure = detectDbErrorStatus(err);
+    respondWithError(res, failure.status, failure.code, failure.message);
+  }
 }
