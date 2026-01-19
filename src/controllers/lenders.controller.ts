@@ -8,32 +8,21 @@ export async function listLendersHandler(req: Request, res: Response) {
 }
 
 export async function createLenderHandler(req: Request, res: Response) {
-  const {
-    name,
-    type,
-    minAmount,
-    maxAmount,
-    interestRateMin,
-    interestRateMax,
-    termMinMonths,
-    termMaxMonths,
-    notes,
-    active = true,
-  } = req.body;
+  const payload = req.body;
 
   const [created] = await db
     .insert(lenderProducts)
     .values({
-      name,
-      type,
-      minAmount,
-      maxAmount,
-      interestRateMin,
-      interestRateMax,
-      termMinMonths,
-      termMaxMonths,
-      notes,
-      active,
+      name: payload.name,
+      type: payload.type,
+      minAmount: payload.minAmount,
+      maxAmount: payload.maxAmount,
+      interestRateMin: payload.interestRateMin,
+      interestRateMax: payload.interestRateMax,
+      termMinMonths: payload.termMinMonths,
+      termMaxMonths: payload.termMaxMonths,
+      notes: payload.notes ?? null,
+      active: payload.active ?? true,
     })
     .returning();
 
