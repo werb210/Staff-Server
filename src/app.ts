@@ -15,7 +15,6 @@ import {
 } from "./startupState";
 import "./services/twilio";
 import { PORTAL_ROUTE_REQUIREMENTS, API_ROUTE_MOUNTS } from "./routes/routeRegistry";
-import { logError } from "./observability/logger";
 import { checkDb } from "./db";
 import { enforceSecureCookies, requireHttps } from "./middleware/security";
 import { idempotencyMiddleware } from "./middleware/idempotency";
@@ -98,19 +97,7 @@ export function buildApp(): express.Express {
 
 export async function initializeServer(): Promise<void> {
   markNotReady("initializing");
-  const hasDatabase = Boolean(process.env.DATABASE_URL);
-  if (!hasDatabase) {
-    markNotReady("database_not_configured");
-    return;
-  }
-
-  try {
-    await checkDb();
-  } catch (err) {
-    logError("startup_db_check_failed", { err });
-    markNotReady("db_unavailable");
-    return;
-  }
+  await checkDb();
   markReady();
 }
 
