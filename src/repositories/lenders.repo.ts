@@ -25,7 +25,7 @@ export async function createLender(params: {
 }): Promise<LenderRecord> {
   const runner = params.client ?? pool;
   const res = await runner.query<LenderRecord>(
-    `insert into lenders
+    `insert into lender_products
      (id, name, active, phone, website, description, street, city, region, country, postal_code,
       contact_name, contact_email, contact_phone, submission_method, submission_email, created_at)
      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, now())
@@ -58,7 +58,7 @@ export async function listLenders(client?: Queryable): Promise<LenderRecord[]> {
   const res = await runner.query<LenderRecord>(
     `select id, name, active, phone, website, description, street, city, region, country, postal_code,
        contact_name, contact_email, contact_phone, submission_method, submission_email, created_at
-     from lenders
+     from lender_products
      order by created_at desc`
   );
   return res.rows;
@@ -72,7 +72,7 @@ export async function getLenderById(
   const res = await runner.query<LenderRecord>(
     `select id, name, active, phone, website, description, street, city, region, country, postal_code,
        contact_name, contact_email, contact_phone, submission_method, submission_email, created_at
-     from lenders
+     from lender_products
      where id = $1
      limit 1`,
     [lenderId]
