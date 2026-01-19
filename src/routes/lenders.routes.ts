@@ -1,18 +1,19 @@
 import { Router } from "express";
+import requireAuth from "../middleware/requireAuth";
+import { requireCapabilities } from "../middleware/requireCapabilities";
+import { CAPABILITIES } from "../auth/capabilities";
 import {
   listLendersHandler,
   createLenderHandler,
 } from "../controllers/lenders.controller";
-import requireAuth from "../middleware/requireAuth";
-import { requireCapabilities } from "../middleware/requireCapabilities";
-import { CAPABILITIES } from "../auth/capabilities";
 
 const router = Router();
 
 /**
- * READ
- * Admin / Ops allowed
+ * Preflight must never require auth
  */
+router.options("/", (_req, res) => res.sendStatus(204));
+
 router.get(
   "/",
   requireAuth,
@@ -20,14 +21,10 @@ router.get(
   listLendersHandler
 );
 
-/**
- * WRITE
- * Ops only
- */
 router.post(
   "/",
   requireAuth,
-  requireCapabilities(CAPABILITIES.OPS_MANAGE),
+  requireCapabilities(CAPABILITIES.LENDERS_WRITE),
   createLenderHandler
 );
 
