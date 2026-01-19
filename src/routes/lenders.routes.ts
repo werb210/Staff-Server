@@ -1,17 +1,17 @@
 import { Router } from "express";
+import requireAuth from "../middleware/requireAuth";
+import { requireCapabilities } from "../middleware/requireCapabilities";
+import { CAPABILITIES } from "../auth/capabilities";
 import {
   listLendersHandler,
   createLenderHandler,
 } from "../controllers/lenders.controller";
-import { requireAuth } from "../middleware/requireAuth";
-import { requireCapabilities } from "../middleware/requireCapabilities";
-import { CAPABILITIES } from "../auth/capabilities";
 
 const router = Router();
 
 /**
- * READ
- * Required by Staff Portal to render Lenders page
+ * READ – Staff Portal Lenders page
+ * OPS_MANAGE users must be allowed implicitly
  */
 router.get(
   "/",
@@ -21,8 +21,7 @@ router.get(
 );
 
 /**
- * WRITE
- * Restricted to ops/admin only
+ * WRITE – Admin / Ops only
  */
 router.post(
   "/",
