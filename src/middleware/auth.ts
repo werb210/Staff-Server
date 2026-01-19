@@ -191,10 +191,11 @@ function normalizeAuthenticatedUser(
   if (!userId) {
     return null;
   }
-  if (typeof payload.role !== "string" || !isRole(payload.role)) {
+  const role =
+    typeof payload.role === "string" ? payload.role.toLowerCase() : null;
+  if (!role || !isRole(role)) {
     return null;
   }
-  const role = payload.role;
   return {
     userId,
     role,
