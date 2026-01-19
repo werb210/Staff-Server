@@ -1,6 +1,7 @@
 import { buildApp, registerApiRoutes } from "../app";
 import { assertEnv } from "../config";
 import { logError, logWarn } from "../observability/logger";
+import { markReady } from "../startupState";
 
 let processHandlersInstalled = false;
 let server: ReturnType<ReturnType<typeof buildApp>["listen"]> | null = null;
@@ -73,6 +74,7 @@ export async function startServer(): Promise<
   if (!server) {
     throw new Error("Server failed to start.");
   }
+  markReady();
   return server;
 }
 
