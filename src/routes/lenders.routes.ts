@@ -22,7 +22,7 @@ router.get(
 router.post(
   "/",
   requireAuth,
-  requireCapabilities(CAPABILITIES.LENDERS_WRITE),
+  requireCapabilities(CAPABILITIES.OPS_MANAGE),
   createLenderHandler
 );
 
