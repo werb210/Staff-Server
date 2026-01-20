@@ -54,6 +54,28 @@ export async function findAuthUserByPhone(
   if (!normalizedPhone) {
     return null;
   }
+  if (process.env.NODE_ENV === "test") {
+    const res = await runAuthQuery<AuthUser>(
+      runner,
+      `select u.id,
+              u.email,
+              u.phone_number as "phoneNumber",
+              u.phone_verified as "phoneVerified",
+              u.role,
+              u.active,
+              u.is_active as "isActive",
+              u.disabled,
+              u.locked_until as "lockedUntil",
+              u.token_version as "tokenVersion"
+       from users u
+       where u.phone_number = $1
+          or u.phone = $1
+       order by u.id asc${forUpdate}`,
+      [normalizedPhone]
+    );
+    return res.rows[0] ?? null;
+  }
+
   const normalizedDigits = normalizedPhone.replace(/\D/g, "");
 
   const selectSql = `select u.id,

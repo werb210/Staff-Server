@@ -30,12 +30,22 @@ function buildPoolConfig(): PoolConfig {
   };
 }
 
-const poolConfig = buildPoolConfig();
+const isTestEnv = process.env.NODE_ENV === "test";
+let poolConfig = buildPoolConfig();
+let PoolImpl: typeof Pool = Pool;
+
+if (isTestEnv) {
+  const { newDb } = require("pg-mem") as typeof import("pg-mem");
+  const memoryDb = newDb({ autoCreateForeignKeyIndices: true });
+  const adapter = memoryDb.adapters.createPg();
+  PoolImpl = adapter.Pool as typeof Pool;
+  poolConfig = {};
+}
 
 /**
  * Exported pool instance.
  */
-export const pool: PgPool = new Pool(poolConfig);
+export const pool: PgPool = new PoolImpl(poolConfig);
 
 /**
  * Extract SQL text from arguments to pool.query() for instrumentation.

@@ -7,6 +7,10 @@ import { markReady } from "../startupState";
 let processHandlersInstalled = false;
 let server: ReturnType<ReturnType<typeof buildApp>["listen"]> | null = null;
 
+export const app = buildApp();
+registerApiRoutes(app);
+app.use("/auth/otp", otpRouter);
+
 const isProd = process.env.NODE_ENV === "production";
 if (isProd && !process.env.BASE_URL) {
   throw new Error("BASE_URL must be set in production.");
@@ -46,9 +50,6 @@ export async function startServer(): Promise<
 > {
   installProcessHandlers();
   assertEnv();
-  const app = buildApp();
-  registerApiRoutes(app);
-  app.use("/auth/otp", otpRouter);
 
   const port = resolvePort();
   server = await new Promise((resolve) => {
@@ -79,7 +80,7 @@ export async function startServer(): Promise<
   return server;
 }
 
-if (require.main === module) {
+if (require.main === module && process.env.NODE_ENV !== "test") {
   startServer().catch((err) => {
     logError("server_start_failed", { err });
   });

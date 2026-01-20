@@ -1,14 +1,5 @@
 import { installProcessHandlers } from "../observability/processHandlers";
 import { markReady } from "../startupState";
-import type { ClientOpts } from "twilio/lib/base/BaseTwilio";
-import type {
-  VerificationInstance,
-  VerificationListInstanceCreateOptions,
-} from "twilio/lib/rest/verify/v2/service/verification";
-import type {
-  VerificationCheckInstance,
-  VerificationCheckListInstanceCreateOptions,
-} from "twilio/lib/rest/verify/v2/service/verificationCheck";
 
 process.env.NODE_ENV = "test";
 process.env.BASE_URL ||= "http://127.0.0.1:3000";
@@ -27,85 +18,82 @@ markReady();
 installProcessHandlers();
 
 beforeAll(async () => {
-  const { runMigrations } = await import("../migrations");
-  await runMigrations();
+  const { pool } = await import("../db");
+  await pool.query("drop table if exists auth_refresh_tokens cascade;");
+  await pool.query("drop table if exists otp_verifications cascade;");
+  await pool.query("drop table if exists audit_events cascade;");
+  await pool.query("drop table if exists lenders cascade;");
+  await pool.query("drop table if exists users cascade;");
+  await pool.query(`
+    create table if not exists users (
+      id uuid primary key,
+      email text null,
+      phone_number text null unique,
+      phone text null,
+      role text null,
+      active boolean not null default true,
+      is_active boolean null,
+      disabled boolean null,
+      locked_until timestamptz null,
+      phone_verified boolean not null default false,
+      token_version integer not null default 0
+    );
+  `);
+  await pool.query(`
+    create table if not exists auth_refresh_tokens (
+      id uuid primary key,
+      user_id uuid not null references users(id) on delete cascade,
+      token text not null,
+      token_hash text not null,
+      expires_at timestamptz not null,
+      revoked_at timestamptz null,
+      created_at timestamptz not null default now()
+    );
+  `);
+  await pool.query(`
+    create table if not exists otp_verifications (
+      id uuid primary key,
+      user_id uuid not null references users(id) on delete cascade,
+      phone text not null,
+      verification_sid text,
+      status text not null,
+      verified_at timestamptz,
+      created_at timestamptz not null default now()
+    );
+  `);
+  await pool.query(`
+    create table if not exists audit_events (
+      actor_user_id uuid null,
+      target_user_id uuid null,
+      target_type text null,
+      target_id text null,
+      event_type text not null,
+      event_action text not null,
+      ip_address text null,
+      user_agent text null,
+      request_id text null,
+      success boolean not null,
+      metadata jsonb null,
+      created_at timestamptz not null default now()
+    );
+  `);
+  await pool.query(`
+    create table if not exists lenders (
+      id uuid primary key,
+      name text not null,
+      country text not null,
+      submission_method text null,
+      email text null,
+      phone text null,
+      website text null,
+      postal_code text null,
+      created_at timestamptz not null default now()
+    );
+  `);
 });
 
-const createVerification = jest.fn<
-  Promise<Pick<VerificationInstance, "sid" | "status">>,
-  [VerificationListInstanceCreateOptions]
->(async () => ({ sid: "VE123", status: "pending" }));
-
-const createVerificationCheck = jest.fn<
-  Promise<Pick<VerificationCheckInstance, "status" | "sid">>,
-  [VerificationCheckListInstanceCreateOptions]
->(async (params) => ({
-  status: params.code === "123456" ? "approved" : "pending",
-  sid: "VEXXXXX",
-}));
-
-type VerificationService = {
-  verifications: {
-    create: typeof createVerification;
-  };
-  verificationChecks: {
-    create: typeof createVerificationCheck;
-  };
+const twilioModule = require("twilio") as {
+  __twilioMocks: unknown;
 };
 
-type ServicesMock = jest.MockedFunction<
-  (serviceSid: string) => VerificationService
->;
-
-type TwilioClientMock = {
-  verify: {
-    v2: {
-      services: ServicesMock;
-    };
-  };
-};
-
-const mockService: VerificationService = {
-  verifications: { create: createVerification },
-  verificationChecks: { create: createVerificationCheck },
-};
-
-const services: ServicesMock = jest.fn((serviceSid: string) => {
-  twilioMockState.lastServiceSid = serviceSid;
-  return mockService;
-});
-
-const mockClient: TwilioClientMock = {
-  verify: {
-    v2: {
-      services,
-    },
-  },
-};
-
-const TwilioMock = jest.fn<
-  TwilioClientMock,
-  [string | undefined, string | undefined, ClientOpts | undefined]
->(() => mockClient);
-
-const twilioModule = Object.assign(TwilioMock, { default: TwilioMock });
-
-jest.mock("twilio", () => twilioModule);
-
-type TwilioMockState = {
-  createVerification: typeof createVerification;
-  createVerificationCheck: typeof createVerificationCheck;
-  twilioConstructor: typeof TwilioMock;
-  services: ServicesMock;
-  lastServiceSid: string | null;
-};
-
-const twilioMockState: TwilioMockState = {
-  createVerification,
-  createVerificationCheck,
-  twilioConstructor: TwilioMock,
-  services,
-  lastServiceSid: null,
-};
-
-Object.assign(globalThis, { __twilioMocks: twilioMockState });
+Object.assign(globalThis, { __twilioMocks: twilioModule.__twilioMocks });
