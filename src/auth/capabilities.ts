@@ -1,7 +1,6 @@
 import { type Role, ROLES } from "./roles";
 
 export const CAPABILITIES = {
-  AUTH_SESSION: "auth:session",
   STAFF_OVERVIEW: "staff:overview",
   USER_MANAGE: "user:manage",
   APPLICATION_READ: "application:read",
@@ -27,7 +26,6 @@ export type Capability = (typeof CAPABILITIES)[keyof typeof CAPABILITIES];
 
 const roleCapabilities: Record<Role, readonly Capability[]> = {
   [ROLES.ADMIN]: [
-    CAPABILITIES.AUTH_SESSION,
     CAPABILITIES.STAFF_OVERVIEW,
     CAPABILITIES.USER_MANAGE,
     CAPABILITIES.APPLICATION_READ,
@@ -49,7 +47,6 @@ const roleCapabilities: Record<Role, readonly Capability[]> = {
     CAPABILITIES.OPS_MANAGE,
   ],
   [ROLES.STAFF]: [
-    CAPABILITIES.AUTH_SESSION,
     CAPABILITIES.STAFF_OVERVIEW,
     CAPABILITIES.APPLICATION_READ,
     CAPABILITIES.APPLICATION_CREATE,
@@ -65,7 +62,6 @@ const roleCapabilities: Record<Role, readonly Capability[]> = {
     CAPABILITIES.SETTINGS_READ,
   ],
   [ROLES.OPS]: [
-    CAPABILITIES.AUTH_SESSION,
     CAPABILITIES.STAFF_OVERVIEW,
     CAPABILITIES.USER_MANAGE,
     CAPABILITIES.APPLICATION_READ,
@@ -86,12 +82,8 @@ const roleCapabilities: Record<Role, readonly Capability[]> = {
     CAPABILITIES.REPORT_VIEW,
     CAPABILITIES.OPS_MANAGE,
   ],
-  [ROLES.LENDER]: [
-    CAPABILITIES.AUTH_SESSION,
-    CAPABILITIES.LENDER_SUBMIT,
-  ],
+  [ROLES.LENDER]: [CAPABILITIES.LENDER_SUBMIT],
   [ROLES.REFERRER]: [
-    CAPABILITIES.AUTH_SESSION,
     CAPABILITIES.APPLICATION_CREATE,
     CAPABILITIES.DOCUMENT_UPLOAD,
   ],

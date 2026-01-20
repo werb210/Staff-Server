@@ -98,7 +98,7 @@ describe("API auth JSON responses", () => {
 
     expect(res.status).toBe(200);
     expect(res.headers["content-type"]).toContain("application/json");
-    expect(res.body.token).toBeTruthy();
+    expect(res.body.accessToken).toBeTruthy();
     expect(res.text).not.toMatch(/<!doctype|<html/i);
   });
 
@@ -110,7 +110,7 @@ describe("API auth JSON responses", () => {
 
     expect(res.status).toBe(200);
     expect(res.headers["content-type"]).toContain("application/json");
-    expect(res.body.token).toBeTruthy();
+    expect(res.body.accessToken).toBeTruthy();
     expect(res.text).not.toMatch(/<!doctype|<html/i);
   });
 

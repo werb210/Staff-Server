@@ -38,7 +38,7 @@ async function issueToken(phone: string): Promise<string> {
   const res = await request(app)
     .post("/api/auth/otp/verify")
     .send({ phone, code: "123456" });
-  const token = res.body.token ?? res.body.accessToken;
+  const token = res.body.accessToken;
   expect(token).toBeTruthy();
   return token;
 }

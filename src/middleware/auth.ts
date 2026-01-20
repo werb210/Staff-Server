@@ -3,7 +3,6 @@ import jwt from "jsonwebtoken";
 import { CAPABILITIES, getCapabilitiesForRole } from "../auth/capabilities";
 import { ROLES, isRole } from "../auth/roles";
 import { getAccessTokenSecret } from "../config";
-import { getSessionTokenFromRequest } from "../auth/session";
 
 export interface AuthUser {
   userId: string;
@@ -25,8 +24,7 @@ function getAuthTokenFromRequest(req: Request): string | null {
   if (header && header.startsWith("Bearer ")) {
     return header.slice("Bearer ".length);
   }
-  const sessionToken = getSessionTokenFromRequest(req);
-  return sessionToken ?? null;
+  return null;
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {

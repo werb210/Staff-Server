@@ -16,7 +16,6 @@
     "@types/multer": "^2.0.0",
     "applicationinsights": "^3.12.1",
     "bcryptjs": "^3.0.3",
-    "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
@@ -29,7 +28,6 @@
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
-    "@types/cookie-parser": "^1.4.7",
     "@types/cors": "^2.8.19",
     "@types/express": "^4.17.21",
     "@types/jest": "^30.0.0",

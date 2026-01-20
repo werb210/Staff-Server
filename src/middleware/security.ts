@@ -1,5 +1,5 @@
-import { type CookieOptions, type NextFunction, type Request, type Response } from "express";
-import { isProductionEnvironment, isTestEnvironment } from "../config";
+import { type NextFunction, type Request, type Response } from "express";
+import { isProductionEnvironment } from "../config";
 
 function isLoopback(req: Request): boolean {
   const ip = req.ip || "";
@@ -49,24 +49,5 @@ export function requireHttps(req: Request, res: Response, next: NextFunction): v
     });
     return;
   }
-  next();
-}
-
-export function enforceSecureCookies(
-  _req: Request,
-  res: Response,
-  next: NextFunction
-): void {
-  if (isTestEnvironment()) return next();
-
-  const original = res.cookie.bind(res);
-  res.cookie = (name: string, value: unknown, options: CookieOptions = {}) => {
-    const merged: CookieOptions = {
-      ...options,
-      secure: options.secure ?? true,
-      sameSite: options.sameSite ?? "strict",
-    };
-    return original(name, value, merged);
-  };
   next();
 }

@@ -17,7 +17,7 @@ import {
 import "./services/twilio";
 import { PORTAL_ROUTE_REQUIREMENTS, API_ROUTE_MOUNTS } from "./routes/routeRegistry";
 import { checkDb } from "./db";
-import { enforceSecureCookies, requireHttps } from "./middleware/security";
+import { requireHttps } from "./middleware/security";
 import { idempotencyMiddleware } from "./middleware/idempotency";
 import { ensureIdempotencyKey } from "./middleware/idempotencyKey";
 import { errorHandler, notFoundHandler } from "./middleware/errors";
@@ -139,7 +139,6 @@ export function registerApiRoutes(app: express.Express): void {
   app.use(
     "/api",
     requireHttps,
-    enforceSecureCookies,
     ensureIdempotencyKey,
     idempotencyMiddleware
   );

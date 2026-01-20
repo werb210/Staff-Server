@@ -94,7 +94,7 @@ describe("auth contract", () => {
 
     expect([200, 401]).toContain(res.status);
     if (res.status === 200) {
-      expect(res.body.token).toBeDefined();
+      expect(res.body.accessToken).toBeDefined();
     }
     expectRequestId(res, requestId);
   });
@@ -174,7 +174,7 @@ describe("auth contract", () => {
         message: "Invalid or expired code",
       });
     } else {
-      expect(second.body.token).toBeDefined();
+      expect(second.body.accessToken).toBeDefined();
     }
     expectRequestId(second, requestId);
   });
