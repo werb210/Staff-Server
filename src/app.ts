@@ -7,6 +7,7 @@ import { getCorsAllowlistConfig, getRequestBodyLimit } from "./config";
 import { requestId } from "./middleware/requestId";
 import { requestLogger } from "./middleware/requestLogger";
 import { requestTimeout } from "./middleware/requestTimeout";
+import { routeResolutionLogger } from "./middleware/routeResolutionLogger";
 import {
   getStatus as getStartupStatus,
   isReady,
@@ -20,6 +21,7 @@ import { enforceSecureCookies, requireHttps } from "./middleware/security";
 import { idempotencyMiddleware } from "./middleware/idempotency";
 import { ensureIdempotencyKey } from "./middleware/idempotencyKey";
 import { errorHandler, notFoundHandler } from "./middleware/errors";
+import { logError } from "./observability/logger";
 import authRoutes from "./routes/auth";
 import lendersRoutes from "./routes/lenders";
 import lenderProductsRoutes from "./routes/lenderProducts";
@@ -76,6 +78,7 @@ export function buildApp(): express.Express {
   app.use(cors(corsOptions));
   app.options("*", cors(corsOptions));
   app.use(requestLogger);
+  app.use(routeResolutionLogger);
   app.use(requestTimeout);
 
   app.use("/api/_int", internalRoutes);
@@ -164,9 +167,20 @@ export function registerApiRoutes(app: express.Express): void {
       if (res.headersSent) {
         return;
       }
+      const requestId = res.locals.requestId ?? "unknown";
+      logError("request_failed", {
+        requestId,
+        method: _req.method,
+        originalUrl: _req.originalUrl,
+        statusCode: 500,
+        errorName: err.name,
+        errorMessage: err.message,
+        ...(process.env.NODE_ENV === "production" ? {} : { stack: err.stack }),
+      });
       res.status(500).json({
         code: "internal_error",
         message: "Unexpected error",
+        requestId,
       });
     }
   );
