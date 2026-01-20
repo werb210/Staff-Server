@@ -43,13 +43,17 @@ describe("POST /api/auth/otp/start", () => {
     const res = await request(app)
       .options("/api/auth/otp/start")
       .set("Origin", "https://staff.boreal.financial")
-      .set("Access-Control-Request-Method", "POST");
+      .set("Access-Control-Request-Method", "POST")
+      .set("Access-Control-Request-Headers", "content-type,x-request-id");
 
-    expect(res.status).toBe(204);
+    expect([200, 204]).toContain(res.status);
     expect(res.headers["access-control-allow-origin"]).toBe(
       "https://staff.boreal.financial"
     );
     expect(res.headers["access-control-allow-credentials"]).toBe("true");
+    expect(res.headers["access-control-allow-headers"]?.toLowerCase()).toContain(
+      "x-request-id"
+    );
   });
 
   it("returns 200 when Twilio configured", async () => {

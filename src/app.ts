@@ -63,7 +63,13 @@ function buildCorsOptions(): cors.CorsOptions {
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Authorization", "Content-Type", "Idempotency-Key"],
+    allowedHeaders: [
+      "Authorization",
+      "Content-Type",
+      "Idempotency-Key",
+      "X-Request-Id",
+      "X-Requested-With",
+    ],
     optionsSuccessStatus: 204,
   };
 }
