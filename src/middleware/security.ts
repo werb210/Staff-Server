@@ -63,8 +63,8 @@ export function enforceSecureCookies(
   res.cookie = (name: string, value: unknown, options: CookieOptions = {}) => {
     const merged: CookieOptions = {
       ...options,
-      secure: true,
-      sameSite: "strict",
+      secure: options.secure ?? true,
+      sameSite: options.sameSite ?? "strict",
     };
     return original(name, value, merged);
   };
