@@ -1,252 +1,45 @@
-import { type NextFunction, type Request, type Response } from "express";
-import jwt, { type JwtPayload } from "jsonwebtoken";
-import { forbiddenError } from "./errors";
-import { ROLES, type Role, isRole } from "../auth/roles";
-import { logWarn } from "../observability/logger";
-import {
-  type Capability,
-  getCapabilitiesForRole,
-} from "../auth/capabilities";
-import { type AuthenticatedUser } from "../types/auth";
-import { getAccessTokenSecret, getJwtClockSkewSeconds } from "../config";
+import { Request, Response, NextFunction } from "express";
+import jwt from "jsonwebtoken";
+import { isRole } from "../auth/roles";
+import { getCapabilitiesForRole } from "../auth/capabilities";
 
-type AccessTokenPayload = JwtPayload & {
-  sub?: string;
+export interface AuthUser {
+  id?: string;
   role?: string;
-  tokenVersion?: number;
-};
-
-const AUTH_ME_GRACE_WINDOW_MS = 5 * 60 * 1000;
-
-const PUBLIC_PATHS = new Set([
-  "/health",
-  "/ready",
-  "/api/health",
-  "/api/ready",
-  "/api/_int/health",
-  "/api/_int/ready",
-  "/api/_int/build",
-  "/api/_int/routes",
-  "/api/_int/env",
-  "/auth/otp/start",
-  "/auth/otp/verify",
-]);
-
-function normalizePath(path: string): string {
-  return path.split("?")[0];
+  capabilities?: string[];
 }
 
-function parseBearer(req: Request): string | null {
+declare global {
+  namespace Express {
+    interface Request {
+      user?: AuthUser;
+    }
+  }
+}
+
+export function requireAuth(req: Request, res: Response, next: NextFunction) {
   const header = req.headers.authorization;
-  if (!header) {
-    return null;
-  }
-  const [scheme, token] = header.split(" ");
-  if (!scheme || scheme.toLowerCase() !== "bearer" || !token) {
-    return null;
-  }
-  return token;
-}
-
-function isPublicPath(path: string): boolean {
-  return PUBLIC_PATHS.has(normalizePath(path));
-}
-
-function resolveAuthError(res: Response): void {
-  res.status(503).json({
-    code: "auth_unavailable",
-    message: "Authentication is not configured.",
-    requestId: res.locals.requestId ?? "unknown",
-  });
-}
-
-export default function requireAuth(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): void {
-  if (req.path.startsWith("/api/_int/")) {
-    next();
-    return;
-  }
-  const requestPath = normalizePath(req.originalUrl ?? req.path);
-  if (isPublicPath(requestPath)) {
-    next();
-    return;
-  }
-  const token = parseBearer(req);
-  if (!token) {
-    logWarn("auth_missing_token", {
-      reason: "missing",
-      route: req.originalUrl,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
-    });
-    res.status(401).json({
-      code: "unauthorized",
-      message: "Unauthorized.",
-      requestId: res.locals.requestId ?? "unknown",
-    });
-    return;
+  if (!header || !header.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "missing_token" });
   }
 
-  const secret = getAccessTokenSecret();
-  if (!secret) {
-    logWarn("auth_secret_missing", {
-      route: req.originalUrl,
-    });
-    resolveAuthError(res);
-    return;
-  }
-
+  const token = header.slice("Bearer ".length);
   try {
-    const decoded = jwt.verify(token, secret, {
-      algorithms: ["HS256"],
-      clockTolerance: getJwtClockSkewSeconds(),
-    });
-    const user = normalizeAuthenticatedUser(decoded);
-    if (!user) {
-      logWarn("auth_invalid_token", {
-        reason: "invalid_payload",
-        route: req.originalUrl,
-        ip: req.ip,
-        userAgent: req.get("user-agent"),
-      });
-      res.status(401).json({
-        code: "unauthorized",
-        message: "Unauthorized.",
-        requestId: res.locals.requestId ?? "unknown",
-      });
-      return;
-    }
-    req.user = user;
-    next();
-  } catch (err) {
-    const error = err instanceof Error ? err : null;
-    const message = error?.message ?? "unknown_error";
-    const isExpired = error?.name === "TokenExpiredError";
-    if (isExpired && requestPath.startsWith("/api/auth/me")) {
-      const decoded = jwt.decode(token);
-      const user = decoded ? normalizeAuthenticatedUser(decoded) : null;
-      const exp =
-        decoded && typeof decoded === "object" && typeof decoded.exp === "number"
-          ? decoded.exp * 1000
-          : null;
-      const withinGrace =
-        exp !== null && Date.now() - exp <= AUTH_ME_GRACE_WINDOW_MS;
-      if (user && withinGrace) {
-        req.user = user;
-        next();
-        return;
-      }
-    }
-    const reason = isExpired
-      ? "expired"
-      : message.includes("jwt malformed")
-      ? "malformed"
-      : "invalid";
-    logWarn("auth_invalid_token", {
-      reason,
-      route: req.originalUrl,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
-      error: message,
-    });
-    res.status(401).json({
-      code: "unauthorized",
-      message: "Unauthorized.",
-      requestId: res.locals.requestId ?? "unknown",
-    });
-  }
-}
+    const payload = jwt.verify(token, process.env.JWT_SECRET!) as any;
 
-export function getAuthenticatedUserFromRequest(
-  req: Request
-): AuthenticatedUser | null {
-  const token = parseBearer(req);
-  if (!token) {
-    return null;
-  }
-  const secret = getAccessTokenSecret();
-  if (!secret) {
-    return null;
-  }
-  try {
-    const decoded = jwt.verify(token, secret, {
-      algorithms: ["HS256"],
-      clockTolerance: getJwtClockSkewSeconds(),
-    });
-    return normalizeAuthenticatedUser(decoded);
+    const role = payload.role; // DO NOT normalize case
+    if (!role || !isRole(role)) {
+      return res.status(401).json({ error: "invalid_role" });
+    }
+
+    req.user = {
+      id: payload.sub,
+      role,
+      capabilities: getCapabilitiesForRole(role)
+    };
+
+    next();
   } catch {
-    return null;
+    return res.status(401).json({ error: "invalid_token" });
   }
-}
-
-function normalizeAuthenticatedUser(
-  decoded: JwtPayload | string
-): AuthenticatedUser | null {
-  if (!decoded || typeof decoded !== "object") {
-    return null;
-  }
-  const payload = decoded as AccessTokenPayload;
-  const userId = typeof payload.sub === "string" ? payload.sub : null;
-  if (!userId) {
-    return null;
-  }
-  const rawRole = payload.role;
-  if (typeof rawRole !== "string") {
-    return null;
-  }
-  const role = rawRole.toLowerCase();
-  if (!isRole(role)) {
-    return null;
-  }
-  return {
-    userId,
-    role,
-    capabilities: getCapabilitiesForRole(role),
-  };
-}
-
-export function requireCapability(capabilities: readonly Capability[]) {
-  const allowed = capabilities;
-  return async (req: Request, _res: Response, next: NextFunction) => {
-    try {
-      const isReadRequest = req.method === "GET";
-      const requestPath = (req.originalUrl ?? req.path).split("?")[0];
-      const userRole = (req.user as { role?: Role } | undefined)?.role;
-      const staffReadBypass = new Set([
-        "/api/lenders",
-        "/api/lender-products",
-        "/api/applications",
-      ]);
-      if (isReadRequest && userRole === ROLES.STAFF && staffReadBypass.has(requestPath)) {
-        next();
-        return;
-      }
-      if (!allowed || allowed.length === 0) {
-        next(forbiddenError());
-        return;
-      }
-      const userPayload =
-        typeof req.user === "object" && req.user !== null ? req.user : undefined;
-      const userCapabilities =
-        (userPayload as { capabilities?: Capability[] } | undefined)
-          ?.capabilities ??
-        ((userPayload as { role?: Role | null } | undefined)?.role
-          ? getCapabilitiesForRole(
-              (userPayload as { role?: Role | null } | undefined)?.role as Role
-            )
-          : []);
-
-      if (!allowed.some((capability) => userCapabilities.includes(capability))) {
-        next(forbiddenError());
-        return;
-      }
-
-      next();
-    } catch (err) {
-      next(err);
-    }
-  };
 }
