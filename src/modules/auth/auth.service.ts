@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import {
   getTwilioClient,
   getTwilioVerifyServiceSid,
+  sendOtp,
 } from "../../services/twilio";
 import {
   createUser,
@@ -366,9 +367,7 @@ export async function startOtp(
     });
 
     try {
-      const verification = await client.verify.v2
-        .services(verifyServiceSid)
-        .verifications.create({ to: phoneE164, channel: "sms" });
+      const verification = await sendOtp(client, verifyServiceSid, phoneE164);
       logInfo("otp_start_success", {
         phoneTail,
         serviceSid: verifyServiceSid,

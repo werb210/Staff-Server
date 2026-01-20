@@ -39,3 +39,13 @@ export function getTwilioClient(): TwilioClient | null {
 export function getTwilioVerifyServiceSid(): string | null {
   return readTwilioConfig()?.verifyServiceSid ?? null;
 }
+
+export async function sendOtp(
+  client: NonNullable<ReturnType<typeof getTwilioClient>>,
+  verifyServiceSid: string,
+  phoneE164: string
+): Promise<{ sid?: string; status?: string }> {
+  return client.verify.v2
+    .services(verifyServiceSid)
+    .verifications.create({ to: phoneE164, channel: "sms" });
+}
