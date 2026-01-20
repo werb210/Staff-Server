@@ -116,6 +116,10 @@ router.post("/otp/verify", otpRateLimit(), async (req, res) => {
   }
 });
 
+router.post("/logout", (_req, res) => {
+  return res.status(200).json({ ok: true });
+});
+
 router.post("/refresh", refreshRateLimit(), async (req, res) => {
   try {
     const { refreshToken } = req.body ?? {};

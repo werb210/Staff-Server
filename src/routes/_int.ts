@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { isTwilioEnabled } from "../services/twilio";
 import { getBuildInfo } from "../config";
-import { listRouteInventory } from "../debug/printRoutes";
+import { listRoutes } from "../debug/printRoutes";
 import { readyHandler } from "./ready";
 import requireAuth from "../middleware/requireAuth";
 import internalRoutes from "./internal";
@@ -18,8 +18,18 @@ router.get("/build", (_req, res) => {
 });
 
 router.get("/routes", (req, res) => {
-  const inventory = listRouteInventory(req.app);
-  res.status(200).json({ routes: inventory });
+  const inventory = listRoutes(req.app);
+  const routeMap = new Map<string, Set<string>>();
+  inventory.forEach((route) => {
+    const methods = routeMap.get(route.path) ?? new Set<string>();
+    methods.add(route.method.toLowerCase());
+    routeMap.set(route.path, methods);
+  });
+  const routes = Array.from(routeMap.entries()).map(([path, methods]) => ({
+    path,
+    methods: Array.from(methods.values()),
+  }));
+  res.status(200).json(routes);
 });
 
 router.get("/env", (_req, res) =>
