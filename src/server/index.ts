@@ -2,6 +2,7 @@ import { buildApp, registerApiRoutes } from "../app";
 import otpRouter from "../routes/auth/otp";
 import { assertEnv } from "../config";
 import { logError, logWarn } from "../observability/logger";
+import { notFoundHandler } from "../middleware/errors";
 import { markReady } from "../startupState";
 
 let processHandlersInstalled = false;
@@ -10,6 +11,7 @@ let server: ReturnType<ReturnType<typeof buildApp>["listen"]> | null = null;
 export const app = buildApp();
 registerApiRoutes(app);
 app.use("/auth/otp", otpRouter);
+app.use(notFoundHandler);
 
 const isProd = process.env.NODE_ENV === "production";
 if (isProd && !process.env.BASE_URL) {

@@ -103,6 +103,10 @@ async function handleOtpStart(req: Request, res: Response, next: NextFunction) {
     const requestId = getAuthRequestId(res);
     const requestValidation = validateStartOtp(req);
     if (!requestValidation.success) {
+      const body = req.body ?? {};
+      if (Object.keys(body).length === 0) {
+        return res.status(204).send();
+      }
       return respondAuthValidationError(
         res,
         route,
