@@ -98,6 +98,17 @@ export function errorHandler(
     ? Date.now() - Number(res.locals.requestStart)
     : 0;
   const isApiRequest = req.path.startsWith("/api/");
+  const logGlobalError = (statusCode: number): void => {
+    logError("request_failed", {
+      requestId,
+      method: req.method,
+      originalUrl: req.originalUrl,
+      statusCode,
+      errorName: err.name,
+      errorMessage: err.message,
+      ...(process.env.NODE_ENV === "production" ? {} : { stack: err.stack }),
+    });
+  };
   if (isAuthRoute(req)) {
     const normalized = normalizeAuthError(err);
     const status =
@@ -109,6 +120,7 @@ export function errorHandler(
         ? 503
         : 500;
     const sanitizedStatus = status >= 500 ? 503 : status;
+    logGlobalError(sanitizedStatus);
     logWarn("request_error", {
       requestId,
       route: req.originalUrl,
@@ -141,6 +153,7 @@ export function errorHandler(
   }
   const failureReason = resolveFailureReason(err);
   if (err instanceof AppError) {
+    logGlobalError(err.status);
     logWarn("request_error", {
       requestId,
       route: req.originalUrl,
@@ -171,6 +184,7 @@ export function errorHandler(
   }
 
   if (isConstraintViolation(err)) {
+    logGlobalError(409);
     logWarn("request_error", {
       requestId,
       route: req.originalUrl,
@@ -198,6 +212,7 @@ export function errorHandler(
   }
 
   if (isDbConnectionFailure(err)) {
+    logGlobalError(503);
     logError("request_error", {
       requestId,
       route: req.originalUrl,
@@ -222,6 +237,7 @@ export function errorHandler(
     return;
   }
 
+  logGlobalError(500);
   logError("request_error", {
     requestId,
     route: req.originalUrl,
@@ -257,18 +273,16 @@ export function errorHandler(
 
 export function notFoundHandler(req: Request, res: Response): void {
   const requestId = res.locals.requestId ?? "unknown";
-  if (isAuthRoute(req)) {
-    res.status(404).json({
-      ok: false,
-      data: null,
-      error: { code: "not_found", message: "Not Found" },
-      requestId,
-    });
-    return;
-  }
+  logWarn("not_found", {
+    requestId,
+    method: req.method,
+    originalUrl: req.originalUrl,
+    origin: req.get("origin"),
+    referrer: req.get("referrer"),
+    ip: req.ip ?? "unknown",
+  });
   res.status(404).json({
-    code: "not_found",
-    message: "Not Found",
+    error: "NOT_FOUND",
     requestId,
   });
 }

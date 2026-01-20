@@ -2,6 +2,7 @@ import type { Application, Express } from "express";
 import { logInfo } from "../observability/logger";
 
 export type RouteEntry = { method: string; path: string };
+export type RouteInventory = { routerBase: string; routes: RouteEntry[] };
 
 type Layer = {
   route?: {
@@ -88,6 +89,34 @@ function walkStack(stack: Layer[], prefix: string, routes: RouteEntry[]) {
   });
 }
 
+function walkStackGrouped(
+  stack: Layer[],
+  prefix: string,
+  groups: Map<string, RouteEntry[]>
+) {
+  stack.forEach((layer) => {
+    if (layer.route) {
+      const paths = Array.isArray(layer.route.path) ? layer.route.path : [layer.route.path];
+      const methods = Object.keys(layer.route.methods);
+      const routerBase = prefix || "/";
+      const routes = groups.get(routerBase) ?? [];
+      methods.forEach((method) => {
+        paths.forEach((routePath) =>
+          addRoute(routes, prefix, method.toUpperCase(), routePath)
+        );
+      });
+      groups.set(routerBase, routes);
+      return;
+    }
+
+    if (layer.name === "router" && layer.handle?.stack) {
+      const layerPath = getLayerPath(layer);
+      const nextPrefix = joinPaths(prefix, layerPath);
+      walkStackGrouped(layer.handle.stack, nextPrefix, groups);
+    }
+  });
+}
+
 export function listRoutes(app: Express | Application): RouteEntry[] {
   const routes: RouteEntry[] = [];
   const stack = (app as unknown as { _router?: { stack?: Layer[] } })._router?.stack;
@@ -96,6 +125,22 @@ export function listRoutes(app: Express | Application): RouteEntry[] {
   }
   routes.sort((a, b) => a.path.localeCompare(b.path) || a.method.localeCompare(b.method));
   return routes;
+}
+
+export function listRouteInventory(app: Express | Application): RouteInventory[] {
+  const groups = new Map<string, RouteEntry[]>();
+  const stack = (app as unknown as { _router?: { stack?: Layer[] } })._router?.stack;
+  if (stack) {
+    walkStackGrouped(stack, "", groups);
+  }
+  return Array.from(groups.entries())
+    .map(([routerBase, routes]) => ({
+      routerBase,
+      routes: routes.sort(
+        (a, b) => a.path.localeCompare(b.path) || a.method.localeCompare(b.method)
+      ),
+    }))
+    .sort((a, b) => a.routerBase.localeCompare(b.routerBase));
 }
 
 export function printRoutes(app: Express | Application) {

@@ -42,12 +42,18 @@ export function requestLogger(
   };
 
   const requestId = res.locals.requestId ?? "unknown";
+  const origin = req.get("origin");
+  const userAgent = req.get("user-agent");
+  const authorizationState = req.get("authorization") ? "PRESENT" : "MISSING";
+  const ip = req.ip ?? "unknown";
   logInfo("request_started", {
     requestId,
-    route: req.originalUrl,
     method: req.method,
-    path: req.originalUrl,
-    durationMs: 0,
+    originalUrl: req.originalUrl,
+    origin,
+    userAgent,
+    authorization: authorizationState,
+    ip,
   });
 
   res.on("finish", () => {
