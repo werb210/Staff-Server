@@ -49,6 +49,7 @@ function buildCorsOptions(): cors.CorsOptions {
   const allowlist = new Set(getCorsAllowlistConfig());
   const portalOrigin = "https://staff.boreal.financial";
   allowlist.add(portalOrigin);
+  allowlist.add("http://localhost:5173");
   return {
     origin: (origin, callback) => {
       if (!origin) {
@@ -70,6 +71,7 @@ function buildCorsOptions(): cors.CorsOptions {
       "X-Request-Id",
       "X-Requested-With",
     ],
+    exposedHeaders: ["X-Request-Id"],
     optionsSuccessStatus: 204,
   };
 }
