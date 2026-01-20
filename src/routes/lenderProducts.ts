@@ -1,5 +1,5 @@
 import { Router } from "express";
-import requireAuth, { requireCapability } from "../middleware/auth";
+import { requireAuth, requireCapability } from "../middleware/auth";
 import { CAPABILITIES } from "../auth/capabilities";
 import { safeHandler } from "../middleware/safeHandler";
 import {
@@ -19,7 +19,7 @@ router.get(
 );
 router.post(
   "/",
-  requireCapability([CAPABILITIES.LENDERS_READ]),
+  requireCapability([CAPABILITIES.OPS_MANAGE]),
   safeHandler(createLenderProductHandler)
 );
 router.patch(

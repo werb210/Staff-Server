@@ -1,6 +1,5 @@
 import { Router } from "express";
-import { requireAuth } from "../middleware/auth";
-import { requireCapabilities } from "../middleware/requireCapabilities";
+import { requireAuth, requireCapability } from "../middleware/auth";
 import { CAPABILITIES } from "../auth/capabilities";
 import {
   listLenders,
@@ -12,14 +11,14 @@ const router = Router();
 router.get(
   "/",
   requireAuth,
-  requireCapabilities(CAPABILITIES.LENDERS_READ),
+  requireCapability([CAPABILITIES.LENDERS_READ]),
   listLenders
 );
 
 router.post(
   "/",
   requireAuth,
-  requireCapabilities(CAPABILITIES.OPS_MANAGE),
+  requireCapability([CAPABILITIES.OPS_MANAGE]),
   createLender
 );
 

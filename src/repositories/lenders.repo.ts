@@ -1,4 +1,4 @@
-import { db } from "../db";
+import { pool } from "../db";
 
 export interface CreateLenderInput {
   name: string;
@@ -11,7 +11,7 @@ export interface CreateLenderInput {
 }
 
 export async function listLenders() {
-  const rows = await db.query(
+  const rows = await pool.query(
     `
     SELECT
       id,
@@ -30,8 +30,30 @@ export async function listLenders() {
   return rows.rows;
 }
 
+export async function getLenderById(id: string) {
+  const result = await pool.query(
+    `
+    SELECT
+      id,
+      name,
+      country,
+      submission_method,
+      email,
+      phone,
+      website,
+      postal_code,
+      created_at
+    FROM lenders
+    WHERE id = $1
+    LIMIT 1
+    `,
+    [id]
+  );
+  return result.rows[0] ?? null;
+}
+
 export async function createLender(input: CreateLenderInput) {
-  const result = await db.query(
+  const result = await pool.query(
     `
     INSERT INTO lenders (
       name,

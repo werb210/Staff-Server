@@ -1,8 +1,9 @@
 import { Router, type NextFunction, type Request, type Response } from "express";
 import { AppError } from "../../middleware/errors";
 import { otpRateLimit, refreshRateLimit } from "../../middleware/rateLimit";
-import requireAuth from "../../middleware/auth";
+import { requireAuth } from "../../middleware/auth";
 import { getCapabilitiesForRole } from "../../auth/capabilities";
+import { isRole } from "../../auth/roles";
 import { safeHandler } from "../../middleware/safeHandler";
 import { getRequestId } from "../../middleware/requestContext";
 import {
@@ -180,7 +181,8 @@ router.get(
     }
     const role = req.user.role;
     const capabilities =
-      req.user.capabilities ?? (role ? getCapabilitiesForRole(role) : []);
+      req.user.capabilities ??
+      (role && isRole(role) ? getCapabilitiesForRole(role) : []);
     respondAuthOk(res, {
       userId: req.user.userId,
       role,

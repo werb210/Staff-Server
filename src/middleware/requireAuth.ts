@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
-import requireAuth, {
+import {
   getAuthenticatedUserFromRequest,
+  requireAuth,
   requireCapability,
 } from "./auth";
 
