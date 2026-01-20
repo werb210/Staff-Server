@@ -36,13 +36,18 @@ const authUserWithContactSchema = authUserBaseSchema
   })
   .strict();
 
-export const startOtpResponseSchema = z.undefined();
+export const startOtpResponseSchema = z
+  .object({
+    sent: z.boolean(),
+  })
+  .strict();
 
 export const verifyOtpResponseSchema = z.union([
   z.undefined(),
   z
     .object({
       token: z.string(),
+      refreshToken: z.string().optional(),
       user: authUserWithContactSchema,
     })
     .strict(),
