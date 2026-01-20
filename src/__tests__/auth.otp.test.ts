@@ -19,7 +19,7 @@ describe("POST /api/auth/otp/start", () => {
     process.env = originalEnv;
   });
 
-  it("returns 424 when Verify service SID missing", async () => {
+  it("returns 503 when Verify service SID missing", async () => {
     process.env.TWILIO_ACCOUNT_SID = "ACxxxx";
     process.env.TWILIO_AUTH_TOKEN = "token";
     delete process.env.TWILIO_VERIFY_SERVICE_SID;
@@ -30,7 +30,7 @@ describe("POST /api/auth/otp/start", () => {
       .post("/api/auth/otp/start")
       .send({ phone: "+15878881337" });
 
-    expect(res.status).toBe(424);
+    expect(res.status).toBe(503);
     expect(res.body.ok).toBe(false);
     expect(res.body.error).toEqual({
       code: "twilio_unavailable",
@@ -81,11 +81,11 @@ describe("POST /api/auth/otp/start", () => {
       .post("/api/auth/otp/start")
       .send({ phone: "+15878881337" });
 
-    expect(res.status).toBe(503);
+    expect(res.status).toBe(401);
     expect(res.body.ok).toBe(false);
     expect(res.body.error).toEqual({
       code: "twilio_verify_failed",
-      message: "Twilio verification failed",
+      message: "Invalid Twilio credentials",
     });
   });
 });

@@ -24,13 +24,13 @@ describe("OTP endpoints when Twilio disabled", () => {
     process.env = originalEnv;
   });
 
-  it("returns 424 for OTP request", async () => {
+  it("returns 503 for OTP request", async () => {
     const app = buildTestApp();
     const res = await request(app)
       .post("/api/auth/otp/start")
       .send({ phone: "+15878881337" });
 
-    expect(res.status).toBe(424);
+    expect(res.status).toBe(503);
     expect(res.body.ok).toBe(false);
     expect(res.body.error).toEqual({
       code: "twilio_unavailable",
@@ -38,14 +38,14 @@ describe("OTP endpoints when Twilio disabled", () => {
     });
   });
 
-  it("returns 424 for OTP verify", async () => {
+  it("returns 503 for OTP verify", async () => {
     const app = buildTestApp();
     const res = await request(app).post("/api/auth/otp/verify").send({
       phone: "+15878881337",
       code: "123456",
     });
 
-    expect(res.status).toBe(424);
+    expect(res.status).toBe(503);
     expect(res.body.ok).toBe(false);
     expect(res.body.error).toEqual({
       code: "twilio_unavailable",

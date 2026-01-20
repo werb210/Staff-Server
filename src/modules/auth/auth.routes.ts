@@ -6,11 +6,8 @@ import { getCapabilitiesForRole } from "../../auth/capabilities";
 import { isRole } from "../../auth/roles";
 import { safeHandler } from "../../middleware/safeHandler";
 import { getRequestId } from "../../middleware/requestContext";
-import {
-  startOtp,
-  verifyOtpCode,
-  refreshSession,
-} from "./auth.service";
+import { refreshSession } from "./auth.service";
+import { startOtp, verifyOtpCode } from "./otp.service";
 
 const router = Router();
 
@@ -59,37 +56,24 @@ const isTwilioAuthError = (err: unknown): err is { code: number } => {
   );
 };
 
-function handleTwilioAuthError(
-  err: unknown,
-  res: Response,
-  next: NextFunction
-) {
-  if (isTwilioAuthError(err)) {
-    return respondAuthError(
-      res,
-      401,
-      "twilio_verify_failed",
-      "Invalid Twilio credentials"
-    );
-  }
-  return next(err);
-}
-
 async function handleOtpStart(req: Request, res: Response, next: NextFunction) {
   try {
     const { phone } = req.body ?? {};
-    const result = await startOtp(phone);
-    if (!result.ok) {
-      return respondAuthError(
-        res,
-        result.status,
-        result.error.code,
-        result.error.message
-      );
-    }
+    await startOtp(phone);
     return respondAuthOk(res, { sent: true });
   } catch (err) {
-    handleTwilioAuthError(err, res, next);
+    if (err instanceof AppError) {
+      return respondAuthError(res, err.status, err.code, err.message);
+    }
+    if (isTwilioAuthError(err)) {
+      return respondAuthError(
+        res,
+        401,
+        "twilio_verify_failed",
+        "Invalid Twilio credentials"
+      );
+    }
+    return next(err);
   }
 }
 
@@ -106,14 +90,6 @@ router.post("/otp/verify", otpRateLimit(), async (req, res) => {
       route: "/api/auth/otp/verify",
       method: req.method,
     });
-    if (!result.ok) {
-      return respondAuthError(
-        res,
-        result.status,
-        result.error.code,
-        result.error.message
-      );
-    }
     return res.status(200).json({
       token: result.token,
       refreshToken: result.refreshToken,
@@ -122,6 +98,14 @@ router.post("/otp/verify", otpRateLimit(), async (req, res) => {
   } catch (err) {
     if (err instanceof AppError) {
       return respondAuthError(res, err.status, err.code, err.message);
+    }
+    if (isTwilioAuthError(err)) {
+      return respondAuthError(
+        res,
+        401,
+        "twilio_verify_failed",
+        "Invalid Twilio credentials"
+      );
     }
     return respondAuthError(
       res,
