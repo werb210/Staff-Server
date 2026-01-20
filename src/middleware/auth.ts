@@ -2,6 +2,8 @@ import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { CAPABILITIES, getCapabilitiesForRole } from "../auth/capabilities";
 import { ROLES, isRole } from "../auth/roles";
+import { getAccessTokenSecret } from "../config";
+import { getSessionTokenFromRequest } from "../auth/session";
 
 export interface AuthUser {
   userId: string;
@@ -18,9 +20,18 @@ declare global {
   }
 }
 
-export function requireAuth(req: Request, res: Response, next: NextFunction) {
+function getAuthTokenFromRequest(req: Request): string | null {
   const header = req.headers.authorization;
-  if (!header || !header.startsWith("Bearer ")) {
+  if (header && header.startsWith("Bearer ")) {
+    return header.slice("Bearer ".length);
+  }
+  const sessionToken = getSessionTokenFromRequest(req);
+  return sessionToken ?? null;
+}
+
+export function requireAuth(req: Request, res: Response, next: NextFunction) {
+  const token = getAuthTokenFromRequest(req);
+  if (!token) {
     return res.status(401).json({ error: "missing_token" });
   }
   const user = getAuthenticatedUserFromRequest(req);
@@ -32,13 +43,18 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 }
 
 export function getAuthenticatedUserFromRequest(req: Request): AuthUser | null {
-  const header = req.headers.authorization;
-  if (!header || !header.startsWith("Bearer ")) {
+  const token = getAuthTokenFromRequest(req);
+  if (!token) {
     return null;
   }
-  const token = header.slice("Bearer ".length);
+  const secret = getAccessTokenSecret();
+  if (!secret) {
+    return null;
+  }
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET!) as {
+    const payload = jwt.verify(token, secret, {
+      algorithms: ["HS256"],
+    }) as {
       sub?: string;
       role?: string;
       phone?: string | null;

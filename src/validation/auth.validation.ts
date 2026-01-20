@@ -55,7 +55,17 @@ export const verifyOtpResponseSchema = z.union([
 
 export const authMeSchema = z
   .object({
-    user: authUserBaseSchema,
+    ok: z.boolean(),
+    data: z
+      .object({
+        userId: z.string(),
+        role: roleSchema,
+        phone: z.string().nullable().optional(),
+        capabilities: z.array(z.string()),
+      })
+      .strict(),
+    error: z.null(),
+    requestId: z.string(),
   })
   .strict();
 
