@@ -3,8 +3,11 @@ const isCI = process.env.CI === "true" || process.env.CI === "1";
 module.exports = {
   preset: "ts-jest",
   testEnvironment: "node",
-  testMatch: ["**/__tests__/**/*.test.ts"],
+  testMatch: ["<rootDir>/tests/**/*.test.ts"],
   clearMocks: true,
+  moduleNameMapper: {
+    "^twilio$": "<rootDir>/tests/__mocks__/twilio.ts",
+  },
   maxWorkers: "50%",
   setupFilesAfterEnv: ["<rootDir>/src/__tests__/setup.ts"],
   testTimeout: 30000,
