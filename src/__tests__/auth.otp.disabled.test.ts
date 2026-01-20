@@ -30,7 +30,7 @@ describe("OTP endpoints when Twilio is disabled", () => {
       .post("/api/auth/otp/start")
       .send({ phone: "+15878881337" });
 
-    expect(res.status).toBe(424);
+    expect(res.status).toBe(503);
     expect(res.body.ok).toBe(false);
     expect(res.body.error).toEqual({
       code: "twilio_unavailable",
@@ -45,7 +45,7 @@ describe("OTP endpoints when Twilio is disabled", () => {
       code: "123456",
     });
 
-    expect(res.status).toBe(424);
+    expect(res.status).toBe(503);
     expect(res.body.ok).toBe(false);
     expect(res.body.error).toEqual({
       code: "twilio_unavailable",

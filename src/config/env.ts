@@ -14,6 +14,9 @@ const requiredRuntimeEnv = [
   "JWT_REFRESH_SECRET",
   "JWT_EXPIRES_IN",
   "JWT_REFRESH_EXPIRES_IN",
+  "TWILIO_ACCOUNT_SID",
+  "TWILIO_AUTH_TOKEN",
+  "TWILIO_VERIFY_SERVICE_SID",
 ] as const;
 
 type EnvConfig = {
