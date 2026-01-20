@@ -1,5 +1,5 @@
 import { Router } from "express";
-import requireAuth, { requireCapability } from "../middleware/auth";
+import { requireAuth, requireCapability } from "../middleware/auth";
 import { adminRateLimit } from "../middleware/rateLimit";
 import { CAPABILITIES } from "../auth/capabilities";
 import auditRoutes from "../modules/audit/audit.routes";

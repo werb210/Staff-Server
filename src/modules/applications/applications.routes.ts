@@ -7,8 +7,9 @@ import {
   rejectDocumentVersion,
   uploadDocument,
 } from "./applications.service";
-import requireAuth, { requireCapability } from "../../middleware/auth";
+import { requireAuth, requireCapability } from "../../middleware/auth";
 import { CAPABILITIES } from "../../auth/capabilities";
+import { isRole } from "../../auth/roles";
 import { documentUploadRateLimit } from "../../middleware/rateLimit";
 import { safeHandler } from "../../middleware/safeHandler";
 
@@ -27,7 +28,7 @@ router.post(
       throw new AppError("missing_fields", "Name is required.", 400);
     }
     const role = req.user.role;
-    if (!role) {
+    if (!role || !isRole(role)) {
       throw forbiddenError();
     }
     const result = await createApplicationForUser({
@@ -62,7 +63,7 @@ router.post(
       );
     }
     const role = req.user.role;
-    if (!role) {
+    if (!role || !isRole(role)) {
       throw forbiddenError();
     }
     const result = await uploadDocument({
@@ -98,7 +99,7 @@ router.post(
       throw new AppError("forbidden", "Override not permitted.", 403);
     }
     const role = req.user.role;
-    if (!role) {
+    if (!role || !isRole(role)) {
       throw forbiddenError();
     }
     await changePipelineState({
@@ -123,7 +124,7 @@ router.post(
       throw new AppError("missing_token", "Authorization token is required.", 401);
     }
     const role = req.user.role;
-    if (!role) {
+    if (!role || !isRole(role)) {
       throw forbiddenError();
     }
     await acceptDocumentVersion({
@@ -148,7 +149,7 @@ router.post(
       throw new AppError("missing_token", "Authorization token is required.", 401);
     }
     const role = req.user.role;
-    if (!role) {
+    if (!role || !isRole(role)) {
       throw forbiddenError();
     }
     await rejectDocumentVersion({

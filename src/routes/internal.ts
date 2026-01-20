@@ -8,7 +8,7 @@ import { createUserAccount } from "../modules/auth/auth.service";
 import { ROLES } from "../auth/roles";
 import { AppError } from "../middleware/errors";
 import { logInfo, logWarn } from "../observability/logger";
-import requireAuth, { requireCapability } from "../middleware/auth";
+import { requireAuth, requireCapability } from "../middleware/auth";
 import { CAPABILITIES } from "../auth/capabilities";
 
 const router = Router();

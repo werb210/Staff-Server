@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import requireAuth, { requireCapability } from "../middleware/auth";
+import { requireAuth, requireCapability } from "../middleware/auth";
 import { CAPABILITIES } from "../auth/capabilities";
 import applicationRoutes from "../modules/applications/applications.routes";
 import { AppError } from "../middleware/errors";
