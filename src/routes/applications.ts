@@ -44,6 +44,8 @@ const intakeFields = [
 ];
 const legacyFields = ["name", "metadata", "productType"];
 
+router.use(requireAuth);
+
 function toApplicationResponse(record: ApplicationRecord): ApplicationResponse {
   return {
     id: record.id,
@@ -99,10 +101,9 @@ router.post(
   "/",
   safeHandler(async (req: Request, res: Response, next) => {
     const body = (req.body ?? {}) as Record<string, unknown>;
-    const hasAuthHeader = Boolean(req.get("authorization"));
     const isIntakePayload = intakeFields.some((field) => field in body);
     const isLegacyPayload = legacyFields.some((field) => field in body);
-    if (hasAuthHeader && (isLegacyPayload || !isIntakePayload)) {
+    if (isLegacyPayload || !isIntakePayload) {
       next();
       return;
     }
@@ -124,9 +125,7 @@ router.post(
       throw err;
     }
 
-    const ownerUserId =
-      (req as Request & { user?: { id?: string } }).user?.id ??
-      getClientSubmissionOwnerUserId();
+    const ownerUserId = req.user?.userId ?? getClientSubmissionOwnerUserId();
     const created = await createApplication({
       ownerUserId,
       name: payload.business?.legalName ?? "New application",

@@ -122,7 +122,7 @@ describe("token lifecycle stability", () => {
       .send({ phone, code: "123456" });
 
     expect(second.status).toBe(200);
-    expect(second.body.token).toBeTruthy();
+    expect(second.body.accessToken).toBeTruthy();
     expect(second.body.user).toMatchObject({
       role: ROLES.STAFF,
       email: "otp-lifecycle@example.com",

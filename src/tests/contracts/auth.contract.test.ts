@@ -46,7 +46,7 @@ async function issueToken(phone: string): Promise<string | null> {
     return null;
   }
 
-  const token = res.body?.token;
+  const token = res.body?.accessToken;
   return typeof token === "string" ? token : null;
 }
 
@@ -72,7 +72,7 @@ describe("auth contract", () => {
     expect([200, 204]).toContain(res.status);
 
     if (res.status === 200) {
-      expect(typeof res.body?.token).toBe("string");
+      expect(typeof res.body?.accessToken).toBe("string");
       expect(typeof res.body?.user).toBe("object");
     }
   });

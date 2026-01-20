@@ -67,7 +67,7 @@ describe("OTP integration", () => {
       .post("/api/auth/otp/verify")
       .send({ phone: TEST_PHONE, code: "123456" });
 
-    const accessToken = res.body.accessToken ?? res.body.token;
+    const accessToken = res.body.accessToken;
 
     expect(res.status).toBe(200);
     expect(accessToken).toBeTruthy();

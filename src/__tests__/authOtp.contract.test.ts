@@ -83,7 +83,7 @@ describe("auth otp contract", () => {
     expect(res.status).toBe(200);
 
     const payload = jwt.verify(
-      res.body.token,
+      res.body.accessToken,
       process.env.JWT_SECRET ?? "test-access-secret"
     ) as jwt.JwtPayload;
 
@@ -132,7 +132,7 @@ describe("auth otp contract", () => {
 
     const me = await request(app)
       .get("/api/auth/me")
-      .set("Authorization", `Bearer ${res.body.token}`);
+      .set("Authorization", `Bearer ${res.body.accessToken}`);
 
     expect(me.status).toBe(200);
     expect(me.body.ok).toBe(true);
@@ -166,7 +166,7 @@ describe("auth otp contract", () => {
       .send({ phone, code: DEFAULT_OTP_CODE });
 
     expect(second.status).toBe(200);
-    expect(second.body.token).toBeTruthy();
+    expect(second.body.accessToken).toBeTruthy();
     expect(second.body.user).toMatchObject({
       role: ROLES.STAFF,
       email: "otp-repeat@example.com",
@@ -217,7 +217,7 @@ describe("auth otp contract", () => {
 
     const res = await otpVerifyRequest(app, { phone });
     expect(res.status).toBe(200);
-    expect(res.body.token).toBeTruthy();
+    expect(res.body.accessToken).toBeTruthy();
     expect(res.body.user).toMatchObject({
       role: ROLES.STAFF,
       email: "otp-missing-table@example.com",

@@ -61,7 +61,7 @@ describe("auth otp", () => {
     });
 
     expect(res.status).toBe(200);
-    expect(res.body.token).toBeTruthy();
+    expect(res.body.accessToken).toBeTruthy();
     expect(res.body.user).toEqual({
       id: expect.any(String),
       role: ROLES.ADMIN,
@@ -70,7 +70,7 @@ describe("auth otp", () => {
 
     const me = await request(app)
       .get("/api/auth/me")
-      .set("Authorization", `Bearer ${res.body.token}`);
+      .set("Authorization", `Bearer ${res.body.accessToken}`);
     expect(me.status).toBe(200);
     expect(me.body.ok).toBe(true);
     expect(me.body.data.role).toBe(ROLES.ADMIN);

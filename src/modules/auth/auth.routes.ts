@@ -16,7 +16,6 @@ import {
   validateVerifyOtp,
   verifyOtpResponseSchema,
 } from "../../validation/auth.validation";
-import { setSessionCookie } from "../../auth/session";
 
 const router = Router();
 
@@ -169,7 +168,7 @@ router.post("/otp/verify", otpRateLimit(), async (req, res) => {
       method: req.method,
     });
     const responseBody = {
-      token: result.token,
+      accessToken: result.token,
       refreshToken: result.refreshToken,
       user: result.user,
     };
@@ -182,7 +181,6 @@ router.post("/otp/verify", otpRateLimit(), async (req, res) => {
         responseValidation.error.flatten()
       );
     }
-    setSessionCookie(res, result.token);
     return res.status(200).json(responseBody);
   } catch (err) {
     if (err instanceof AppError) {

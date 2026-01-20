@@ -48,7 +48,9 @@ describe("auth otp canary integration", () => {
 
     expect([200, 204]).toContain(startRes.status);
     expect(sendOtpSpy).toHaveBeenCalledTimes(1);
-    expect(startRes.body?.token ?? startRes.body?.data?.token).toBeUndefined();
+    expect(
+      startRes.body?.accessToken ?? startRes.body?.data?.accessToken
+    ).toBeUndefined();
 
     await upsertUser({ phone: TEST_PHONE, role: ROLES.ADMIN });
 
@@ -58,7 +60,7 @@ describe("auth otp canary integration", () => {
 
     expect([200, 204]).toContain(verifyRes.status);
 
-    const token = verifyRes.body?.token ?? verifyRes.body?.accessToken;
+    const token = verifyRes.body?.accessToken;
     if (verifyRes.body && verifyRes.status !== 204) {
       expect(typeof token).toBe("string");
     }

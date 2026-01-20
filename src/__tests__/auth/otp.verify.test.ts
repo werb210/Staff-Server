@@ -57,12 +57,12 @@ describe("POST /api/auth/otp/verify", () => {
       .send({ phone, code: "123456" });
 
     expect(res.status).toBe(200);
-    expect(res.body.token).toBeTruthy();
+    expect(res.body.accessToken).toBeTruthy();
     expect(res.body.user).toMatchObject({
       role: ROLES.STAFF,
     });
 
-    const payload = jwt.decode(res.body.token) as { role?: string } | null;
+    const payload = jwt.decode(res.body.accessToken) as { role?: string } | null;
     expect(payload?.role).toBe(ROLES.STAFF);
   });
 });

@@ -46,7 +46,7 @@ export const verifyOtpResponseSchema = z.union([
   z.undefined(),
   z
     .object({
-      token: z.string(),
+      accessToken: z.string(),
       refreshToken: z.string().optional(),
       user: authUserWithContactSchema,
     })
