@@ -1,4 +1,6 @@
-import { buildApp, registerApiRoutes } from "../app";
+// src/server/index.ts
+
+import { buildApp } from "../app";
 import otpRouter from "../routes/auth/otp";
 import { assertEnv } from "../config";
 import { logError, logWarn } from "../observability/logger";
@@ -8,8 +10,11 @@ import { markReady } from "../startupState";
 let processHandlersInstalled = false;
 let server: ReturnType<ReturnType<typeof buildApp>["listen"]> | null = null;
 
+// IMPORTANT:
+// buildApp() ALREADY registers API routes internally.
+// DO NOT register them again here.
 export const app = buildApp();
-registerApiRoutes(app);
+
 app.use("/auth/otp", otpRouter);
 app.use(notFoundHandler);
 
@@ -19,9 +24,7 @@ if (isProd && !process.env.BASE_URL) {
 }
 
 function installProcessHandlers(): void {
-  if (processHandlersInstalled) {
-    return;
-  }
+  if (processHandlersInstalled) return;
   processHandlersInstalled = true;
 
   process.on("unhandledRejection", (err) => {
@@ -35,7 +38,7 @@ function installProcessHandlers(): void {
 
 function resolvePort(): number {
   const rawPort = process.env.PORT;
-  if (rawPort === undefined || rawPort === "") {
+  if (!rawPort) {
     logWarn("port_missing_defaulting", { fallback: 3000 });
     return 3000;
   }
@@ -47,9 +50,7 @@ function resolvePort(): number {
   return port;
 }
 
-export async function startServer(): Promise<
-  ReturnType<ReturnType<typeof buildApp>["listen"]>
-> {
+export async function startServer() {
   installProcessHandlers();
   assertEnv();
 
@@ -57,27 +58,18 @@ export async function startServer(): Promise<
   server = await new Promise((resolve) => {
     const listener = app.listen(port, "0.0.0.0", () => {
       if (typeof app.set === "function") {
-        const address =
-          typeof listener?.address === "function" ? listener.address() : null;
-        if (address && typeof address === "object" && "port" in address) {
-          app.set("port", address.port);
-        } else {
-          app.set("port", port);
-        }
+        app.set("port", port);
+        app.set("server", listener);
       }
       if (process.env.NODE_ENV !== "test") {
         console.log(`API server listening on ${port}`);
       }
       resolve(listener);
     });
-    if (typeof app.set === "function") {
-      app.set("server", listener);
-    }
   });
 
-  if (!server) {
-    throw new Error("Server failed to start.");
-  }
+  if (!server) throw new Error("Server failed to start.");
+
   markReady();
   return server;
 }
