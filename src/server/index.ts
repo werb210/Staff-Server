@@ -15,7 +15,7 @@ let server: ReturnType<ReturnType<typeof buildApp>["listen"]> | null = null;
 // DO NOT register them again here.
 export const app = buildApp();
 
-app.use("/auth/otp", otpRouter);
+app.use("/api/auth/otp", otpRouter);
 app.use(notFoundHandler);
 
 const isProd = process.env.NODE_ENV === "production";
