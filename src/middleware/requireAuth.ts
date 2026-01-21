@@ -5,7 +5,7 @@ import {
   requireCapability,
 } from "./auth";
 
-export { requireCapability, getAuthenticatedUserFromRequest };
+export { requireAuth, requireCapability, getAuthenticatedUserFromRequest };
 
 export default function requireAuthWithInternalBypass(
   req: Request,

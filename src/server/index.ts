@@ -1,7 +1,7 @@
 // src/server/index.ts
 
 import { buildApp } from "../app";
-import otpRouter from "../routes/auth/otp";
+import authRouter from "../routes/auth";
 import { assertEnv } from "../config";
 import { logError, logWarn } from "../observability/logger";
 import { notFoundHandler } from "../middleware/errors";
@@ -15,7 +15,7 @@ let server: ReturnType<ReturnType<typeof buildApp>["listen"]> | null = null;
 // DO NOT register them again here.
 export const app = buildApp();
 
-app.use("/api/auth/otp", otpRouter);
+app.use("/api/auth", authRouter);
 app.use(notFoundHandler);
 
 const isProd = process.env.NODE_ENV === "production";
