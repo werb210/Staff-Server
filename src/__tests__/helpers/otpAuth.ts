@@ -23,9 +23,6 @@ export async function otpVerifyRequest(
     phone: params.phone,
     code: params.code ?? DEFAULT_OTP_CODE,
   });
-  if (res.body?.user) {
-    res.body.user = res.body.user;
-  }
   if (res.body?.error?.code && !res.body.code) {
     res.body.code = res.body.error.code;
   }

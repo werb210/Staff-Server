@@ -166,11 +166,9 @@ describe("auth otp contract", () => {
       .send({ phone, code: DEFAULT_OTP_CODE });
 
     expect(second.status).toBe(200);
+    expect(second.body.ok).toBe(true);
     expect(second.body.accessToken).toBeTruthy();
-    expect(second.body.user).toMatchObject({
-      role: ROLES.STAFF,
-      email: "otp-repeat@example.com",
-    });
+    expect(second.headers["set-cookie"]).toBeUndefined();
     expect(twilioMocks.createVerificationCheck).toHaveBeenCalledTimes(1);
   });
 
@@ -217,11 +215,9 @@ describe("auth otp contract", () => {
 
     const res = await otpVerifyRequest(app, { phone });
     expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
     expect(res.body.accessToken).toBeTruthy();
-    expect(res.body.user).toMatchObject({
-      role: ROLES.STAFF,
-      email: "otp-missing-table@example.com",
-    });
+    expect(res.headers["set-cookie"]).toBeUndefined();
   });
 
   it("uses the Verify check endpoint with the configured service SID", async () => {
