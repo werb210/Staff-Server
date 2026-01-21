@@ -99,7 +99,7 @@ export function otpRateLimit(
     const phone = typeof req.body?.phone === "string" ? req.body.phone : "";
     res.on("finish", () => {
       if (res.statusCode >= 200 && res.statusCode < 300 && phone) {
-        resetOtpSendLimiter(phone);
+        resetOtpRateLimit(phone);
       }
     });
     verifyLimiter(req, res, next);
@@ -141,6 +141,18 @@ export function resetOtpSendLimiter(phone: string): void {
     return;
   }
   attemptsByKey.delete(buildOtpKey("otp_send", phone));
+}
+
+export function resetOtpVerifyLimiter(phone: string): void {
+  if (!phone) {
+    return;
+  }
+  attemptsByKey.delete(buildOtpKey("otp_verify", phone));
+}
+
+export function resetOtpRateLimit(phone: string): void {
+  resetOtpSendLimiter(phone);
+  resetOtpVerifyLimiter(phone);
 }
 
 export function refreshRateLimit(

@@ -36,28 +36,6 @@ function getAuthHeaderInfo(req: Request): { token: string | null; status: AuthHe
   return { token, status: "present" };
 }
 
-function getAccessTokenFromCookie(req: Request): string | null {
-  const cookieToken =
-    typeof (req as { cookies?: Record<string, unknown> }).cookies?.access_token === "string"
-      ? ((req as { cookies?: Record<string, unknown> }).cookies?.access_token as string)
-      : null;
-  if (cookieToken) {
-    return cookieToken;
-  }
-  const rawCookie = req.headers.cookie;
-  if (!rawCookie) {
-    return null;
-  }
-  const cookies = rawCookie.split(";").map((entry) => entry.trim());
-  for (const cookie of cookies) {
-    if (cookie.startsWith("access_token=")) {
-      const value = cookie.slice("access_token=".length);
-      return value ? decodeURIComponent(value) : null;
-    }
-  }
-  return null;
-}
-
 function logAuthHeaderStatus(status: AuthHeaderStatus): void {
   switch (status) {
     case "present":
@@ -107,12 +85,11 @@ function getAuthenticatedUserFromToken(token: string): AuthUser | null {
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
   const { token, status } = getAuthHeaderInfo(req);
   logAuthHeaderStatus(status);
-  const resolvedToken = token ?? getAccessTokenFromCookie(req);
-  if (!resolvedToken) {
+  if (!token) {
     const error = status === "malformed" ? "invalid_token" : "missing_token";
     return res.status(401).json({ error });
   }
-  const user = getAuthenticatedUserFromToken(resolvedToken);
+  const user = getAuthenticatedUserFromToken(token);
   if (!user) {
     logWarn("auth_token_invalid");
     return res.status(401).json({ error: "invalid_token" });
@@ -125,11 +102,10 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 export function getAuthenticatedUserFromRequest(req: Request): AuthUser | null {
   const { token, status } = getAuthHeaderInfo(req);
   logAuthHeaderStatus(status);
-  const resolvedToken = token ?? getAccessTokenFromCookie(req);
-  if (!resolvedToken) {
+  if (!token) {
     return null;
   }
-  const user = getAuthenticatedUserFromToken(resolvedToken);
+  const user = getAuthenticatedUserFromToken(token);
   if (!user) {
     logWarn("auth_token_invalid");
     return null;
