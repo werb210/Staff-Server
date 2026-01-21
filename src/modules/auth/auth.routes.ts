@@ -2,16 +2,13 @@ import { Router, type NextFunction, type Request, type Response } from "express"
 import { AppError } from "../../middleware/errors";
 import { otpRateLimit, refreshRateLimit } from "../../middleware/rateLimit";
 import { requireAuth } from "../../middleware/auth";
-import { getCapabilitiesForRole } from "../../auth/capabilities";
-import { isRole } from "../../auth/roles";
-import { safeHandler } from "../../middleware/safeHandler";
+import { authMeHandler } from "../../routes/auth/me";
 import { getRequestId } from "../../middleware/requestContext";
 import { logError } from "../../observability/logger";
 import { refreshSession } from "./auth.service";
 import { startOtp, verifyOtpCode } from "./otp.service";
 import {
   startOtpResponseSchema,
-  validateAuthMe,
   validateStartOtp,
   validateVerifyOtp,
   verifyOtpResponseSchema,
@@ -115,8 +112,8 @@ async function handleOtpStart(req: Request, res: Response, next: NextFunction) {
       );
     }
     const { phone } = req.body ?? {};
-    await startOtp(phone);
-    const responseBody = { sent: true };
+    const verification = await startOtp(phone);
+    const responseBody = { sid: verification.sid };
     const responseValidation = startOtpResponseSchema.safeParse(responseBody);
     if (!responseValidation.success) {
       return respondAuthResponseValidationError(
@@ -241,48 +238,6 @@ router.post("/refresh", refreshRateLimit(), async (req, res) => {
   }
 });
 
-router.get(
-  "/me",
-  requireAuth,
-  safeHandler(async (req, res) => {
-    if (!req.user) {
-      respondAuthError(
-        res,
-        401,
-        "missing_token",
-        "Authorization token is required."
-      );
-      return;
-    }
-    const role = req.user.role;
-    const capabilities =
-      req.user.capabilities ??
-      (role && isRole(role) ? getCapabilitiesForRole(role) : []);
-    const route = "/api/auth/me";
-    const requestId = getAuthRequestId(res);
-    const responseBody = {
-      ok: true,
-      data: {
-        userId: req.user.userId,
-        role,
-        phone: req.user.phone,
-        capabilities,
-      },
-      error: null,
-      requestId,
-    };
-    const responseValidation = validateAuthMe(responseBody);
-    if (!responseValidation.success) {
-      respondAuthResponseValidationError(
-        res,
-        route,
-        requestId,
-        responseValidation.error.flatten()
-      );
-      return;
-    }
-    res.status(200).json(responseBody);
-  })
-);
+router.get("/me", requireAuth, authMeHandler);
 
 export default router;

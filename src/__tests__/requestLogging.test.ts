@@ -1,6 +1,7 @@
 import express from "express";
 import request from "supertest";
-import { AppError, errorHandler } from "../middleware/errors";
+import { AppError } from "../middleware/errors";
+import { errorHandler } from "../middleware/errorHandler";
 import { requestId } from "../middleware/requestId";
 import { requestLogger } from "../middleware/requestLogger";
 

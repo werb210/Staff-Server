@@ -6,8 +6,16 @@ const router = Router();
 router.post("/start", async (req, res, next) => {
   try {
     const { phone } = req.body ?? {};
-    await startOtp(phone);
-    return res.status(200).json({ ok: true });
+    const verification = await startOtp(phone);
+    const requestId = res.locals.requestId ?? "unknown";
+    return res.json({
+      ok: true,
+      data: {
+        sid: verification.sid,
+      },
+      error: null,
+      requestId,
+    });
   } catch (err) {
     return next(err);
   }
