@@ -1,8 +1,6 @@
 import { Router, type NextFunction, type Request, type Response } from "express";
 import { AppError } from "../../middleware/errors";
 import { otpRateLimit, refreshRateLimit, resetOtpRateLimit } from "../../middleware/rateLimit";
-import { requireAuth } from "../../middleware/auth";
-import { authMeHandler } from "../../routes/auth/me";
 import { getRequestId } from "../../middleware/requestContext";
 import { logError } from "../../observability/logger";
 import { refreshSession } from "./auth.service";
@@ -240,7 +238,5 @@ router.post("/refresh", refreshRateLimit(), async (req, res) => {
     );
   }
 });
-
-router.get("/me", requireAuth, authMeHandler);
 
 export default router;
