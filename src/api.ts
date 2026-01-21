@@ -1,6 +1,7 @@
 import { Router } from "express";
 
-import { errorHandler, notFoundHandler } from "./middleware/errors";
+import { notFoundHandler } from "./middleware/errors";
+import { errorHandler } from "./middleware/errorHandler";
 import { requireHttps } from "./middleware/security";
 import { idempotencyMiddleware } from "./middleware/idempotency";
 import { registerApiRouteMounts } from "./routes/routeRegistry";

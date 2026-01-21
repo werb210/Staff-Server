@@ -328,7 +328,7 @@ async function requestTwilioVerificationCheck(
 
 export async function startOtp(
   phone: unknown
-): Promise<{ ok: true }> {
+): Promise<{ ok: true; sid: string }> {
   const requestId = getRequestId() ?? "unknown";
   try {
     try {
@@ -368,7 +368,7 @@ export async function startOtp(
         status: verification.status,
         requestId,
       });
-      return { ok: true };
+      return { ok: true, sid: verification.sid ?? "unknown" };
     } catch (err: any) {
       const details = getTwilioErrorDetails(err);
       logError("auth_twilio_verify_failed", {

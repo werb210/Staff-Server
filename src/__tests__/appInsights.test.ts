@@ -57,7 +57,8 @@ describe("application insights telemetry", () => {
 
     const { requestId } = await import("../middleware/requestId");
     const { requestLogger } = await import("../middleware/requestLogger");
-    const { AppError, errorHandler } = await import("../middleware/errors");
+    const { AppError } = await import("../middleware/errors");
+    const { errorHandler } = await import("../middleware/errorHandler");
     const { checkDb } = await import("../db");
 
     const app = express();

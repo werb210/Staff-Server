@@ -20,7 +20,8 @@ import { checkDb } from "./db";
 import { requireHttps } from "./middleware/security";
 import { idempotencyMiddleware } from "./middleware/idempotency";
 import { ensureIdempotencyKey } from "./middleware/idempotencyKey";
-import { errorHandler, notFoundHandler } from "./middleware/errors";
+import { notFoundHandler } from "./middleware/errors";
+import { errorHandler } from "./middleware/errorHandler";
 import { logError } from "./observability/logger";
 import authRoutes from "./routes/auth";
 import lendersRoutes from "./routes/lenders";
@@ -205,3 +206,7 @@ export function buildAppWithApiRoutes(): express.Express {
   registerApiRoutes(app);
   return app;
 }
+
+const app = buildAppWithApiRoutes();
+
+export default app;

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import authRoutes from "../modules/auth/auth.routes";
-import { errorHandler, notFoundHandler } from "../middleware/errors";
+import { notFoundHandler } from "../middleware/errors";
+import { errorHandler } from "../middleware/errorHandler";
 
 const router = Router();
 router.use("/", authRoutes);
