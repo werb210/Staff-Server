@@ -1,9 +1,14 @@
 import { Router } from "express";
 import { startOtp, verifyOtpCode } from "../../modules/auth/otp.service";
+import {
+  otpSendLimiter,
+  otpVerifyLimiter,
+  resetOtpSendLimiter,
+} from "../../middleware/rateLimit";
 
 const router = Router();
 
-router.post("/start", async (req, res, next) => {
+router.post("/start", otpSendLimiter(), async (req, res, next) => {
   try {
     const { phone } = req.body ?? {};
     const verification = await startOtp(phone);
@@ -21,7 +26,7 @@ router.post("/start", async (req, res, next) => {
   }
 });
 
-router.post("/verify", async (req, res, next) => {
+router.post("/verify", otpVerifyLimiter(), async (req, res, next) => {
   try {
     const { phone, code } = req.body ?? {};
     const result = await verifyOtpCode({
@@ -32,6 +37,7 @@ router.post("/verify", async (req, res, next) => {
       route: req.originalUrl,
       method: req.method,
     });
+    resetOtpSendLimiter(typeof phone === "string" ? phone : "");
     return res.status(200).json({
       ok: true,
       accessToken: result.token,

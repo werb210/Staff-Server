@@ -87,16 +87,60 @@ export function otpRateLimit(
   maxAttempts = getLoginRateLimitMax(),
   windowMs = getLoginRateLimitWindowMs()
 ): (req: Request, res: Response, next: NextFunction) => void {
+  const sendLimiter = otpSendLimiter(maxAttempts, windowMs);
+  const verifyLimiter = otpVerifyLimiter(maxAttempts, windowMs);
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const path = req.originalUrl ?? req.path;
+    const isVerify = path.includes("/otp/verify");
+    if (!isVerify) {
+      sendLimiter(req, res, next);
+      return;
+    }
+    const phone = typeof req.body?.phone === "string" ? req.body.phone : "";
+    res.on("finish", () => {
+      if (res.statusCode >= 200 && res.statusCode < 300 && phone) {
+        resetOtpSendLimiter(phone);
+      }
+    });
+    verifyLimiter(req, res, next);
+  };
+}
+
+function getOtpPhone(req: Request): string {
+  return typeof req.body?.phone === "string" ? req.body.phone : "unknown";
+}
+
+function buildOtpKey(prefix: string, phone: string): string {
+  return `${prefix}:${phone}`;
+}
+
+export function otpSendLimiter(
+  maxAttempts = getLoginRateLimitMax(),
+  windowMs = getLoginRateLimitWindowMs()
+): (req: Request, res: Response, next: NextFunction) => void {
   return createRateLimiter(
-    (req) => {
-      const ip = req.ip || "unknown";
-      const phone =
-        typeof req.body?.phone === "string" ? req.body.phone : "unknown";
-      return `otp:${ip}:${phone}`;
-    },
+    (req) => buildOtpKey("otp_send", getOtpPhone(req)),
     maxAttempts,
     windowMs
   );
+}
+
+export function otpVerifyLimiter(
+  maxAttempts = getLoginRateLimitMax(),
+  windowMs = getLoginRateLimitWindowMs()
+): (req: Request, res: Response, next: NextFunction) => void {
+  return createRateLimiter(
+    (req) => buildOtpKey("otp_verify", getOtpPhone(req)),
+    maxAttempts,
+    windowMs
+  );
+}
+
+export function resetOtpSendLimiter(phone: string): void {
+  if (!phone) {
+    return;
+  }
+  attemptsByKey.delete(buildOtpKey("otp_send", phone));
 }
 
 export function refreshRateLimit(
