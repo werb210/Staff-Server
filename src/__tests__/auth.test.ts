@@ -61,12 +61,9 @@ describe("auth otp", () => {
     });
 
     expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
     expect(res.body.accessToken).toBeTruthy();
-    expect(res.body.user).toEqual({
-      id: expect.any(String),
-      role: ROLES.ADMIN,
-      email: "admin@example.com",
-    });
+    expect(res.headers["set-cookie"]).toBeUndefined();
 
     const me = await request(app)
       .get("/api/auth/me")

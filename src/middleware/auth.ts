@@ -1,8 +1,7 @@
 import { Request, Response, NextFunction } from "express";
-import jwt from "jsonwebtoken";
 import { CAPABILITIES, getCapabilitiesForRole } from "../auth/capabilities";
 import { ROLES, isRole } from "../auth/roles";
-import { getAccessTokenSecret } from "../config";
+import { verifyAccessToken } from "../auth/jwt";
 
 export interface AuthUser {
   userId: string;
@@ -45,14 +44,8 @@ export function getAuthenticatedUserFromRequest(req: Request): AuthUser | null {
   if (!token) {
     return null;
   }
-  const secret = getAccessTokenSecret();
-  if (!secret) {
-    return null;
-  }
   try {
-    const payload = jwt.verify(token, secret, {
-      algorithms: ["HS256"],
-    }) as {
+    const payload = verifyAccessToken(token) as {
       sub?: string;
       role?: string;
       phone?: string | null;

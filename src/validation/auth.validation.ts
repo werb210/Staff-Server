@@ -22,36 +22,19 @@ export const verifyOtpSchema = z
   })
   .strict();
 
-const authUserBaseSchema = z
-  .object({
-    id: z.string(),
-    role: roleSchema,
-  })
-  .strict();
-
-const authUserWithContactSchema = authUserBaseSchema
-  .extend({
-    phone: z.string().optional(),
-    email: z.string().optional(),
-  })
-  .strict();
-
 export const startOtpResponseSchema = z
   .object({
     sent: z.boolean(),
   })
   .strict();
 
-export const verifyOtpResponseSchema = z.union([
-  z.undefined(),
-  z
-    .object({
-      accessToken: z.string(),
-      refreshToken: z.string().optional(),
-      user: authUserWithContactSchema,
-    })
-    .strict(),
-]);
+export const verifyOtpResponseSchema = z
+  .object({
+    ok: z.literal(true),
+    accessToken: z.string(),
+    refreshToken: z.string().optional(),
+  })
+  .strict();
 
 export const authMeSchema = z
   .object({

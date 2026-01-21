@@ -25,20 +25,17 @@ import { getRequestId } from "../../middleware/requestContext";
 import { normalizePhoneNumber } from "./phone";
 import { ensureOtpTableExists } from "../../db/ensureOtpTable";
 import {
-  getAccessTokenExpiresIn,
   getAccessTokenSecret,
   getRefreshTokenExpiresIn,
   getRefreshTokenExpiresInMs,
   getRefreshTokenSecret,
   getJwtClockSkewSeconds,
 } from "../../config";
+import {
+  signAccessToken,
+  type AccessTokenPayload,
+} from "../../auth/jwt";
 import { hashRefreshToken } from "../../auth/tokenUtils";
-
-export type AccessTokenPayload = {
-  sub: string;
-  role: Role;
-  tokenVersion: number;
-};
 
 type RefreshTokenPayload = JwtPayload & {
   sub?: string;
@@ -56,15 +53,11 @@ function assertE164(phone: unknown): string {
 }
 
 export function issueAccessToken(payload: AccessTokenPayload): string {
-  const secret = getAccessTokenSecret();
-  if (!secret) {
+  try {
+    return signAccessToken(payload);
+  } catch (err) {
     throw new AppError("auth_misconfigured", "Auth is not configured.", 503);
   }
-  const expiresIn = getAccessTokenExpiresIn() as SignOptions["expiresIn"];
-  return jwt.sign(payload, secret, {
-    algorithm: "HS256",
-    expiresIn,
-  });
 }
 
 export function issueRefreshToken(params: {

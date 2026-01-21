@@ -27,6 +27,7 @@ describe("auth me contract", () => {
     expect(res.body.ok).toBe(true);
     expect(res.body.data.userId).toBe("user-1");
     expect(res.body.data.role).toBe(ROLES.STAFF);
+    expect(res.headers["set-cookie"]).toBeUndefined();
     expect(querySpy).not.toHaveBeenCalled();
     querySpy.mockRestore();
   });
@@ -44,6 +45,8 @@ describe("auth me contract", () => {
       .set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(401);
+    expect(res.body.error).toBe("invalid_token");
+    expect(res.headers["set-cookie"]).toBeUndefined();
     expect(querySpy).not.toHaveBeenCalled();
     querySpy.mockRestore();
   });
@@ -53,6 +56,8 @@ describe("auth me contract", () => {
     const res = await request(app).get("/api/auth/me");
 
     expect(res.status).toBe(401);
+    expect(res.body.error).toBe("missing_token");
+    expect(res.headers["set-cookie"]).toBeUndefined();
     expect(querySpy).not.toHaveBeenCalled();
     querySpy.mockRestore();
   });
@@ -64,6 +69,8 @@ describe("auth me contract", () => {
       .set("Authorization", "Bearer garbage");
 
     expect(res.status).toBe(401);
+    expect(res.body.error).toBe("invalid_token");
+    expect(res.headers["set-cookie"]).toBeUndefined();
     expect(querySpy).not.toHaveBeenCalled();
     querySpy.mockRestore();
   });

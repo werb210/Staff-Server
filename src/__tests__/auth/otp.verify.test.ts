@@ -57,10 +57,9 @@ describe("POST /api/auth/otp/verify", () => {
       .send({ phone, code: "123456" });
 
     expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
     expect(res.body.accessToken).toBeTruthy();
-    expect(res.body.user).toMatchObject({
-      role: ROLES.STAFF,
-    });
+    expect(res.headers["set-cookie"]).toBeUndefined();
 
     const payload = jwt.decode(res.body.accessToken) as { role?: string } | null;
     expect(payload?.role).toBe(ROLES.STAFF);

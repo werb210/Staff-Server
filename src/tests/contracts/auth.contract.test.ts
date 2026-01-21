@@ -72,8 +72,9 @@ describe("auth contract", () => {
     expect([200, 204]).toContain(res.status);
 
     if (res.status === 200) {
+      expect(res.body?.ok).toBe(true);
       expect(typeof res.body?.accessToken).toBe("string");
-      expect(typeof res.body?.user).toBe("object");
+      expect(res.headers["set-cookie"]).toBeUndefined();
     }
   });
 
@@ -97,6 +98,42 @@ describe("auth contract", () => {
       ROLES.REFERRER,
     ]).toContain(decoded.role);
     expect(decoded.role).not.toBe(decoded.role?.toLowerCase());
+  });
+
+  it("auth me contract with bearer token", async () => {
+    const phone = "+15555550106";
+    await upsertUser({ phone, role: ROLES.STAFF });
+
+    const token = await issueToken(phone);
+    expect(token).toBeTruthy();
+
+    const res = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.data.userId).toBeTruthy();
+    expect(res.body.data.role).toBe(ROLES.STAFF);
+    expect(res.headers["set-cookie"]).toBeUndefined();
+  });
+
+  it("auth me contract without token", async () => {
+    const res = await request(app).get("/api/auth/me");
+
+    expect(res.status).toBe(401);
+    expect(res.body.error).toBe("missing_token");
+    expect(res.headers["set-cookie"]).toBeUndefined();
+  });
+
+  it("auth me contract with invalid token", async () => {
+    const res = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", "Bearer invalid-token");
+
+    expect(res.status).toBe(401);
+    expect(res.body.error).toBe("invalid_token");
+    expect(res.headers["set-cookie"]).toBeUndefined();
   });
 
   it("auth header acceptance", async () => {
