@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { CAPABILITIES, getCapabilitiesForRole } from "../auth/capabilities";
 import { ROLES, isRole } from "../auth/roles";
 import { verifyAccessToken } from "../auth/jwt";
+import { logInfo, logWarn } from "../observability/logger";
 
 export interface AuthUser {
   userId: string;
@@ -18,32 +19,47 @@ declare global {
   }
 }
 
-function getAuthTokenFromRequest(req: Request): string | null {
+type AuthHeaderStatus = "present" | "missing" | "malformed";
+
+function getAuthHeaderInfo(req: Request): { token: string | null; status: AuthHeaderStatus } {
   const header = req.headers.authorization;
-  if (header && header.startsWith("Bearer ")) {
-    return header.slice("Bearer ".length);
+  if (!header) {
+    return { token: null, status: "missing" };
   }
-  return null;
+  if (!header.startsWith("Bearer ")) {
+    return { token: null, status: "malformed" };
+  }
+  const token = header.slice("Bearer ".length).trim();
+  if (!token) {
+    return { token: null, status: "malformed" };
+  }
+  return { token, status: "present" };
 }
 
-export function requireAuth(req: Request, res: Response, next: NextFunction) {
-  const token = getAuthTokenFromRequest(req);
-  if (!token) {
-    return res.status(401).json({ error: "missing_token" });
+function logAuthHeaderStatus(status: AuthHeaderStatus): void {
+  switch (status) {
+    case "present":
+      logInfo("auth_header_present");
+      break;
+    case "missing":
+      logWarn("auth_header_missing");
+      break;
+    case "malformed":
+      logWarn("auth_header_malformed");
+      break;
+    default:
+      break;
   }
-  const user = getAuthenticatedUserFromRequest(req);
-  if (!user) {
-    return res.status(401).json({ error: "invalid_token" });
-  }
-  req.user = user;
-  next();
 }
 
-export function getAuthenticatedUserFromRequest(req: Request): AuthUser | null {
-  const token = getAuthTokenFromRequest(req);
-  if (!token) {
-    return null;
-  }
+function logAuthSuccess(user: AuthUser): void {
+  logInfo("auth_token_verified", {
+    subject: user.userId,
+    role: user.role,
+  });
+}
+
+function getAuthenticatedUserFromToken(token: string): AuthUser | null {
   try {
     const payload = verifyAccessToken(token) as {
       sub?: string;
@@ -64,6 +80,38 @@ export function getAuthenticatedUserFromRequest(req: Request): AuthUser | null {
   } catch {
     return null;
   }
+}
+
+export function requireAuth(req: Request, res: Response, next: NextFunction) {
+  const { token, status } = getAuthHeaderInfo(req);
+  logAuthHeaderStatus(status);
+  if (!token) {
+    const error = status === "malformed" ? "invalid_token" : "missing_token";
+    return res.status(401).json({ error });
+  }
+  const user = getAuthenticatedUserFromToken(token);
+  if (!user) {
+    logWarn("auth_token_invalid");
+    return res.status(401).json({ error: "invalid_token" });
+  }
+  logAuthSuccess(user);
+  req.user = user;
+  next();
+}
+
+export function getAuthenticatedUserFromRequest(req: Request): AuthUser | null {
+  const { token, status } = getAuthHeaderInfo(req);
+  logAuthHeaderStatus(status);
+  if (!token) {
+    return null;
+  }
+  const user = getAuthenticatedUserFromToken(token);
+  if (!user) {
+    logWarn("auth_token_invalid");
+    return null;
+  }
+  logAuthSuccess(user);
+  return user;
 }
 
 export function requireCapability(required: string[]) {

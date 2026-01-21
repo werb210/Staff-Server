@@ -24,7 +24,7 @@ router.post(
 );
 router.patch(
   "/:id",
-  requireCapability([CAPABILITIES.LENDERS_READ]),
+  requireCapability([CAPABILITIES.OPS_MANAGE]),
   safeHandler(updateLenderProductHandler)
 );
 
