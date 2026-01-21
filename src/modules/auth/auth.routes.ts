@@ -1,6 +1,6 @@
 import { Router, type NextFunction, type Request, type Response } from "express";
 import { AppError } from "../../middleware/errors";
-import { otpRateLimit, refreshRateLimit } from "../../middleware/rateLimit";
+import { otpRateLimit, refreshRateLimit, resetOtpRateLimit } from "../../middleware/rateLimit";
 import { requireAuth } from "../../middleware/auth";
 import { authMeHandler } from "../../routes/auth/me";
 import { getRequestId } from "../../middleware/requestContext";
@@ -112,8 +112,8 @@ async function handleOtpStart(req: Request, res: Response, next: NextFunction) {
       );
     }
     const { phone } = req.body ?? {};
-    const verification = await startOtp(phone);
-    const responseBody = { sid: verification.sid };
+    await startOtp(phone);
+    const responseBody = { sent: true };
     const responseValidation = startOtpResponseSchema.safeParse(responseBody);
     if (!responseValidation.success) {
       return respondAuthResponseValidationError(
@@ -177,6 +177,9 @@ router.post("/otp/verify", otpRateLimit(), async (req, res) => {
         requestId,
         responseValidation.error.flatten()
       );
+    }
+    if (typeof phone === "string") {
+      resetOtpRateLimit(phone);
     }
     return res.status(200).json(responseBody);
   } catch (err) {

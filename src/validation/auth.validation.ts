@@ -24,7 +24,7 @@ export const verifyOtpSchema = z
 
 export const startOtpResponseSchema = z
   .object({
-    sid: z.string(),
+    sent: z.literal(true),
   })
   .strict();
 

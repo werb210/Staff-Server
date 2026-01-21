@@ -3,7 +3,7 @@ import { startOtp, verifyOtpCode } from "../../modules/auth/otp.service";
 import {
   otpSendLimiter,
   otpVerifyLimiter,
-  resetOtpSendLimiter,
+  resetOtpRateLimit,
 } from "../../middleware/rateLimit";
 
 const router = Router();
@@ -11,12 +11,12 @@ const router = Router();
 router.post("/start", otpSendLimiter(), async (req, res, next) => {
   try {
     const { phone } = req.body ?? {};
-    const verification = await startOtp(phone);
+    await startOtp(phone);
     const requestId = res.locals.requestId ?? "unknown";
     return res.json({
       ok: true,
       data: {
-        sid: verification.sid,
+        sent: true,
       },
       error: null,
       requestId,
@@ -37,7 +37,9 @@ router.post("/verify", otpVerifyLimiter(), async (req, res, next) => {
       route: req.originalUrl,
       method: req.method,
     });
-    resetOtpSendLimiter(typeof phone === "string" ? phone : "");
+    if (typeof phone === "string") {
+      resetOtpRateLimit(phone);
+    }
     return res.status(200).json({
       ok: true,
       accessToken: result.token,
