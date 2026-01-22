@@ -20,58 +20,34 @@ describe("POST /api/auth/otp/start Twilio Verify behaviors", () => {
     process.env = originalEnv;
   });
 
-  it("returns 503 when TWILIO_ACCOUNT_SID is missing", async () => {
+  it("fails fast when TWILIO_ACCOUNT_SID is missing", () => {
     delete process.env.TWILIO_ACCOUNT_SID;
     process.env.TWILIO_AUTH_TOKEN = "token";
     process.env.TWILIO_VERIFY_SERVICE_SID = "VA00000000000000000000000000000000";
 
-    const app = buildTestApp();
-    const res = await request(app)
-      .post("/api/auth/otp/start")
-      .send({ phone: "+15878881837" });
-
-    expect(res.status).toBe(503);
-    expect(res.body.ok).toBe(false);
-    expect(res.body.error).toEqual({
-      code: "twilio_unavailable",
-      message: "Twilio is not configured.",
-    });
+    expect(() => buildTestApp()).toThrow(
+      "Missing required environment variables: TWILIO_ACCOUNT_SID"
+    );
   });
 
-  it("returns 503 when TWILIO_AUTH_TOKEN is missing", async () => {
+  it("fails fast when TWILIO_AUTH_TOKEN is missing", () => {
     process.env.TWILIO_ACCOUNT_SID = "ACxxxx";
     delete process.env.TWILIO_AUTH_TOKEN;
     process.env.TWILIO_VERIFY_SERVICE_SID = "VA00000000000000000000000000000000";
 
-    const app = buildTestApp();
-    const res = await request(app)
-      .post("/api/auth/otp/start")
-      .send({ phone: "+15878881837" });
-
-    expect(res.status).toBe(503);
-    expect(res.body.ok).toBe(false);
-    expect(res.body.error).toEqual({
-      code: "twilio_unavailable",
-      message: "Twilio is not configured.",
-    });
+    expect(() => buildTestApp()).toThrow(
+      "Missing required environment variables: TWILIO_AUTH_TOKEN"
+    );
   });
 
-  it("returns 503 when TWILIO_VERIFY_SERVICE_SID is missing", async () => {
+  it("fails fast when TWILIO_VERIFY_SERVICE_SID is missing", () => {
     process.env.TWILIO_ACCOUNT_SID = "ACxxxx";
     process.env.TWILIO_AUTH_TOKEN = "token";
     delete process.env.TWILIO_VERIFY_SERVICE_SID;
 
-    const app = buildTestApp();
-    const res = await request(app)
-      .post("/api/auth/otp/start")
-      .send({ phone: "+15878881837" });
-
-    expect(res.status).toBe(503);
-    expect(res.body.ok).toBe(false);
-    expect(res.body.error).toEqual({
-      code: "twilio_unavailable",
-      message: "Twilio is not configured.",
-    });
+    expect(() => buildTestApp()).toThrow(
+      "Missing required environment variables: TWILIO_VERIFY_SERVICE_SID"
+    );
   });
 
   it("returns 200 when Verify succeeds", async () => {

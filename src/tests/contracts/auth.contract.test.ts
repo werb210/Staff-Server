@@ -88,18 +88,14 @@ describe("auth contract", () => {
     const decoded = jwt.verify(token!, process.env.JWT_SECRET!) as {
       role?: string;
       silo?: string;
+      phone?: string;
     };
 
     expect(decoded.role).toBeTruthy();
-    expect([
-      ROLES.ADMIN,
-      ROLES.STAFF,
-      ROLES.OPS,
-      ROLES.LENDER,
-      ROLES.REFERRER,
-    ]).toContain(decoded.role);
+    expect([ROLES.ADMIN, ROLES.STAFF]).toContain(decoded.role);
     expect(decoded.role).not.toBe(decoded.role?.toLowerCase());
     expect(decoded.silo).toBe("BF");
+    expect(decoded.phone).toBe(phone);
   });
 
   it("auth me contract with bearer token", async () => {
@@ -141,33 +137,25 @@ describe("auth contract", () => {
 
   it("auth header acceptance", async () => {
     const adminPhone = "+15555550102";
-    const opsPhone = "+15555550103";
     const staffPhone = "+15555550104";
 
     await upsertUser({ phone: adminPhone, role: ROLES.ADMIN });
-    await upsertUser({ phone: opsPhone, role: ROLES.OPS });
     await upsertUser({ phone: staffPhone, role: ROLES.STAFF });
 
     const adminToken = await issueToken(adminPhone);
-    const opsToken = await issueToken(opsPhone);
     const staffToken = await issueToken(staffPhone);
 
     expect(adminToken).toBeTruthy();
-    expect(opsToken).toBeTruthy();
     expect(staffToken).toBeTruthy();
 
     const adminRes = await request(app)
       .get("/api/lenders")
       .set("Authorization", `Bearer ${adminToken}`);
-    const opsRes = await request(app)
-      .get("/api/lenders")
-      .set("Authorization", `Bearer ${opsToken}`);
     const staffRes = await request(app)
       .get("/api/lenders")
       .set("Authorization", `Bearer ${staffToken}`);
 
     expect(adminRes.status).toBe(200);
-    expect(opsRes.status).toBe(200);
     expect(staffRes.status).toBe(200);
   });
 

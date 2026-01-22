@@ -1,4 +1,3 @@
-import request from "supertest";
 import type { Express } from "express";
 
 function buildTestApp(): Express {
@@ -24,32 +23,15 @@ describe("OTP endpoints when Twilio disabled", () => {
     process.env = originalEnv;
   });
 
-  it("returns 503 for OTP request", async () => {
-    const app = buildTestApp();
-    const res = await request(app)
-      .post("/api/auth/otp/start")
-      .send({ phone: "+15878881337" });
-
-    expect(res.status).toBe(503);
-    expect(res.body.ok).toBe(false);
-    expect(res.body.error).toEqual({
-      code: "twilio_unavailable",
-      message: "Twilio is not configured.",
-    });
+  it("fails fast when Twilio env is missing", () => {
+    expect(() => buildTestApp()).toThrow(
+      "Missing required environment variables: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_VERIFY_SERVICE_SID"
+    );
   });
 
-  it("returns 503 for OTP verify", async () => {
-    const app = buildTestApp();
-    const res = await request(app).post("/api/auth/otp/verify").send({
-      phone: "+15878881337",
-      code: "123456",
-    });
-
-    expect(res.status).toBe(503);
-    expect(res.body.ok).toBe(false);
-    expect(res.body.error).toEqual({
-      code: "twilio_unavailable",
-      message: "Twilio is not configured.",
-    });
+  it("fails fast on OTP verify when Twilio env is missing", () => {
+    expect(() => buildTestApp()).toThrow(
+      "Missing required environment variables: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_VERIFY_SERVICE_SID"
+    );
   });
 });

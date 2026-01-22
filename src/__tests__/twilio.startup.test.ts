@@ -1,19 +1,12 @@
 describe("twilio startup without configuration", () => {
   const originalEnv = process.env;
-  let server: import("http").Server | null = null;
 
-  afterEach(async () => {
-    if (!server) {
-      return;
-    }
-    await new Promise<void>((resolve) => {
-      server?.close(() => resolve());
-    });
-    server = null;
+  afterEach(() => {
     process.env = originalEnv;
+    jest.resetModules();
   });
 
-  it("boots without Twilio env vars", async () => {
+  it("fails fast when Twilio env vars are missing", () => {
     process.env = { ...originalEnv };
     delete process.env.TWILIO_ACCOUNT_SID;
     delete process.env.TWILIO_AUTH_TOKEN;
@@ -21,28 +14,12 @@ describe("twilio startup without configuration", () => {
     process.env.PORT = "0";
     process.env.NODE_ENV = "test";
 
-    jest.resetModules();
-    await new Promise<void>((resolve, reject) => {
+    expect(() => {
       jest.isolateModules(() => {
-        const { startServer } = require("../index");
-        const { getTwilioClient, isTwilioEnabled } = require("../services/twilio");
-        expect(isTwilioEnabled()).toBe(false);
-        expect(getTwilioClient()).toBeNull();
-        startServer()
-          .then((listener: import("http").Server) => {
-            server = listener;
-            resolve();
-          })
-          .catch(reject);
+        require("../index");
       });
-    });
-
-    if (!server?.listening) {
-      await new Promise<void>((resolve) => {
-        server?.once("listening", resolve);
-      });
-    }
-    expect(server?.listening).toBe(true);
-
+    }).toThrow(
+      "Missing required environment variables: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_VERIFY_SERVICE_SID"
+    );
   });
 });

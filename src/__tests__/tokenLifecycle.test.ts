@@ -59,11 +59,16 @@ describe("token lifecycle stability", () => {
       {
         sub: "grace-user",
         role: ROLES.STAFF,
+        tokenVersion: 0,
         exp: nowSeconds - 30,
         iat: nowSeconds - 60,
       },
       process.env.JWT_SECRET ?? "test-access-secret",
-      { noTimestamp: true }
+      {
+        noTimestamp: true,
+        issuer: "boreal-staff-server",
+        audience: "boreal-staff-portal",
+      }
     );
 
     const res = await request(app)
@@ -82,11 +87,16 @@ describe("token lifecycle stability", () => {
       {
         sub: "expired-user",
         role: ROLES.STAFF,
+        tokenVersion: 0,
         exp: nowSeconds - 600,
         iat: nowSeconds - 660,
       },
       process.env.JWT_SECRET ?? "test-access-secret",
-      { noTimestamp: true }
+      {
+        noTimestamp: true,
+        issuer: "boreal-staff-server",
+        audience: "boreal-staff-portal",
+      }
     );
 
     const res = await request(app)

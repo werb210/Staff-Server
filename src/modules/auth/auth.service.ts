@@ -1,6 +1,7 @@
 import jwt, { type JwtPayload, type SignOptions } from "jsonwebtoken";
 import { randomUUID } from "crypto";
 import {
+  checkOtp,
   getTwilioClient,
   getTwilioVerifyServiceSid,
   sendOtp,
@@ -57,7 +58,7 @@ export function issueAccessToken(payload: AccessTokenPayload): string {
   try {
     return signAccessToken(payload);
   } catch (err) {
-    throw new AppError("auth_misconfigured", "Auth is not configured.", 503);
+    throw new AppError("auth_misconfigured", "Auth is not configured.", 500);
   }
 }
 
@@ -67,7 +68,7 @@ export function issueRefreshToken(params: {
 }): { token: string; tokenHash: string; expiresAt: Date } {
   const secret = getRefreshTokenSecret();
   if (!secret) {
-    throw new AppError("auth_misconfigured", "Auth is not configured.", 503);
+    throw new AppError("auth_misconfigured", "Auth is not configured.", 500);
   }
   const payload: RefreshTokenPayload = {
     sub: params.userId,
@@ -90,7 +91,7 @@ export function issueRefreshToken(params: {
 function verifyRefreshToken(token: string): RefreshTokenPayload {
   const secret = getRefreshTokenSecret();
   if (!secret) {
-    throw new AppError("auth_misconfigured", "Auth is not configured.", 503);
+    throw new AppError("auth_misconfigured", "Auth is not configured.", 500);
   }
   try {
     return jwt.verify(token, secret, {
@@ -172,7 +173,7 @@ export function assertAuthSubsystem(): void {
   const accessSecret = getAccessTokenSecret();
   const refreshSecret = getRefreshTokenSecret();
   if (!accessSecret || !refreshSecret) {
-    throw new AppError("auth_misconfigured", "Auth is not configured.", 503);
+    throw new AppError("auth_misconfigured", "Auth is not configured.", 500);
   }
 }
 
@@ -225,7 +226,7 @@ function assertTwilioConfig(requestId: string): {
   const missing = getMissingTwilioEnv();
   if (missing.length > 0) {
     logError("twilio_missing_env", { missing, requestId });
-    throw new AppError("twilio_unavailable", "Twilio is not configured.", 503);
+    throw new AppError("twilio_misconfigured", "Twilio is not configured.", 500);
   }
   if (process.env.NODE_ENV === "production") {
     const accountSid = process.env.TWILIO_ACCOUNT_SID ?? "";
@@ -246,7 +247,7 @@ function assertTwilioConfig(requestId: string): {
     }
     if (invalidValues.length > 0) {
       logError("twilio_invalid_env", { invalidValues, requestId });
-      throw new AppError("twilio_unavailable", "Twilio is not configured.", 503);
+      throw new AppError("twilio_misconfigured", "Twilio is not configured.", 500);
     }
   }
   const client = getTwilioClient();
@@ -256,7 +257,7 @@ function assertTwilioConfig(requestId: string): {
       missing,
       requestId,
     });
-    throw new AppError("twilio_unavailable", "Twilio is not configured.", 503);
+    throw new AppError("twilio_misconfigured", "Twilio is not configured.", 500);
   }
   return { client, verifyServiceSid };
 }
@@ -282,22 +283,61 @@ function isOtpVerificationTableMissing(error: unknown): boolean {
   return message.includes("otp_verifications") && message.includes("exist");
 }
 
-function buildTwilioVerifyErrorMessage(details: {
-  code?: number | string;
-  message?: string;
-}): string {
-  const code = details.code ? `code ${details.code}` : "unknown code";
-  return `Twilio verification failed (${code}).`;
+function attachTwilioDetails(error: AppError, details: TwilioErrorDetails): AppError {
+  const twilioCode =
+    typeof details.code === "number" || typeof details.code === "string"
+      ? details.code
+      : undefined;
+  const twilioMessage = details.message;
+  (error as { details?: unknown }).details = {
+    twilioCode,
+    twilioMessage,
+  };
+  return error;
 }
 
-function getTwilioFailureCode(status?: number): string {
-  if (!status) {
-    return "OTP_VERIFY_TWILIO_4XX";
+function mapTwilioVerifyError(details: TwilioErrorDetails, err: unknown): AppError {
+  if (isTwilioAuthError(err)) {
+    return attachTwilioDetails(
+      new AppError(
+        "twilio_auth_failed",
+        "Twilio authentication failed.",
+        500
+      ),
+      details
+    );
   }
-  if (status >= 500) {
-    return "OTP_VERIFY_TWILIO_5XX";
+
+  const codeValue =
+    typeof details.code === "string"
+      ? Number(details.code)
+      : details.code;
+
+  if (codeValue === 60202 || codeValue === 60204 || details.status === 429) {
+    return attachTwilioDetails(
+      new AppError("too_many_attempts", details.message, 429),
+      details
+    );
   }
-  return "OTP_VERIFY_TWILIO_4XX";
+
+  if (codeValue === 60203) {
+    return attachTwilioDetails(
+      new AppError("expired_code", details.message, 400),
+      details
+    );
+  }
+
+  if (codeValue === 20404 || details.status === 404) {
+    return attachTwilioDetails(
+      new AppError("invalid_code", details.message, 400),
+      details
+    );
+  }
+
+  return attachTwilioDetails(
+    new AppError("twilio_error", details.message, 500),
+    details
+  );
 }
 
 function getPhoneTail(phoneE164: string): string {
@@ -325,6 +365,13 @@ function resolveOtpStatus(status?: string): "pending" | "approved" | "expired" {
   return "expired";
 }
 
+function resolveOtpFailure(status?: string): AppError {
+  if (status === "canceled" || status === "expired") {
+    return new AppError("expired_code", "OTP code expired.", 400);
+  }
+  return new AppError("invalid_code", "Invalid or expired code", 400);
+}
+
 function normalizeBootstrapPhone(
   phone: string | null | undefined
 ): string | null {
@@ -349,19 +396,6 @@ function isBootstrapAdminUser(params: {
     (!!bootstrapEmail && !!userEmail && bootstrapEmail === userEmail) ||
     (!!bootstrapPhone && bootstrapPhone === params.phoneNumber)
   );
-}
-
-async function requestTwilioVerificationCheck(
-  client: NonNullable<ReturnType<typeof getTwilioClient>>,
-  verifyServiceSid: string,
-  phoneE164: string,
-  code: string
-): Promise<{ status?: string; sid?: string }> {
-  const result = await client.verify.v2
-    .services(verifyServiceSid)
-    .verificationChecks.create({ to: phoneE164, code });
-  const verificationSid = (result as { sid?: string }).sid;
-  return { status: result.status, sid: verificationSid };
 }
 
 export async function startOtp(
@@ -419,18 +453,7 @@ export async function startOtp(
         requestId,
         error: err,
       });
-      if (isTwilioAuthError(err)) {
-        throw new AppError(
-          "twilio_verify_failed",
-          "Invalid Twilio credentials",
-          401
-        );
-      }
-      throw new AppError(
-        "twilio_verify_failed",
-        buildTwilioVerifyErrorMessage(details),
-        400
-      );
+      throw mapTwilioVerifyError(details, err);
     }
   } catch (err) {
     logError("otp_start_failed", {
@@ -520,7 +543,7 @@ export async function verifyOtpCode(params: {
         requestId,
       });
       try {
-        const check = await requestTwilioVerificationCheck(
+        const check = await checkOtp(
           client,
           verifyServiceSid,
           phoneE164,
@@ -545,21 +568,9 @@ export async function verifyOtpCode(params: {
           status: details.status,
           message: details.message,
           requestId,
-          errorCode: getTwilioFailureCode(details.status),
           error: err,
         });
-        if (isTwilioAuthError(err)) {
-          throw new AppError(
-            "twilio_verify_failed",
-            "Invalid Twilio credentials",
-            401
-          );
-        }
-        throw new AppError(
-          "twilio_verify_failed",
-          buildTwilioVerifyErrorMessage(details),
-          400
-        );
+        throw mapTwilioVerifyError(details, err);
       }
     }
     if (!verificationSid) {
@@ -568,9 +579,9 @@ export async function verifyOtpCode(params: {
         requestId,
       });
       throw new AppError(
-        "twilio_verify_failed",
+        "twilio_error",
         "Twilio verification failed (missing verification SID).",
-        400
+        500
       );
     }
     if (status !== "approved") {
@@ -597,7 +608,7 @@ export async function verifyOtpCode(params: {
           }
         }
       }
-      throw new AppError("invalid_code", "Invalid or expired code", 401);
+      throw resolveOtpFailure(status);
     }
 
     const client = await pool.connect();
@@ -644,6 +655,7 @@ export async function verifyOtpCode(params: {
         sub: userRecord.id,
         role,
         tokenVersion,
+        phone: userRecord.phoneNumber,
         silo: resolveAuthSilo(userRecord.silo),
       };
       const token = issueAccessToken(payload);
@@ -772,6 +784,7 @@ export async function refreshSession(params: {
         sub: userRecord.id,
         role,
         tokenVersion,
+        phone: userRecord.phoneNumber,
         silo: resolveAuthSilo(userRecord.silo),
       });
       const refreshed = issueRefreshToken({
@@ -815,10 +828,9 @@ export async function refreshSession(params: {
     }
   } catch (err) {
     if (err instanceof AppError) {
-      const status = err.status >= 500 ? 503 : err.status;
       return {
         ok: false,
-        status,
+        status: err.status,
         error: { code: err.code, message: err.message },
       };
     }
@@ -828,10 +840,10 @@ export async function refreshSession(params: {
     });
     return {
       ok: false,
-      status: 503,
+      status: 500,
       error: {
-        code: "service_unavailable",
-        message: "Authentication service unavailable.",
+        code: "auth_failed",
+        message: "Authentication failed.",
       },
     };
   }

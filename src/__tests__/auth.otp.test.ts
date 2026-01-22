@@ -19,23 +19,15 @@ describe("POST /api/auth/otp/start", () => {
     process.env = originalEnv;
   });
 
-  it("returns 503 when Verify service SID missing", async () => {
+  it("fails fast when Verify service SID missing", () => {
     process.env.TWILIO_ACCOUNT_SID = "ACxxxx";
     process.env.TWILIO_AUTH_TOKEN = "token";
     delete process.env.TWILIO_VERIFY_SERVICE_SID;
     jest.resetModules();
 
-    const app = buildTestApp();
-    const res = await request(app)
-      .post("/api/auth/otp/start")
-      .send({ phone: "+15878881337" });
-
-    expect(res.status).toBe(503);
-    expect(res.body.ok).toBe(false);
-    expect(res.body.error).toEqual({
-      code: "twilio_unavailable",
-      message: "Twilio is not configured.",
-    });
+    expect(() => buildTestApp()).toThrow(
+      "Missing required environment variables: TWILIO_VERIFY_SERVICE_SID"
+    );
   });
 
   it("returns 204 with CORS headers on preflight", async () => {
@@ -73,7 +65,7 @@ describe("POST /api/auth/otp/start", () => {
     expect(res.body.data).toEqual({ sent: true });
   });
 
-  it("returns 401 when Twilio auth invalid", async () => {
+  it("returns 500 when Twilio auth invalid", async () => {
     const twilioMocks = getTwilioMocks();
     const error: any = new Error("Authentication failed");
     error.code = 20003;
@@ -85,11 +77,15 @@ describe("POST /api/auth/otp/start", () => {
       .post("/api/auth/otp/start")
       .send({ phone: "+15878881337" });
 
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(500);
     expect(res.body.ok).toBe(false);
     expect(res.body.error).toEqual({
-      code: "twilio_verify_failed",
-      message: "Invalid Twilio credentials",
+      code: "twilio_auth_failed",
+      message: "Twilio authentication failed.",
+      details: {
+        twilioCode: 20003,
+        twilioMessage: "Authentication failed",
+      },
     });
   });
 });

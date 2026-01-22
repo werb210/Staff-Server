@@ -5,6 +5,12 @@ import { ROLES } from "../auth/roles";
 
 const app = buildAppWithApiRoutes();
 
+const TOKEN_OPTIONS = {
+  expiresIn: "1h",
+  issuer: "boreal-staff-server",
+  audience: "boreal-staff-portal",
+};
+
 describe("auth me smoke", () => {
   beforeAll(() => {
     process.env.JWT_SECRET = "test-access-secret";
@@ -15,9 +21,10 @@ describe("auth me smoke", () => {
       {
         sub: "user-123",
         role: ROLES.STAFF,
+        tokenVersion: 0,
       },
       process.env.JWT_SECRET ?? "test-access-secret",
-      { expiresIn: "1h" }
+      TOKEN_OPTIONS
     );
 
     const res = await request(app)
@@ -35,9 +42,10 @@ describe("auth me smoke", () => {
     const token = jwt.sign(
       {
         sub: "test-user-123",
+        tokenVersion: 0,
       },
       process.env.JWT_SECRET ?? "test-access-secret",
-      { expiresIn: "1h" }
+      TOKEN_OPTIONS
     );
 
     const res = await request(app)

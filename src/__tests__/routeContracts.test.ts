@@ -11,9 +11,13 @@ describe("portal route contracts", () => {
     process.env.JWT_SECRET = "test-access-secret";
     app = buildAppWithApiRoutes();
     token = jwt.sign(
-      { sub: "contract-user", role: ROLES.ADMIN },
+      { sub: "contract-user", role: ROLES.ADMIN, tokenVersion: 0 },
       process.env.JWT_SECRET ?? "test-access-secret",
-      { expiresIn: "1h" }
+      {
+        expiresIn: "1h",
+        issuer: "boreal-staff-server",
+        audience: "boreal-staff-portal",
+      }
     );
   });
 

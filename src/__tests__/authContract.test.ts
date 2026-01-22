@@ -82,7 +82,7 @@ describe("auth contract", () => {
     await createUserAccount({
       email: "contract-login@example.com",
       phoneNumber: phone,
-      role: ROLES.REFERRER,
+      role: ROLES.STAFF,
     });
 
     const requestId = nextRequestId();
@@ -92,7 +92,7 @@ describe("auth contract", () => {
       idempotencyKey: nextIdempotencyKey(),
     });
 
-    expect([200, 401]).toContain(res.status);
+    expect([200, 400]).toContain(res.status);
     if (res.status === 200) {
       expect(res.body.accessToken).toBeDefined();
     }
@@ -104,12 +104,12 @@ describe("auth contract", () => {
     await createUserAccount({
       email: "missing-idem@example.com",
       phoneNumber: phone,
-      role: ROLES.REFERRER,
+      role: ROLES.STAFF,
     });
     const requestId = nextRequestId();
     const res = await otpVerifyRequest(app, { phone, requestId });
 
-    expect([200, 401]).toContain(res.status);
+    expect([200, 400]).toContain(res.status);
     expectRequestId(res, requestId);
   });
 
@@ -146,7 +146,7 @@ describe("auth contract", () => {
     await createUserAccount({
       email: "conflict-idem@example.com",
       phoneNumber: phone,
-      role: ROLES.REFERRER,
+      role: ROLES.STAFF,
     });
 
     const requestId = nextRequestId();
@@ -158,7 +158,7 @@ describe("auth contract", () => {
       idempotencyKey,
     });
 
-    expect([200, 401]).toContain(first.status);
+    expect([200, 400]).toContain(first.status);
 
     const second = await otpVerifyRequest(app, {
       phone,
@@ -167,8 +167,8 @@ describe("auth contract", () => {
       idempotencyKey,
     });
 
-    expect([200, 401]).toContain(second.status);
-    if (second.status === 401) {
+    expect([200, 400]).toContain(second.status);
+    if (second.status === 400) {
       expect(second.body.error).toEqual({
         code: "invalid_code",
         message: "Invalid or expired code",
