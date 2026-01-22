@@ -15,18 +15,25 @@ export function requestTimeout(
   const requestId = res.locals.requestId ?? "unknown";
   const route = req.originalUrl;
   const idempotencyKeyHash = hashIdempotencyKey(req.get("idempotency-key"));
+
+  let fired = false;
+
   const timer = setTimeout(async () => {
-    if (res.headersSent) {
-      return;
-    }
+    if (fired || res.headersSent) return;
+    fired = true;
+
     const processIds = getRequestDbProcessIds();
-    await cancelDbWork(processIds);
+    if (processIds.length > 0) {
+      await cancelDbWork(processIds);
+    }
+
     logWarn("request_timeout", {
       requestId,
       route,
       durationMs: timeoutMs,
       failure_reason: "request_timeout",
     });
+
     trackEvent({
       name: "request_timeout",
       properties: {
@@ -35,19 +42,24 @@ export function requestTimeout(
         idempotencyKeyHash,
       },
     });
+
     res.status(504).json({
       code: "gateway_timeout",
       message: "Request timed out.",
       requestId,
     });
+
     res.locals.requestTimedOut = true;
   }, timeoutMs);
 
-  res.on("finish", () => {
-    clearTimeout(timer);
-  });
-  res.on("close", () => {
-    clearTimeout(timer);
-  });
+  const clear = (): void => {
+    if (!fired) {
+      clearTimeout(timer);
+    }
+  };
+
+  res.on("finish", clear);
+  res.on("close", clear);
+
   next();
 }
