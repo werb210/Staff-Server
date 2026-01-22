@@ -1,13 +1,13 @@
 import { Request, Response, NextFunction } from "express";
 import { CAPABILITIES, getCapabilitiesForRole } from "../auth/capabilities";
-import { ROLES, isRole } from "../auth/roles";
+import { ROLES, isRole, type Role } from "../auth/roles";
 import { verifyAccessToken } from "../auth/jwt";
 import { logInfo, logWarn } from "../observability/logger";
 
 export interface AuthUser {
   userId: string;
-  role: string;
-  capabilities?: string[];
+  role: Role;
+  capabilities: string[];
   phone?: string | null;
 }
 
@@ -21,111 +21,108 @@ declare global {
 
 type AuthHeaderStatus = "present" | "missing" | "malformed";
 
-function getAuthHeaderInfo(req: Request): { token: string | null; status: AuthHeaderStatus } {
+function getAuthHeaderInfo(
+  req: Request
+): { token: string | null; status: AuthHeaderStatus } {
   const header = req.headers.authorization;
+
   if (!header) {
     return { token: null, status: "missing" };
   }
+
   if (!header.startsWith("Bearer ")) {
     return { token: null, status: "malformed" };
   }
+
   const token = header.slice("Bearer ".length).trim();
   if (!token) {
     return { token: null, status: "malformed" };
   }
+
   return { token, status: "present" };
 }
 
 function logAuthHeaderStatus(status: AuthHeaderStatus): void {
-  switch (status) {
-    case "present":
-      logInfo("auth_header_present");
-      break;
-    case "missing":
-      logWarn("auth_header_missing");
-      break;
-    case "malformed":
-      logWarn("auth_header_malformed");
-      break;
-    default:
-      break;
-  }
-}
-
-function logAuthSuccess(user: AuthUser): void {
-  logInfo("auth_token_verified", {
-    subject: user.userId,
-    role: user.role,
-  });
+  if (status === "missing") logWarn("auth_header_missing");
+  if (status === "malformed") logWarn("auth_header_malformed");
 }
 
 function getAuthenticatedUserFromToken(token: string): AuthUser | null {
+  let payload: unknown;
+
   try {
-    const payload = verifyAccessToken(token) as {
-      sub?: string;
-      role?: string;
-      phone?: string | null;
-    };
-    const userId = typeof payload.sub === "string" ? payload.sub : null;
-    const role = payload.role; // DO NOT normalize case
-    if (!userId || !role || !isRole(role)) {
-      return null;
-    }
-    return {
-      userId,
-      role,
-      capabilities: getCapabilitiesForRole(role),
-      phone: typeof payload.phone === "string" ? payload.phone : null,
-    };
+    payload = verifyAccessToken(token);
   } catch {
     return null;
   }
+
+  if (typeof payload !== "object" || payload === null) {
+    return null;
+  }
+
+  const { sub, role, phone } = payload as {
+    sub?: unknown;
+    role?: unknown;
+    phone?: unknown;
+  };
+
+  if (typeof sub !== "string" || !isRole(role)) {
+    return null;
+  }
+
+  return {
+    userId: sub,
+    role,
+    capabilities: getCapabilitiesForRole(role),
+    phone: typeof phone === "string" ? phone : null,
+  };
 }
 
-export function requireAuth(req: Request, res: Response, next: NextFunction) {
+export function requireAuth(req: Request, res: Response, next: NextFunction): void {
   const { token, status } = getAuthHeaderInfo(req);
   logAuthHeaderStatus(status);
+
   if (!token) {
-    const error = status === "malformed" ? "invalid_token" : "missing_token";
-    return res.status(401).json({ error });
+    return res
+      .status(401)
+      .json({ error: status === "malformed" ? "invalid_token" : "missing_token" });
   }
+
   const user = getAuthenticatedUserFromToken(token);
   if (!user) {
     logWarn("auth_token_invalid");
     return res.status(401).json({ error: "invalid_token" });
   }
-  logAuthSuccess(user);
+
+  logInfo("auth_token_verified", {
+    subject: user.userId,
+    role: user.role,
+  });
+
   req.user = user;
   next();
 }
 
 export function getAuthenticatedUserFromRequest(req: Request): AuthUser | null {
-  const { token, status } = getAuthHeaderInfo(req);
-  logAuthHeaderStatus(status);
-  if (!token) {
-    return null;
-  }
-  const user = getAuthenticatedUserFromToken(token);
-  if (!user) {
-    logWarn("auth_token_invalid");
-    return null;
-  }
-  logAuthSuccess(user);
-  return user;
+  const { token } = getAuthHeaderInfo(req);
+  if (!token) return null;
+
+  return getAuthenticatedUserFromToken(token);
 }
 
 export function requireCapability(required: string[]) {
-  return (req: Request, res: Response, next: NextFunction) => {
+  return (req: Request, res: Response, next: NextFunction): void => {
     const user = req.user;
     if (!user) {
       return res.status(401).json({ error: "missing_token" });
     }
-    const userCaps: string[] = user.capabilities ?? [];
 
-    if (userCaps.includes(CAPABILITIES.OPS_MANAGE)) {
+    // OPS_MANAGE is absolute override
+    if (user.capabilities.includes(CAPABILITIES.OPS_MANAGE)) {
       return next();
     }
 
+    // Explicit STAFF read-only exception
     if (
       user.role === ROLES.STAFF &&
       required.length === 1 &&
@@ -134,18 +131,20 @@ export function requireCapability(required: string[]) {
       return next();
     }
 
-    const hasAll = required.every((cap) => userCaps.includes(cap));
+    const hasAll = required.every((cap) =>
+      user.capabilities.includes(cap)
+    );
+
     if (!hasAll) {
       return res.status(403).json({ error: "insufficient_capabilities" });
     }
-    return next();
+
+    next();
   };
 }
 
-const authMiddleware = {
+export default {
   requireAuth,
   requireCapability,
   getAuthenticatedUserFromRequest,
 };
-
-export default authMiddleware;
