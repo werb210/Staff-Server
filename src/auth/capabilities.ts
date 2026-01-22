@@ -23,6 +23,7 @@ export const CAPABILITIES = {
 } as const;
 
 export type Capability = (typeof CAPABILITIES)[keyof typeof CAPABILITIES];
+const CAPABILITY_SET = new Set<Capability>(Object.values(CAPABILITIES));
 
 /**
  * IMPORTANT INVARIANTS
@@ -112,4 +113,8 @@ export function getCapabilitiesForRole(role: Role): Capability[] {
     throw new Error(`No capabilities defined for role: ${role}`);
   }
   return [...caps];
+}
+
+export function isCapability(value: unknown): value is Capability {
+  return typeof value === "string" && CAPABILITY_SET.has(value as Capability);
 }

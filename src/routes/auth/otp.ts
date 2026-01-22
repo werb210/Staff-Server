@@ -42,9 +42,11 @@ router.post("/verify", otpVerifyLimiter(), async (req, res, next) => {
     }
     return res.status(200).json({
       ok: true,
-      accessToken: result.token,
-      refreshToken: result.refreshToken,
-      user: result.user,
+      token: result.token,
+      user: {
+        id: result.user.id,
+        role: result.user.role,
+      },
     });
   } catch (err) {
     return next(err);

@@ -9,10 +9,6 @@ function getAuthRequestId(res: Response): string {
   return res.locals.requestId ?? getRequestId() ?? "unknown";
 }
 
-function sanitizeStatus(status: number): number {
-  return status >= 500 ? 503 : status;
-}
-
 function respondAuthError(
   res: Response,
   status: number,
@@ -20,7 +16,7 @@ function respondAuthError(
   message: string
 ): void {
   const requestId = getAuthRequestId(res);
-  res.status(sanitizeStatus(status)).json({
+  res.status(status).json({
     ok: false,
     data: null,
     error: { code, message },
@@ -40,7 +36,7 @@ function respondResponseValidationError(
     errors,
   });
 
-  res.status(sanitizeStatus(500)).json({
+  res.status(500).json({
     ok: false,
     data: null,
     error: {
