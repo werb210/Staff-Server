@@ -109,8 +109,10 @@ async function handleOtpStart(req: Request, res: Response, next: NextFunction) {
         requestValidation.error.flatten()
       );
     }
+
     const { phone } = req.body ?? {};
     await startOtp(phone);
+
     const responseBody = { sent: true };
     const responseValidation = startOtpResponseSchema.safeParse(responseBody);
     if (!responseValidation.success) {
@@ -121,6 +123,7 @@ async function handleOtpStart(req: Request, res: Response, next: NextFunction) {
         responseValidation.error.flatten()
       );
     }
+
     return respondAuthOk(res, responseBody);
   } catch (err) {
     if (err instanceof AppError) {
@@ -144,6 +147,7 @@ router.post("/otp/verify", otpRateLimit(), async (req, res) => {
   try {
     const route = "/api/auth/otp/verify";
     const requestId = getAuthRequestId(res);
+
     const requestValidation = validateVerifyOtp(req);
     if (!requestValidation.success) {
       return respondAuthValidationError(
@@ -153,21 +157,24 @@ router.post("/otp/verify", otpRateLimit(), async (req, res) => {
         requestValidation.error.flatten()
       );
     }
+
     const { phone, code } = req.body ?? {};
     const result = await verifyOtpCode({
       phone,
       code,
       ip: req.ip,
       userAgent: req.get("user-agent"),
-      route: "/api/auth/otp/verify",
+      route,
       method: req.method,
     });
+
     const responseBody = {
       ok: true,
       accessToken: result.token,
       refreshToken: result.refreshToken,
       user: result.user,
     };
+
     const responseValidation = verifyOtpResponseSchema.safeParse(responseBody);
     if (!responseValidation.success) {
       return respondAuthResponseValidationError(
@@ -177,9 +184,11 @@ router.post("/otp/verify", otpRateLimit(), async (req, res) => {
         responseValidation.error.flatten()
       );
     }
+
     if (typeof phone === "string") {
       resetOtpRateLimit(phone);
     }
+
     return res.status(200).json(responseBody);
   } catch (err) {
     if (err instanceof AppError) {
@@ -214,6 +223,7 @@ router.post("/refresh", refreshRateLimit(), async (req, res) => {
       ip: req.ip,
       userAgent: req.get("user-agent"),
     });
+
     if (!result.ok) {
       return respondAuthError(
         res,
@@ -222,8 +232,10 @@ router.post("/refresh", refreshRateLimit(), async (req, res) => {
         result.error.message
       );
     }
+
     return res.status(200).json({
-      token: result.token,
+      ok: true,
+      accessToken: result.token,
       refreshToken: result.refreshToken,
       user: result.user,
     });
