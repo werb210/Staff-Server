@@ -1,3 +1,5 @@
+// src/middleware/idempotency.ts
+
 import { type NextFunction, type Request, type Response } from "express";
 import { createHash } from "crypto";
 import { type PoolClient } from "pg";
@@ -103,9 +105,10 @@ export function idempotencyMiddleware(
     if (finalized) return;
     finalized = true;
 
-    try {
-      if (!client) return;
+    const c = client;
+    if (!c) return;
 
+    try {
       if (res.statusCode < 500 && !res.locals.requestTimedOut) {
         await createIdempotencyRecord({
           idempotencyKey: rawKey,
@@ -114,7 +117,7 @@ export function idempotencyMiddleware(
           requestHash,
           responseCode: res.statusCode,
           responseBody: res.locals.idempotencyResponseBody ?? null,
-          client,
+          client: c,
         });
       }
     } catch (err) {
@@ -124,27 +127,27 @@ export function idempotencyMiddleware(
         error: err instanceof Error ? err.message : "unknown_error",
       });
     } finally {
-      if (client) {
-        try {
-          await client.query("select pg_advisory_unlock($1,$2)", lockKey);
-        } catch {
-          /* ignore */
-        } finally {
-          client.release();
-        }
+      try {
+        await c.query("select pg_advisory_unlock($1,$2)", lockKey);
+      } catch {
+        /* ignore */
       }
+      c.release();
+      client = null;
     }
   };
 
   (async () => {
     try {
       client = await pool.connect();
-      await client.query("select pg_advisory_lock($1,$2)", lockKey);
+      const c = client;
+
+      await c.query("select pg_advisory_lock($1,$2)", lockKey);
 
       const existing = await findIdempotencyRecord({
         route,
         idempotencyKey: rawKey,
-        client,
+        client: c,
       });
 
       if (existing) {
@@ -153,8 +156,9 @@ export function idempotencyMiddleware(
             name: "idempotency_conflict",
             properties: { route, requestId, idempotencyKeyHash: keyHash },
           });
-          await client.query("select pg_advisory_unlock($1,$2)", lockKey);
-          client.release();
+          await c.query("select pg_advisory_unlock($1,$2)", lockKey);
+          c.release();
+          client = null;
           return res.status(409).json({
             code: "idempotency_conflict",
             message: "Idempotency key reused with different payload.",
@@ -167,8 +171,9 @@ export function idempotencyMiddleware(
           properties: { route, requestId, idempotencyKeyHash: keyHash },
         });
 
-        await client.query("select pg_advisory_unlock($1,$2)", lockKey);
-        client.release();
+        await c.query("select pg_advisory_unlock($1,$2)", lockKey);
+        c.release();
+        client = null;
         return res
           .status(existing.response_code)
           .json(existing.response_body);
@@ -190,13 +195,15 @@ export function idempotencyMiddleware(
 
       next();
     } catch (err) {
-      if (client) {
+      const c = client;
+      if (c) {
         try {
-          await client.query("select pg_advisory_unlock($1,$2)", lockKey);
+          await c.query("select pg_advisory_unlock($1,$2)", lockKey);
         } catch {
           /* ignore */
         }
-        client.release();
+        c.release();
+        client = null;
       }
 
       logWarn("idempotency_failed", {
