@@ -1,8 +1,4 @@
-// src/routes/auth/me.ts
-
 import { type Request, type Response } from "express";
-import { getCapabilitiesForRole } from "../../auth/capabilities";
-import { isRole } from "../../auth/roles";
 import { getRequestId } from "../../middleware/requestContext";
 import { logError } from "../../observability/logger";
 import { validateAuthMe } from "../../validation/auth.validation";
@@ -11,11 +7,8 @@ function getAuthRequestId(res: Response): string {
   return res.locals.requestId ?? getRequestId() ?? "unknown";
 }
 
-function sanitizeAuthStatus(status: number): number {
-  if (status >= 500) {
-    return 503;
-  }
-  return status;
+function sanitizeStatus(status: number): number {
+  return status >= 500 ? 503 : status;
 }
 
 function respondAuthError(
@@ -23,9 +16,9 @@ function respondAuthError(
   status: number,
   code: string,
   message: string
-): Response {
+): void {
   const requestId = getAuthRequestId(res);
-  return res.status(sanitizeAuthStatus(status)).json({
+  res.status(sanitizeStatus(status)).json({
     ok: false,
     data: null,
     error: { code, message },
@@ -33,18 +26,19 @@ function respondAuthError(
   });
 }
 
-function respondAuthResponseValidationError(
+function respondResponseValidationError(
   res: Response,
   route: string,
   requestId: string,
   errors: unknown
-): Response {
+): void {
   logError("auth_response_validation_failed", {
     route,
     requestId,
     errors,
   });
-  return res.status(500).json({
+
+  res.status(500).json({
     ok: false,
     data: null,
     error: {
@@ -55,12 +49,17 @@ function respondAuthResponseValidationError(
   });
 }
 
-export async function authMeHandler(req: Request, res: Response): Promise<void> {
+export async function authMeHandler(
+  req: Request,
+  res: Response
+): Promise<void> {
   const route = "/api/auth/me";
   const requestId = getAuthRequestId(res);
 
   try {
-    if (!req.user) {
+    const user = req.user;
+
+    if (!user) {
       respondAuthError(
         res,
         401,
@@ -70,33 +69,25 @@ export async function authMeHandler(req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const role = req.user.role;
-    const capabilities =
-      Array.isArray(req.user.capabilities)
-        ? req.user.capabilities
-        : role && isRole(role)
-        ? getCapabilitiesForRole(role)
-        : [];
-
     const responseBody = {
       ok: true,
       data: {
-        userId: req.user.userId,
-        role,
-        phone: req.user.phone,
-        capabilities,
+        userId: user.userId,
+        role: user.role,
+        phone: user.phone ?? null,
+        capabilities: user.capabilities,
       },
       error: null,
       requestId,
     };
 
-    const responseValidation = validateAuthMe(responseBody);
-    if (!responseValidation.success) {
-      respondAuthResponseValidationError(
+    const validation = validateAuthMe(responseBody);
+    if (!validation.success) {
+      respondResponseValidationError(
         res,
         route,
         requestId,
-        responseValidation.error.flatten()
+        validation.error.flatten()
       );
       return;
     }
