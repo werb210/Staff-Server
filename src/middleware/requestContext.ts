@@ -28,20 +28,19 @@ export function requestContext(
   const requestId =
     (req.headers["x-request-id"] as string | undefined) ?? randomUUID();
 
-  storage.run(
-    {
-      requestId,
-      route: req.originalUrl,
-      start: Date.now(),
-      dbProcessIds: new Set<number>(),
-    },
-    () => {
-      res.locals.requestId = requestId;
-      res.locals.requestStart = Date.now();
-      res.setHeader("X-Request-Id", requestId);
-      next();
-    }
-  );
+  const store: Store = {
+    requestId,
+    route: req.originalUrl,
+    start: Date.now(),
+    dbProcessIds: new Set<number>(),
+  };
+
+  storage.run(store, () => {
+    res.locals.requestId = requestId;
+    res.locals.requestStart = store.start;
+    res.setHeader("X-Request-Id", requestId);
+    next();
+  });
 }
 
 export function getRequestId(): string | undefined {
@@ -61,6 +60,7 @@ export function runWithRequestContext<T>(
   fn: () => T
 ): T {
   const previous = storage.getStore();
+
   const store: Store = {
     requestId: ctx.requestId,
     route: ctx.route,
@@ -68,47 +68,42 @@ export function runWithRequestContext<T>(
     dbProcessIds: ctx.dbProcessIds ?? new Set<number>(),
     idempotencyKeyHash: ctx.idempotencyKeyHash,
   };
+
   const restore = (): void => {
     if (previous) {
       storage.enterWith(previous);
     }
   };
-  const result = storage.run(store, () => fn());
+
+  const result = storage.run(store, fn);
+
   if (result instanceof Promise) {
     return result.finally(restore) as T;
   }
+
   restore();
   return result;
 }
 
 export function addRequestDbProcessId(processId: number): void {
   const store = storage.getStore();
-  if (!store) {
-    return;
-  }
+  if (!store) return;
   store.dbProcessIds.add(processId);
 }
 
 export function removeRequestDbProcessId(processId: number): void {
   const store = storage.getStore();
-  if (!store) {
-    return;
-  }
+  if (!store) return;
   store.dbProcessIds.delete(processId);
 }
 
 export function getRequestDbProcessIds(): number[] {
   const store = storage.getStore();
-  if (!store) {
-    return [];
-  }
-  return Array.from(store.dbProcessIds);
+  return store ? Array.from(store.dbProcessIds) : [];
 }
 
 export function setRequestIdempotencyKeyHash(value: string): void {
   const store = storage.getStore();
-  if (!store) {
-    return;
-  }
+  if (!store) return;
   store.idempotencyKeyHash = value;
 }
