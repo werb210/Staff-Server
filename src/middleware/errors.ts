@@ -19,7 +19,7 @@ export function forbiddenError(message = "Access denied."): AppError {
   return new AppError("forbidden", message, 403);
 }
 
-const authFailureCodes = new Set([
+const AUTH_FAILURE_CODES = new Set([
   "invalid_credentials",
   "account_disabled",
   "invalid_token",
@@ -35,13 +35,13 @@ const authFailureCodes = new Set([
   "user_disabled",
   "auth_unavailable",
   "service_unavailable",
-  "server_error",
 ]);
 
-const constraintViolationCodes = new Set(["23502", "23503", "23505"]);
+const CONSTRAINT_VIOLATION_CODES = new Set(["23502", "23503", "23505"]);
+
 function isConstraintViolation(err: Error): boolean {
   const code = (err as { code?: string }).code;
-  return typeof code === "string" && constraintViolationCodes.has(code);
+  return typeof code === "string" && CONSTRAINT_VIOLATION_CODES.has(code);
 }
 
 function isTimeoutError(err: Error): boolean {
@@ -50,39 +50,49 @@ function isTimeoutError(err: Error): boolean {
   return code === "etimedout" || message.includes("timeout");
 }
 
+function isAuthRoute(req: Request): boolean {
+  return req.originalUrl.split("?")[0].startsWith("/api/auth/");
+}
+
 function resolveFailureReason(err: Error): string {
   if (err instanceof AppError) {
-    if (authFailureCodes.has(err.code)) {
-      return "auth_failure";
-    }
-    return "request_error";
+    return AUTH_FAILURE_CODES.has(err.code)
+      ? "auth_failure"
+      : "request_error";
   }
-  if (isConstraintViolation(err)) {
-    return "constraint_violation";
-  }
+  if (isConstraintViolation(err)) return "constraint_violation";
   if (isDbConnectionFailure(err)) {
     return isTimeoutError(err) ? "db_timeout" : "db_unavailable";
   }
   return "server_error";
 }
 
-function isAuthRoute(req: Request): boolean {
-  const path = req.originalUrl.split("?")[0];
-  return path.startsWith("/api/auth/");
-}
-
-function normalizeAuthError(err: Error): { code: string; message: string } {
+function normalizeAuthError(
+  err: Error
+): { status: number; code: string; message: string } {
   if (err instanceof AppError) {
-    return { code: err.code, message: err.message };
+    return { status: err.status, code: err.code, message: err.message };
   }
+
   if (isDbConnectionFailure(err)) {
     return {
+      status: 503,
       code: "service_unavailable",
       message: "Service unavailable.",
     };
   }
+
+  if (isHttpishError(err)) {
+    return {
+      status: getErrorStatus(err),
+      code: "auth_failed",
+      message: "Authentication failed.",
+    };
+  }
+
   return {
-    code: "server_error",
+    status: 500,
+    code: "auth_failed",
     message: "Authentication failed.",
   };
 }
@@ -97,50 +107,41 @@ export function errorHandler(
   const durationMs = res.locals.requestStart
     ? Date.now() - Number(res.locals.requestStart)
     : 0;
-  const isApiRequest = req.path.startsWith("/api/");
-  const logGlobalError = (statusCode: number): void => {
-    logError("request_failed", {
-      requestId,
-      method: req.method,
-      originalUrl: req.originalUrl,
-      statusCode,
-      errorName: err.name,
-      errorMessage: err.message,
-      ...(process.env.NODE_ENV === "production" ? {} : { stack: err.stack }),
-    });
+
+  const failureReason = resolveFailureReason(err);
+
+  const logBase = {
+    requestId,
+    method: req.method,
+    route: req.originalUrl,
+    durationMs,
+    failure_reason: failureReason,
   };
+
+  // AUTH ROUTES — STRICT CONTRACT
   if (isAuthRoute(req)) {
     const normalized = normalizeAuthError(err);
-    const status =
-      err instanceof AppError
-        ? err.status
-        : isHttpishError(err)
-        ? getErrorStatus(err)
-        : isDbConnectionFailure(err)
-        ? 503
-        : 500;
-    const sanitizedStatus = status >= 500 ? 503 : status;
-    logGlobalError(sanitizedStatus);
-    logWarn("request_error", {
-      requestId,
-      route: req.originalUrl,
-      durationMs,
+    const status = normalized.status >= 500 ? 503 : normalized.status;
+
+    logError("auth_request_failed", {
+      ...logBase,
+      status,
       code: normalized.code,
       message: normalized.message,
-      status: sanitizedStatus,
-      failure_reason: "auth_failure",
     });
+
     trackException({
       exception: err,
       properties: {
         requestId,
         route: req.originalUrl,
-        status: sanitizedStatus,
+        status,
         code: normalized.code,
         failure_reason: "auth_failure",
       },
     });
-    res.status(sanitizedStatus).json({
+
+    res.status(status).json({
       ok: false,
       data: null,
       error: {
@@ -151,18 +152,16 @@ export function errorHandler(
     });
     return;
   }
-  const failureReason = resolveFailureReason(err);
+
+  // APPLICATION ERRORS
   if (err instanceof AppError) {
-    logGlobalError(err.status);
     logWarn("request_error", {
-      requestId,
-      route: req.originalUrl,
-      durationMs,
+      ...logBase,
+      status: err.status,
       code: err.code,
       message: err.message,
-      status: err.status,
-      failure_reason: failureReason,
     });
+
     trackException({
       exception: err,
       properties: {
@@ -173,6 +172,7 @@ export function errorHandler(
         failure_reason: failureReason,
       },
     });
+
     const details = (err as { details?: unknown }).details;
     res.status(err.status).json({
       code: err.code,
@@ -183,16 +183,14 @@ export function errorHandler(
     return;
   }
 
+  // DB CONSTRAINTS
   if (isConstraintViolation(err)) {
-    logGlobalError(409);
     logWarn("request_error", {
-      requestId,
-      route: req.originalUrl,
-      durationMs,
-      code: "constraint_violation",
+      ...logBase,
       status: 409,
-      failure_reason: failureReason,
+      code: "constraint_violation",
     });
+
     trackException({
       exception: err,
       properties: {
@@ -203,6 +201,7 @@ export function errorHandler(
         failure_reason: failureReason,
       },
     });
+
     res.status(409).json({
       code: "constraint_violation",
       message: "Request violates a database constraint.",
@@ -211,14 +210,13 @@ export function errorHandler(
     return;
   }
 
+  // DB UNAVAILABLE
   if (isDbConnectionFailure(err)) {
-    logGlobalError(503);
     logError("request_error", {
-      requestId,
-      route: req.originalUrl,
-      durationMs,
-      failure_reason: failureReason,
+      ...logBase,
+      status: 503,
     });
+
     trackException({
       exception: err,
       properties: {
@@ -229,6 +227,7 @@ export function errorHandler(
         failure_reason: failureReason,
       },
     });
+
     res.status(503).json({
       code: "service_unavailable",
       message: "Service unavailable.",
@@ -237,12 +236,10 @@ export function errorHandler(
     return;
   }
 
-  logGlobalError(500);
+  // UNKNOWN
   logError("request_error", {
-    requestId,
-    route: req.originalUrl,
-    durationMs,
-    failure_reason: failureReason,
+    ...logBase,
+    status: 500,
     stack: err.stack,
   });
 
@@ -252,17 +249,9 @@ export function errorHandler(
       requestId,
       route: req.originalUrl,
       status: 500,
+      failure_reason: failureReason,
     },
   });
-
-  if (isApiRequest) {
-    res.status(500).json({
-      code: "server_error",
-      message: "An unexpected error occurred.",
-      requestId,
-    });
-    return;
-  }
 
   res.status(500).json({
     code: "server_error",
@@ -273,16 +262,19 @@ export function errorHandler(
 
 export function notFoundHandler(req: Request, res: Response): void {
   const requestId = res.locals.requestId ?? "unknown";
+
   logWarn("not_found", {
     requestId,
     method: req.method,
-    originalUrl: req.originalUrl,
+    route: req.originalUrl,
     origin: req.get("origin"),
     referrer: req.get("referrer"),
     ip: req.ip ?? "unknown",
   });
+
   res.status(404).json({
-    error: "NOT_FOUND",
+    code: "not_found",
+    message: "Route not found.",
     requestId,
   });
 }
