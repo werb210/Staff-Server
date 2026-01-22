@@ -1,10 +1,10 @@
-import jwt, { type SignOptions } from "jsonwebtoken";
+import jwt, { type SignOptions, type JwtPayload } from "jsonwebtoken";
 import {
   getAccessTokenExpiresIn,
   getAccessTokenSecret,
   getJwtClockSkewSeconds,
 } from "../config";
-import { type Role } from "./roles";
+import { type Role, isRole } from "./roles";
 
 export type AccessTokenPayload = {
   sub: string;
@@ -12,6 +12,9 @@ export type AccessTokenPayload = {
   tokenVersion: number;
   phone?: string | null;
 };
+
+const JWT_ISSUER = "boreal-staff-server";
+const JWT_AUDIENCE = "boreal-staff-portal";
 
 export class AccessTokenSigningError extends Error {
   constructor(message: string) {
@@ -29,29 +32,83 @@ export class AccessTokenVerificationError extends Error {
 
 function requireJwtSecret(): string {
   const secret = getAccessTokenSecret();
-  if (!secret) {
-    throw new AccessTokenSigningError("JWT_SECRET is required");
+  if (!secret || typeof secret !== "string") {
+    throw new AccessTokenSigningError("JWT secret is missing or invalid");
   }
   return secret;
+}
+
+function validatePayload(payload: any): asserts payload is AccessTokenPayload {
+  if (!payload || typeof payload !== "object") {
+    throw new AccessTokenVerificationError("Token payload is not an object");
+  }
+
+  if (typeof payload.sub !== "string" || payload.sub.length === 0) {
+    throw new AccessTokenVerificationError("Token subject (sub) is invalid");
+  }
+
+  if (!isRole(payload.role)) {
+    throw new AccessTokenVerificationError("Token role is invalid");
+  }
+
+  if (
+    typeof payload.tokenVersion !== "number" ||
+    !Number.isInteger(payload.tokenVersion)
+  ) {
+    throw new AccessTokenVerificationError("Token version is invalid");
+  }
+
+  if (
+    payload.phone !== undefined &&
+    payload.phone !== null &&
+    typeof payload.phone !== "string"
+  ) {
+    throw new AccessTokenVerificationError("Token phone claim is invalid");
+  }
 }
 
 export function signAccessToken(payload: AccessTokenPayload): string {
   const secret = requireJwtSecret();
   const expiresIn = getAccessTokenExpiresIn() as SignOptions["expiresIn"];
-  return jwt.sign(payload, secret, {
-    algorithm: "HS256",
-    expiresIn,
-  });
+
+  try {
+    return jwt.sign(payload, secret, {
+      algorithm: "HS256",
+      expiresIn,
+      issuer: JWT_ISSUER,
+      audience: JWT_AUDIENCE,
+    });
+  } catch (err) {
+    throw new AccessTokenSigningError("Failed to sign access token");
+  }
 }
 
 export function verifyAccessToken(token: string): AccessTokenPayload {
   const secret = requireJwtSecret();
+
+  let decoded: JwtPayload | string;
+
   try {
-    return jwt.verify(token, secret, {
+    decoded = jwt.verify(token, secret, {
       algorithms: ["HS256"],
       clockTolerance: getJwtClockSkewSeconds(),
-    }) as AccessTokenPayload;
-  } catch (err) {
-    throw new AccessTokenVerificationError("Invalid access token");
+      issuer: JWT_ISSUER,
+      audience: JWT_AUDIENCE,
+    });
+  } catch {
+    throw new AccessTokenVerificationError("Access token verification failed");
   }
+
+  if (typeof decoded !== "object" || decoded === null) {
+    throw new AccessTokenVerificationError("Decoded token is not an object");
+  }
+
+  validatePayload(decoded);
+
+  return {
+    sub: decoded.sub,
+    role: decoded.role,
+    tokenVersion: decoded.tokenVersion,
+    phone: decoded.phone ?? null,
+  };
 }
