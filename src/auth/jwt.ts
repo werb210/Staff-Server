@@ -79,7 +79,7 @@ function validatePayload(payload: any): asserts payload is AccessTokenPayload {
   if (
     payload.capabilities !== undefined &&
     (!Array.isArray(payload.capabilities) ||
-      payload.capabilities.some((cap) => !isCapability(cap)))
+      payload.capabilities.some((cap: string) => !isCapability(cap)))
   ) {
     throw new AccessTokenVerificationError(
       "Token capabilities claim is invalid"

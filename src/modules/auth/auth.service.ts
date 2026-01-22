@@ -1,11 +1,6 @@
 import jwt, { type JwtPayload, type SignOptions } from "jsonwebtoken";
 import { randomUUID } from "crypto";
-import {
-  checkOtp,
-  getTwilioClient,
-  getTwilioVerifyServiceSid,
-  sendOtp,
-} from "../../services/twilio";
+import Twilio from "twilio";
 import {
   createUser,
   createOtpVerification,
@@ -45,6 +40,28 @@ type RefreshTokenPayload = JwtPayload & {
   type?: string;
   jti?: string;
 };
+
+type VerifyOtpSuccess = {
+  ok: true;
+  token: string;
+  refreshToken: string;
+  user: { id: string; role: Role; email: string | null };
+};
+
+type VerifyOtpFailure = {
+  ok: false;
+  status: number;
+  error: { code: string; message: string };
+};
+
+const twilio = new Twilio(
+  process.env.TWILIO_ACCOUNT_SID!,
+  process.env.TWILIO_AUTH_TOKEN!
+);
+
+const verify = twilio.verify.v2.services(
+  process.env.TWILIO_VERIFY_SERVICE_SID!
+);
 
 function assertE164(phone: unknown): string {
   const normalized = normalizePhoneNumber(phone);
@@ -220,7 +237,8 @@ function getTwilioErrorDetails(error: unknown): TwilioErrorDetails {
           ? err.code
           : undefined,
       status: typeof err.status === "number" ? err.status : undefined,
-      message: typeof err.message === "string" ? err.message : "Twilio verification failed",
+      message:
+        typeof err.message === "string" ? err.message : "Twilio verification failed",
     };
   }
   if (error instanceof Error) {
@@ -235,10 +253,7 @@ function getMissingTwilioEnv(): string[] {
   );
 }
 
-function assertTwilioConfig(requestId: string): {
-  client: NonNullable<ReturnType<typeof getTwilioClient>>;
-  verifyServiceSid: string;
-} {
+function assertTwilioConfig(requestId: string): void {
   const missing = getMissingTwilioEnv();
   if (missing.length > 0) {
     logError("twilio_missing_env", { missing, requestId });
@@ -266,16 +281,6 @@ function assertTwilioConfig(requestId: string): {
       throw new AppError("twilio_misconfigured", "Twilio is not configured.", 500);
     }
   }
-  const client = getTwilioClient();
-  const verifyServiceSid = getTwilioVerifyServiceSid();
-  if (!client || !verifyServiceSid) {
-    logError("twilio_missing_env", {
-      missing,
-      requestId,
-    });
-    throw new AppError("twilio_misconfigured", "Twilio is not configured.", 500);
-  }
-  return { client, verifyServiceSid };
 }
 
 function isTwilioAuthError(error: unknown): boolean {
@@ -383,6 +388,79 @@ function mapTwilioVerifyError(details: TwilioErrorDetails, err: unknown): AppErr
   );
 }
 
+function mapTwilioVerifyCheckFailure(
+  details: TwilioErrorDetails,
+  err: unknown
+): VerifyOtpFailure | AppError {
+  if (isTwilioAuthError(err)) {
+    return attachTwilioDetails(
+      new AppError(
+        "twilio_auth_failed",
+        "Twilio authentication failed.",
+        500
+      ),
+      details
+    );
+  }
+
+  const codeValue =
+    typeof details.code === "string"
+      ? Number(details.code)
+      : details.code;
+
+  if (codeValue === 60203) {
+    return {
+      ok: false,
+      status: 429,
+      error: { code: "too_many_attempts", message: details.message },
+    };
+  }
+
+  if (codeValue === 60202) {
+    return {
+      ok: false,
+      status: 410,
+      error: { code: "expired_code", message: details.message },
+    };
+  }
+
+  if (codeValue === 60200 || codeValue === 20404 || details.status === 404) {
+    return {
+      ok: false,
+      status: 400,
+      error: { code: "invalid_code", message: details.message },
+    };
+  }
+
+  if (details.status && details.status >= 500) {
+    return attachTwilioDetails(
+      new AppError("auth_provider_unavailable", details.message, 503),
+      details
+    );
+  }
+
+  if (isTwilioUnavailableError(err)) {
+    return attachTwilioDetails(
+      new AppError("auth_provider_unavailable", details.message, 503),
+      details
+    );
+  }
+
+  return attachTwilioDetails(
+    new AppError("twilio_error", details.message, 500),
+    details
+  );
+}
+
+function shouldThrowOtpError(error: AppError): boolean {
+  return [
+    "twilio_misconfigured",
+    "auth_provider_unavailable",
+    "twilio_auth_failed",
+    "twilio_error",
+  ].includes(error.code);
+}
+
 function getPhoneTail(phoneE164: string): string {
   return phoneE164.slice(-2);
 }
@@ -408,11 +486,19 @@ function resolveOtpStatus(status?: string): "pending" | "approved" | "expired" {
   return "expired";
 }
 
-function resolveOtpFailure(status?: string): AppError {
+function resolveOtpFailure(status?: string): VerifyOtpFailure {
   if (status === "canceled" || status === "expired") {
-    return new AppError("expired_code", "OTP code expired.", 410);
+    return {
+      ok: false,
+      status: 410,
+      error: { code: "expired_code", message: "OTP code expired." },
+    };
   }
-  return new AppError("invalid_code", "Invalid or expired code", 400);
+  return {
+    ok: false,
+    status: 400,
+    error: { code: "invalid_code", message: "Invalid or expired code" },
+  };
 }
 
 function normalizeBootstrapPhone(
@@ -465,8 +551,9 @@ export async function startOtp(
       throw new AppError("invalid_phone", "Invalid phone number", 400);
     }
 
-    const { client, verifyServiceSid } = assertTwilioConfig(requestId);
+    assertTwilioConfig(requestId);
     const phoneTail = getPhoneTail(phoneE164);
+    const verifyServiceSid = process.env.TWILIO_VERIFY_SERVICE_SID ?? "unknown";
 
     logInfo("otp_start_request", {
       phoneTail,
@@ -475,7 +562,10 @@ export async function startOtp(
     });
 
     try {
-      const verification = await sendOtp(client, verifyServiceSid, phoneE164);
+      const verification = await verify.verifications.create({
+        to: phoneE164,
+        channel: "sms",
+      });
       logInfo("otp_start_success", {
         phoneTail,
         serviceSid: verifyServiceSid,
@@ -514,11 +604,7 @@ export async function verifyOtpCode(params: {
   userAgent?: string;
   route?: string;
   method?: string;
-}): Promise<{
-  token: string;
-  refreshToken: string;
-  user: { id: string; role: Role; email: string | null };
-}> {
+}): Promise<VerifyOtpSuccess | VerifyOtpFailure> {
   const requestId = getRequestId() ?? "unknown";
   try {
     try {
@@ -533,7 +619,11 @@ export async function verifyOtpCode(params: {
         status: "missing_fields",
         requestId,
       });
-      throw new AppError("invalid_request", "Phone and code are required", 400);
+      return {
+        ok: false,
+        status: 400,
+        error: { code: "invalid_request", message: "Phone and code are required" },
+      };
     }
     let phoneE164: string;
     try {
@@ -546,28 +636,32 @@ export async function verifyOtpCode(params: {
         status: "invalid_phone",
         requestId,
       });
-      throw new AppError("invalid_phone", "Invalid phone number", 400);
+      return {
+        ok: false,
+        status: 400,
+        error: { code: "invalid_phone", message: "Invalid phone number" },
+      };
     }
     const phoneTail = getPhoneTail(phoneE164);
     assertSingleVerifyAttempt(phoneE164);
     let otpVerificationsAvailable = true;
     let status: string | undefined;
     let verificationSid: string | undefined;
-    const { client, verifyServiceSid } = assertTwilioConfig(requestId);
+    assertTwilioConfig(requestId);
+    const verifyServiceSid = process.env.TWILIO_VERIFY_SERVICE_SID ?? "unknown";
+
     logInfo("otp_verify_request", {
       phoneTail,
       serviceSid: verifyServiceSid,
       requestId,
     });
     try {
-      const check = await checkOtp(
-        client,
-        verifyServiceSid,
-        phoneE164,
-        code
-      );
+      const check = await verify.verificationChecks.create({
+        to: phoneE164,
+        code,
+      });
       status = check.status;
-      verificationSid = check.sid;
+      verificationSid = (check as { sid?: string }).sid;
       logInfo("otp_verify_result", {
         phoneTail,
         serviceSid: verifyServiceSid,
@@ -587,7 +681,11 @@ export async function verifyOtpCode(params: {
         requestId,
         error: err,
       });
-      throw mapTwilioVerifyError(details, err);
+      const mapped = mapTwilioVerifyCheckFailure(details, err);
+      if (mapped instanceof AppError) {
+        throw mapped;
+      }
+      return mapped;
     }
     if (!verificationSid) {
       logWarn("otp_verify_missing_sid", {
@@ -624,13 +722,13 @@ export async function verifyOtpCode(params: {
           }
         }
       }
-      throw resolveOtpFailure(status);
+      return resolveOtpFailure(status);
     }
 
-    const client = await pool.connect();
-    const db = client;
+    const dbClient = await pool.connect();
+    const db = dbClient;
     try {
-      await client.query("begin");
+      await dbClient.query("begin");
       let userRecord = await findAuthUserByPhone(phoneE164, db, {
         forUpdate: true,
       });
@@ -656,8 +754,12 @@ export async function verifyOtpCode(params: {
           await updateUserRoleById(userRecord.id, ROLES.ADMIN, db);
           role = ROLES.ADMIN;
         } else {
-          await client.query("commit");
-          throw forbiddenError("User has no assigned role");
+          await dbClient.query("commit");
+          return {
+            ok: false,
+            status: 403,
+            error: { code: "forbidden", message: "User has no assigned role" },
+          };
         }
       }
 
@@ -718,8 +820,9 @@ export async function verifyOtpCode(params: {
         client: db,
       });
 
-      await client.query("commit");
+      await dbClient.query("commit");
       return {
+        ok: true,
         token,
         refreshToken: refresh.token,
         user: {
@@ -729,17 +832,31 @@ export async function verifyOtpCode(params: {
         },
       };
     } catch (err) {
-      await client.query("rollback");
+      await dbClient.query("rollback");
       throw err;
     } finally {
-      client.release();
+      dbClient.release();
     }
   } catch (err) {
+    if (err instanceof AppError) {
+      if (shouldThrowOtpError(err)) {
+        throw err;
+      }
+      return {
+        ok: false,
+        status: err.status,
+        error: { code: err.code, message: err.message },
+      };
+    }
     logWarn("otp_verify_failed", {
       requestId,
       error: err instanceof Error ? err.message : "unknown_error",
     });
-    throw err;
+    return {
+      ok: false,
+      status: 500,
+      error: { code: "otp_verify_failed", message: "OTP verification failed." },
+    };
   }
 }
 
@@ -773,13 +890,13 @@ export async function refreshSession(params: {
     const payload = resolveRefreshPayload(verifyRefreshToken(refreshToken));
     const tokenHash = hashRefreshToken(refreshToken);
 
-    const client = await pool.connect();
-    const db = client;
+    const dbClient = await pool.connect();
+    const db = dbClient;
     try {
-      await client.query("begin");
+      await dbClient.query("begin");
       const consumed = await consumeRefreshToken(tokenHash, db);
       if (!consumed || consumed.userId !== payload.userId) {
-        await client.query("commit");
+        await dbClient.query("commit");
         return {
           ok: false,
           status: 401,
@@ -789,7 +906,7 @@ export async function refreshSession(params: {
 
       const userRecord = await findAuthUserById(payload.userId, db);
       if (!userRecord) {
-        await client.query("commit");
+        await dbClient.query("commit");
         return {
           ok: false,
           status: 401,
@@ -803,13 +920,13 @@ export async function refreshSession(params: {
       try {
         role = resolveAuthRole(userRecord.role);
       } catch (err) {
-        await client.query("commit");
+        await dbClient.query("commit");
         throw err;
       }
 
       const tokenVersion = userRecord.tokenVersion ?? 0;
       if (payload.tokenVersion !== tokenVersion) {
-        await client.query("commit");
+        await dbClient.query("commit");
         return {
           ok: false,
           status: 401,
@@ -847,7 +964,7 @@ export async function refreshSession(params: {
         client: db,
       });
 
-      await client.query("commit");
+      await dbClient.query("commit");
       return {
         ok: true,
         token,
@@ -859,10 +976,10 @@ export async function refreshSession(params: {
         },
       };
     } catch (err) {
-      await client.query("rollback");
+      await dbClient.query("rollback");
       throw err;
     } finally {
-      client.release();
+      dbClient.release();
     }
   } catch (err) {
     if (err instanceof AppError) {
@@ -895,10 +1012,10 @@ export async function createUserAccount(params: {
   ip?: string;
   userAgent?: string;
 }): Promise<{ id: string; email: string | null; role: Role }> {
-  const client = await pool.connect();
-  const db = client;
+  const dbClient = await pool.connect();
+  const db = dbClient;
   try {
-    await client.query("begin");
+    await dbClient.query("begin");
     const user = await createUser({
       email: params.email,
       phoneNumber: params.phoneNumber,
@@ -914,10 +1031,10 @@ export async function createUserAccount(params: {
       success: true,
       client: db,
     });
-    await client.query("commit");
+    await dbClient.query("commit");
     return { id: user.id, email: user.email, role: params.role };
   } catch (err) {
-    await client.query("rollback");
+    await dbClient.query("rollback");
     await recordAuditEvent({
       action: "user_created",
       actorUserId: params.actorUserId ?? null,
@@ -929,6 +1046,6 @@ export async function createUserAccount(params: {
     });
     throw err;
   } finally {
-    client.release();
+    dbClient.release();
   }
 }

@@ -185,6 +185,11 @@ router.post("/otp/verify", otpRateLimit(), async (req, res, next) => {
       method: req.method,
     });
 
+    if (!result.ok) {
+      respondError(res, result.status, result.error.code, result.error.message);
+      return;
+    }
+
     const responseBody = {
       ok: true,
       accessToken: result.token,

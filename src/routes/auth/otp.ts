@@ -37,6 +37,12 @@ router.post("/verify", otpVerifyLimiter(), async (req, res, next) => {
       route: req.originalUrl,
       method: req.method,
     });
+    if (!result.ok) {
+      return res.status(result.status).json({
+        ok: false,
+        error: result.error,
+      });
+    }
     if (typeof phone === "string") {
       resetOtpRateLimit(phone);
     }
