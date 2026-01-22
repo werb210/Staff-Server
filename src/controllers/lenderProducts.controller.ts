@@ -22,7 +22,11 @@ export type LenderProductResponse = {
   updatedAt: Date;
 };
 
-function toLenderProductResponse(record: LenderProductRecord): LenderProductResponse {
+function toLenderProductResponse(
+  record: LenderProductRecord
+): LenderProductResponse {
+  assertLenderProductRecord(record);
+
   return {
     id: record.id,
     lenderId: record.lender_id,
@@ -58,8 +62,13 @@ function parseRequiredDocuments(
     if (options?.allowUndefined) {
       return [];
     }
-    throw new AppError("validation_error", "required_documents is required.", 400);
+    throw new AppError(
+      "validation_error",
+      "required_documents is required.",
+      400
+    );
   }
+
   if (!Array.isArray(value)) {
     throw new AppError(
       "validation_error",
@@ -67,6 +76,7 @@ function parseRequiredDocuments(
       400
     );
   }
+
   return value.map((item) => {
     if (!item || typeof item !== "object") {
       throw new AppError(
@@ -75,9 +85,13 @@ function parseRequiredDocuments(
         400
       );
     }
-    const category = (item as { category?: unknown }).category;
-    const required = (item as { required?: unknown }).required;
-    const description = (item as { description?: unknown }).description;
+
+    const { category, required, description } = item as {
+      category?: unknown;
+      required?: unknown;
+      description?: unknown;
+    };
+
     if (typeof category !== "string" || category.trim().length === 0) {
       throw new AppError(
         "validation_error",
@@ -85,6 +99,7 @@ function parseRequiredDocuments(
         400
       );
     }
+
     if (typeof required !== "boolean") {
       throw new AppError(
         "validation_error",
@@ -92,6 +107,7 @@ function parseRequiredDocuments(
         400
       );
     }
+
     if (
       description !== undefined &&
       description !== null &&
@@ -103,34 +119,43 @@ function parseRequiredDocuments(
         400
       );
     }
-    const normalizedDescription =
-      typeof description === "string" ? description.trim() : undefined;
+
     return {
       category: category.trim(),
       required,
-      ...(normalizedDescription ? { description: normalizedDescription } : {}),
+      ...(typeof description === "string" && description.trim().length > 0
+        ? { description: description.trim() }
+        : {}),
     };
   });
 }
 
+/**
+ * GET /api/lender-products
+ * Query:
+ * - active=true|false (optional)
+ */
 export async function listLenderProductsHandler(
   req: Request,
   res: Response
 ): Promise<void> {
   const activeOnly = req.query.active === "true";
-  try {
-    const products = await listLenderProducts({ activeOnly });
-    if (!Array.isArray(products)) {
-      res.status(200).json({ items: [] });
-      return;
-    }
-    products.forEach(assertLenderProductRecord);
-    res.status(200).json({ items: products.map(toLenderProductResponse) });
-  } catch (err) {
+
+  const products = await listLenderProducts({ activeOnly });
+
+  if (!Array.isArray(products)) {
     res.status(200).json({ items: [] });
+    return;
   }
+
+  res.status(200).json({
+    items: products.map(toLenderProductResponse),
+  });
 }
 
+/**
+ * POST /api/lender-products
+ */
 export async function createLenderProductHandler(
   req: Request,
   res: Response
@@ -143,30 +168,41 @@ export async function createLenderProductHandler(
     required_documents,
     requiredDocuments,
   } = req.body ?? {};
+
   if (typeof lenderId !== "string" || lenderId.trim().length === 0) {
     throw new AppError("validation_error", "lenderId is required.", 400);
   }
+
   if (typeof name !== "string" || name.trim().length === 0) {
     throw new AppError("validation_error", "name is required.", 400);
   }
+
   if (
     description !== undefined &&
     description !== null &&
     typeof description !== "string"
   ) {
-    throw new AppError("validation_error", "description must be a string.", 400);
+    throw new AppError(
+      "validation_error",
+      "description must be a string.",
+      400
+    );
   }
+
   if (active !== undefined && typeof active !== "boolean") {
     throw new AppError("validation_error", "active must be a boolean.", 400);
   }
+
   const requiredDocumentsList = parseRequiredDocuments(
     required_documents ?? requiredDocuments,
     { allowUndefined: true }
   );
+
   const lender = await getLenderById(lenderId.trim());
   if (!lender) {
     throw new AppError("not_found", "Lender not found.", 404);
   }
+
   const created = await createLenderProduct({
     lenderId: lenderId.trim(),
     name: name.trim(),
@@ -174,28 +210,37 @@ export async function createLenderProductHandler(
     active: typeof active === "boolean" ? active : true,
     requiredDocuments: requiredDocumentsList,
   });
-  // Portal contract: POST /api/lender-products returns the created lender product object.
+
   res.status(201).json(toLenderProductResponse(created));
 }
 
+/**
+ * PUT /api/lender-products/:id
+ */
 export async function updateLenderProductHandler(
   req: Request,
   res: Response
 ): Promise<void> {
   const { id } = req.params;
+
   if (typeof id !== "string" || id.trim().length === 0) {
     throw new AppError("validation_error", "id is required.", 400);
   }
+
   const { required_documents, requiredDocuments } = req.body ?? {};
+
   const requiredDocumentsList = parseRequiredDocuments(
     required_documents ?? requiredDocuments
   );
+
   const updated = await updateLenderProductRequiredDocuments({
     id: id.trim(),
     requiredDocuments: requiredDocumentsList,
   });
+
   if (!updated) {
     throw new AppError("not_found", "Lender product not found.", 404);
   }
+
   res.status(200).json(toLenderProductResponse(updated));
 }
