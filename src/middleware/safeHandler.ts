@@ -14,30 +14,31 @@ export function safeHandler(handler: SafeRequestHandler): SafeRequestHandler {
     try {
       await handler(req, res, next);
     } catch (err) {
+      // If response already started, never interfere
+      if (res.headersSent) {
+        next(err as Error);
+        return;
+      }
+
       const requestId = res.locals.requestId ?? "unknown";
-      const isAuthRoute = req.originalUrl.split("?")[0].startsWith("/api/auth/");
+
       logError("safe_handler_error", {
         requestId,
         route: req.originalUrl,
         userId: req.user?.userId ?? null,
-        error: err instanceof Error ? err.message : "unknown_error",
+        error:
+          err instanceof Error
+            ? { name: err.name, message: err.message }
+            : "unknown_error",
       });
-      if (err instanceof AppError || res.headersSent || isDbConnectionFailure(err)) {
+
+      // Let canonical error handlers deal with known error types
+      if (err instanceof AppError || isDbConnectionFailure(err)) {
         next(err as Error);
         return;
       }
-      if (isAuthRoute) {
-        res.status(503).json({
-          ok: false,
-          data: null,
-          error: {
-            code: "service_unavailable",
-            message: "Authentication service unavailable.",
-          },
-          requestId,
-        });
-        return;
-      }
+
+      // Final hard stop: unexpected server error
       res.status(500).json({
         code: "server_error",
         message: "An unexpected error occurred.",
