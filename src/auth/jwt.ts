@@ -5,6 +5,7 @@ import {
   getJwtClockSkewSeconds,
 } from "../config";
 import { type Role, isRole } from "./roles";
+import { type Capability, isCapability } from "./capabilities";
 
 export type AccessTokenPayload = {
   sub: string;
@@ -12,6 +13,7 @@ export type AccessTokenPayload = {
   tokenVersion: number;
   phone?: string | null;
   silo?: string;
+  capabilities?: Capability[];
 };
 
 const JWT_ISSUER = "boreal-staff-server";
@@ -72,6 +74,16 @@ function validatePayload(payload: any): asserts payload is AccessTokenPayload {
     (typeof payload.silo !== "string" || payload.silo.trim().length === 0)
   ) {
     throw new AccessTokenVerificationError("Token silo claim is invalid");
+  }
+
+  if (
+    payload.capabilities !== undefined &&
+    (!Array.isArray(payload.capabilities) ||
+      payload.capabilities.some((cap) => !isCapability(cap)))
+  ) {
+    throw new AccessTokenVerificationError(
+      "Token capabilities claim is invalid"
+    );
   }
 }
 
