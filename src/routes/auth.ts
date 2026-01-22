@@ -1,6 +1,6 @@
 import { Router } from "express";
 import authRoutes from "../modules/auth/auth.routes";
-import { requireAuth } from "../middleware/requireAuth";
+import requireAuthWithInternalBypass from "../middleware/requireAuth";
 import { notFoundHandler } from "../middleware/errors";
 import { errorHandler } from "../middleware/errorHandler";
 import { authMeHandler } from "./auth/me";
@@ -8,13 +8,19 @@ import { authMeHandler } from "./auth/me";
 const router = Router();
 
 /**
- * Canonical /api/auth/me
- * Must return contract-compliant shape via authMeHandler
+ * GET /api/auth/me
+ * - Auth required
+ * - Uses canonical auth wrapper
  */
-router.get("/me", requireAuth, authMeHandler);
+router.get(
+  "/me",
+  requireAuthWithInternalBypass,
+  authMeHandler
+);
 
 /**
- * OTP + auth flows
+ * OTP + authentication flows
+ * These routes manage their own auth semantics internally
  */
 router.use("/", authRoutes);
 
