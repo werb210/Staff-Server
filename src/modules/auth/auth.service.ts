@@ -219,6 +219,28 @@ function assertTwilioConfig(requestId: string): {
     logError("twilio_missing_env", { missing, requestId });
     throw new AppError("twilio_unavailable", "Twilio is not configured.", 503);
   }
+  if (process.env.NODE_ENV === "production") {
+    const accountSid = process.env.TWILIO_ACCOUNT_SID ?? "";
+    const authToken = process.env.TWILIO_AUTH_TOKEN ?? "";
+    const verifyServiceSid = process.env.TWILIO_VERIFY_SERVICE_SID ?? "";
+    const invalidValues: string[] = [];
+    if (
+      accountSid.startsWith("ACxxxx") ||
+      accountSid.includes("XXXXXXXXXXXXXXXX")
+    ) {
+      invalidValues.push("TWILIO_ACCOUNT_SID");
+    }
+    if (authToken === "token" || authToken.toLowerCase().includes("test")) {
+      invalidValues.push("TWILIO_AUTH_TOKEN");
+    }
+    if (verifyServiceSid === "VA00000000000000000000000000000000") {
+      invalidValues.push("TWILIO_VERIFY_SERVICE_SID");
+    }
+    if (invalidValues.length > 0) {
+      logError("twilio_invalid_env", { invalidValues, requestId });
+      throw new AppError("twilio_unavailable", "Twilio is not configured.", 503);
+    }
+  }
   const client = getTwilioClient();
   const verifyServiceSid = getTwilioVerifyServiceSid();
   if (!client || !verifyServiceSid) {
@@ -250,6 +272,14 @@ function isOtpVerificationTableMissing(error: unknown): boolean {
     return message ? message.includes("otp_verifications") : true;
   }
   return message.includes("otp_verifications") && message.includes("exist");
+}
+
+function buildTwilioVerifyErrorMessage(details: {
+  code?: number | string;
+  message?: string;
+}): string {
+  const code = details.code ? `code ${details.code}` : "unknown code";
+  return `Twilio verification failed (${code}).`;
 }
 
 function getTwilioFailureCode(status?: number): string {
@@ -379,6 +409,7 @@ export async function startOtp(
         status: details.status,
         message: details.message,
         requestId,
+        error: err,
       });
       if (isTwilioAuthError(err)) {
         throw new AppError(
@@ -389,8 +420,8 @@ export async function startOtp(
       }
       throw new AppError(
         "twilio_verify_failed",
-        "Twilio verification failed",
-        502
+        buildTwilioVerifyErrorMessage(details),
+        400
       );
     }
   } catch (err) {
@@ -507,6 +538,7 @@ export async function verifyOtpCode(params: {
           message: details.message,
           requestId,
           errorCode: getTwilioFailureCode(details.status),
+          error: err,
         });
         if (isTwilioAuthError(err)) {
           throw new AppError(
@@ -516,9 +548,9 @@ export async function verifyOtpCode(params: {
           );
         }
         throw new AppError(
-          "verification_unavailable",
-          "Verification service unavailable",
-          502
+          "twilio_verify_failed",
+          buildTwilioVerifyErrorMessage(details),
+          400
         );
       }
     }
@@ -527,7 +559,11 @@ export async function verifyOtpCode(params: {
         phoneTail,
         requestId,
       });
-      throw new AppError("otp_unavailable", "OTP verification unavailable", 503);
+      throw new AppError(
+        "twilio_verify_failed",
+        "Twilio verification failed (missing verification SID).",
+        400
+      );
     }
     if (status !== "approved") {
       const userRecord = await findAuthUserByPhone(phoneE164);
