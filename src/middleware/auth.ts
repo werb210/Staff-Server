@@ -78,20 +78,26 @@ function getAuthenticatedUserFromToken(token: string): AuthUser | null {
   };
 }
 
-export function requireAuth(req: Request, res: Response, next: NextFunction): void {
+export function requireAuth(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void {
   const { token, status } = getAuthHeaderInfo(req);
   logAuthHeaderStatus(status);
 
   if (!token) {
-    return res
+    res
       .status(401)
       .json({ error: status === "malformed" ? "invalid_token" : "missing_token" });
+    return;
   }
 
   const user = getAuthenticatedUserFromToken(token);
   if (!user) {
     logWarn("auth_token_invalid");
-    return res.status(401).json({ error: "invalid_token" });
+    res.status(401).json({ error: "invalid_token" });
+    return;
   }
 
   logInfo("auth_token_verified", {
@@ -103,7 +109,9 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   next();
 }
 
-export function getAuthenticatedUserFromRequest(req: Request): AuthUser | null {
+export function getAuthenticatedUserFromRequest(
+  req: Request
+): AuthUser | null {
   const { token } = getAuthHeaderInfo(req);
   if (!token) return null;
 
@@ -113,13 +121,16 @@ export function getAuthenticatedUserFromRequest(req: Request): AuthUser | null {
 export function requireCapability(required: string[]) {
   return (req: Request, res: Response, next: NextFunction): void => {
     const user = req.user;
+
     if (!user) {
-      return res.status(401).json({ error: "missing_token" });
+      res.status(401).json({ error: "missing_token" });
+      return;
     }
 
     // OPS_MANAGE is absolute override
     if (user.capabilities.includes(CAPABILITIES.OPS_MANAGE)) {
-      return next();
+      next();
+      return;
     }
 
     // Explicit STAFF read-only exception
@@ -128,7 +139,8 @@ export function requireCapability(required: string[]) {
       required.length === 1 &&
       required[0] === CAPABILITIES.LENDERS_READ
     ) {
-      return next();
+      next();
+      return;
     }
 
     const hasAll = required.every((cap) =>
@@ -136,7 +148,8 @@ export function requireCapability(required: string[]) {
     );
 
     if (!hasAll) {
-      return res.status(403).json({ error: "insufficient_capabilities" });
+      res.status(403).json({ error: "insufficient_capabilities" });
+      return;
     }
 
     next();
