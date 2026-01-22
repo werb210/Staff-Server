@@ -38,7 +38,7 @@ function respondResponseValidationError(
     errors,
   });
 
-  res.status(500).json({
+  res.status(sanitizeStatus(500)).json({
     ok: false,
     data: null,
     error: {

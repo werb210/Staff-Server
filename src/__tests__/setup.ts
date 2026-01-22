@@ -90,6 +90,18 @@ beforeAll(async () => {
       created_at timestamptz not null default now()
     );
   `);
+  await pool.query(`
+    create table if not exists lender_products (
+      id uuid primary key,
+      lender_id uuid not null references lenders(id) on delete cascade,
+      name text not null,
+      description text null,
+      active boolean not null default true,
+      required_documents jsonb not null default '[]'::jsonb,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    );
+  `);
 });
 
 const twilioModule = require("twilio") as {

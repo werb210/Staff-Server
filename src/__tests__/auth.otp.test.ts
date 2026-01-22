@@ -44,15 +44,15 @@ describe("POST /api/auth/otp/start", () => {
       .options("/api/auth/otp/start")
       .set("Origin", "https://staff.boreal.financial")
       .set("Access-Control-Request-Method", "POST")
-      .set("Access-Control-Request-Headers", "content-type,x-request-id");
+      .set("Access-Control-Request-Headers", "content-type,idempotency-key");
 
-    expect([200, 204]).toContain(res.status);
+    expect(res.status).toBe(204);
     expect(res.headers["access-control-allow-origin"]).toBe(
       "https://staff.boreal.financial"
     );
-    expect(res.headers["access-control-allow-credentials"]).toBe("true");
+    expect(res.headers["access-control-allow-credentials"]).toBeUndefined();
     expect(res.headers["access-control-allow-headers"]?.toLowerCase()).toContain(
-      "x-request-id"
+      "idempotency-key"
     );
   });
 

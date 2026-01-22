@@ -18,11 +18,11 @@ describe("internal routes + CORS", () => {
       .options("/auth/otp/start")
       .set("Origin", "https://staff.boreal.financial")
       .set("Access-Control-Request-Method", "POST")
-      .set("Access-Control-Request-Headers", "x-request-id");
+      .set("Access-Control-Request-Headers", "content-type,idempotency-key");
 
     expect(res.status).toBe(204);
-    expect(res.headers["access-control-allow-headers"]).toEqual(
-      expect.stringContaining("x-request-id")
+    expect(res.headers["access-control-allow-headers"]?.toLowerCase()).toEqual(
+      expect.stringContaining("idempotency-key")
     );
   });
 });

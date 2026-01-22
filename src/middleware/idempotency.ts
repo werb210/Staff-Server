@@ -2,7 +2,6 @@
 
 import { type NextFunction, type Request, type Response } from "express";
 import { createHash } from "crypto";
-import { type PoolClient } from "pg";
 import { pool } from "../db";
 import { isDbConnectionFailure, isTestEnvironment } from "../dbRuntime";
 import { AppError } from "./errors";
@@ -41,7 +40,8 @@ function stableStringify(value: unknown): string {
 }
 
 function isAuthRoute(req: Request): boolean {
-  return req.path.startsWith("/api/auth/");
+  const path = req.originalUrl.split("?")[0];
+  return path.startsWith("/api/auth/");
 }
 
 function shouldBypass(error: unknown): boolean {
@@ -100,89 +100,89 @@ export function idempotencyMiddleware(
   const lockKey = advisoryLockKey(`${route}:${rawKey}`);
 
   (async () => {
-    let client: PoolClient | undefined;
-
     try {
-      client = await pool.connect();
-      await client.query("select pg_advisory_lock($1,$2)", lockKey);
+      const client = await pool.connect();
+      try {
+        await client.query("select pg_advisory_lock($1,$2)", lockKey);
 
-      const existing = await findIdempotencyRecord({
-        route,
-        idempotencyKey: rawKey,
-        client,
-      });
-
-      if (existing) {
-        if (existing.request_hash !== requestHash) {
-          trackEvent({
-            name: "idempotency_conflict",
-            properties: { route, requestId, idempotencyKeyHash: keyHash },
-          });
-          return res.status(409).json({
-            code: "idempotency_conflict",
-            message: "Idempotency key reused with different payload.",
-            requestId,
-          });
-        }
-
-        trackEvent({
-          name: "idempotency_cache_hit",
-          properties: { route, requestId, idempotencyKeyHash: keyHash },
+        const existing = await findIdempotencyRecord({
+          route,
+          idempotencyKey: rawKey,
+          client,
         });
 
-        return res
-          .status(existing.response_code)
-          .json(existing.response_body);
-      }
-
-      const wrap = <T extends (...args: any[]) => any>(fn: T): T =>
-        ((body: unknown) => {
-          if (!res.headersSent && !res.locals.requestTimedOut) {
-            res.locals.idempotencyResponseBody = body;
-          }
-          return fn(body);
-        }) as T;
-
-      res.json = wrap(res.json.bind(res));
-      res.send = wrap(res.send.bind(res));
-
-      res.on("finish", async () => {
-        if (!client) return;
-        try {
-          if (res.statusCode < 500 && !res.locals.requestTimedOut) {
-            await createIdempotencyRecord({
-              idempotencyKey: rawKey,
-              route,
-              method: req.method,
-              requestHash,
-              responseCode: res.statusCode,
-              responseBody: res.locals.idempotencyResponseBody ?? null,
-              client,
+        if (existing) {
+          if (existing.request_hash !== requestHash) {
+            trackEvent({
+              name: "idempotency_conflict",
+              properties: { route, requestId, idempotencyKeyHash: keyHash },
             });
+            res.status(409).json({
+              code: "idempotency_conflict",
+              message: "Idempotency key reused with different payload.",
+              requestId,
+            });
+            return;
           }
-        } finally {
-          await client.query("select pg_advisory_unlock($1,$2)", lockKey);
-          client.release();
-        }
-      });
 
-      next();
-    } catch (err) {
-      if (client) {
+          trackEvent({
+            name: "idempotency_cache_hit",
+            properties: { route, requestId, idempotencyKeyHash: keyHash },
+          });
+
+          res.status(existing.response_code).json(existing.response_body);
+          return;
+        }
+
+        const wrap = <T extends (...args: any[]) => any>(fn: T): T =>
+          ((body: unknown) => {
+            if (!res.headersSent && !res.locals.requestTimedOut) {
+              res.locals.idempotencyResponseBody = body;
+            }
+            return fn(body);
+          }) as T;
+
+        res.json = wrap(res.json.bind(res));
+        res.send = wrap(res.send.bind(res));
+
+        next();
+
+        await new Promise<void>((resolve) => {
+          res.on("finish", resolve);
+          res.on("close", resolve);
+        });
+
+        if (res.statusCode < 500 && !res.locals.requestTimedOut) {
+          await createIdempotencyRecord({
+            idempotencyKey: rawKey,
+            route,
+            method: req.method,
+            requestHash,
+            responseCode: res.statusCode,
+            responseBody: res.locals.idempotencyResponseBody ?? null,
+            client,
+          });
+        }
+      } finally {
         try {
           await client.query("select pg_advisory_unlock($1,$2)", lockKey);
         } catch {}
         client.release();
       }
-
+    } catch (err) {
       logWarn("idempotency_failed", {
         requestId,
         route,
         error: err instanceof Error ? err.message : "unknown_error",
       });
 
-      if (shouldBypass(err)) return next();
-      next(err instanceof Error ? err : new Error("idempotency_failed"));
+      if (!res.headersSent) {
+        if (shouldBypass(err)) {
+          next();
+          return;
+        }
+        next(err instanceof Error ? err : new Error("idempotency_failed"));
+      }
     }
   })();
 }
