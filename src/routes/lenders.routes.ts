@@ -1,23 +1,34 @@
 import { Router } from "express";
-import { requireAuth, requireCapability } from "../middleware/auth";
+import requireAuthWithInternalBypass from "../middleware/requireAuth";
+import { requireCapability } from "../middleware/auth";
 import { CAPABILITIES } from "../auth/capabilities";
 import {
   listLenders,
-  createLender
+  createLender,
 } from "../controllers/lenders.controller";
 
 const router = Router();
 
+/**
+ * GET /api/lenders
+ * - Auth required
+ * - Staff, Admin, Ops allowed via LENDERS_READ
+ */
 router.get(
   "/",
-  requireAuth,
+  requireAuthWithInternalBypass,
   requireCapability([CAPABILITIES.LENDERS_READ]),
   listLenders
 );
 
+/**
+ * POST /api/lenders
+ * - Auth required
+ * - OPS_MANAGE only
+ */
 router.post(
   "/",
-  requireAuth,
+  requireAuthWithInternalBypass,
   requireCapability([CAPABILITIES.OPS_MANAGE]),
   createLender
 );
