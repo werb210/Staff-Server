@@ -4,7 +4,7 @@ import cors from "cors";
 import { healthHandler, readyHandler } from "./routes/ready";
 import { listRoutes, printRoutes } from "./debug/printRoutes";
 import { getCorsAllowlistConfig, getRequestBodyLimit } from "./config";
-import { requestId } from "./middleware/requestId";
+import { requestContext } from "./middleware/requestContext";
 import { requestLogger } from "./middleware/requestLogger";
 import { requestTimeout } from "./middleware/requestTimeout";
 import { routeResolutionLogger } from "./middleware/routeResolutionLogger";
@@ -17,7 +17,7 @@ import {
 import "./services/twilio";
 import { PORTAL_ROUTE_REQUIREMENTS, API_ROUTE_MOUNTS } from "./routes/routeRegistry";
 import { checkDb } from "./db";
-import { requireHttps } from "./middleware/security";
+import { requireHttps, securityHeaders } from "./middleware/security";
 import { idempotencyMiddleware } from "./middleware/idempotency";
 import { ensureIdempotencyKey } from "./middleware/idempotencyKey";
 import { notFoundHandler } from "./middleware/errors";
@@ -49,30 +49,38 @@ function assertRoutesMounted(app: express.Express): void {
 function buildCorsOptions(): cors.CorsOptions {
   const allowlist = new Set(getCorsAllowlistConfig());
   const portalOrigin = "https://staff.boreal.financial";
+  const portalSecondaryOrigin = "https://portal.boreal.financial";
   allowlist.add(portalOrigin);
+  allowlist.add(portalSecondaryOrigin);
   allowlist.add("http://localhost:5173");
+  allowlist.add("http://localhost:3000");
   return {
     origin: (origin, callback) => {
       if (!origin) {
         callback(null, true);
         return;
       }
-      if (allowlist.has(origin) || origin.startsWith(`${portalOrigin}/`)) {
+      if (allowlist.has("*")) {
+        callback(null, true);
+        return;
+      }
+      if (
+        allowlist.has(origin) ||
+        origin.startsWith(`${portalOrigin}/`) ||
+        origin.startsWith(`${portalSecondaryOrigin}/`)
+      ) {
         callback(null, true);
         return;
       }
       callback(new Error("CORS origin not allowed"));
     },
-    credentials: true,
+    credentials: false,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: [
       "Authorization",
       "Content-Type",
       "Idempotency-Key",
-      "X-Request-Id",
-      "X-Requested-With",
     ],
-    exposedHeaders: ["X-Request-Id"],
     optionsSuccessStatus: 204,
   };
 }
@@ -80,13 +88,14 @@ function buildCorsOptions(): cors.CorsOptions {
 export function buildApp(): express.Express {
   const app = express();
 
-  app.use(requestId);
+  app.use(requestContext);
+  app.use(requestLogger);
   app.use(express.json({ limit: getRequestBodyLimit() }));
   app.use(express.urlencoded({ extended: true }));
   const corsOptions = buildCorsOptions();
   app.use(cors(corsOptions));
   app.options("*", cors(corsOptions));
-  app.use(requestLogger);
+  app.use(securityHeaders);
   app.use(routeResolutionLogger);
   app.use(requestTimeout);
 

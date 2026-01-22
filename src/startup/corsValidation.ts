@@ -3,7 +3,7 @@ import { logError } from "../observability/logger";
 const requiredCorsHeaders = ["Authorization", "Content-Type", "Idempotency-Key"];
 
 export function getCorsAllowedHeaders(): string[] {
-  return ["Authorization", "Content-Type", "X-Request-Id", "Idempotency-Key"];
+  return ["Authorization", "Content-Type", "Idempotency-Key"];
 }
 
 export function validateCorsConfig(): void {
