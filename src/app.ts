@@ -63,14 +63,14 @@ function buildCorsOptions(): cors.CorsOptions {
       }
       callback(new Error("CORS origin not allowed"));
     },
-    credentials: false,
+    credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: [
-      "authorization",
-      "content-type",
-      "idempotency-key",
-      "x-request-id",
-      "x-requested-with",
+      "Authorization",
+      "Content-Type",
+      "Idempotency-Key",
+      "X-Request-Id",
+      "X-Requested-With",
     ],
     exposedHeaders: ["X-Request-Id"],
     optionsSuccessStatus: 204,
