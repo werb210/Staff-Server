@@ -4,25 +4,25 @@ import { trackRequest } from "../observability/appInsights";
 
 const SENSITIVE_FIELD_PATTERN = /(token|password|secret)/i;
 
-function redactSensitiveFields(value: unknown): unknown {
+function redact(value: unknown): unknown {
   if (value instanceof Date) {
     return value.toISOString();
   }
 
   if (Array.isArray(value)) {
-    return value.map((entry) => redactSensitiveFields(entry));
+    return value.map(redact);
   }
 
   if (value && typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>).map(
-      ([key, entryValue]) => {
-        if (SENSITIVE_FIELD_PATTERN.test(key)) {
-          return [key, "[redacted]"];
-        }
-        return [key, redactSensitiveFields(entryValue)];
-      }
-    );
-    return Object.fromEntries(entries);
+    const out: Record<string, unknown> = {};
+    for (const [key, entry] of Object.entries(
+      value as Record<string, unknown>
+    )) {
+      out[key] = SENSITIVE_FIELD_PATTERN.test(key)
+        ? "[redacted]"
+        : redact(entry);
+    }
+    return out;
   }
 
   return value;
@@ -34,22 +34,17 @@ export function requestLogger(
   next: NextFunction
 ): void {
   const start = Date.now();
-  res.locals.requestStart = start;
-  const originalJson = res.json.bind(res);
-  res.json = (body: unknown) => {
-    res.locals.responseBody = redactSensitiveFields(body);
-    return originalJson(body);
-  };
-
   const requestId = res.locals.requestId ?? "unknown";
+
   const origin = req.get("origin");
   const userAgent = req.get("user-agent");
   const authorizationState = req.get("authorization") ? "PRESENT" : "MISSING";
   const ip = req.ip ?? "unknown";
+
   logInfo("request_started", {
     requestId,
     method: req.method,
-    originalUrl: req.originalUrl,
+    route: req.originalUrl,
     origin,
     userAgent,
     authorization: authorizationState,
@@ -58,19 +53,19 @@ export function requestLogger(
 
   res.on("finish", () => {
     const durationMs = Date.now() - start;
-    const requestId = res.locals.requestId ?? "unknown";
-    const ip = req.ip ?? "unknown";
     const outcome = res.statusCode >= 400 ? "failure" : "success";
+
     logInfo("request_completed", {
       requestId,
       route: req.originalUrl,
       method: req.method,
-      path: req.originalUrl,
       status: res.statusCode,
       ip,
       durationMs,
       outcome,
-      responseBody: res.locals.responseBody,
+      ...(res.locals.responseBody
+        ? { responseBody: redact(res.locals.responseBody) }
+        : {}),
     });
 
     trackRequest({
@@ -87,5 +82,6 @@ export function requestLogger(
       },
     });
   });
+
   next();
 }
