@@ -1,3 +1,5 @@
+// src/routes/auth/me.ts
+
 import { type Request, type Response } from "express";
 import { getCapabilitiesForRole } from "../../auth/capabilities";
 import { isRole } from "../../auth/roles";
@@ -43,11 +45,20 @@ function respondAuthResponseValidationError(
     errors,
   });
   return res.status(500).json({
-    error: "Invalid auth response shape",
+    ok: false,
+    data: null,
+    error: {
+      code: "invalid_response_shape",
+      message: "Invalid auth response shape",
+    },
+    requestId,
   });
 }
 
 export async function authMeHandler(req: Request, res: Response): Promise<void> {
+  const route = "/api/auth/me";
+  const requestId = getAuthRequestId(res);
+
   try {
     if (!req.user) {
       respondAuthError(
@@ -58,12 +69,15 @@ export async function authMeHandler(req: Request, res: Response): Promise<void> 
       );
       return;
     }
+
     const role = req.user.role;
     const capabilities =
-      req.user.capabilities ??
-      (role && isRole(role) ? getCapabilitiesForRole(role) : []);
-    const route = "/api/auth/me";
-    const requestId = getAuthRequestId(res);
+      Array.isArray(req.user.capabilities)
+        ? req.user.capabilities
+        : role && isRole(role)
+        ? getCapabilitiesForRole(role)
+        : [];
+
     const responseBody = {
       ok: true,
       data: {
@@ -75,6 +89,7 @@ export async function authMeHandler(req: Request, res: Response): Promise<void> 
       error: null,
       requestId,
     };
+
     const responseValidation = validateAuthMe(responseBody);
     if (!responseValidation.success) {
       respondAuthResponseValidationError(
@@ -85,11 +100,20 @@ export async function authMeHandler(req: Request, res: Response): Promise<void> 
       );
       return;
     }
+
     res.status(200).json(responseBody);
   } catch (err) {
-    res.status(401).json({
-      ok: false,
-      error: "invalid_token",
+    logError("auth_me_failed", {
+      route,
+      requestId,
+      err,
     });
+
+    respondAuthError(
+      res,
+      401,
+      "invalid_token",
+      "Invalid or expired authorization token."
+    );
   }
 }
