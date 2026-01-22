@@ -80,6 +80,7 @@ function buildCorsOptions(): cors.CorsOptions {
       "Authorization",
       "Content-Type",
       "Idempotency-Key",
+      "X-Request-Id",
     ],
     optionsSuccessStatus: 204,
   };
@@ -94,6 +95,10 @@ export function buildApp(): express.Express {
   app.use(express.urlencoded({ extended: true }));
   const corsOptions = buildCorsOptions();
   app.use(cors(corsOptions));
+  app.use((req, res, next) => {
+    res.vary("Origin");
+    next();
+  });
   app.options("*", cors(corsOptions));
   app.use(securityHeaders);
   app.use(routeResolutionLogger);
