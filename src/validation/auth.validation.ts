@@ -45,17 +45,10 @@ export const verifyOtpResponseSchema = z
 
 export const authMeSchema = z
   .object({
-    ok: z.boolean(),
-    data: z
-      .object({
-        userId: z.string(),
-        role: roleSchema,
-        phone: z.string().nullable().optional(),
-        capabilities: z.array(z.string()),
-      })
-      .strict(),
-    error: z.null(),
-    requestId: z.string(),
+    ok: z.literal(true),
+    userId: z.string(),
+    role: roleSchema,
+    silo: z.string().min(1, "Silo is required"),
   })
   .strict();
 

@@ -35,6 +35,7 @@ import {
   signAccessToken,
   type AccessTokenPayload,
 } from "../../auth/jwt";
+import { DEFAULT_AUTH_SILO } from "../../auth/silo";
 import { hashRefreshToken } from "../../auth/tokenUtils";
 
 type RefreshTokenPayload = JwtPayload & {
@@ -120,6 +121,13 @@ function resolveAuthRole(role: string | null): Role {
     return role;
   }
   throw forbiddenError("User has no assigned role");
+}
+
+function resolveAuthSilo(silo: string | null | undefined): string {
+  if (typeof silo === "string" && silo.trim().length > 0) {
+    return silo.trim();
+  }
+  return DEFAULT_AUTH_SILO;
 }
 
 export function assertUserActive(params: {
@@ -636,6 +644,7 @@ export async function verifyOtpCode(params: {
         sub: userRecord.id,
         role,
         tokenVersion,
+        silo: resolveAuthSilo(userRecord.silo),
       };
       const token = issueAccessToken(payload);
       const refresh = issueRefreshToken({
@@ -763,6 +772,7 @@ export async function refreshSession(params: {
         sub: userRecord.id,
         role,
         tokenVersion,
+        silo: resolveAuthSilo(userRecord.silo),
       });
       const refreshed = issueRefreshToken({
         userId: userRecord.id,

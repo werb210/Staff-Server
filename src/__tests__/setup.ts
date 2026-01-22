@@ -31,6 +31,7 @@ beforeAll(async () => {
       phone_number text null unique,
       phone text null,
       role text null,
+      silo text null,
       active boolean not null default true,
       is_active boolean null,
       disabled boolean null,

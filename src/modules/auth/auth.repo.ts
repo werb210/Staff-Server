@@ -27,6 +27,7 @@ export interface AuthUser {
   phoneNumber: string;
   phoneVerified: boolean;
   role: Role | null;
+  silo: string | null;
   active: boolean;
   isActive: boolean | null;
   disabled: boolean | null;
@@ -62,6 +63,7 @@ export async function findAuthUserByPhone(
               u.phone_number as "phoneNumber",
               u.phone_verified as "phoneVerified",
               u.role,
+              u.silo,
               u.active,
               u.is_active as "isActive",
               u.disabled,
@@ -83,6 +85,7 @@ export async function findAuthUserByPhone(
             u.phone_number as "phoneNumber",
             u.phone_verified as "phoneVerified",
             u.role,
+            u.silo,
             u.active,
             u.is_active as "isActive",
             u.disabled,
@@ -126,6 +129,7 @@ export async function findAuthUserById(
             u.phone_number as "phoneNumber",
             u.phone_verified as "phoneVerified",
             u.role,
+            u.silo,
             u.active,
             u.is_active as "isActive",
             u.disabled,
@@ -159,6 +163,7 @@ export async function createUser(params: {
               phone_number as "phoneNumber",
               phone_verified as "phoneVerified",
               role,
+              silo,
               active,
               is_active as "isActive",
               disabled,

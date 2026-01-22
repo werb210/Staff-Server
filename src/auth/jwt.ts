@@ -11,6 +11,7 @@ export type AccessTokenPayload = {
   role: Role;
   tokenVersion: number;
   phone?: string | null;
+  silo?: string;
 };
 
 const JWT_ISSUER = "boreal-staff-server";
@@ -65,6 +66,13 @@ function validatePayload(payload: any): asserts payload is AccessTokenPayload {
   ) {
     throw new AccessTokenVerificationError("Token phone claim is invalid");
   }
+
+  if (
+    payload.silo !== undefined &&
+    (typeof payload.silo !== "string" || payload.silo.trim().length === 0)
+  ) {
+    throw new AccessTokenVerificationError("Token silo claim is invalid");
+  }
 }
 
 export function signAccessToken(payload: AccessTokenPayload): string {
@@ -110,5 +118,6 @@ export function verifyAccessToken(token: string): AccessTokenPayload {
     role: decoded.role,
     tokenVersion: decoded.tokenVersion,
     phone: decoded.phone ?? null,
+    silo: typeof decoded.silo === "string" ? decoded.silo : undefined,
   };
 }

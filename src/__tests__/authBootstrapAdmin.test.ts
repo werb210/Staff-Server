@@ -76,6 +76,7 @@ describe("auth bootstrap admin", () => {
 
     expect(payload.sub).toBe(userId);
     expect(payload.role).toBe(ROLES.ADMIN);
+    expect(payload.silo).toBe("BF");
 
     const dbRole = await pool.query<{ role: string | null }>(
       `select role from users where id = $1`,
@@ -89,6 +90,7 @@ describe("auth bootstrap admin", () => {
 
     expect(me.status).toBe(200);
     expect(me.body.ok).toBe(true);
-    expect(me.body.data.role).toBe(ROLES.ADMIN);
+    expect(me.body.role).toBe(ROLES.ADMIN);
+    expect(me.body.silo).toBe("BF");
   });
 });

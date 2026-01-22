@@ -72,7 +72,8 @@ describe("token lifecycle stability", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
-    expect(res.body.data.userId).toBe("grace-user");
+    expect(res.body.userId).toBe("grace-user");
+    expect(res.body.silo).toBe("BF");
   });
 
   it("rejects expired tokens outside the grace window", async () => {

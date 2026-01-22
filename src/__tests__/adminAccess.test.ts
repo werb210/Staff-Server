@@ -1,7 +1,6 @@
 import request from "supertest";
 import { buildAppWithApiRoutes } from "../app";
 import { pool } from "../db";
-import { getCapabilitiesForRole } from "../auth/capabilities";
 import { ROLES, normalizeRole } from "../auth/roles";
 import {
   seedAdminUser,
@@ -67,8 +66,8 @@ describe("admin access coverage", () => {
 
     expect(me.status).toBe(200);
     expect(me.body.ok).toBe(true);
-    expect(me.body.data.role).toBe(ROLES.ADMIN);
-    expect(me.body.data.capabilities).toEqual(getCapabilitiesForRole(ROLES.ADMIN));
+    expect(me.body.role).toBe(ROLES.ADMIN);
+    expect(me.body.silo).toBe("BF");
   });
 
   it("allows Admin to access all protected module routes", async () => {
@@ -151,6 +150,7 @@ describe("admin access coverage", () => {
 
     expect(me.status).toBe(200);
     expect(me.body.ok).toBe(true);
-    expect(me.body.data.role).toBe(ROLES.ADMIN);
+    expect(me.body.role).toBe(ROLES.ADMIN);
+    expect(me.body.silo).toBe("BF");
   });
 });

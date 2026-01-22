@@ -29,7 +29,10 @@ export interface AuthOtpVerifySuccessResponse {
 export type AuthOtpVerifyResponse = AuthOtpVerifySuccessResponse | void;
 
 export interface AuthMeResponse {
-  user: AuthUserBase;
+  ok: true;
+  userId: string;
+  role: AuthRole;
+  silo: string;
 }
 
 export type NoContentResponse = void;

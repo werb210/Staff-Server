@@ -1,13 +1,20 @@
 import { Request, Response, NextFunction } from "express";
-import { CAPABILITIES, getCapabilitiesForRole } from "../auth/capabilities";
+import {
+  CAPABILITIES,
+  getCapabilitiesForRole,
+  type Capability,
+} from "../auth/capabilities";
 import { ROLES, isRole, type Role } from "../auth/roles";
 import { verifyAccessToken } from "../auth/jwt";
+import { DEFAULT_AUTH_SILO } from "../auth/silo";
 import { logInfo, logWarn } from "../observability/logger";
 
 export interface AuthUser {
   userId: string;
   role: Role;
-  capabilities: string[];
+  silo: string;
+  siloFromToken: boolean;
+  capabilities: Capability[];
   phone?: string | null;
 }
 
@@ -60,19 +67,27 @@ function getAuthenticatedUserFromToken(token: string): AuthUser | null {
     return null;
   }
 
-  const { sub, role, phone } = payload as {
+  const { sub, role, phone, silo: siloClaim } = payload as {
     sub?: unknown;
     role?: unknown;
     phone?: unknown;
+    silo?: unknown;
   };
 
   if (typeof sub !== "string" || !isRole(role)) {
     return null;
   }
 
+  const tokenSilo =
+    typeof siloClaim === "string" ? siloClaim.trim() : "";
+  const siloFromToken = tokenSilo.length > 0;
+  const resolvedSilo = siloFromToken ? tokenSilo : DEFAULT_AUTH_SILO;
+
   return {
     userId: sub,
     role,
+    silo: resolvedSilo,
+    siloFromToken,
     capabilities: getCapabilitiesForRole(role),
     phone: typeof phone === "string" ? phone : null,
   };
@@ -117,7 +132,7 @@ export function getAuthenticatedUserFromRequest(
   return getAuthenticatedUserFromToken(token);
 }
 
-export function requireCapability(required: string[]) {
+export function requireCapability(required: Capability[]) {
   return (req: Request, res: Response, next: NextFunction): void => {
     const user = req.user;
 
