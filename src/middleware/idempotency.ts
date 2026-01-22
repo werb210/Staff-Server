@@ -139,8 +139,8 @@ export function idempotencyMiddleware(
 
   (async () => {
     try {
-      client = await pool.connect();
-      const c = client;
+      const c = await pool.connect();
+      client = c;
 
       await c.query("select pg_advisory_lock($1,$2)", lockKey);
 
@@ -156,9 +156,11 @@ export function idempotencyMiddleware(
             name: "idempotency_conflict",
             properties: { route, requestId, idempotencyKeyHash: keyHash },
           });
+
           await c.query("select pg_advisory_unlock($1,$2)", lockKey);
           c.release();
           client = null;
+
           return res.status(409).json({
             code: "idempotency_conflict",
             message: "Idempotency key reused with different payload.",
@@ -174,6 +176,7 @@ export function idempotencyMiddleware(
         await c.query("select pg_advisory_unlock($1,$2)", lockKey);
         c.release();
         client = null;
+
         return res
           .status(existing.response_code)
           .json(existing.response_body);
