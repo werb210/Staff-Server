@@ -166,6 +166,7 @@ router.post("/otp/verify", otpRateLimit(), async (req, res) => {
       ok: true,
       accessToken: result.token,
       refreshToken: result.refreshToken,
+      user: result.user,
     };
     const responseValidation = verifyOtpResponseSchema.safeParse(responseBody);
     if (!responseValidation.success) {

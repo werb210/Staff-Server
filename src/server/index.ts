@@ -1,7 +1,6 @@
 // src/server/index.ts
 
-import { buildApp } from "../app";
-import authRouter from "../routes/auth";
+import { buildApp, registerApiRoutes } from "../app";
 import { assertEnv } from "../config";
 import { logError, logWarn } from "../observability/logger";
 import { notFoundHandler } from "../middleware/errors";
@@ -11,11 +10,10 @@ let processHandlersInstalled = false;
 let server: ReturnType<ReturnType<typeof buildApp>["listen"]> | null = null;
 
 // IMPORTANT:
-// buildApp() ALREADY registers API routes internally.
-// DO NOT register them again here.
+// buildApp() creates the base app; register API routes explicitly here.
 export const app = buildApp();
 
-app.use("/api/auth", authRouter);
+registerApiRoutes(app);
 app.use(notFoundHandler);
 
 const isProd = process.env.NODE_ENV === "production";
