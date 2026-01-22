@@ -13,7 +13,13 @@ let server: ReturnType<ReturnType<typeof buildApp>["listen"]> | null = null;
 // buildApp() creates the base app; register API routes explicitly here.
 export const app = buildApp();
 
+// Ensure Express is aware it may be behind a proxy (Azure/App Service)
+app.set("trust proxy", true);
+
+// Register all API routes using the unified registry
 registerApiRoutes(app);
+
+// Global 404 handler (after all routes)
 app.use(notFoundHandler);
 
 const isProd = process.env.NODE_ENV === "production";
