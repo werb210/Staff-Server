@@ -4,18 +4,28 @@ export type HttpishError = {
   code?: string;
 };
 
+/**
+ * Narrow check for HTTP-like errors.
+ * Only accepts finite numeric status codes.
+ */
 export function isHttpishError(error: unknown): error is HttpishError {
-  if (!error || typeof error !== "object") {
+  if (typeof error !== "object" || error === null) {
     return false;
   }
+
   const status = (error as { status?: unknown }).status;
   return typeof status === "number" && Number.isFinite(status);
 }
 
+/**
+ * Extract a safe HTTP status code.
+ * Defaults to 500 if invalid or out of range.
+ */
 export function getStatus(error: unknown): number {
   if (isHttpishError(error)) {
-    if (error.status >= 400 && error.status < 600) {
-      return error.status;
+    const { status } = error;
+    if (status >= 400 && status <= 599) {
+      return status;
     }
   }
   return 500;
