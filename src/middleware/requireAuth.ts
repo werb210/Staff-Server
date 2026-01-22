@@ -15,7 +15,7 @@ export { requireAuth, requireCapability, getAuthenticatedUserFromRequest };
  * Auth wrapper with explicit internal-route bypass ONLY.
  *
  * Rules:
- * - /api/_int/* routes bypass auth entirely (health, build, diagnostics)
+ * - /api/_int/* routes bypass auth entirely
  * - ALL other routes REQUIRE a valid access token
  * - NO method-based bypasses
  * - NO silent fallthrough
@@ -25,13 +25,16 @@ export default function requireAuthWithInternalBypass(
   res: Response,
   next: NextFunction
 ): void {
-  // Internal diagnostics endpoints are explicitly unauthenticated
-  if (req.path.startsWith("/api/_int/")) {
+  /**
+   * IMPORTANT:
+   * internal routes are mounted at `/api/_int`,
+   * but at this point req.path === `/_int/...`
+   */
+  if (req.path.startsWith("/_int")) {
     next();
     return;
   }
 
-  // Always require authentication
   const user = getAuthenticatedUserFromRequest(req);
 
   if (!user) {
