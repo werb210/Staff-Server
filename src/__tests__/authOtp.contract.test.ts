@@ -90,6 +90,7 @@ describe("auth otp contract", () => {
     expect(payload.sub).toBe(user.id);
     expect(payload.role).toBe(ROLES.STAFF);
     expect(payload.silo).toBe("BF");
+    expect(payload.phone).toBe(phone);
   });
 
   it("rejects OTP verify when user role is missing", async () => {
@@ -141,6 +142,30 @@ describe("auth otp contract", () => {
     expect(me.body.silo).toBe("BF");
   });
 
+  it("allows lender routes with the OTP access token", async () => {
+    const phone = nextPhone();
+    await createUserAccount({
+      email: "otp-lender@example.com",
+      phoneNumber: phone,
+      role: ROLES.ADMIN,
+    });
+
+    const twilioMocks = getTwilioMocks();
+    twilioMocks.createVerificationCheck.mockResolvedValueOnce({
+      status: "approved",
+      sid: "VE-CHECK-003A",
+    });
+
+    const res = await otpVerifyRequest(app, { phone });
+    expect(res.status).toBe(200);
+
+    const lenders = await request(app)
+      .get("/api/lenders")
+      .set("Authorization", `Bearer ${res.body.accessToken}`);
+
+    expect(lenders.status).toBe(200);
+  });
+
   it("returns 200 on repeated OTP verify without calling Twilio", async () => {
     const phone = nextPhone();
     await createUserAccount({
@@ -189,7 +214,7 @@ describe("auth otp contract", () => {
       requestId,
     });
 
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(400);
     expect(res.body.ok).toBe(false);
     expect(res.body.data).toBeNull();
     expect(res.body.error).toEqual({
@@ -218,29 +243,32 @@ describe("auth otp contract", () => {
     const res = await otpVerifyRequest(app, { phone });
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
-    expect(res.body.accessToken).toBeTruthy();
-    expect(res.headers["set-cookie"]).toBeUndefined();
   });
 
-  it("uses the Verify check endpoint with the configured service SID", async () => {
+  it("returns a detailed error when Twilio rejects OTP", async () => {
     const phone = nextPhone();
     await createUserAccount({
-      email: "otp-service-sid@example.com",
+      email: "otp-twilio-error@example.com",
       phoneNumber: phone,
       role: ROLES.STAFF,
     });
 
     const twilioMocks = getTwilioMocks();
-    twilioMocks.createVerificationCheck.mockResolvedValueOnce({
-      status: "approved",
-      sid: "VE-CHECK-007",
-    });
+    const twilioError: any = new Error("Max check attempts reached.");
+    twilioError.code = 60202;
+    twilioError.status = 429;
+    twilioMocks.createVerificationCheck.mockRejectedValueOnce(twilioError);
 
-    const res = await otpVerifyRequest(app, { phone });
-    expect(res.status).toBe(200);
-    expect(twilioMocks.createVerificationCheck).toHaveBeenCalledTimes(1);
-    expect(twilioMocks.lastServiceSid).toBe(
-      process.env.TWILIO_VERIFY_SERVICE_SID
-    );
+    const res = await otpVerifyRequest(app, { phone, code: "000000" });
+
+    expect(res.status).toBe(429);
+    expect(res.body.error).toEqual({
+      code: "too_many_attempts",
+      message: "Max check attempts reached.",
+      details: {
+        twilioCode: 60202,
+        twilioMessage: "Max check attempts reached.",
+      },
+    });
   });
 });

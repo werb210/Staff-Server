@@ -22,10 +22,6 @@ function getAuthRequestId(res: Response): string {
   return res.locals.requestId ?? getRequestId() ?? "unknown";
 }
 
-function sanitizeStatus(status: number): number {
-  return status >= 500 ? 503 : status;
-}
-
 function respondOk<T>(res: Response, data: T, status = 200): void {
   const requestId = getAuthRequestId(res);
   res.status(status).json({
@@ -40,13 +36,14 @@ function respondError(
   res: Response,
   status: number,
   code: string,
-  message: string
+  message: string,
+  details?: unknown
 ): void {
   const requestId = getAuthRequestId(res);
-  res.status(sanitizeStatus(status)).json({
+  res.status(status).json({
     ok: false,
     data: null,
-    error: { code, message },
+    error: { code, message, ...(details ? { details } : {}) },
     requestId,
   });
 }
@@ -98,15 +95,6 @@ function respondResponseValidationError(
   });
 }
 
-const isTwilioAuthError = (err: unknown): err is { code: number } => {
-  return (
-    typeof err === "object" &&
-    err !== null &&
-    "code" in err &&
-    (err as { code?: number }).code === 20003
-  );
-};
-
 /**
  * POST /api/auth/otp/start
  */
@@ -156,17 +144,8 @@ async function handleOtpStart(
     respondOk(res, responseBody);
   } catch (err) {
     if (err instanceof AppError) {
-      respondError(res, err.status, err.code, err.message);
-      return;
-    }
-
-    if (isTwilioAuthError(err)) {
-      respondError(
-        res,
-        401,
-        "twilio_verify_failed",
-        "Invalid Twilio credentials"
-      );
+      const details = (err as { details?: unknown }).details;
+      respondError(res, err.status, err.code, err.message, details);
       return;
     }
 
@@ -179,7 +158,7 @@ router.post("/otp/start", otpRateLimit(), handleOtpStart);
 /**
  * POST /api/auth/otp/verify
  */
-router.post("/otp/verify", otpRateLimit(), async (req, res) => {
+router.post("/otp/verify", otpRateLimit(), async (req, res, next) => {
   try {
     const route = "/api/auth/otp/verify";
     const requestId = getAuthRequestId(res);
@@ -231,26 +210,12 @@ router.post("/otp/verify", otpRateLimit(), async (req, res) => {
     res.status(200).json(responseBody);
   } catch (err) {
     if (err instanceof AppError) {
-      respondError(res, err.status, err.code, err.message);
+      const details = (err as { details?: unknown }).details;
+      respondError(res, err.status, err.code, err.message, details);
       return;
     }
 
-    if (isTwilioAuthError(err)) {
-      respondError(
-        res,
-        401,
-        "twilio_verify_failed",
-        "Invalid Twilio credentials"
-      );
-      return;
-    }
-
-    respondError(
-      res,
-      502,
-      "service_unavailable",
-      "Authentication service unavailable."
-    );
+    next(err);
   }
 });
 
@@ -264,7 +229,7 @@ router.post("/logout", (_req, res) => {
 /**
  * POST /api/auth/refresh
  */
-router.post("/refresh", refreshRateLimit(), async (req, res) => {
+router.post("/refresh", refreshRateLimit(), async (req, res, next) => {
   try {
     const { refreshToken } = req.body ?? {};
 
@@ -292,16 +257,12 @@ router.post("/refresh", refreshRateLimit(), async (req, res) => {
     });
   } catch (err) {
     if (err instanceof AppError) {
-      respondError(res, err.status, err.code, err.message);
+      const details = (err as { details?: unknown }).details;
+      respondError(res, err.status, err.code, err.message, details);
       return;
     }
 
-    respondError(
-      res,
-      502,
-      "service_unavailable",
-      "Authentication service unavailable."
-    );
+    next(err);
   }
 });
 

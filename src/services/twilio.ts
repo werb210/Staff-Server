@@ -49,3 +49,16 @@ export async function sendOtp(
     .services(verifyServiceSid)
     .verifications.create({ to: phoneE164, channel: "sms" });
 }
+
+export async function checkOtp(
+  client: NonNullable<ReturnType<typeof getTwilioClient>>,
+  verifyServiceSid: string,
+  phoneE164: string,
+  code: string
+): Promise<{ status?: string; sid?: string }> {
+  const result = await client.verify.v2
+    .services(verifyServiceSid)
+    .verificationChecks.create({ to: phoneE164, code });
+  const verificationSid = (result as { sid?: string }).sid;
+  return { status: result.status, sid: verificationSid };
+}

@@ -69,16 +69,21 @@ function resolveFailureReason(err: Error): string {
 
 function normalizeAuthError(
   err: Error
-): { status: number; code: string; message: string } {
+): { status: number; code: string; message: string; details?: unknown } {
   if (err instanceof AppError) {
-    return { status: err.status, code: err.code, message: err.message };
+    return {
+      status: err.status,
+      code: err.code,
+      message: err.message,
+      details: (err as { details?: unknown }).details,
+    };
   }
 
   if (isDbConnectionFailure(err)) {
     return {
-      status: 503,
-      code: "service_unavailable",
-      message: "Service unavailable.",
+      status: 500,
+      code: "db_unavailable",
+      message: "Database unavailable.",
     };
   }
 
@@ -95,6 +100,28 @@ function normalizeAuthError(
     code: "auth_failed",
     message: "Authentication failed.",
   };
+}
+
+export function notFoundHandler(req: Request, res: Response): void {
+  const requestId = res.locals.requestId ?? "unknown";
+  if (isAuthRoute(req)) {
+    res.status(404).json({
+      ok: false,
+      data: null,
+      error: {
+        code: "not_found",
+        message: "Not found",
+      },
+      requestId,
+    });
+    return;
+  }
+
+  res.status(404).json({
+    code: "not_found",
+    message: "Not found",
+    requestId,
+  });
 }
 
 export function errorHandler(
@@ -121,7 +148,7 @@ export function errorHandler(
   // AUTH ROUTES — STRICT CONTRACT
   if (isAuthRoute(req)) {
     const normalized = normalizeAuthError(err);
-    const status = normalized.status >= 500 ? 503 : normalized.status;
+    const status = normalized.status;
 
     logError("auth_request_failed", {
       ...logBase,
@@ -147,6 +174,7 @@ export function errorHandler(
       error: {
         code: normalized.code,
         message: normalized.message,
+        ...(normalized.details ? { details: normalized.details } : {}),
       },
       requestId,
     });
@@ -204,17 +232,18 @@ export function errorHandler(
 
     res.status(409).json({
       code: "constraint_violation",
-      message: "Request violates a database constraint.",
+      message: "Constraint violation.",
       requestId,
     });
     return;
   }
 
-  // DB UNAVAILABLE
+  // DB CONNECTION ERRORS
   if (isDbConnectionFailure(err)) {
     logError("request_error", {
       ...logBase,
-      status: 503,
+      status: 500,
+      code: "db_unavailable",
     });
 
     trackException({
@@ -222,15 +251,15 @@ export function errorHandler(
       properties: {
         requestId,
         route: req.originalUrl,
-        status: 503,
-        code: "service_unavailable",
+        status: 500,
+        code: "db_unavailable",
         failure_reason: failureReason,
       },
     });
 
-    res.status(503).json({
-      code: "service_unavailable",
-      message: "Service unavailable.",
+    res.status(500).json({
+      code: "db_unavailable",
+      message: isTimeoutError(err) ? "Database timeout." : "Database unavailable.",
       requestId,
     });
     return;
@@ -240,7 +269,8 @@ export function errorHandler(
   logError("request_error", {
     ...logBase,
     status: 500,
-    stack: err.stack,
+    code: "internal_error",
+    message: err.message,
   });
 
   trackException({
@@ -249,32 +279,14 @@ export function errorHandler(
       requestId,
       route: req.originalUrl,
       status: 500,
+      code: "internal_error",
       failure_reason: failureReason,
     },
   });
 
   res.status(500).json({
-    code: "server_error",
-    message: "An unexpected error occurred.",
-    requestId,
-  });
-}
-
-export function notFoundHandler(req: Request, res: Response): void {
-  const requestId = res.locals.requestId ?? "unknown";
-
-  logWarn("not_found", {
-    requestId,
-    method: req.method,
-    route: req.originalUrl,
-    origin: req.get("origin"),
-    referrer: req.get("referrer"),
-    ip: req.ip ?? "unknown",
-  });
-
-  res.status(404).json({
-    code: "not_found",
-    message: "Route not found.",
+    code: "internal_error",
+    message: "Unexpected error",
     requestId,
   });
 }

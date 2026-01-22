@@ -14,6 +14,7 @@ import {
   markNotReady,
   markReady,
 } from "./startupState";
+import "./startup/envValidation";
 import "./services/twilio";
 import { PORTAL_ROUTE_REQUIREMENTS, API_ROUTE_MOUNTS } from "./routes/routeRegistry";
 import { checkDb } from "./db";

@@ -115,7 +115,7 @@ describe("auth otp", () => {
       requestId,
     });
 
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(400);
     expect(res.body.error).toEqual({
       code: "invalid_code",
       message: "Invalid or expired code",

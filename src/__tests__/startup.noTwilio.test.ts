@@ -6,7 +6,7 @@ describe("startup without Twilio configuration", () => {
     jest.resetModules();
   });
 
-  it("imports the server and reports Twilio disabled", () => {
+  it("fails fast when Twilio env vars are missing", () => {
     process.env = { ...originalEnv, NODE_ENV: "test" };
     delete process.env.TWILIO_ACCOUNT_SID;
     delete process.env.TWILIO_AUTH_TOKEN;
@@ -15,9 +15,9 @@ describe("startup without Twilio configuration", () => {
     expect(() => {
       jest.isolateModules(() => {
         require("../index");
-        const { isTwilioEnabled } = require("../services/twilio");
-        expect(isTwilioEnabled()).toBe(false);
       });
-    }).not.toThrow();
+    }).toThrow(
+      "Missing required environment variables: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_VERIFY_SERVICE_SID"
+    );
   });
 });

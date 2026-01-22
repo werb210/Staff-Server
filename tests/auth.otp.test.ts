@@ -95,6 +95,6 @@ describe("OTP integration", () => {
       .post("/api/auth/otp/verify")
       .send({ phone: FAIL_PHONE, code: "123456" });
 
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(400);
   });
 });

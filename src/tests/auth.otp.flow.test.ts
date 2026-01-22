@@ -117,7 +117,7 @@ describe("auth otp flow regression coverage", () => {
       phone: TEST_PHONE,
       code: "000000",
     });
-    expect(firstAttempt.status).toBe(401);
+    expect(firstAttempt.status).toBe(400);
 
     const secondAttempt = await otpVerifyRequest(app, { phone: TEST_PHONE });
     expect(secondAttempt.status).toBe(200);

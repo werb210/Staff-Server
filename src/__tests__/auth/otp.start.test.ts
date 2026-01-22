@@ -43,19 +43,11 @@ describe("POST /api/auth/otp/start", () => {
     });
   });
 
-  it("fails when Twilio env vars are missing", async () => {
+  it("fails fast when Twilio env vars are missing", () => {
     delete process.env.TWILIO_VERIFY_SERVICE_SID;
 
-    const app = buildTestApp();
-    const res = await request(app)
-      .post("/api/auth/otp/start")
-      .send({ phone: "+15878881837" });
-
-    expect(res.status).toBe(503);
-    expect(res.body.ok).toBe(false);
-    expect(res.body.error).toEqual({
-      code: "twilio_unavailable",
-      message: "Twilio is not configured.",
-    });
+    expect(() => buildTestApp()).toThrow(
+      "Missing required environment variables: TWILIO_VERIFY_SERVICE_SID"
+    );
   });
 });

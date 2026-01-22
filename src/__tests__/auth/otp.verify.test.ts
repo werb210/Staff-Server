@@ -35,7 +35,7 @@ describe("POST /api/auth/otp/verify", () => {
       .post("/api/auth/otp/verify")
       .send({ phone, code: "000000" });
 
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(400);
     expect(res.body.ok).toBe(false);
     expect(res.body.error).toEqual({
       code: "invalid_code",
