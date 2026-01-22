@@ -7,16 +7,21 @@ export function routeResolutionLogger(
   next: NextFunction
 ): void {
   res.on("finish", () => {
+    // If no route matched, Express never sets req.route
+    if (!req.route) {
+      return;
+    }
+
     const requestId = res.locals.requestId ?? "unknown";
-    const matchedRoute = req.route?.path ?? "UNMATCHED";
-    const routerBase = req.baseUrl || undefined;
+
     logInfo("route_resolved", {
       requestId,
       method: req.method,
       originalUrl: req.originalUrl,
-      matchedRoute,
-      routerBase,
+      baseUrl: req.baseUrl || undefined,
+      routePath: req.route.path,
     });
   });
+
   next();
 }
