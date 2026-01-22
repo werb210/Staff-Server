@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from "express";
-import { requireAuth, requireCapability } from "../middleware/auth";
+import requireAuthWithInternalBypass from "../middleware/requireAuth";
+import { requireCapability } from "../middleware/auth";
 import { CAPABILITIES } from "../auth/capabilities";
 import applicationRoutes from "../modules/applications/applications.routes";
 import { AppError } from "../middleware/errors";
@@ -33,6 +34,7 @@ type ApplicationResponse = {
 };
 
 const router = Router();
+
 const intakeFields = [
   "source",
   "country",
@@ -42,11 +44,14 @@ const intakeFields = [
   "financialProfile",
   "match",
 ];
+
 const legacyFields = ["name", "metadata", "productType"];
 
-router.use(requireAuth);
+function toApplicationResponse(
+  record: ApplicationRecord
+): ApplicationResponse {
+  assertApplicationRecord(record);
 
-function toApplicationResponse(record: ApplicationRecord): ApplicationResponse {
   return {
     id: record.id,
     ownerUserId: record.owner_user_id,
@@ -73,59 +78,82 @@ function assertApplicationRecord(record: ApplicationRecord): void {
   }
 }
 
+/**
+ * GET /api/applications
+ */
 router.get(
   "/",
-  requireAuth,
+  requireAuthWithInternalBypass,
   requireCapability([CAPABILITIES.APPLICATION_READ]),
   safeHandler(async (req, res) => {
     const page = Math.max(1, Number(req.query.page) || 1);
     const pageSize = Math.max(1, Number(req.query.pageSize) || 25);
-    try {
-      const applications = await listApplications({
-        limit: pageSize,
-        offset: (page - 1) * pageSize,
-      });
-      if (!Array.isArray(applications)) {
-        res.status(200).json({ items: [] });
-        return;
-      }
-      applications.forEach(assertApplicationRecord);
-      res.status(200).json({ items: applications.map(toApplicationResponse) });
-    } catch (err) {
+
+    const applications = await listApplications({
+      limit: pageSize,
+      offset: (page - 1) * pageSize,
+    });
+
+    if (!Array.isArray(applications)) {
       res.status(200).json({ items: [] });
+      return;
     }
+
+    res.status(200).json({
+      items: applications.map(toApplicationResponse),
+    });
   })
 );
 
+/**
+ * POST /api/applications
+ * Handles intake-style submissions
+ */
 router.post(
   "/",
+  requireAuthWithInternalBypass,
   safeHandler(async (req: Request, res: Response, next) => {
     const body = (req.body ?? {}) as Record<string, unknown>;
+
     const isIntakePayload = intakeFields.some((field) => field in body);
     const isLegacyPayload = legacyFields.some((field) => field in body);
+
     if (isLegacyPayload || !isIntakePayload) {
       next();
       return;
     }
-    const payload = (req.body ?? {}) as ApplicationPayload;
+
+    const payload = body as ApplicationPayload;
     const missingFields: string[] = [];
+
     if (!payload.source) missingFields.push("source");
     if (!payload.country) missingFields.push("country");
     if (!payload.productCategory) missingFields.push("productCategory");
-    if (!payload.business?.legalName) missingFields.push("business.legalName");
-    if (!payload.applicant?.firstName) missingFields.push("applicant.firstName");
-    if (!payload.applicant?.lastName) missingFields.push("applicant.lastName");
-    if (!payload.applicant?.email) missingFields.push("applicant.email");
-    if (!payload.financialProfile) missingFields.push("financialProfile");
+    if (!payload.business?.legalName)
+      missingFields.push("business.legalName");
+    if (!payload.applicant?.firstName)
+      missingFields.push("applicant.firstName");
+    if (!payload.applicant?.lastName)
+      missingFields.push("applicant.lastName");
+    if (!payload.applicant?.email)
+      missingFields.push("applicant.email");
+    if (!payload.financialProfile)
+      missingFields.push("financialProfile");
     if (!payload.match) missingFields.push("match");
 
     if (missingFields.length > 0) {
-      const err = new AppError("validation_error", "Missing required fields.", 400);
+      const err = new AppError(
+        "validation_error",
+        "Missing required fields.",
+        400
+      );
       (err as { details?: unknown }).details = { fields: missingFields };
       throw err;
     }
 
-    const ownerUserId = req.user?.userId ?? getClientSubmissionOwnerUserId();
+    const ownerUserId =
+      req.user?.userId ?? getClientSubmissionOwnerUserId();
+
     const created = await createApplication({
       ownerUserId,
       name: payload.business?.legalName ?? "New application",
@@ -141,6 +169,7 @@ router.post(
       },
       productType: payload.productCategory ?? "standard",
     });
+
     res.status(201).json({
       applicationId: created.id,
       createdAt: created.created_at,
@@ -150,6 +179,13 @@ router.post(
   })
 );
 
-router.use("/", applicationRoutes);
+/**
+ * Nested application routes
+ */
+router.use(
+  "/",
+  requireAuthWithInternalBypass,
+  applicationRoutes
+);
 
 export default router;
