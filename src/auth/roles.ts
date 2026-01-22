@@ -8,15 +8,33 @@ export const ROLES = {
 
 export type Role = (typeof ROLES)[keyof typeof ROLES];
 
-const roleSet = new Set(Object.values(ROLES));
-const roleByLowercase = new Map(
+/**
+ * Canonical role set.
+ * Role comparison is STRICT and CASE-SENSITIVE.
+ */
+const ROLE_SET: ReadonlySet<Role> = new Set(Object.values(ROLES));
+
+/**
+ * Lowercase lookup table is ONLY for explicit normalization flows
+ * (e.g. login / provisioning), never for auth enforcement.
+ */
+const ROLE_BY_LOWERCASE: ReadonlyMap<string, Role> = new Map(
   Object.values(ROLES).map((role) => [role.toLowerCase(), role])
 );
 
-export function isRole(value: string): value is Role {
-  return roleSet.has(value as Role);
+/**
+ * Strict role guard.
+ * Do NOT normalize implicitly.
+ */
+export function isRole(value: unknown): value is Role {
+  return typeof value === "string" && ROLE_SET.has(value as Role);
 }
 
+/**
+ * Explicit normalization helper.
+ * Must be called intentionally — never inside auth middleware.
+ */
 export function normalizeRole(value: string): Role | null {
-  return roleByLowercase.get(value.trim().toLowerCase()) ?? null;
+  const normalized = value.trim().toLowerCase();
+  return ROLE_BY_LOWERCASE.get(normalized) ?? null;
 }
