@@ -89,6 +89,7 @@ describe("auth otp contract", () => {
 
     expect(payload.sub).toBe(user.id);
     expect(payload.role).toBe(ROLES.STAFF);
+    expect(payload.silo).toBe("BF");
   });
 
   it("rejects OTP verify when user role is missing", async () => {
@@ -136,7 +137,8 @@ describe("auth otp contract", () => {
 
     expect(me.status).toBe(200);
     expect(me.body.ok).toBe(true);
-    expect(me.body.data.role).toBe(ROLES.STAFF);
+    expect(me.body.role).toBe(ROLES.STAFF);
+    expect(me.body.silo).toBe("BF");
   });
 
   it("returns 200 on repeated OTP verify without calling Twilio", async () => {

@@ -87,6 +87,7 @@ describe("auth contract", () => {
 
     const decoded = jwt.verify(token!, process.env.JWT_SECRET!) as {
       role?: string;
+      silo?: string;
     };
 
     expect(decoded.role).toBeTruthy();
@@ -98,6 +99,7 @@ describe("auth contract", () => {
       ROLES.REFERRER,
     ]).toContain(decoded.role);
     expect(decoded.role).not.toBe(decoded.role?.toLowerCase());
+    expect(decoded.silo).toBe("BF");
   });
 
   it("auth me contract with bearer token", async () => {
@@ -113,8 +115,9 @@ describe("auth contract", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
-    expect(res.body.data.userId).toBeTruthy();
-    expect(res.body.data.role).toBe(ROLES.STAFF);
+    expect(res.body.userId).toBeTruthy();
+    expect(res.body.role).toBe(ROLES.STAFF);
+    expect(res.body.silo).toBe("BF");
     expect(res.headers["set-cookie"]).toBeUndefined();
   });
 

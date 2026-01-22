@@ -26,8 +26,9 @@ describe("auth me smoke", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
-    expect(res.body.data.userId).toBe("user-123");
-    expect(res.body.data.role).toBe(ROLES.STAFF);
+    expect(res.body.userId).toBe("user-123");
+    expect(res.body.role).toBe(ROLES.STAFF);
+    expect(res.body.silo).toBe("BF");
   });
 
   it("rejects tokens without role claim", async () => {

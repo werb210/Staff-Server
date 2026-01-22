@@ -1,5 +1,7 @@
 import { type Request, type Response } from "express";
+import { DEFAULT_AUTH_SILO } from "../../auth/silo";
 import { getRequestId } from "../../middleware/requestContext";
+import { findAuthUserById } from "../../modules/auth/auth.repo";
 import { logError } from "../../observability/logger";
 import { validateAuthMe } from "../../validation/auth.validation";
 
@@ -69,16 +71,35 @@ export async function authMeHandler(
       return;
     }
 
+    let silo = user.silo;
+    if (!user.siloFromToken) {
+      try {
+        const userRecord = await findAuthUserById(user.userId);
+        if (userRecord?.silo?.trim()) {
+          silo = userRecord.silo.trim();
+        } else {
+          silo = DEFAULT_AUTH_SILO;
+        }
+      } catch (err) {
+        logError("auth_me_silo_lookup_failed", {
+          route,
+          requestId,
+          userId: user.userId,
+          err,
+        });
+        silo = DEFAULT_AUTH_SILO;
+      }
+    }
+
+    if (!silo?.trim()) {
+      silo = DEFAULT_AUTH_SILO;
+    }
+
     const responseBody = {
       ok: true,
-      data: {
-        userId: user.userId,
-        role: user.role,
-        phone: user.phone ?? null,
-        capabilities: user.capabilities,
-      },
-      error: null,
-      requestId,
+      userId: user.userId,
+      role: user.role,
+      silo,
     };
 
     const validation = validateAuthMe(responseBody);

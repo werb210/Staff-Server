@@ -25,10 +25,11 @@ describe("auth me contract", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
-    expect(res.body.data.userId).toBe("user-1");
-    expect(res.body.data.role).toBe(ROLES.STAFF);
+    expect(res.body.userId).toBe("user-1");
+    expect(res.body.role).toBe(ROLES.STAFF);
+    expect(res.body.silo).toBe("BF");
     expect(res.headers["set-cookie"]).toBeUndefined();
-    expect(querySpy).not.toHaveBeenCalled();
+    expect(querySpy).toHaveBeenCalled();
     querySpy.mockRestore();
   });
 
