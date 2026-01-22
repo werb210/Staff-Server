@@ -5,83 +5,48 @@ import { pool } from "../db";
 import { isDbConnectionFailure, isTestEnvironment } from "../dbRuntime";
 import { AppError } from "./errors";
 import { isProductionEnvironment } from "../config";
-import { createIdempotencyRecord, findIdempotencyRecord } from "../modules/idempotency/idempotency.repo";
+import {
+  createIdempotencyRecord,
+  findIdempotencyRecord,
+} from "../modules/idempotency/idempotency.repo";
 import { logWarn } from "../observability/logger";
 import { trackEvent } from "../observability/appInsights";
 import { setRequestIdempotencyKeyHash } from "./requestContext";
 
-type IdempotencyContext = {
-  key: string;
-  hash: string;
-  route: string;
-  requestHash: string;
-  lockClient: PoolClient | null;
-  lockKey: [number, number] | null;
-  shouldStore: boolean;
-};
-
 const IDEMPOTENCY_HEADER = "idempotency-key";
+const ENFORCED_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
-function hashValue(value: string): string {
+function sha256(value: string): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
-function createAdvisoryLockKey(value: string): [number, number] {
+function advisoryLockKey(value: string): [number, number] {
   const hash = createHash("sha256").update(value).digest();
   return [hash.readInt32BE(0), hash.readInt32BE(4)];
 }
 
-
 function stableStringify(value: unknown): string {
-  if (value === null || value === undefined) {
-    return "null";
-  }
-  if (typeof value !== "object") {
-    return JSON.stringify(value);
-  }
+  if (value === null || value === undefined) return "null";
+  if (typeof value !== "object") return JSON.stringify(value);
   if (Array.isArray(value)) {
-    return `[${value.map((item) => stableStringify(item)).join(",")}]`;
+    return `[${value.map(stableStringify).join(",")}]`;
   }
   const record = value as Record<string, unknown>;
-  const keys = Object.keys(record).sort();
-  const entries = keys.map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`);
-  return `{${entries.join(",")}}`;
+  return `{${Object.keys(record)
+    .sort()
+    .map((k) => `${JSON.stringify(k)}:${stableStringify(record[k])}`)
+    .join(",")}}`;
 }
 
-function getRequestRoute(req: Request): string {
-  return req.path;
+function isAuthRoute(req: Request): boolean {
+  return req.path.startsWith("/api/auth/");
 }
 
-function emitTelemetry(event: string, params: { route: string; requestId: string; keyHash: string }): void {
-  trackEvent({
-    name: event,
-    properties: {
-      route: params.route,
-      requestId: params.requestId,
-      idempotencyKeyHash: params.keyHash,
-    },
-  });
-}
-
-function isIdempotencySchemaError(error: unknown): boolean {
-  if (!(error instanceof Error)) {
-    return false;
-  }
+function shouldBypass(error: unknown): boolean {
+  if (isDbConnectionFailure(error)) return true;
+  if (!(error instanceof Error)) return false;
   const code = (error as { code?: string }).code;
-  if (code === "42P01" || code === "42703" || code === "42P07") {
-    return true;
-  }
-  const message = error.message.toLowerCase();
-  return message.includes("idempotency_keys") && (
-    message.includes("does not exist") ||
-    message.includes("undefined") ||
-    message.includes("column") ||
-    message.includes("relation")
-  );
-}
-
-function shouldBypassIdempotency(error: unknown): boolean {
-  return isDbConnectionFailure(error) || isIdempotencySchemaError(error);
+  return code === "42P01" || code === "42703" || code === "42P07";
 }
 
 export function idempotencyMiddleware(
@@ -89,224 +54,162 @@ export function idempotencyMiddleware(
   res: Response,
   next: NextFunction
 ): void {
-  const route = getRequestRoute(req);
-  const isAuthRoute = route.startsWith("/api/auth/") || route.startsWith("/auth/");
-  if (isAuthRoute) {
-    next();
-    return;
-  }
+  if (isAuthRoute(req)) return next();
+  if (!ENFORCED_METHODS.has(req.method)) return next();
 
-  const method = req.method.toUpperCase();
-  const enforceMethods = ["POST", "PUT", "PATCH", "DELETE"];
-  if (!enforceMethods.includes(method)) {
-    next();
-    return;
-  }
-
-  const key = req.get(IDEMPOTENCY_HEADER);
-  const trimmedKey = key ? key.trim() : "";
-  if (!trimmedKey) {
+  const rawKey = req.get(IDEMPOTENCY_HEADER)?.trim();
+  if (!rawKey) {
     if (!isProductionEnvironment()) {
       logWarn("idempotency_key_missing", {
-        route,
-        method: req.method,
+        route: req.originalUrl,
         requestId: res.locals.requestId ?? "unknown",
       });
     }
-    next(new AppError("missing_idempotency_key", "Idempotency-Key header is required.", 400));
-    return;
-  }
-  if (trimmedKey.length > 128) {
-    next(new AppError("idempotency_key_too_long", "Idempotency-Key is too long.", 400));
-    return;
+    return next(
+      new AppError(
+        "missing_idempotency_key",
+        "Idempotency-Key header is required.",
+        400
+      )
+    );
   }
 
-  if (res.locals.idempotencyKeyGenerated) {
-    next();
-    return;
+  if (rawKey.length > 128) {
+    return next(
+      new AppError(
+        "idempotency_key_too_long",
+        "Idempotency-Key is too long.",
+        400
+      )
+    );
   }
 
   const requestId = res.locals.requestId ?? "unknown";
-  const requestHash = hashValue(stableStringify(req.body ?? {}));
-  const keyHash = hashValue(trimmedKey);
+  const route = req.path;
+  const requestHash = sha256(stableStringify(req.body ?? {}));
+  const keyHash = sha256(rawKey);
+
   setRequestIdempotencyKeyHash(keyHash);
 
   if (isTestEnvironment() && req.get("authorization")) {
-    next();
-    return;
+    return next();
   }
-  const lockIdentifier = `${route}:${trimmedKey}`;
-  const lockKey = createAdvisoryLockKey(lockIdentifier);
 
-  let context: IdempotencyContext | null = null;
-  let resolved = false;
+  const lockKey = advisoryLockKey(`${route}:${rawKey}`);
+  let client: PoolClient | null = null;
+  let finalized = false;
 
   const finalize = async (): Promise<void> => {
-    if (!context || !context.shouldStore || resolved) {
-      return;
-    }
-    resolved = true;
-    const responseBody = res.locals.idempotencyResponseBody ?? null;
-    const shouldPersist = res.statusCode < 500;
-    if (!shouldPersist) {
-      if (context.lockClient && context.lockKey) {
-        try {
-          await context.lockClient.query("select pg_advisory_unlock($1, $2)", context.lockKey);
-        } catch {
-          // ignore unlock errors
-        }
-        context.lockClient.release();
-      }
-      return;
-    }
+    if (finalized) return;
+    finalized = true;
+
     try {
-      await createIdempotencyRecord({
-        idempotencyKey: context.key,
-        route: context.route,
-        method: req.method ?? "POST",
-        requestHash: context.requestHash,
-        responseCode: res.statusCode,
-        responseBody,
-        client: context.lockClient ?? undefined,
-      });
-    } catch (error) {
-      logWarn("idempotency_record_failed", {
+      if (!client) return;
+
+      if (res.statusCode < 500 && !res.locals.requestTimedOut) {
+        await createIdempotencyRecord({
+          idempotencyKey: rawKey,
+          route,
+          method: req.method,
+          requestHash,
+          responseCode: res.statusCode,
+          responseBody: res.locals.idempotencyResponseBody ?? null,
+          client,
+        });
+      }
+    } catch (err) {
+      logWarn("idempotency_persist_failed", {
         requestId,
         route,
-        error: error instanceof Error ? error.message : "unknown_error",
+        error: err instanceof Error ? err.message : "unknown_error",
       });
     } finally {
-      if (context.lockClient && context.lockKey) {
-        try {
-          await context.lockClient.query("select pg_advisory_unlock($1, $2)", context.lockKey);
-        } catch {
-          // ignore unlock errors
-        }
-        context.lockClient.release();
+      try {
+        await client.query("select pg_advisory_unlock($1,$2)", lockKey);
+      } catch {
+        /* ignore */
       }
+      client.release();
     }
   };
 
-  const handle = async (): Promise<void> => {
-    let lockClient: PoolClient | null = null;
+  (async () => {
     try {
-      lockClient = await pool.connect();
-      await lockClient.query("select pg_advisory_lock($1, $2)", lockKey);
-      let existing = null;
-      try {
-        existing = await findIdempotencyRecord({
-          route,
-          idempotencyKey: trimmedKey,
-          client: lockClient ?? undefined,
-        });
-      } catch (error) {
-        if (isAuthRoute || shouldBypassIdempotency(error)) {
-          logWarn("idempotency_bypassed", {
-            requestId,
-            route,
-            error: error instanceof Error ? error.message : "unknown_error",
-          });
-          if (lockClient) {
-            await lockClient.query("select pg_advisory_unlock($1, $2)", lockKey);
-            lockClient.release();
-          }
-          next();
-          return;
-        }
-        throw error;
-      }
+      client = await pool.connect();
+      await client.query("select pg_advisory_lock($1,$2)", lockKey);
+
+      const existing = await findIdempotencyRecord({
+        route,
+        idempotencyKey: rawKey,
+        client,
+      });
+
       if (existing) {
-        if (existing.request_hash && existing.request_hash !== requestHash) {
-          emitTelemetry("idempotency_conflict", { route, requestId, keyHash });
-          if (lockClient) {
-            await lockClient.query("select pg_advisory_unlock($1, $2)", lockKey);
-            lockClient.release();
-          }
-          res.status(409).json({
+        if (existing.request_hash !== requestHash) {
+          trackEvent({
+            name: "idempotency_conflict",
+            properties: { route, requestId, idempotencyKeyHash: keyHash },
+          });
+          await client.query("select pg_advisory_unlock($1,$2)", lockKey);
+          client.release();
+          return res.status(409).json({
             code: "idempotency_conflict",
             message: "Idempotency key reused with different payload.",
             requestId,
           });
-          return;
         }
-        emitTelemetry("idempotency_cache_hit", { route, requestId, keyHash });
-        emitTelemetry("duplicate_submission_blocked", { route, requestId, keyHash });
-        if (lockClient) {
-          await lockClient.query("select pg_advisory_unlock($1, $2)", lockKey);
-          lockClient.release();
-        }
-        res.status(existing.response_code).json(existing.response_body);
-        return;
+
+        trackEvent({
+          name: "idempotency_cache_hit",
+          properties: { route, requestId, idempotencyKeyHash: keyHash },
+        });
+
+        await client.query("select pg_advisory_unlock($1,$2)", lockKey);
+        client.release();
+        return res
+          .status(existing.response_code)
+          .json(existing.response_body);
       }
 
-      context = {
-        key: trimmedKey,
-        hash: keyHash,
-        route,
-        requestHash,
-        lockClient,
-        lockKey,
-        shouldStore: true,
-      };
+      const wrap = <T extends (...args: any[]) => any>(fn: T): T =>
+        ((body: unknown) => {
+          if (!res.headersSent && !res.locals.requestTimedOut) {
+            res.locals.idempotencyResponseBody = body;
+          }
+          return fn(body);
+        }) as T;
 
-      const originalJson = res.json.bind(res);
-      const originalSend = res.send.bind(res);
-      res.json = ((body: unknown) => {
-        if (res.headersSent || res.locals.requestTimedOut) {
-          return res;
-        }
-        res.locals.idempotencyResponseBody = body;
-        return originalJson(body);
-      }) as typeof res.json;
-      res.send = ((body: unknown) => {
-        if (res.headersSent || res.locals.requestTimedOut) {
-          return res;
-        }
-        res.locals.idempotencyResponseBody = body;
-        return originalSend(body);
-      }) as typeof res.send;
+      res.json = wrap(res.json.bind(res));
+      res.send = wrap(res.send.bind(res));
 
-      res.on("finish", () => {
-        void finalize();
-      });
-      res.on("close", () => {
-        void finalize();
-      });
+      res.on("finish", () => void finalize());
+      res.on("close", () => void finalize());
 
       next();
-    } catch (error) {
-      if (lockClient) {
+    } catch (err) {
+      if (client) {
         try {
-          await lockClient.query("select pg_advisory_unlock($1, $2)", lockKey);
+          await client.query("select pg_advisory_unlock($1,$2)", lockKey);
         } catch {
-          // ignore unlock errors
+          /* ignore */
         }
-        lockClient.release();
+        client.release();
       }
-      logWarn("idempotency_lock_failed", {
+
+      logWarn("idempotency_failed", {
         requestId,
         route,
-        error: error instanceof Error ? error.message : "unknown_error",
+        error: err instanceof Error ? err.message : "unknown_error",
       });
-      if (isAuthRoute || shouldBypassIdempotency(error)) {
-        logWarn("idempotency_bypassed", {
-          requestId,
-          route,
-          error: error instanceof Error ? error.message : "unknown_error",
-        });
-        next();
-        return;
-      }
-      next(error instanceof Error ? error : new Error("idempotency_lock_failed"));
-    }
-  };
 
-  void handle();
+      if (shouldBypass(err)) return next();
+      next(err instanceof Error ? err : new Error("idempotency_failed"));
+    }
+  })();
 }
 
-export function hashIdempotencyKey(key: string | null | undefined): string {
-  if (!key) {
-    return hashValue("missing");
-  }
-  return hashValue(key);
+export function hashIdempotencyKey(
+  key: string | null | undefined
+): string {
+  return sha256(key ?? "missing");
 }
