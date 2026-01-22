@@ -124,12 +124,15 @@ export function idempotencyMiddleware(
         error: err instanceof Error ? err.message : "unknown_error",
       });
     } finally {
-      try {
-        await client.query("select pg_advisory_unlock($1,$2)", lockKey);
-      } catch {
-        /* ignore */
+      if (client) {
+        try {
+          await client.query("select pg_advisory_unlock($1,$2)", lockKey);
+        } catch {
+          /* ignore */
+        } finally {
+          client.release();
+        }
       }
-      client.release();
     }
   };
 
