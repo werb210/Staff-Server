@@ -24,7 +24,13 @@ export const CAPABILITIES = {
 
 export type Capability = (typeof CAPABILITIES)[keyof typeof CAPABILITIES];
 
-const roleCapabilities: Record<Role, readonly Capability[]> = {
+/**
+ * IMPORTANT INVARIANTS
+ * - Every Role MUST be present
+ * - Returned arrays MUST be immutable copies
+ * - OPS_MANAGE is an absolute override handled at middleware level
+ */
+const ROLE_CAPABILITIES: Record<Role, readonly Capability[]> = {
   [ROLES.ADMIN]: [
     CAPABILITIES.STAFF_OVERVIEW,
     CAPABILITIES.USER_MANAGE,
@@ -46,21 +52,7 @@ const roleCapabilities: Record<Role, readonly Capability[]> = {
     CAPABILITIES.REPORT_VIEW,
     CAPABILITIES.OPS_MANAGE,
   ],
-  [ROLES.STAFF]: [
-    CAPABILITIES.STAFF_OVERVIEW,
-    CAPABILITIES.APPLICATION_READ,
-    CAPABILITIES.APPLICATION_CREATE,
-    CAPABILITIES.DOCUMENT_UPLOAD,
-    CAPABILITIES.DOCUMENT_REVIEW,
-    CAPABILITIES.PIPELINE_MANAGE,
-    CAPABILITIES.PIPELINE_OVERRIDE,
-    CAPABILITIES.LENDER_SUBMIT,
-    CAPABILITIES.CRM_READ,
-    CAPABILITIES.COMMUNICATIONS_READ,
-    CAPABILITIES.CALENDAR_READ,
-    CAPABILITIES.MARKETING_READ,
-    CAPABILITIES.SETTINGS_READ,
-  ],
+
   [ROLES.OPS]: [
     CAPABILITIES.STAFF_OVERVIEW,
     CAPABILITIES.USER_MANAGE,
@@ -82,13 +74,42 @@ const roleCapabilities: Record<Role, readonly Capability[]> = {
     CAPABILITIES.REPORT_VIEW,
     CAPABILITIES.OPS_MANAGE,
   ],
-  [ROLES.LENDER]: [CAPABILITIES.LENDER_SUBMIT],
+
+  [ROLES.STAFF]: [
+    CAPABILITIES.STAFF_OVERVIEW,
+    CAPABILITIES.APPLICATION_READ,
+    CAPABILITIES.APPLICATION_CREATE,
+    CAPABILITIES.DOCUMENT_UPLOAD,
+    CAPABILITIES.DOCUMENT_REVIEW,
+    CAPABILITIES.PIPELINE_MANAGE,
+    CAPABILITIES.PIPELINE_OVERRIDE,
+    CAPABILITIES.LENDER_SUBMIT,
+    CAPABILITIES.CRM_READ,
+    CAPABILITIES.COMMUNICATIONS_READ,
+    CAPABILITIES.CALENDAR_READ,
+    CAPABILITIES.MARKETING_READ,
+    CAPABILITIES.SETTINGS_READ,
+  ],
+
+  [ROLES.LENDER]: [
+    CAPABILITIES.LENDER_SUBMIT,
+  ],
+
   [ROLES.REFERRER]: [
     CAPABILITIES.APPLICATION_CREATE,
     CAPABILITIES.DOCUMENT_UPLOAD,
   ],
 };
 
+/**
+ * Returns a defensive copy.
+ * Never return the internal array.
+ */
 export function getCapabilitiesForRole(role: Role): Capability[] {
-  return [...(roleCapabilities[role] ?? [])];
+  const caps = ROLE_CAPABILITIES[role];
+  if (!caps) {
+    // Compile-time safety should prevent this, but runtime must still guard
+    throw new Error(`No capabilities defined for role: ${role}`);
+  }
+  return [...caps];
 }
