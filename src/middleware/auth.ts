@@ -114,7 +114,6 @@ export function getAuthenticatedUserFromRequest(
 ): AuthUser | null {
   const { token } = getAuthHeaderInfo(req);
   if (!token) return null;
-
   return getAuthenticatedUserFromToken(token);
 }
 
