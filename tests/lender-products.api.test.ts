@@ -121,8 +121,8 @@ describe("lender products API", () => {
       .set("x-request-id", requestId);
 
     expect(listResponse.status).toBe(200);
-    expect(Array.isArray(listResponse.body.items)).toBe(true);
-    const items = listResponse.body.items as Array<{ name: string }>;
+    expect(Array.isArray(listResponse.body)).toBe(true);
+    const items = listResponse.body as Array<{ name: string }>;
     items.forEach((item) => {
       expect(typeof item.name).toBe("string");
       expect(item.name.length).toBeGreaterThan(0);

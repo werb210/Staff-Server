@@ -1,10 +1,14 @@
 import {
   createLenderProductService,
   DEFAULT_LENDER_PRODUCT_NAME,
+  listLenderProductsByLenderIdService,
+  listLenderProductsService,
   updateLenderProductService,
 } from "../src/services/lenderProductsService";
 import {
   createLenderProduct,
+  listLenderProducts,
+  listLenderProductsByLenderId,
   updateLenderProduct,
 } from "../src/repositories/lenderProducts.repo";
 
@@ -16,6 +20,11 @@ jest.mock("../src/repositories/lenderProducts.repo", () => ({
 }));
 
 const mockedCreate = createLenderProduct as jest.MockedFunction<typeof createLenderProduct>;
+const mockedList = listLenderProducts as jest.MockedFunction<typeof listLenderProducts>;
+const mockedListByLenderId =
+  listLenderProductsByLenderId as jest.MockedFunction<
+    typeof listLenderProductsByLenderId
+  >;
 const mockedUpdate = updateLenderProduct as jest.MockedFunction<typeof updateLenderProduct>;
 
 describe("lenderProductsService", () => {
@@ -50,6 +59,61 @@ describe("lenderProductsService", () => {
 
     expect(mockedUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ name: DEFAULT_LENDER_PRODUCT_NAME })
+    );
+  });
+
+  it("returns full lender product records when listing all products", async () => {
+    const record = {
+      id: "product-1",
+      lender_id: "lender-1",
+      name: "Bridge Loan",
+      description: "Short-term funding.",
+      active: true,
+      required_documents: [],
+      created_at: new Date("2024-01-01T00:00:00Z"),
+      updated_at: new Date("2024-01-02T00:00:00Z"),
+    };
+
+    mockedList.mockResolvedValue([record]);
+
+    const results = await listLenderProductsService();
+
+    expect(results).toEqual([record]);
+    expect(results[0]).toEqual(
+      expect.objectContaining({
+        id: record.id,
+        lender_id: record.lender_id,
+        name: record.name,
+      })
+    );
+  });
+
+  it("returns full lender product records when listing by lender id", async () => {
+    const record = {
+      id: "product-2",
+      lender_id: "lender-2",
+      name: "Construction Loan",
+      description: null,
+      active: false,
+      required_documents: [],
+      created_at: new Date("2024-02-01T00:00:00Z"),
+      updated_at: new Date("2024-02-02T00:00:00Z"),
+    };
+
+    mockedListByLenderId.mockResolvedValue([record]);
+
+    const results = await listLenderProductsByLenderIdService({
+      lenderId: "lender-2",
+      silo: null,
+    });
+
+    expect(results).toEqual([record]);
+    expect(results[0]).toEqual(
+      expect.objectContaining({
+        id: record.id,
+        lender_id: record.lender_id,
+        name: record.name,
+      })
     );
   });
 });
