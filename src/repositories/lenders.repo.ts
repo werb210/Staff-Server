@@ -1,5 +1,7 @@
 import { randomUUID } from "crypto";
 import { pool } from "../db";
+import { AppError } from "../middleware/errors";
+import { logError } from "../observability/logger";
 
 export interface CreateLenderInput {
   name: string;
@@ -11,24 +13,36 @@ export interface CreateLenderInput {
   postal_code?: string | null;
 }
 
+export const LIST_LENDERS_SQL = `
+  SELECT
+    id,
+    name,
+    country,
+    submission_method,
+    email,
+    phone,
+    website,
+    postal_code,
+    created_at
+  FROM lenders
+  ORDER BY created_at DESC
+`;
+
 export async function listLenders() {
-  const rows = await pool.query(
-    `
-    SELECT
-      id,
-      name,
-      country,
-      submission_method,
-      email,
-      phone,
-      website,
-      postal_code,
-      created_at
-    FROM lenders
-    ORDER BY created_at DESC
-    `
-  );
-  return rows.rows;
+  try {
+    const rows = await pool.query(LIST_LENDERS_SQL);
+    return rows.rows;
+  } catch (err) {
+    logError("lenders_query_failed", {
+      sql: LIST_LENDERS_SQL,
+      params: [],
+      stack: err instanceof Error ? err.stack : undefined,
+    });
+    const error = err instanceof Error ? err : new Error("Unknown database error.");
+    const appError = new AppError("db_error", error.message, 500);
+    appError.stack = error.stack;
+    throw appError;
+  }
 }
 
 export async function getLenderById(id: string) {

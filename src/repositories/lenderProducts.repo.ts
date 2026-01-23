@@ -5,6 +5,8 @@ import {
   type LenderProductRecord,
   type RequiredDocument,
 } from "../db/schema/lenderProducts";
+import { AppError } from "../middleware/errors";
+import { logError } from "../observability/logger";
 
 type Queryable = Pick<PoolClient, "query">;
 
@@ -34,27 +36,41 @@ export async function createLenderProduct(params: {
   return res.rows[0];
 }
 
+export const LIST_LENDER_PRODUCTS_SQL = `select id,
+        lender_id,
+        coalesce(name, 'Unnamed Product') as name,
+        description,
+        active,
+        required_documents,
+        created_at,
+        updated_at
+ from lender_products
+ where ($1::boolean is false or active = true)
+ order by created_at desc`;
+
 export async function listLenderProducts(params?: {
   activeOnly?: boolean;
   client?: Queryable;
 }): Promise<LenderProductRecord[]> {
   const runner = params?.client ?? pool;
   const activeOnly = params?.activeOnly === true;
-  const res = await runner.query<LenderProductRecord>(
-    `select id,
-            lender_id,
-            coalesce(name, 'Unnamed Product') as name,
-            description,
-            active,
-            required_documents,
-            created_at,
-            updated_at
-     from lender_products
-     where ($1::boolean is false or active = true)
-     order by created_at desc`,
-    [activeOnly]
-  );
-  return res.rows;
+  try {
+    const res = await runner.query<LenderProductRecord>(
+      LIST_LENDER_PRODUCTS_SQL,
+      [activeOnly]
+    );
+    return res.rows;
+  } catch (err) {
+    logError("lender_products_query_failed", {
+      sql: LIST_LENDER_PRODUCTS_SQL,
+      params: [activeOnly],
+      stack: err instanceof Error ? err.stack : undefined,
+    });
+    const error = err instanceof Error ? err : new Error("Unknown database error.");
+    const appError = new AppError("db_error", error.message, 500);
+    appError.stack = error.stack;
+    throw appError;
+  }
 }
 
 export async function listLenderProductsByLenderId(params: {
