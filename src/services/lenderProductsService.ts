@@ -47,6 +47,15 @@ function filterBySilo<T extends Record<string, unknown>>(
   });
 }
 
+function normalizeRequiredDocuments<T extends { required_documents?: RequiredDocument[] | null }>(
+  record: T
+): T & { required_documents: RequiredDocument[] } {
+  return {
+    ...record,
+    required_documents: record.required_documents ?? [],
+  };
+}
+
 export async function createLenderProductService(params: {
   lenderId: string;
   name: unknown;
@@ -71,7 +80,10 @@ export async function listLenderProductsService(params?: {
 }): Promise<Awaited<ReturnType<typeof listLenderProducts>>> {
   const products = await listLenderProducts(params);
   const resolvedSilo = resolveSilo(params?.silo);
-  return filterBySilo(products, resolvedSilo);
+  const normalized = (products ?? []).map((product) =>
+    normalizeRequiredDocuments(product)
+  );
+  return filterBySilo(normalized, resolvedSilo);
 }
 
 export async function listLenderProductsByLenderIdService(params: {
@@ -80,7 +92,10 @@ export async function listLenderProductsByLenderIdService(params: {
 }): Promise<Awaited<ReturnType<typeof listLenderProductsByLenderId>>> {
   const products = await listLenderProductsByLenderId(params);
   const resolvedSilo = resolveSilo(params.silo);
-  return filterBySilo(products, resolvedSilo);
+  const normalized = (products ?? []).map((product) =>
+    normalizeRequiredDocuments(product)
+  );
+  return filterBySilo(normalized, resolvedSilo);
 }
 
 export async function updateLenderProductService(params: {

@@ -1,7 +1,3 @@
-export const LENDER_SUBMISSION_METHODS = ["EMAIL", "API"] as const;
-
-export type LenderSubmissionMethod = (typeof LENDER_SUBMISSION_METHODS)[number];
-
 export type LenderRecord = {
   id: string;
   name: string;
@@ -18,7 +14,7 @@ export type LenderRecord = {
   contact_name: string | null;
   contact_email: string | null;
   contact_phone: string | null;
-  submission_method: LenderSubmissionMethod | null;
+  submission_method: string | null;
   submission_email: string | null;
   created_at: Date;
 };

@@ -1,6 +1,10 @@
 import { Request, Response } from "express";
 import * as repo from "../repositories/lenders.repo";
 import {
+  getLenderByIdService,
+  listLendersService,
+} from "../services/lendersService";
+import {
   listLenderProductsByLenderIdService,
 } from "../services/lenderProductsService";
 import { AppError } from "../middleware/errors";
@@ -40,8 +44,7 @@ export async function listLenders(
 ): Promise<void> {
   const requestId = res.locals.requestId ?? "unknown";
   try {
-    const lenders = await repo.listLenders();
-    const safeLenders = Array.isArray(lenders) ? lenders : [];
+    const safeLenders = await listLendersService();
     const resolvedSilo = resolveSilo(req.user?.silo);
     const filtered = filterBySilo(safeLenders, resolvedSilo);
     res.status(200).json(filtered);
@@ -144,7 +147,7 @@ export async function getLenderWithProducts(
       throw new AppError("validation_error", "id is required.", 400);
     }
 
-    const lender = await repo.getLenderById(id.trim());
+    const lender = await getLenderByIdService(id.trim());
     if (!lender) {
       throw new AppError("not_found", "Lender not found.", 404);
     }
