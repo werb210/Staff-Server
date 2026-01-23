@@ -59,6 +59,12 @@ type IdempotentResult<T> = {
 
 type Queryable = Pick<PoolClient, "query">;
 
+const DEFAULT_PIPELINE_STAGE = "REQUIRES_DOCS";
+
+function normalizePipelineStage(stage: string | null): string {
+  return stage ?? DEFAULT_PIPELINE_STAGE;
+}
+
 function assertMetadata(value: unknown): asserts value is MetadataPayload {
   if (!value || typeof value !== "object") {
     throw new AppError("invalid_metadata", "Metadata is required.", 400);
@@ -307,7 +313,7 @@ export async function createApplicationForUser(params: {
       name: updated.name,
       metadata: updated.metadata,
       productType: updated.product_type,
-      pipelineState: updated.pipeline_state,
+      pipelineState: normalizePipelineStage(updated.pipeline_state),
       createdAt: updated.created_at,
       updatedAt: updated.updated_at,
     };

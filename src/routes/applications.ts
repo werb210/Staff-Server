@@ -8,9 +8,11 @@ import { getClientSubmissionOwnerUserId } from "../config";
 import {
   createApplication,
   listApplications,
+  findApplicationById,
   type ApplicationRecord,
 } from "../modules/applications/applications.repo";
 import { safeHandler } from "../middleware/safeHandler";
+import { logError } from "../observability/logger";
 
 type ApplicationPayload = {
   country?: string;
@@ -46,6 +48,11 @@ const intakeFields = [
 ];
 
 const legacyFields = ["name", "metadata", "productType"];
+const DEFAULT_PIPELINE_STAGE = "REQUIRES_DOCS";
+
+function normalizePipelineStage(stage: string | null): string {
+  return stage ?? DEFAULT_PIPELINE_STAGE;
+}
 
 function toApplicationResponse(
   record: ApplicationRecord
@@ -58,7 +65,7 @@ function toApplicationResponse(
     name: record.name,
     metadata: record.metadata,
     productType: record.product_type,
-    pipelineState: record.pipeline_state,
+    pipelineState: normalizePipelineStage(record.pipeline_state),
     createdAt: record.created_at,
     updatedAt: record.updated_at,
   };
@@ -70,7 +77,7 @@ function assertApplicationRecord(record: ApplicationRecord): void {
     typeof record.id !== "string" ||
     typeof record.name !== "string" ||
     typeof record.product_type !== "string" ||
-    typeof record.pipeline_state !== "string" ||
+    (record.pipeline_state !== null && typeof record.pipeline_state !== "string") ||
     !(record.created_at instanceof Date) ||
     !(record.updated_at instanceof Date)
   ) {
@@ -86,22 +93,34 @@ router.get(
   requireAuthWithInternalBypass,
   requireCapability([CAPABILITIES.APPLICATION_READ]),
   safeHandler(async (req, res) => {
-    const page = Math.max(1, Number(req.query.page) || 1);
-    const pageSize = Math.max(1, Number(req.query.pageSize) || 25);
+    try {
+      const page = Math.max(1, Number(req.query.page) || 1);
+      const pageSize = Math.max(1, Number(req.query.pageSize) || 25);
+      const stage = typeof req.query.stage === "string" ? req.query.stage : null;
 
-    const applications = await listApplications({
-      limit: pageSize,
-      offset: (page - 1) * pageSize,
-    });
+      const applications = await listApplications({
+        limit: pageSize,
+        offset: (page - 1) * pageSize,
+        stage,
+      });
 
-    if (!Array.isArray(applications)) {
+      if (!Array.isArray(applications)) {
+        res.status(200).json({ items: [] });
+        return;
+      }
+
+      res.status(200).json({
+        items: applications.map(toApplicationResponse),
+      });
+    } catch (err) {
+      logError("applications_list_failed", {
+        error:
+          err instanceof Error
+            ? { name: err.name, message: err.message, stack: err.stack }
+            : err,
+      });
       res.status(200).json({ items: [] });
-      return;
     }
-
-    res.status(200).json({
-      items: applications.map(toApplicationResponse),
-    });
   })
 );
 
@@ -113,69 +132,107 @@ router.post(
   "/",
   requireAuthWithInternalBypass,
   safeHandler(async (req: Request, res: Response, next) => {
-    const body = (req.body ?? {}) as Record<string, unknown>;
+    try {
+      const body = (req.body ?? {}) as Record<string, unknown>;
 
-    const isIntakePayload = intakeFields.some((field) => field in body);
-    const isLegacyPayload = legacyFields.some((field) => field in body);
+      const isIntakePayload = intakeFields.some((field) => field in body);
+      const isLegacyPayload = legacyFields.some((field) => field in body);
 
-    if (isLegacyPayload || !isIntakePayload) {
-      next();
-      return;
-    }
+      if (isLegacyPayload || !isIntakePayload) {
+        next();
+        return;
+      }
 
-    const payload = body as ApplicationPayload;
-    const missingFields: string[] = [];
+      const payload = body as ApplicationPayload;
+      const missingFields: string[] = [];
 
-    if (!payload.source) missingFields.push("source");
-    if (!payload.country) missingFields.push("country");
-    if (!payload.productCategory) missingFields.push("productCategory");
-    if (!payload.business?.legalName)
-      missingFields.push("business.legalName");
-    if (!payload.applicant?.firstName)
-      missingFields.push("applicant.firstName");
-    if (!payload.applicant?.lastName)
-      missingFields.push("applicant.lastName");
-    if (!payload.applicant?.email)
-      missingFields.push("applicant.email");
-    if (!payload.financialProfile)
-      missingFields.push("financialProfile");
-    if (!payload.match) missingFields.push("match");
+      if (!payload.source) missingFields.push("source");
+      if (!payload.country) missingFields.push("country");
+      if (!payload.productCategory) missingFields.push("productCategory");
+      if (!payload.business?.legalName)
+        missingFields.push("business.legalName");
+      if (!payload.applicant?.firstName)
+        missingFields.push("applicant.firstName");
+      if (!payload.applicant?.lastName)
+        missingFields.push("applicant.lastName");
+      if (!payload.applicant?.email)
+        missingFields.push("applicant.email");
+      if (!payload.financialProfile)
+        missingFields.push("financialProfile");
+      if (!payload.match) missingFields.push("match");
 
-    if (missingFields.length > 0) {
-      const err = new AppError(
-        "validation_error",
-        "Missing required fields.",
-        400
-      );
-      (err as { details?: unknown }).details = { fields: missingFields };
+      if (missingFields.length > 0) {
+        const err = new AppError(
+          "validation_error",
+          "Missing required fields.",
+          400
+        );
+        (err as { details?: unknown }).details = { fields: missingFields };
+        throw err;
+      }
+
+      const ownerUserId =
+        req.user?.userId ?? getClientSubmissionOwnerUserId();
+
+      const created = await createApplication({
+        ownerUserId,
+        name: payload.business?.legalName ?? "New application",
+        pipelineState: "new",
+        metadata: {
+          source: payload.source ?? null,
+          country: payload.country ?? null,
+          productCategory: payload.productCategory ?? null,
+          business: payload.business ?? null,
+          applicant: payload.applicant ?? null,
+          financialProfile: payload.financialProfile ?? null,
+          match: payload.match ?? null,
+        },
+        productType: payload.productCategory ?? "standard",
+      });
+
+      res.status(201).json({
+        applicationId: created.id,
+        createdAt: created.created_at,
+        pipelineState: normalizePipelineStage(created.pipeline_state),
+        match: payload.match ?? null,
+      });
+    } catch (err) {
+      logError("applications_intake_create_failed", {
+        error:
+          err instanceof Error
+            ? { name: err.name, message: err.message, stack: err.stack }
+            : err,
+      });
       throw err;
     }
+  })
+);
 
-    const ownerUserId =
-      req.user?.userId ?? getClientSubmissionOwnerUserId();
-
-    const created = await createApplication({
-      ownerUserId,
-      name: payload.business?.legalName ?? "New application",
-      pipelineState: "new",
-      metadata: {
-        source: payload.source ?? null,
-        country: payload.country ?? null,
-        productCategory: payload.productCategory ?? null,
-        business: payload.business ?? null,
-        applicant: payload.applicant ?? null,
-        financialProfile: payload.financialProfile ?? null,
-        match: payload.match ?? null,
-      },
-      productType: payload.productCategory ?? "standard",
-    });
-
-    res.status(201).json({
-      applicationId: created.id,
-      createdAt: created.created_at,
-      pipelineState: created.pipeline_state,
-      match: payload.match ?? null,
-    });
+router.get(
+  "/:id",
+  requireAuthWithInternalBypass,
+  requireCapability([CAPABILITIES.APPLICATION_READ]),
+  safeHandler(async (req, res) => {
+    try {
+      const record = await findApplicationById(req.params.id);
+      if (!record) {
+        res.status(404).json({
+          code: "not_found",
+          message: "Application not found.",
+          requestId: res.locals.requestId ?? "unknown",
+        });
+        return;
+      }
+      res.status(200).json({ application: toApplicationResponse(record) });
+    } catch (err) {
+      logError("application_fetch_failed", {
+        error:
+          err instanceof Error
+            ? { name: err.name, message: err.message, stack: err.stack }
+            : err,
+      });
+      res.status(200).json({ application: null });
+    }
   })
 );
 
