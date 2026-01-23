@@ -8,7 +8,10 @@ import {
   listLenderProductsByLenderIdService,
 } from "../services/lenderProductsService";
 import { AppError } from "../middleware/errors";
-import { type RequiredDocument } from "../db/schema/lenderProducts";
+import {
+  type JsonObject,
+  type RequiredDocuments,
+} from "../db/schema/lenderProducts";
 import { logError } from "../observability/logger";
 
 type LenderProductResponse = {
@@ -17,7 +20,7 @@ type LenderProductResponse = {
   name: string;
   description: string | null;
   active: boolean;
-  required_documents: RequiredDocument[];
+  required_documents: RequiredDocuments;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -35,7 +38,7 @@ function filterBySilo<T extends { silo?: string | null }>(
   records: T[],
   silo: string
 ): T[] {
-  return records.filter((record) => resolveSilo(record?.silo) === silo);
+  return records.filter((record) => resolveSilo(record.silo) === silo);
 }
 
 export async function listLenders(
@@ -45,9 +48,9 @@ export async function listLenders(
   const requestId = res.locals.requestId ?? "unknown";
   try {
     const safeLenders = await listLendersService();
-    const resolvedSilo = resolveSilo(req.user?.silo);
-    const filtered = filterBySilo(safeLenders, resolvedSilo);
-    res.status(200).json(filtered);
+  const resolvedSilo = resolveSilo(req.user?.silo);
+  const filtered = filterBySilo(safeLenders, resolvedSilo);
+  res.status(200).json(filtered);
   } catch (err) {
     logError("lenders_list_failed", {
       error: err,
@@ -71,7 +74,7 @@ function toLenderProductResponse(record: {
   name: string;
   description: string | null;
   active: boolean;
-  required_documents: RequiredDocument[];
+  required_documents: RequiredDocuments;
   created_at: Date;
   updated_at: Date;
 }): LenderProductResponse {
@@ -81,7 +84,7 @@ function toLenderProductResponse(record: {
     typeof record.lender_id !== "string" ||
     typeof record.name !== "string" ||
     typeof record.active !== "boolean" ||
-    !Array.isArray(record.required_documents)
+    !isRequiredDocuments(record.required_documents)
   ) {
     throw new AppError("data_error", "Invalid lender product record.", 500);
   }
@@ -117,16 +120,23 @@ function parseTimestamp(value: unknown, fieldName: string): Date {
   );
 }
 
-function requireRecordDocuments(value: unknown): RequiredDocument[] {
-  if (!Array.isArray(value)) {
-    throw new AppError("data_error", "Invalid required_documents.", 500);
+function requireRecordDocuments(value: unknown): RequiredDocuments {
+  if (isRequiredDocuments(value)) {
+    return value;
   }
-  return value.map((item) => {
-    if (typeof item !== "string" || item.trim().length === 0) {
-      throw new AppError("data_error", "Invalid required_documents.", 500);
-    }
-    return item.trim();
-  });
+  throw new AppError("data_error", "Invalid required_documents.", 500);
+}
+
+function isPlainObject(value: unknown): value is JsonObject {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
+function isRequiredDocuments(value: unknown): value is RequiredDocuments {
+  return Array.isArray(value) || isPlainObject(value);
 }
 
 export async function getLenderWithProducts(

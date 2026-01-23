@@ -5,7 +5,7 @@ import {
   listLenderProductsByLenderId,
   updateLenderProduct,
 } from "../repositories/lenderProducts.repo";
-import { type RequiredDocument } from "../db/schema/lenderProducts";
+import { type RequiredDocuments } from "../db/schema/lenderProducts";
 
 export const DEFAULT_LENDER_PRODUCT_NAME = "Unnamed Product";
 const DEFAULT_SILO = "default";
@@ -52,7 +52,7 @@ export async function createLenderProductService(params: {
   name: unknown;
   description?: string | null;
   active: boolean;
-  requiredDocuments: RequiredDocument[];
+  requiredDocuments: RequiredDocuments;
 }): Promise<Awaited<ReturnType<typeof createLenderProduct>>> {
   const normalizedName = normalizeLenderProductName(params.name);
 
@@ -86,7 +86,7 @@ export async function listLenderProductsByLenderIdService(params: {
 export async function updateLenderProductService(params: {
   id: string;
   name: unknown;
-  requiredDocuments: RequiredDocument[];
+  requiredDocuments: RequiredDocuments;
 }): Promise<Awaited<ReturnType<typeof updateLenderProduct>>> {
   const normalizedName = normalizeLenderProductName(params.name);
 
