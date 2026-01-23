@@ -7,6 +7,8 @@ import {
 } from "../services/lenderProductsService";
 import { type LenderProductRecord, type RequiredDocument } from "../db/schema/lenderProducts";
 import { getLenderById } from "../repositories/lenders.repo";
+import { logError } from "../observability/logger";
+import { LIST_LENDER_PRODUCTS_SQL } from "../repositories/lenderProducts.repo";
 
 export type LenderProductResponse = {
   id: string;
@@ -171,15 +173,26 @@ export async function listLenderProductsHandler(
   res: Response
 ): Promise<void> {
   const activeOnly = req.query.active === "true";
+  const requestId = res.locals.requestId ?? "unknown";
 
-  const products = await listLenderProductsService({ activeOnly });
-
-  if (!Array.isArray(products)) {
-    res.status(200).json([]);
-    return;
+  try {
+    const products = await listLenderProductsService({ activeOnly });
+    const safeProducts = Array.isArray(products) ? products : [];
+    res.status(200).json(safeProducts.map(toLenderProductResponse));
+  } catch (err) {
+    logError("lender_products_list_failed", {
+      requestId,
+      route: req.originalUrl,
+      sql: LIST_LENDER_PRODUCTS_SQL,
+      params: [activeOnly],
+      stack: err instanceof Error ? err.stack : undefined,
+    });
+    res.status(500).json({
+      code: "internal_error",
+      message: err instanceof Error ? err.message : "Unknown error",
+      requestId,
+    });
   }
-
-  res.status(200).json(products.map(toLenderProductResponse));
 }
 
 /**

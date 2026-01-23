@@ -5,6 +5,7 @@ import {
 } from "../services/lenderProductsService";
 import { AppError } from "../middleware/errors";
 import { type RequiredDocument } from "../db/schema/lenderProducts";
+import { logError } from "../observability/logger";
 
 type LenderProductResponse = {
   id: string;
@@ -18,11 +19,27 @@ type LenderProductResponse = {
 };
 
 export async function listLenders(
-  _req: Request,
+  req: Request,
   res: Response
 ): Promise<void> {
-  const lenders = await repo.listLenders();
-  res.json(lenders);
+  const requestId = res.locals.requestId ?? "unknown";
+  try {
+    const lenders = await repo.listLenders();
+    res.status(200).json(lenders ?? []);
+  } catch (err) {
+    logError("lenders_list_failed", {
+      requestId,
+      route: req.originalUrl,
+      sql: repo.LIST_LENDERS_SQL,
+      params: [],
+      stack: err instanceof Error ? err.stack : undefined,
+    });
+    res.status(500).json({
+      code: "internal_error",
+      message: err instanceof Error ? err.message : "Unknown error",
+      requestId,
+    });
+  }
 }
 
 function toLenderProductResponse(record: {
