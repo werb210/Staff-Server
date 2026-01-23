@@ -95,7 +95,7 @@ describe("lender products", () => {
       .set("x-request-id", requestId);
 
     expect(listResponse.status).toBe(200);
-    const listed = listResponse.body.items.find(
+    const listed = listResponse.body.find(
       (item: { id: string }) => item.id === createResponse.body.id
     );
     expect(listed).toBeDefined();
@@ -120,7 +120,7 @@ describe("lender products", () => {
       .set("Authorization", `Bearer ${token}`)
       .set("x-request-id", requestId);
 
-    const patched = listAfterPatch.body.items.find(
+    const patched = listAfterPatch.body.find(
       (item: { id: string }) => item.id === createResponse.body.id
     );
     expect(patched.required_documents).toEqual(updatedDocuments);

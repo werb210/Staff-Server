@@ -175,13 +175,11 @@ export async function listLenderProductsHandler(
   const products = await listLenderProductsService({ activeOnly });
 
   if (!Array.isArray(products)) {
-    res.status(200).json({ items: [] });
+    res.status(200).json([]);
     return;
   }
 
-  res.status(200).json({
-    items: products.map(toLenderProductResponse),
-  });
+  res.status(200).json(products.map(toLenderProductResponse));
 }
 
 /**
