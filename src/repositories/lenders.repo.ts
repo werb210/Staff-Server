@@ -19,7 +19,6 @@ export const LIST_LENDERS_SQL = `
     name,
     country,
     submission_method,
-    email,
     phone,
     website,
     postal_code,
@@ -30,8 +29,8 @@ export const LIST_LENDERS_SQL = `
 
 export async function listLenders() {
   try {
-    const rows = await pool.query(LIST_LENDERS_SQL);
-    return rows.rows;
+    const result = await pool.query(LIST_LENDERS_SQL);
+    return result.rows ?? [];
   } catch (err) {
     logError("lenders_query_failed", {
       sql: LIST_LENDERS_SQL,
@@ -53,7 +52,6 @@ export async function getLenderById(id: string) {
       name,
       country,
       submission_method,
-      email,
       phone,
       website,
       postal_code,
@@ -64,7 +62,8 @@ export async function getLenderById(id: string) {
     `,
     [id]
   );
-  return result.rows[0] ?? null;
+  const rows = result.rows ?? [];
+  return rows[0] ?? null;
 }
 
 export async function createLender(input: CreateLenderInput) {
@@ -104,5 +103,10 @@ export async function createLender(input: CreateLenderInput) {
     ]
   );
 
-  return result.rows[0];
+  const rows = result.rows ?? [];
+  const created = rows[0];
+  if (!created) {
+    throw new AppError("db_error", "Failed to create lender.", 500);
+  }
+  return created;
 }

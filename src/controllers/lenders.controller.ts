@@ -18,6 +18,22 @@ type LenderProductResponse = {
   updatedAt: Date;
 };
 
+const DEFAULT_SILO = "default";
+
+function resolveSilo(value: unknown): string {
+  if (typeof value === "string" && value.trim().length > 0) {
+    return value.trim();
+  }
+  return DEFAULT_SILO;
+}
+
+function filterBySilo<T extends { silo?: string | null }>(
+  records: T[],
+  silo: string
+): T[] {
+  return records.filter((record) => resolveSilo(record?.silo) === silo);
+}
+
 export async function listLenders(
   req: Request,
   res: Response
@@ -25,9 +41,13 @@ export async function listLenders(
   const requestId = res.locals.requestId ?? "unknown";
   try {
     const lenders = await repo.listLenders();
-    res.status(200).json(lenders ?? []);
+    const safeLenders = Array.isArray(lenders) ? lenders : [];
+    const resolvedSilo = resolveSilo(req.user?.silo);
+    const filtered = filterBySilo(safeLenders, resolvedSilo);
+    res.status(200).json(filtered);
   } catch (err) {
     logError("lenders_list_failed", {
+      error: err,
       requestId,
       route: req.originalUrl,
       sql: repo.LIST_LENDERS_SQL,
@@ -116,64 +136,111 @@ export async function getLenderWithProducts(
   req: Request,
   res: Response
 ): Promise<void> {
-  const { id } = req.params;
+  const requestId = res.locals.requestId ?? "unknown";
+  try {
+    const { id } = req.params;
 
-  if (typeof id !== "string" || id.trim().length === 0) {
-    throw new AppError("validation_error", "id is required.", 400);
+    if (typeof id !== "string" || id.trim().length === 0) {
+      throw new AppError("validation_error", "id is required.", 400);
+    }
+
+    const lender = await repo.getLenderById(id.trim());
+    if (!lender) {
+      throw new AppError("not_found", "Lender not found.", 404);
+    }
+
+    const products = await listLenderProductsByLenderIdService({
+      lenderId: id.trim(),
+      silo: req.user?.silo ?? null,
+    });
+
+    res.json({
+      lender,
+      products: products.map(toLenderProductResponse),
+    });
+  } catch (err) {
+    logError("lender_with_products_failed", {
+      error: err,
+      requestId,
+      route: req.originalUrl,
+      stack: err instanceof Error ? err.stack : undefined,
+    });
+    if (err instanceof AppError) {
+      res.status(err.status).json({
+        code: err.code,
+        message: err.message,
+        requestId,
+      });
+      return;
+    }
+    res.status(500).json({
+      code: "internal_error",
+      message: err instanceof Error ? err.message : "Unknown error",
+      requestId,
+    });
   }
-
-  const lender = await repo.getLenderById(id.trim());
-  if (!lender) {
-    throw new AppError("not_found", "Lender not found.", 404);
-  }
-
-  const products = await listLenderProductsByLenderIdService({
-    lenderId: id.trim(),
-  });
-
-  res.json({
-    lender,
-    products: products.map(toLenderProductResponse),
-  });
 }
 
 export async function createLender(
   req: Request,
   res: Response
 ): Promise<void> {
-  const {
-    name,
-    country,
-    submissionMethod,
-    email,
-    phone,
-    website,
-    postal_code
-  } = req.body ?? {};
+  const requestId = res.locals.requestId ?? "unknown";
+  try {
+    const {
+      name,
+      country,
+      submissionMethod,
+      email,
+      phone,
+      website,
+      postal_code
+    } = req.body ?? {};
 
-  if (!name || typeof name !== "string") {
-    res.status(400).json({ error: "name_required" });
-    return;
+    if (!name || typeof name !== "string") {
+      res.status(400).json({ error: "name_required" });
+      return;
+    }
+    if (!country || typeof country !== "string") {
+      res.status(400).json({ error: "country_required" });
+      return;
+    }
+
+    const normalizedSubmissionMethod =
+      typeof submissionMethod === "string"
+        ? submissionMethod.toLowerCase()
+        : null;
+
+    const lender = await repo.createLender({
+      name,
+      country,
+      submission_method: normalizedSubmissionMethod,
+      email: email ?? null,
+      phone: phone ?? null,
+      website: website ?? null,
+      postal_code: postal_code ?? null
+    });
+
+    res.status(201).json(lender);
+  } catch (err) {
+    logError("lender_create_failed", {
+      error: err,
+      requestId,
+      route: req.originalUrl,
+      stack: err instanceof Error ? err.stack : undefined,
+    });
+    if (err instanceof AppError) {
+      res.status(err.status).json({
+        code: err.code,
+        message: err.message,
+        requestId,
+      });
+      return;
+    }
+    res.status(500).json({
+      code: "internal_error",
+      message: err instanceof Error ? err.message : "Unknown error",
+      requestId,
+    });
   }
-  if (!country || typeof country !== "string") {
-    res.status(400).json({ error: "country_required" });
-    return;
-  }
-
-  const normalizedSubmissionMethod =
-    typeof submissionMethod === "string"
-      ? submissionMethod.toLowerCase()
-      : null;
-
-  const lender = await repo.createLender({
-    name,
-    country,
-    submission_method: normalizedSubmissionMethod,
-    email: email ?? null,
-    phone: phone ?? null,
-    website: website ?? null,
-    postal_code: postal_code ?? null
-  });
-
-  res.status(201).json(lender);
 }

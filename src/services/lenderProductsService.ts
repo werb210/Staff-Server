@@ -8,6 +8,7 @@ import {
 import { type RequiredDocument } from "../db/schema/lenderProducts";
 
 export const DEFAULT_LENDER_PRODUCT_NAME = "Unnamed Product";
+const DEFAULT_SILO = "default";
 
 function normalizeLenderProductName(value: unknown): string {
   if (value === undefined || value === null) {
@@ -20,6 +21,20 @@ function normalizeLenderProductName(value: unknown): string {
 
   const trimmed = value.trim();
   return trimmed.length === 0 ? DEFAULT_LENDER_PRODUCT_NAME : trimmed;
+}
+
+function resolveSilo(value: unknown): string {
+  if (typeof value === "string" && value.trim().length > 0) {
+    return value.trim();
+  }
+  return DEFAULT_SILO;
+}
+
+function filterBySilo<T extends { silo?: string | null }>(
+  records: T[],
+  silo: string
+): T[] {
+  return records.filter((record) => resolveSilo(record?.silo) === silo);
 }
 
 export async function createLenderProductService(params: {
@@ -42,14 +57,20 @@ export async function createLenderProductService(params: {
 
 export async function listLenderProductsService(params?: {
   activeOnly?: boolean;
+  silo?: string | null;
 }): Promise<Awaited<ReturnType<typeof listLenderProducts>>> {
-  return listLenderProducts(params);
+  const products = await listLenderProducts(params);
+  const resolvedSilo = resolveSilo(params?.silo);
+  return filterBySilo(products, resolvedSilo);
 }
 
 export async function listLenderProductsByLenderIdService(params: {
   lenderId: string;
+  silo?: string | null;
 }): Promise<Awaited<ReturnType<typeof listLenderProductsByLenderId>>> {
-  return listLenderProductsByLenderId(params);
+  const products = await listLenderProductsByLenderId(params);
+  const resolvedSilo = resolveSilo(params.silo);
+  return filterBySilo(products, resolvedSilo);
 }
 
 export async function updateLenderProductService(params: {
