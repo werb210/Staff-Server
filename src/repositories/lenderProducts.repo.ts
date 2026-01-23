@@ -33,7 +33,12 @@ export async function createLenderProduct(params: {
       params.requiredDocuments,
     ]
   );
-  return res.rows[0];
+  const rows = res.rows ?? [];
+  const created = rows[0];
+  if (!created) {
+    throw new AppError("db_error", "Failed to create lender product.", 500);
+  }
+  return created;
 }
 
 export const LIST_LENDER_PRODUCTS_SQL = `select id,
@@ -59,7 +64,7 @@ export async function listLenderProducts(params?: {
       LIST_LENDER_PRODUCTS_SQL,
       [activeOnly]
     );
-    return res.rows;
+    return res.rows ?? [];
   } catch (err) {
     logError("lender_products_query_failed", {
       sql: LIST_LENDER_PRODUCTS_SQL,
@@ -92,7 +97,7 @@ export async function listLenderProductsByLenderId(params: {
      order by created_at desc`,
     [params.lenderId]
   );
-  return res.rows;
+  return res.rows ?? [];
 }
 
 export async function updateLenderProduct(params: {

@@ -176,11 +176,15 @@ export async function listLenderProductsHandler(
   const requestId = res.locals.requestId ?? "unknown";
 
   try {
-    const products = await listLenderProductsService({ activeOnly });
+    const products = await listLenderProductsService({
+      activeOnly,
+      silo: req.user?.silo ?? null,
+    });
     const safeProducts = Array.isArray(products) ? products : [];
     res.status(200).json(safeProducts.map(toLenderProductResponse));
   } catch (err) {
     logError("lender_products_list_failed", {
+      error: err,
       requestId,
       route: req.originalUrl,
       sql: LIST_LENDER_PRODUCTS_SQL,
@@ -202,62 +206,85 @@ export async function createLenderProductHandler(
   req: Request,
   res: Response
 ): Promise<void> {
-  const {
-    lenderId,
-    name,
-    description,
-    active,
-    required_documents,
-    requiredDocuments,
-  } = req.body ?? {};
+  const requestId = res.locals.requestId ?? "unknown";
+  try {
+    const {
+      lenderId,
+      name,
+      description,
+      active,
+      required_documents,
+      requiredDocuments,
+    } = req.body ?? {};
 
-  if (typeof lenderId !== "string" || lenderId.trim().length === 0) {
-    throw new AppError("validation_error", "lenderId is required.", 400);
-  }
+    if (typeof lenderId !== "string" || lenderId.trim().length === 0) {
+      throw new AppError("validation_error", "lenderId is required.", 400);
+    }
 
-  if (
-    name !== undefined &&
-    name !== null &&
-    typeof name !== "string"
-  ) {
-    throw new AppError("validation_error", "name must be a string.", 400);
-  }
+    if (
+      name !== undefined &&
+      name !== null &&
+      typeof name !== "string"
+    ) {
+      throw new AppError("validation_error", "name must be a string.", 400);
+    }
 
-  if (
-    description !== undefined &&
-    description !== null &&
-    typeof description !== "string"
-  ) {
-    throw new AppError(
-      "validation_error",
-      "description must be a string.",
-      400
+    if (
+      description !== undefined &&
+      description !== null &&
+      typeof description !== "string"
+    ) {
+      throw new AppError(
+        "validation_error",
+        "description must be a string.",
+        400
+      );
+    }
+
+    if (active !== undefined && typeof active !== "boolean") {
+      throw new AppError("validation_error", "active must be a boolean.", 400);
+    }
+
+    const requiredDocumentsList = parseRequiredDocuments(
+      required_documents ?? requiredDocuments,
+      { allowUndefined: true }
     );
+
+    const lender = await getLenderById(lenderId.trim());
+    if (!lender) {
+      throw new AppError("not_found", "Lender not found.", 404);
+    }
+
+    const created = await createLenderProductService({
+      lenderId: lenderId.trim(),
+      name,
+      description: typeof description === "string" ? description.trim() : null,
+      active: typeof active === "boolean" ? active : true,
+      requiredDocuments: requiredDocumentsList,
+    });
+
+    res.status(201).json(toLenderProductResponse(created));
+  } catch (err) {
+    logError("lender_products_create_failed", {
+      error: err,
+      requestId,
+      route: req.originalUrl,
+      stack: err instanceof Error ? err.stack : undefined,
+    });
+    if (err instanceof AppError) {
+      res.status(err.status).json({
+        code: err.code,
+        message: err.message,
+        requestId,
+      });
+      return;
+    }
+    res.status(500).json({
+      code: "internal_error",
+      message: err instanceof Error ? err.message : "Unknown error",
+      requestId,
+    });
   }
-
-  if (active !== undefined && typeof active !== "boolean") {
-    throw new AppError("validation_error", "active must be a boolean.", 400);
-  }
-
-  const requiredDocumentsList = parseRequiredDocuments(
-    required_documents ?? requiredDocuments,
-    { allowUndefined: true }
-  );
-
-  const lender = await getLenderById(lenderId.trim());
-  if (!lender) {
-    throw new AppError("not_found", "Lender not found.", 404);
-  }
-
-  const created = await createLenderProductService({
-    lenderId: lenderId.trim(),
-    name,
-    description: typeof description === "string" ? description.trim() : null,
-    active: typeof active === "boolean" ? active : true,
-    requiredDocuments: requiredDocumentsList,
-  });
-
-  res.status(201).json(toLenderProductResponse(created));
 }
 
 /**
@@ -267,35 +294,58 @@ export async function updateLenderProductHandler(
   req: Request,
   res: Response
 ): Promise<void> {
-  const { id } = req.params;
+  const requestId = res.locals.requestId ?? "unknown";
+  try {
+    const { id } = req.params;
 
-  if (typeof id !== "string" || id.trim().length === 0) {
-    throw new AppError("validation_error", "id is required.", 400);
+    if (typeof id !== "string" || id.trim().length === 0) {
+      throw new AppError("validation_error", "id is required.", 400);
+    }
+
+    const { name, required_documents, requiredDocuments } = req.body ?? {};
+
+    if (
+      name !== undefined &&
+      name !== null &&
+      typeof name !== "string"
+    ) {
+      throw new AppError("validation_error", "name must be a string.", 400);
+    }
+
+    const requiredDocumentsList = parseRequiredDocuments(
+      required_documents ?? requiredDocuments
+    );
+
+    const updated = await updateLenderProductService({
+      id: id.trim(),
+      name,
+      requiredDocuments: requiredDocumentsList,
+    });
+
+    if (!updated) {
+      throw new AppError("not_found", "Lender product not found.", 404);
+    }
+
+    res.status(200).json(toLenderProductResponse(updated));
+  } catch (err) {
+    logError("lender_products_update_failed", {
+      error: err,
+      requestId,
+      route: req.originalUrl,
+      stack: err instanceof Error ? err.stack : undefined,
+    });
+    if (err instanceof AppError) {
+      res.status(err.status).json({
+        code: err.code,
+        message: err.message,
+        requestId,
+      });
+      return;
+    }
+    res.status(500).json({
+      code: "internal_error",
+      message: err instanceof Error ? err.message : "Unknown error",
+      requestId,
+    });
   }
-
-  const { name, required_documents, requiredDocuments } = req.body ?? {};
-
-  if (
-    name !== undefined &&
-    name !== null &&
-    typeof name !== "string"
-  ) {
-    throw new AppError("validation_error", "name must be a string.", 400);
-  }
-
-  const requiredDocumentsList = parseRequiredDocuments(
-    required_documents ?? requiredDocuments
-  );
-
-  const updated = await updateLenderProductService({
-    id: id.trim(),
-    name,
-    requiredDocuments: requiredDocumentsList,
-  });
-
-  if (!updated) {
-    throw new AppError("not_found", "Lender product not found.", 404);
-  }
-
-  res.status(200).json(toLenderProductResponse(updated));
 }
