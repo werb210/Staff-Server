@@ -2,10 +2,8 @@ import jwt, { type JwtPayload, type SignOptions } from "jsonwebtoken";
 import { randomUUID } from "crypto";
 import {
   createUser,
-  createOtpVerification,
   findAuthUserByPhone,
   findAuthUserById,
-  setPhoneVerified,
   updateUserRoleById,
   storeRefreshToken,
   consumeRefreshToken,
@@ -202,7 +200,6 @@ const REQUIRED_TWILIO_ENV = [
   "TWILIO_VERIFY_SERVICE_SID",
 ] as const;
 
-const OTP_VERIFICATIONS_MISSING_CODE = "42P01";
 const OTP_VERIFY_DEDUP_WINDOW_MS = 1500;
 const otpVerifyInFlight = new Map<string, NodeJS.Timeout>();
 
@@ -303,18 +300,6 @@ function isTwilioUnavailableError(error: unknown): boolean {
   return false;
 }
 
-function isOtpVerificationTableMissing(error: unknown): boolean {
-  if (!error || typeof error !== "object") {
-    return false;
-  }
-  const err = error as { code?: unknown; message?: unknown };
-  const message = typeof err.message === "string" ? err.message : "";
-  if (err.code === OTP_VERIFICATIONS_MISSING_CODE) {
-    return message ? message.includes("otp_verifications") : true;
-  }
-  return message.includes("otp_verifications") && message.includes("exist");
-}
-
 function attachTwilioDetails(error: AppError, details: TwilioErrorDetails): AppError {
   const twilioCode =
     typeof details.code === "number" || typeof details.code === "string"
@@ -391,9 +376,9 @@ function mapTwilioVerifyCheckFailure(
   if (isTwilioAuthError(err)) {
     return {
       ok: false,
-      status: 400,
+      status: 503,
       error: {
-        code: "twilio_auth_failed",
+        code: "auth_provider_unavailable",
         message: "Twilio authentication failed.",
       },
     };
@@ -405,7 +390,7 @@ function mapTwilioVerifyCheckFailure(
   if (codeValue === 60203) {
     return {
       ok: false,
-      status: 400,
+      status: 429,
       error: { code: "too_many_attempts", message: details.message },
     };
   }
@@ -429,7 +414,7 @@ function mapTwilioVerifyCheckFailure(
   if (details.status && details.status >= 500) {
     return {
       ok: false,
-      status: 400,
+      status: 503,
       error: { code: "auth_provider_unavailable", message: details.message },
     };
   }
@@ -437,25 +422,16 @@ function mapTwilioVerifyCheckFailure(
   if (isTwilioUnavailableError(err)) {
     return {
       ok: false,
-      status: 400,
+      status: 503,
       error: { code: "auth_provider_unavailable", message: details.message },
     };
   }
 
   return {
     ok: false,
-    status: 400,
-    error: { code: "twilio_error", message: details.message },
+    status: 503,
+    error: { code: "auth_provider_unavailable", message: details.message },
   };
-}
-
-function shouldThrowOtpError(error: AppError): boolean {
-  return [
-    "twilio_misconfigured",
-    "auth_provider_unavailable",
-    "twilio_auth_failed",
-    "twilio_error",
-  ].includes(error.code);
 }
 
 function getPhoneTail(phoneE164: string): string {
@@ -470,24 +446,11 @@ function normalizeEmail(email: string | null | undefined): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function resolveOtpStatus(status?: string): "pending" | "approved" | "expired" {
-  if (!status) {
-    return "expired";
-  }
-  if (status === "approved") {
-    return "approved";
-  }
-  if (status === "pending") {
-    return "pending";
-  }
-  return "expired";
-}
-
 function resolveOtpFailure(status?: string): VerifyOtpFailure {
   if (status === "canceled" || status === "expired") {
     return {
       ok: false,
-      status: 410,
+      status: 400,
       error: { code: "expired_code", message: "OTP code expired." },
     };
   }
@@ -642,9 +605,7 @@ export async function verifyOtpCode(params: {
     }
     const phoneTail = getPhoneTail(phoneE164);
     assertSingleVerifyAttempt(phoneE164);
-    let otpVerificationsAvailable = true;
     let status: string | undefined;
-    let verificationSid: string | undefined;
 
     assertTwilioConfig(requestId);
     const twilioClient = getTwilioClient();
@@ -662,12 +623,10 @@ export async function verifyOtpCode(params: {
     try {
       const check = await checkOtp(twilioClient, serviceSid, phoneE164, code);
       status = check.status;
-      verificationSid = check.sid;
       logInfo("otp_verify_result", {
         phoneTail,
         serviceSid,
         status,
-        verificationSid,
         requestId,
       });
     } catch (err) {
@@ -685,42 +644,7 @@ export async function verifyOtpCode(params: {
       return mapTwilioVerifyCheckFailure(details, err);
     }
 
-    if (!verificationSid) {
-      logWarn("otp_verify_missing_sid", {
-        phoneTail,
-        requestId,
-      });
-      throw new AppError(
-        "twilio_error",
-        "Twilio verification failed (missing verification SID).",
-        500
-      );
-    }
-
     if (status !== "approved") {
-      const userRecord = await findAuthUserByPhone(phoneE164);
-      if (userRecord && otpVerificationsAvailable) {
-        try {
-          await createOtpVerification({
-            userId: userRecord.id,
-            phone: phoneE164,
-            verificationSid,
-            status: resolveOtpStatus(status),
-            verifiedAt: null,
-          });
-        } catch (err) {
-          if (isOtpVerificationTableMissing(err)) {
-            otpVerificationsAvailable = false;
-            logWarn("otp_verify_db_missing", {
-              requestId,
-              phoneTail,
-              errorCode: "OTP_VERIFY_DB_MISSING",
-            });
-          } else {
-            throw err;
-          }
-        }
-      }
       return resolveOtpFailure(status);
     }
 
@@ -762,30 +686,10 @@ export async function verifyOtpCode(params: {
         }
       }
 
-      await setPhoneVerified(userRecord.id, true, db);
-      if (otpVerificationsAvailable) {
-        try {
-          await createOtpVerification({
-            userId: userRecord.id,
-            phone: phoneE164,
-            verificationSid,
-            status: "approved",
-            verifiedAt: new Date(),
-            client: db,
-          });
-        } catch (err) {
-          if (isOtpVerificationTableMissing(err)) {
-            otpVerificationsAvailable = false;
-            logWarn("otp_verify_db_missing", {
-              requestId,
-              phoneTail,
-              errorCode: "OTP_VERIFY_DB_MISSING",
-            });
-          } else {
-            throw err;
-          }
-        }
-      }
+      await db.query(
+        "update users set phone_verified = $1, updated_at = $2 where id = $3",
+        [true, new Date(), userRecord.id]
+      );
 
       const tokenVersion = userRecord.tokenVersion ?? 0;
       const payload: AccessTokenPayload = {
@@ -838,20 +742,26 @@ export async function verifyOtpCode(params: {
     }
   } catch (err) {
     if (err instanceof AppError) {
-      if (shouldThrowOtpError(err)) {
-        throw err;
-      }
+      const status = err.status >= 500 ? 503 : err.status;
+      const code = err.status >= 500 ? "auth_provider_unavailable" : err.code;
       return {
         ok: false,
-        status: err.status,
-        error: { code: err.code, message: err.message },
+        status,
+        error: { code, message: err.message },
       };
     }
     logWarn("otp_verify_failed", {
       requestId,
       error: err instanceof Error ? err.message : "unknown_error",
     });
-    throw err;
+    return {
+      ok: false,
+      status: 503,
+      error: {
+        code: "auth_provider_unavailable",
+        message: "Authentication provider unavailable.",
+      },
+    };
   }
 }
 
@@ -868,7 +778,7 @@ export async function refreshSession(params: {
     }
   | {
       ok: false,
-      status: number;
+      status: number,
       error: { code: string; message: string };
     }
 > {
