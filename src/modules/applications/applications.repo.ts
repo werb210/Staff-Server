@@ -71,19 +71,29 @@ export async function createApplication(params: {
 export async function listApplications(params?: {
   limit?: number;
   offset?: number;
+  stage?: string | null;
   client?: Queryable;
 }): Promise<ApplicationRecord[]> {
   const runner = params?.client ?? pool;
   const limit = params?.limit ?? 50;
   const offset = params?.offset ?? 0;
+  const stage = params?.stage?.trim();
+  const values: Array<string | number> = [limit, offset];
+  const stageClause = stage
+    ? `where lower(coalesce(pipeline_state, 'requires_docs')) = lower($${values.length + 1})`
+    : "";
+  if (stage) {
+    values.push(stage);
+  }
   const res = await runner.query<ApplicationRecord>(
     `select id, owner_user_id, name, metadata, product_type, pipeline_state, created_at, updated_at
      from applications
+     ${stageClause}
      order by created_at desc
      limit $1 offset $2`,
-    [limit, offset]
+    values
   );
-  return res.rows;
+  return Array.isArray(res.rows) ? res.rows : [];
 }
 
 export async function countApplications(client?: Queryable): Promise<number> {
@@ -91,7 +101,10 @@ export async function countApplications(client?: Queryable): Promise<number> {
   const res = await runner.query<{ total: number }>(
     "select count(*)::int as total from applications"
   );
-  return Number(res.rows[0]?.total ?? 0);
+  if (res.rows.length === 0) {
+    return 0;
+  }
+  return Number(res.rows[0].total ?? 0);
 }
 
 export async function findApplicationById(
@@ -106,7 +119,7 @@ export async function findApplicationById(
      limit 1`,
     [id]
   );
-  return res.rows[0] ?? null;
+  return res.rows.length > 0 ? res.rows[0] : null;
 }
 
 export async function updateApplicationPipelineState(params: {
@@ -159,7 +172,7 @@ export async function findDocumentById(
      limit 1`,
     [id]
   );
-  return res.rows[0] ?? null;
+  return res.rows.length > 0 ? res.rows[0] : null;
 }
 
 export async function findDocumentByApplicationAndType(params: {
@@ -176,7 +189,7 @@ export async function findDocumentByApplicationAndType(params: {
      limit 1`,
     [params.applicationId, params.documentType]
   );
-  return res.rows[0] ?? null;
+  return res.rows.length > 0 ? res.rows[0] : null;
 }
 
 export async function listDocumentsByApplicationId(
@@ -191,7 +204,7 @@ export async function listDocumentsByApplicationId(
      order by created_at asc`,
     [applicationId]
   );
-  return res.rows;
+  return Array.isArray(res.rows) ? res.rows : [];
 }
 
 export async function getLatestDocumentVersion(
@@ -205,7 +218,10 @@ export async function getLatestDocumentVersion(
      where document_id = $1`,
     [documentId]
   );
-  return Number(res.rows[0]?.version ?? 0);
+  if (res.rows.length === 0) {
+    return 0;
+  }
+  return Number(res.rows[0].version ?? 0);
 }
 
 export async function createDocumentVersion(params: {
@@ -244,7 +260,7 @@ export async function findDocumentVersionById(
      limit 1`,
     [id]
   );
-  return res.rows[0] ?? null;
+  return res.rows.length > 0 ? res.rows[0] : null;
 }
 
 export async function findDocumentVersionReview(
@@ -259,7 +275,7 @@ export async function findDocumentVersionReview(
      limit 1`,
     [documentVersionId]
   );
-  return res.rows[0] ?? null;
+  return res.rows.length > 0 ? res.rows[0] : null;
 }
 
 export async function findAcceptedDocumentVersion(params: {
@@ -277,7 +293,7 @@ export async function findAcceptedDocumentVersion(params: {
      limit 1`,
     [params.documentId]
   );
-  return res.rows[0] ?? null;
+  return res.rows.length > 0 ? res.rows[0] : null;
 }
 
 export async function createDocumentVersionReview(params: {
@@ -330,7 +346,7 @@ export async function findLatestDocumentVersionStatus(params: {
      limit 1`,
     [params.applicationId, params.documentType]
   );
-  return res.rows[0] ?? null;
+  return res.rows.length > 0 ? res.rows[0] : null;
 }
 
 export async function listLatestAcceptedDocumentVersions(params: {
@@ -375,7 +391,7 @@ export async function listLatestAcceptedDocumentVersions(params: {
      order by d.document_type, dv.version desc`,
     [params.applicationId, params.documentTypes]
   );
-  return res.rows;
+  return Array.isArray(res.rows) ? res.rows : [];
 }
 
 export async function findActiveDocumentVersion(params: {
@@ -393,7 +409,7 @@ export async function findActiveDocumentVersion(params: {
      limit 1`,
     [params.documentId]
   );
-  if (accepted.rows[0]) {
+  if (accepted.rows.length > 0) {
     return accepted.rows[0];
   }
   const latest = await runner.query<DocumentVersionRecord>(
@@ -404,5 +420,5 @@ export async function findActiveDocumentVersion(params: {
      limit 1`,
     [params.documentId]
   );
-  return latest.rows[0] ?? null;
+  return latest.rows.length > 0 ? latest.rows[0] : null;
 }

@@ -12,6 +12,7 @@ import { listStaffActivity } from "./staffActivity.service";
 import { listLenderFunnel } from "./lenderFunnel.service";
 import { pool } from "../../db";
 import { safeHandler } from "../../middleware/safeHandler";
+import { logError } from "../../observability/logger";
 
 const router = Router();
 
@@ -102,82 +103,112 @@ router.get("/overview", safeHandler(async (req, res) => {
 }));
 
 router.get("/pipeline", safeHandler(async (req, res) => {
-  const { from, to, groupBy, limit, offset } = req.query ?? {};
-  const parsedFrom = parseDate(from, "from");
-  const parsedTo = parseDate(to, "to");
-  assertRange(parsedFrom, parsedTo);
-  const parsedLimit = parseLimit(limit);
-  const parsedOffset = parseOffset(offset);
+  try {
+    const { from, to, groupBy, limit, offset } = req.query ?? {};
+    const parsedFrom = parseDate(from, "from");
+    const parsedTo = parseDate(to, "to");
+    assertRange(parsedFrom, parsedTo);
+    const parsedLimit = parseLimit(limit);
+    const parsedOffset = parseOffset(offset);
 
-  const snapshots = await listPipelineSnapshots({
-    from: parsedFrom,
-    to: parsedTo,
-    groupBy: parseGroupBy(groupBy),
-    limit: parsedLimit,
-    offset: parsedOffset,
-  });
-  const currentState = await listCurrentPipelineState();
+    const snapshots = await listPipelineSnapshots({
+      from: parsedFrom,
+      to: parsedTo,
+      groupBy: parseGroupBy(groupBy),
+      limit: parsedLimit,
+      offset: parsedOffset,
+    });
+    const currentState = await listCurrentPipelineState();
 
-  await recordAuditEvent({
-    action: "REPORT_VIEW",
-    actorUserId: req.user?.userId ?? null,
-    targetUserId: null,
-    targetType: "report",
-    targetId: "pipeline",
-    ip: req.ip,
-    userAgent: req.get("user-agent"),
-    success: true,
-  });
+    await recordAuditEvent({
+      action: "REPORT_VIEW",
+      actorUserId: req.user?.userId ?? null,
+      targetUserId: null,
+      targetType: "report",
+      targetId: "pipeline",
+      ip: req.ip,
+      userAgent: req.get("user-agent"),
+      success: true,
+    });
 
-  res.json({ currentState, snapshots, limit: parsedLimit, offset: parsedOffset });
+    res.json({ currentState, snapshots, limit: parsedLimit, offset: parsedOffset });
+  } catch (err) {
+    logError("reporting_pipeline_failed", {
+      error:
+        err instanceof Error
+          ? { name: err.name, message: err.message, stack: err.stack }
+          : err,
+    });
+    res.json({ currentState: [], snapshots: [], limit: 0, offset: 0 });
+  }
 }));
 
 router.get("/pipeline/summary", safeHandler(async (req, res) => {
-  const currentState = await listCurrentPipelineState();
+  try {
+    const currentState = await listCurrentPipelineState();
 
-  await recordAuditEvent({
-    action: "REPORT_VIEW",
-    actorUserId: req.user?.userId ?? null,
-    targetUserId: null,
-    targetType: "reporting",
-    targetId: "pipeline_summary",
-    ip: req.ip,
-    userAgent: req.get("user-agent"),
-    success: true,
-  });
+    await recordAuditEvent({
+      action: "REPORT_VIEW",
+      actorUserId: req.user?.userId ?? null,
+      targetUserId: null,
+      targetType: "reporting",
+      targetId: "pipeline_summary",
+      ip: req.ip,
+      userAgent: req.get("user-agent"),
+      success: true,
+    });
 
-  res.json({ currentState });
+    res.json({ currentState });
+  } catch (err) {
+    logError("reporting_pipeline_summary_failed", {
+      error:
+        err instanceof Error
+          ? { name: err.name, message: err.message, stack: err.stack }
+          : err,
+    });
+    res.json({ currentState: [] });
+  }
 }));
 
 router.get("/pipeline/timeseries", safeHandler(async (req, res) => {
-  const { from, to, groupBy, limit, offset, pipelineState } = req.query ?? {};
-  const parsedFrom = parseDate(from, "from");
-  const parsedTo = parseDate(to, "to");
-  assertRange(parsedFrom, parsedTo);
-  const parsedLimit = parseLimit(limit);
-  const parsedOffset = parseOffset(offset);
+  try {
+    const { from, to, groupBy, limit, offset, pipelineState } = req.query ?? {};
+    const parsedFrom = parseDate(from, "from");
+    const parsedTo = parseDate(to, "to");
+    assertRange(parsedFrom, parsedTo);
+    const parsedLimit = parseLimit(limit);
+    const parsedOffset = parseOffset(offset);
 
-  const snapshots = await listPipelineSnapshots({
-    from: parsedFrom,
-    to: parsedTo,
-    groupBy: parseGroupBy(groupBy),
-    limit: parsedLimit,
-    offset: parsedOffset,
-    pipelineState: typeof pipelineState === "string" ? pipelineState : null,
-  });
+    const snapshots = await listPipelineSnapshots({
+      from: parsedFrom,
+      to: parsedTo,
+      groupBy: parseGroupBy(groupBy),
+      limit: parsedLimit,
+      offset: parsedOffset,
+      pipelineState: typeof pipelineState === "string" ? pipelineState : null,
+    });
 
-  await recordAuditEvent({
-    action: "REPORT_VIEW",
-    actorUserId: req.user?.userId ?? null,
-    targetUserId: null,
-    targetType: "reporting",
-    targetId: "pipeline_timeseries",
-    ip: req.ip,
-    userAgent: req.get("user-agent"),
-    success: true,
-  });
+    await recordAuditEvent({
+      action: "REPORT_VIEW",
+      actorUserId: req.user?.userId ?? null,
+      targetUserId: null,
+      targetType: "reporting",
+      targetId: "pipeline_timeseries",
+      ip: req.ip,
+      userAgent: req.get("user-agent"),
+      success: true,
+    });
 
-  res.json({ snapshots, limit: parsedLimit, offset: parsedOffset });
+    res.json({ snapshots, limit: parsedLimit, offset: parsedOffset });
+  } catch (err) {
+    logError("reporting_pipeline_timeseries_failed", {
+      error:
+        err instanceof Error
+          ? { name: err.name, message: err.message, stack: err.stack }
+          : err,
+    });
+    res.json({ snapshots: [], limit: 0, offset: 0 });
+  }
 }));
 
 router.get("/lenders/performance", safeHandler(async (req, res) => {

@@ -1,6 +1,7 @@
 import { pool } from "../../db";
 import { type PoolClient } from "pg";
 import { formatPeriod, type GroupBy } from "./reporting.utils";
+import { PIPELINE_STATES } from "../applications/pipelineState";
 
 type Queryable = Pick<PoolClient, "query">;
 
@@ -96,8 +97,23 @@ export async function listCurrentPipelineState(params?: {
     `select pipeline_state, application_count
      from vw_pipeline_current_state`
   );
-  return res.rows.map((row) => ({
-    pipelineState: row.pipeline_state,
-    applicationCount: row.application_count,
+  const rows = Array.isArray(res.rows) ? res.rows : [];
+  const countsByState = new Map<string, number>();
+  rows.forEach((row) => {
+    if (row.pipeline_state) {
+      countsByState.set(row.pipeline_state.toLowerCase(), row.application_count);
+    }
+  });
+  const normalizedDefaults = PIPELINE_STATES.map((state) => ({
+    pipelineState: state,
+    applicationCount: countsByState.get(state.toLowerCase()) ?? 0,
   }));
+  const knownStates = new Set(PIPELINE_STATES.map((state) => state.toLowerCase()));
+  const extras = rows
+    .filter((row) => row.pipeline_state && !knownStates.has(row.pipeline_state.toLowerCase()))
+    .map((row) => ({
+      pipelineState: row.pipeline_state ?? "REQUIRES_DOCS",
+      applicationCount: row.application_count,
+    }));
+  return [...normalizedDefaults, ...extras];
 }
