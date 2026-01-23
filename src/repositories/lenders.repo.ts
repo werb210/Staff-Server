@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { pool } from "../db";
 
 export interface CreateLenderInput {
@@ -56,6 +57,7 @@ export async function createLender(input: CreateLenderInput) {
   const result = await pool.query(
     `
     INSERT INTO lenders (
+      id,
       name,
       country,
       submission_method,
@@ -64,7 +66,7 @@ export async function createLender(input: CreateLenderInput) {
       website,
       postal_code
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     RETURNING
       id,
       name,
@@ -77,6 +79,7 @@ export async function createLender(input: CreateLenderInput) {
       created_at
     `,
     [
+      randomUUID(),
       input.name,
       input.country,
       input.submission_method,

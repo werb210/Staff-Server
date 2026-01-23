@@ -1,14 +1,11 @@
 import { type Request, type Response } from "express";
 import { AppError } from "../middleware/errors";
 import {
-  createLenderProduct,
-  listLenderProducts,
-  updateLenderProductRequiredDocuments,
-} from "../repositories/lenderProducts.repo";
-import {
-  type LenderProductRecord,
-  type RequiredDocument,
-} from "../db/schema/lenderProducts";
+  createLenderProductService,
+  listLenderProductsService,
+  updateLenderProductService,
+} from "../services/lenderProductsService";
+import { type LenderProductRecord, type RequiredDocument } from "../db/schema/lenderProducts";
 import { getLenderById } from "../repositories/lenders.repo";
 
 export type LenderProductResponse = {
@@ -26,6 +23,9 @@ function toLenderProductResponse(
   record: LenderProductRecord
 ): LenderProductResponse {
   assertLenderProductRecord(record);
+  const normalizedDocuments = normalizeRequiredDocuments(
+    record.required_documents
+  );
 
   return {
     id: record.id,
@@ -33,9 +33,9 @@ function toLenderProductResponse(
     name: record.name,
     description: record.description,
     active: record.active,
-    required_documents: record.required_documents,
-    createdAt: record.created_at,
-    updatedAt: record.updated_at,
+    required_documents: normalizedDocuments,
+    createdAt: parseTimestamp(record.created_at, "created_at"),
+    updatedAt: parseTimestamp(record.updated_at, "updated_at"),
   };
 }
 
@@ -45,13 +45,44 @@ function assertLenderProductRecord(record: LenderProductRecord): void {
     typeof record.id !== "string" ||
     typeof record.lender_id !== "string" ||
     typeof record.name !== "string" ||
-    typeof record.active !== "boolean" ||
-    !Array.isArray(record.required_documents) ||
-    !(record.created_at instanceof Date) ||
-    !(record.updated_at instanceof Date)
+    typeof record.active !== "boolean"
   ) {
     throw new AppError("data_error", "Invalid lender product record.", 500);
   }
+}
+
+function normalizeRequiredDocuments(value: unknown): RequiredDocument[] {
+  if (Array.isArray(value)) {
+    return value as RequiredDocument[];
+  }
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed as RequiredDocument[];
+      }
+    } catch {
+      // fall through to error
+    }
+  }
+  return [];
+}
+
+function parseTimestamp(value: unknown, fieldName: string): Date {
+  if (value instanceof Date) {
+    return value;
+  }
+  if (typeof value === "string" || typeof value === "number") {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.valueOf())) {
+      return parsed;
+    }
+  }
+  throw new AppError(
+    "data_error",
+    `Invalid lender product ${fieldName}.`,
+    500
+  );
 }
 
 function parseRequiredDocuments(
@@ -141,7 +172,7 @@ export async function listLenderProductsHandler(
 ): Promise<void> {
   const activeOnly = req.query.active === "true";
 
-  const products = await listLenderProducts({ activeOnly });
+  const products = await listLenderProductsService({ activeOnly });
 
   if (!Array.isArray(products)) {
     res.status(200).json({ items: [] });
@@ -173,8 +204,12 @@ export async function createLenderProductHandler(
     throw new AppError("validation_error", "lenderId is required.", 400);
   }
 
-  if (typeof name !== "string" || name.trim().length === 0) {
-    throw new AppError("validation_error", "name is required.", 400);
+  if (
+    name !== undefined &&
+    name !== null &&
+    typeof name !== "string"
+  ) {
+    throw new AppError("validation_error", "name must be a string.", 400);
   }
 
   if (
@@ -203,9 +238,9 @@ export async function createLenderProductHandler(
     throw new AppError("not_found", "Lender not found.", 404);
   }
 
-  const created = await createLenderProduct({
+  const created = await createLenderProductService({
     lenderId: lenderId.trim(),
-    name: name.trim(),
+    name,
     description: typeof description === "string" ? description.trim() : null,
     active: typeof active === "boolean" ? active : true,
     requiredDocuments: requiredDocumentsList,
@@ -227,14 +262,23 @@ export async function updateLenderProductHandler(
     throw new AppError("validation_error", "id is required.", 400);
   }
 
-  const { required_documents, requiredDocuments } = req.body ?? {};
+  const { name, required_documents, requiredDocuments } = req.body ?? {};
+
+  if (
+    name !== undefined &&
+    name !== null &&
+    typeof name !== "string"
+  ) {
+    throw new AppError("validation_error", "name must be a string.", 400);
+  }
 
   const requiredDocumentsList = parseRequiredDocuments(
     required_documents ?? requiredDocuments
   );
 
-  const updated = await updateLenderProductRequiredDocuments({
+  const updated = await updateLenderProductService({
     id: id.trim(),
+    name,
     requiredDocuments: requiredDocumentsList,
   });
 

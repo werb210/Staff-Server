@@ -19,6 +19,7 @@ installProcessHandlers();
 
 beforeAll(async () => {
   const { pool } = await import("../db");
+  await pool.query("drop table if exists idempotency_keys cascade;");
   await pool.query("drop table if exists auth_refresh_tokens cascade;");
   await pool.query("drop table if exists otp_verifications cascade;");
   await pool.query("drop table if exists audit_events cascade;");
@@ -39,6 +40,18 @@ beforeAll(async () => {
       phone_verified boolean not null default false,
       updated_at timestamptz null,
       token_version integer not null default 0
+    );
+  `);
+  await pool.query(`
+    create table if not exists idempotency_keys (
+      id uuid primary key,
+      key text not null,
+      route text not null,
+      method text null,
+      request_hash text null,
+      response_code integer not null,
+      response_body jsonb null,
+      created_at timestamptz not null default now()
     );
   `);
   await pool.query(`

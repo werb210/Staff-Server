@@ -41,7 +41,14 @@ export async function listLenderProducts(params?: {
   const runner = params?.client ?? pool;
   const activeOnly = params?.activeOnly === true;
   const res = await runner.query<LenderProductRecord>(
-    `select id, lender_id, name, description, active, required_documents, created_at, updated_at
+    `select id,
+            lender_id,
+            coalesce(name, 'Unnamed Product') as name,
+            description,
+            active,
+            required_documents,
+            created_at,
+            updated_at
      from lender_products
      where ($1::boolean is false or active = true)
      order by created_at desc`,
@@ -50,19 +57,43 @@ export async function listLenderProducts(params?: {
   return res.rows;
 }
 
-export async function updateLenderProductRequiredDocuments(params: {
+export async function listLenderProductsByLenderId(params: {
+  lenderId: string;
+  client?: Queryable;
+}): Promise<LenderProductRecord[]> {
+  const runner = params.client ?? pool;
+  const res = await runner.query<LenderProductRecord>(
+    `select id,
+            lender_id,
+            coalesce(name, 'Unnamed Product') as name,
+            description,
+            active,
+            required_documents,
+            created_at,
+            updated_at
+     from lender_products
+     where lender_id = $1
+     order by created_at desc`,
+    [params.lenderId]
+  );
+  return res.rows;
+}
+
+export async function updateLenderProduct(params: {
   id: string;
+  name: string;
   requiredDocuments: RequiredDocument[];
   client?: Queryable;
 }): Promise<LenderProductRecord | null> {
   const runner = params.client ?? pool;
   const res = await runner.query<LenderProductRecord>(
     `update lender_products
-     set required_documents = $1,
+     set name = $1,
+         required_documents = $2,
          updated_at = now()
-     where id = $2
+     where id = $3
      returning id, lender_id, name, description, active, required_documents, created_at, updated_at`,
-    [params.requiredDocuments, params.id]
+    [params.name, params.requiredDocuments, params.id]
   );
   return res.rows[0] ?? null;
 }
