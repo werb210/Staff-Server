@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import { logError } from "../observability/logger";
 
 export function errorHandler(
   err: any,
@@ -8,6 +9,13 @@ export function errorHandler(
 ) {
   const status = err.statusCode || err.status || 500;
   const message = typeof err?.message === "string" ? err.message : "";
+  const requestId = res.locals.requestId ?? "unknown";
+
+  logError("request_error", {
+    requestId,
+    errorMessage: message,
+    errorStack: err?.stack,
+  });
 
   res.status(status).json({
     ok: false,
