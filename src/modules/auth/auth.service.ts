@@ -30,12 +30,7 @@ import {
 import { DEFAULT_AUTH_SILO } from "../../auth/silo";
 import { hashRefreshToken } from "../../auth/tokenUtils";
 import { getCapabilitiesForRole } from "../../auth/capabilities";
-import {
-  getTwilioClient,
-  getTwilioVerifyServiceSid,
-  sendOtp,
-  checkOtp,
-} from "../../services/twilio";
+import { getTwilioClient, getVerifyServiceSid } from "../../services/twilio";
 
 type RefreshTokenPayload = JwtPayload & {
   sub?: string;
@@ -194,12 +189,6 @@ type TwilioErrorDetails = {
   message: string;
 };
 
-const REQUIRED_TWILIO_ENV = [
-  "TWILIO_ACCOUNT_SID",
-  "TWILIO_AUTH_TOKEN",
-  "TWILIO_VERIFY_SERVICE_SID",
-] as const;
-
 const OTP_VERIFY_DEDUP_WINDOW_MS = 1500;
 const otpVerifyInFlight = new Map<string, NodeJS.Timeout>();
 
@@ -240,42 +229,6 @@ function getTwilioErrorDetails(error: unknown): TwilioErrorDetails {
     return { message: error.message };
   }
   return { message: "Twilio verification failed" };
-}
-
-function getMissingTwilioEnv(): string[] {
-  return REQUIRED_TWILIO_ENV.filter(
-    (key) => !process.env[key] || process.env[key]?.trim().length === 0
-  );
-}
-
-function assertTwilioConfig(requestId: string): void {
-  const missing = getMissingTwilioEnv();
-  if (missing.length > 0) {
-    logError("twilio_missing_env", { missing, requestId });
-    throw new AppError("twilio_misconfigured", "Twilio is not configured.", 500);
-  }
-  if (process.env.NODE_ENV === "production") {
-    const accountSid = process.env.TWILIO_ACCOUNT_SID ?? "";
-    const authToken = process.env.TWILIO_AUTH_TOKEN ?? "";
-    const verifyServiceSid = process.env.TWILIO_VERIFY_SERVICE_SID ?? "";
-    const invalidValues: string[] = [];
-    if (
-      accountSid.startsWith("ACxxxx") ||
-      accountSid.includes("XXXXXXXXXXXXXXXX")
-    ) {
-      invalidValues.push("TWILIO_ACCOUNT_SID");
-    }
-    if (authToken === "token" || authToken.toLowerCase().includes("test")) {
-      invalidValues.push("TWILIO_AUTH_TOKEN");
-    }
-    if (verifyServiceSid === "VA00000000000000000000000000000000") {
-      invalidValues.push("TWILIO_VERIFY_SERVICE_SID");
-    }
-    if (invalidValues.length > 0) {
-      logError("twilio_invalid_env", { invalidValues, requestId });
-      throw new AppError("twilio_misconfigured", "Twilio is not configured.", 500);
-    }
-  }
 }
 
 function isTwilioAuthError(error: unknown): boolean {
@@ -351,14 +304,14 @@ function mapTwilioVerifyError(details: TwilioErrorDetails, err: unknown): AppErr
 
   if (details.status && details.status >= 500) {
     return attachTwilioDetails(
-      new AppError("auth_provider_unavailable", details.message, 503),
+      new AppError("twilio_error", details.message, 500),
       details
     );
   }
 
   if (isTwilioUnavailableError(err)) {
     return attachTwilioDetails(
-      new AppError("auth_provider_unavailable", details.message, 503),
+      new AppError("twilio_error", details.message, 500),
       details
     );
   }
@@ -376,9 +329,9 @@ function mapTwilioVerifyCheckFailure(
   if (isTwilioAuthError(err)) {
     return {
       ok: false,
-      status: 503,
+      status: 500,
       error: {
-        code: "auth_provider_unavailable",
+        code: "twilio_error",
         message: "Twilio authentication failed.",
       },
     };
@@ -414,23 +367,23 @@ function mapTwilioVerifyCheckFailure(
   if (details.status && details.status >= 500) {
     return {
       ok: false,
-      status: 503,
-      error: { code: "auth_provider_unavailable", message: details.message },
+      status: 500,
+      error: { code: "twilio_error", message: details.message },
     };
   }
 
   if (isTwilioUnavailableError(err)) {
     return {
       ok: false,
-      status: 503,
-      error: { code: "auth_provider_unavailable", message: details.message },
+      status: 500,
+      error: { code: "twilio_error", message: details.message },
     };
   }
 
   return {
     ok: false,
-    status: 503,
-    error: { code: "auth_provider_unavailable", message: details.message },
+    status: 500,
+    error: { code: "twilio_error", message: details.message },
   };
 }
 
@@ -511,12 +464,8 @@ export async function startOtp(
       throw new AppError("invalid_phone", "Invalid phone number", 400);
     }
 
-    assertTwilioConfig(requestId);
     const twilioClient = getTwilioClient();
-    const serviceSid = getTwilioVerifyServiceSid();
-    if (!twilioClient || !serviceSid) {
-      throw new AppError("twilio_misconfigured", "Twilio is not configured.", 500);
-    }
+    const serviceSid = getVerifyServiceSid();
     const phoneTail = getPhoneTail(phoneE164);
 
     logInfo("otp_start_request", {
@@ -526,7 +475,12 @@ export async function startOtp(
     });
 
     try {
-      const verification = await sendOtp(twilioClient, serviceSid, phoneE164);
+      const verification = await twilioClient.verify.v2
+        .services(serviceSid)
+        .verifications.create({
+          to: phoneE164,
+          channel: "sms",
+        });
       logInfo("otp_start_success", {
         phoneTail,
         serviceSid,
@@ -607,12 +561,8 @@ export async function verifyOtpCode(params: {
     assertSingleVerifyAttempt(phoneE164);
     let status: string | undefined;
 
-    assertTwilioConfig(requestId);
     const twilioClient = getTwilioClient();
-    const serviceSid = getTwilioVerifyServiceSid();
-    if (!twilioClient || !serviceSid) {
-      throw new AppError("twilio_misconfigured", "Twilio is not configured.", 500);
-    }
+    const serviceSid = getVerifyServiceSid();
 
     logInfo("otp_verify_request", {
       phoneTail,
@@ -621,7 +571,12 @@ export async function verifyOtpCode(params: {
     });
 
     try {
-      const check = await checkOtp(twilioClient, serviceSid, phoneE164, code);
+      const check = await twilioClient.verify.v2
+        .services(serviceSid)
+        .verificationChecks.create({
+          to: phoneE164,
+          code,
+        });
       status = check.status;
       logInfo("otp_verify_result", {
         phoneTail,
@@ -740,27 +695,36 @@ export async function verifyOtpCode(params: {
     } finally {
       dbClient.release();
     }
-  } catch (err) {
-    if (err instanceof AppError) {
-      const status = err.status >= 500 ? 503 : err.status;
-      const code = err.status >= 500 ? "auth_provider_unavailable" : err.code;
+  } catch (err: any) {
+    if (err instanceof AppError && err.status < 500) {
       return {
         ok: false,
-        status,
-        error: { code, message: err.message },
+        status: err.status,
+        error: { code: err.code, message: err.message },
       };
     }
+
+    const message = err?.message || "Twilio error";
+    if (message.includes("Missing required env var")) {
+      throw err;
+    }
+
+    if (err?.status === 400) {
+      return {
+        ok: false,
+        status: 400,
+        error: { code: "invalid_code", message },
+      };
+    }
+
     logWarn("otp_verify_failed", {
       requestId,
       error: err instanceof Error ? err.message : "unknown_error",
     });
     return {
       ok: false,
-      status: 503,
-      error: {
-        code: "auth_provider_unavailable",
-        message: "Authentication provider unavailable.",
-      },
+      status: 500,
+      error: { code: "twilio_error", message },
     };
   }
 }
