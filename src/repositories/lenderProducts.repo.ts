@@ -10,6 +10,57 @@ import { logError } from "../observability/logger";
 
 type Queryable = Pick<PoolClient, "query">;
 
+const LENDER_PRODUCTS_REPO = "src/repositories/lenderProducts.repo.ts";
+const LENDER_PRODUCTS_TABLE = "lender_products";
+
+async function assertLenderProductColumnsExist(params: {
+  route: string;
+  columns: string[];
+  client: Queryable;
+}): Promise<void> {
+  try {
+    const result = await params.client.query<{ column_name: string }>(
+      `select column_name
+       from information_schema.columns
+       where table_schema = 'public'
+         and table_name = $1`,
+      [LENDER_PRODUCTS_TABLE]
+    );
+    const existing = new Set(result.rows.map((row) => row.column_name));
+    const missing = params.columns.filter((column) => !existing.has(column));
+    if (missing.length === 0) {
+      return;
+    }
+    for (const column of missing) {
+      logError("schema_column_missing", {
+        route: params.route,
+        repository: LENDER_PRODUCTS_REPO,
+        column,
+        table: LENDER_PRODUCTS_TABLE,
+      });
+    }
+    throw new AppError(
+      "db_schema_error",
+      `Missing columns on ${LENDER_PRODUCTS_TABLE}: ${missing.join(", ")}`,
+      500
+    );
+  } catch (err) {
+    if (err instanceof AppError) {
+      throw err;
+    }
+    logError("schema_column_check_failed", {
+      route: params.route,
+      repository: LENDER_PRODUCTS_REPO,
+      table: LENDER_PRODUCTS_TABLE,
+      stack: err instanceof Error ? err.stack : undefined,
+    });
+    const error = err instanceof Error ? err : new Error("Unknown schema error.");
+    const appError = new AppError("db_error", error.message, 500);
+    appError.stack = error.stack;
+    throw appError;
+  }
+}
+
 export async function createLenderProduct(params: {
   lenderId: string;
   name: string;
@@ -19,18 +70,30 @@ export async function createLenderProduct(params: {
   client?: Queryable;
 }): Promise<LenderProductRecord> {
   const runner = params.client ?? pool;
+  await assertLenderProductColumnsExist({
+    route: "/api/lender-products",
+    columns: [
+      "id",
+      "lender_id",
+      "name",
+      "description",
+      "active",
+      "created_at",
+      "updated_at",
+    ],
+    client: runner,
+  });
   const res = await runner.query<LenderProductRecord>(
     `insert into lender_products
-     (id, lender_id, name, description, active, required_documents, created_at, updated_at)
-     values ($1, $2, $3, $4, $5, $6, now(), now())
-     returning id, lender_id, name, description, active, required_documents, created_at, updated_at`,
+     (id, lender_id, name, description, active, created_at, updated_at)
+     values ($1, $2, $3, $4, $5, now(), now())
+     returning id, lender_id, name, description, active, jsonb '[]' as required_documents, created_at, updated_at`,
     [
       randomUUID(),
       params.lenderId,
       params.name,
       params.description ?? null,
       params.active,
-      params.requiredDocuments,
     ]
   );
   const rows = res.rows ?? [];
@@ -46,7 +109,7 @@ export const LIST_LENDER_PRODUCTS_SQL = `select id,
         coalesce(name, 'Unnamed Product') as name,
         description,
         active,
-        required_documents,
+        jsonb '[]' as required_documents,
         created_at,
         updated_at
  from lender_products
@@ -60,6 +123,19 @@ export async function listLenderProducts(params?: {
   const runner = params?.client ?? pool;
   const activeOnly = params?.activeOnly === true;
   try {
+    await assertLenderProductColumnsExist({
+      route: "/api/lender-products",
+      columns: [
+        "id",
+        "lender_id",
+        "name",
+        "description",
+        "active",
+        "created_at",
+        "updated_at",
+      ],
+      client: runner,
+    });
     const res = await runner.query<LenderProductRecord>(
       LIST_LENDER_PRODUCTS_SQL,
       [activeOnly]
@@ -83,13 +159,26 @@ export async function listLenderProductsByLenderId(params: {
   client?: Queryable;
 }): Promise<LenderProductRecord[]> {
   const runner = params.client ?? pool;
+  await assertLenderProductColumnsExist({
+    route: "/api/lenders/:id/products",
+    columns: [
+      "id",
+      "lender_id",
+      "name",
+      "description",
+      "active",
+      "created_at",
+      "updated_at",
+    ],
+    client: runner,
+  });
   const res = await runner.query<LenderProductRecord>(
     `select id,
             lender_id,
             coalesce(name, 'Unnamed Product') as name,
             description,
             active,
-            required_documents,
+            jsonb '[]' as required_documents,
             created_at,
             updated_at
      from lender_products
@@ -107,14 +196,26 @@ export async function updateLenderProduct(params: {
   client?: Queryable;
 }): Promise<LenderProductRecord | null> {
   const runner = params.client ?? pool;
+  await assertLenderProductColumnsExist({
+    route: "/api/lender-products/:id",
+    columns: [
+      "id",
+      "lender_id",
+      "name",
+      "description",
+      "active",
+      "created_at",
+      "updated_at",
+    ],
+    client: runner,
+  });
   const res = await runner.query<LenderProductRecord>(
     `update lender_products
      set name = $1,
-         required_documents = $2,
          updated_at = now()
-     where id = $3
-     returning id, lender_id, name, description, active, required_documents, created_at, updated_at`,
-    [params.name, params.requiredDocuments, params.id]
+     where id = $2
+     returning id, lender_id, name, description, active, jsonb '[]' as required_documents, created_at, updated_at`,
+    [params.name, params.id]
   );
   return res.rows[0] ?? null;
 }
