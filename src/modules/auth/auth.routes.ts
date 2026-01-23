@@ -190,10 +190,14 @@ router.post("/otp/verify", otpRateLimit(), async (req, res, next) => {
       return;
     }
 
+    const accessToken = result.token;
+    if (!accessToken) {
+      throw new Error("OTP verified but accessToken missing");
+    }
+
     const responseBody = {
       ok: true,
-      accessToken: result.token,
-      refreshToken: result.refreshToken,
+      accessToken,
       user: result.user,
     };
 

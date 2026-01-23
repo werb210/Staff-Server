@@ -32,7 +32,6 @@ export const verifyOtpResponseSchema = z
   .object({
     ok: z.literal(true),
     accessToken: z.string(),
-    refreshToken: z.string().optional(),
     user: z
       .object({
         id: z.string(),
@@ -49,6 +48,11 @@ export const authMeSchema = z
     userId: z.string(),
     role: roleSchema,
     silo: z.string().min(1, "Silo is required"),
+    user: z
+      .object({
+        id: z.string(),
+      })
+      .strict(),
   })
   .strict();
 

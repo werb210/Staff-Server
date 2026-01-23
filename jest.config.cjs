@@ -5,6 +5,7 @@ module.exports = {
   testEnvironment: "node",
   testMatch: [
     "<rootDir>/tests/**/*.test.ts",
+    "<rootDir>/tests/**/*.spec.ts",
     "<rootDir>/src/tests/**/*.test.ts",
     "<rootDir>/src/__tests__/int.routes.test.ts",
   ],
