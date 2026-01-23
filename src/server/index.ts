@@ -2,6 +2,8 @@
 
 import { buildApp, registerApiRoutes } from "../app";
 import { assertEnv } from "../config";
+import { warmUpDatabase } from "../db";
+import { assertRequiredSchema } from "../db/schemaAssert";
 import { logError, logWarn } from "../observability/logger";
 import { notFoundHandler } from "../middleware/errors";
 import { markReady } from "../startupState";
@@ -16,12 +18,6 @@ export const app = buildApp();
 
 // Ensure Express is aware it may be behind a proxy (Azure/App Service)
 app.set("trust proxy", true);
-
-// Register all API routes using the unified registry
-registerApiRoutes(app);
-
-// Global 404 handler (after all routes)
-app.use(notFoundHandler);
 
 const isProd = process.env.NODE_ENV === "production";
 if (isProd && !process.env.BASE_URL) {
@@ -60,6 +56,20 @@ export async function startServer() {
   assertEnv();
   getTwilioClient();
   getVerifyServiceSid();
+
+  await warmUpDatabase();
+  try {
+    await assertRequiredSchema();
+  } catch (err: any) {
+    logError("fatal_schema_mismatch", { message: err?.message ?? String(err) });
+    process.exit(1);
+  }
+
+  // Register all API routes using the unified registry
+  registerApiRoutes(app);
+
+  // Global 404 handler (after all routes)
+  app.use(notFoundHandler);
 
   const port = resolvePort();
   server = await new Promise((resolve) => {

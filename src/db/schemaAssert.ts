@@ -1,0 +1,41 @@
+import { pool } from "../db";
+
+type RequiredColumn = {
+  table: string;
+  column: string;
+};
+
+const requiredColumns: RequiredColumn[] = [
+  { table: "lenders", column: "country" },
+  { table: "lenders", column: "submission_method" },
+  { table: "lender_products", column: "required_documents" },
+];
+
+export async function assertRequiredSchema(): Promise<void> {
+  const values = requiredColumns
+    .map((_, index) => `($${index * 2 + 1}, $${index * 2 + 2})`)
+    .join(", ");
+  const params = requiredColumns.flatMap((entry) => [entry.table, entry.column]);
+
+  const query = `
+    select req.table_name, req.column_name
+    from (values ${values}) as req(table_name, column_name)
+    left join information_schema.columns cols
+      on cols.table_schema = 'public'
+      and cols.table_name = req.table_name
+      and cols.column_name = req.column_name
+    where cols.column_name is null
+  `;
+
+  const res = await pool.query<{ table_name: string; column_name: string }>(
+    query,
+    params
+  );
+
+  if (res.rows.length === 0) {
+    return;
+  }
+
+  const missing = res.rows.map((row) => `${row.table_name}.${row.column_name}`);
+  throw new Error(`schema mismatch: missing columns: ${missing.join(", ")}`);
+}
