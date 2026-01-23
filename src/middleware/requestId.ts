@@ -14,7 +14,16 @@ export function requestId(
   res.locals.requestRoute = req.originalUrl;
   (req as Request & { id?: string }).id = id;
   res.setHeader("x-request-id", id);
-  runWithRequestContext({ requestId: id, route: req.originalUrl, dbProcessIds: new Set() }, () => {
-    next();
-  });
+  runWithRequestContext(
+    {
+      requestId: id,
+      method: req.method,
+      path: req.path,
+      route: req.originalUrl,
+      dbProcessIds: new Set(),
+    },
+    () => {
+      next();
+    }
+  );
 }

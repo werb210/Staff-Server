@@ -1,109 +1,81 @@
-import { AsyncLocalStorage } from "async_hooks";
-import { randomUUID } from "crypto";
 import { type Request, type Response, type NextFunction } from "express";
-
-type Store = {
-  requestId: string;
-  route?: string;
-  start: number;
-  dbProcessIds: Set<number>;
-  idempotencyKeyHash?: string;
-};
+import {
+  getRequestContext,
+  runWithRequestContext as runWithRequestContextMiddleware,
+  type RequestContextInput,
+  withRequestContext,
+} from "../observability/requestContext";
 
 export type RequestContext = {
   requestId: string;
   route?: string;
   start?: number;
+  method?: string;
+  path?: string;
+  startTime?: number;
+  sqlTraceEnabled?: boolean;
   dbProcessIds?: Set<number>;
   idempotencyKeyHash?: string;
 };
-
-const storage = new AsyncLocalStorage<Store>();
 
 export function requestContext(
   req: Request,
   res: Response,
   next: NextFunction
 ): void {
-  const requestId =
-    (req.headers["x-request-id"] as string | undefined) ?? randomUUID();
-
-  const store: Store = {
-    requestId,
-    route: req.originalUrl,
-    start: Date.now(),
-    dbProcessIds: new Set<number>(),
-  };
-
-  storage.run(store, () => {
-    res.locals.requestId = requestId;
-    res.locals.requestStart = store.start;
-    res.setHeader("X-Request-Id", requestId);
-    next();
-  });
+  runWithRequestContextMiddleware(req, res, next);
 }
 
 export function getRequestId(): string | undefined {
-  return storage.getStore()?.requestId;
+  return getRequestContext()?.requestId;
 }
 
 export function getRequestRoute(): string | undefined {
-  return storage.getStore()?.route;
+  return getRequestContext()?.path;
 }
 
 export function getRequestIdempotencyKeyHash(): string | undefined {
-  return storage.getStore()?.idempotencyKeyHash;
+  return getRequestContext()?.idempotencyKeyHash;
 }
 
 export function runWithRequestContext<T>(
   ctx: RequestContext,
   fn: () => T
 ): T {
-  const previous = storage.getStore();
-
-  const store: Store = {
+  const input: RequestContextInput = {
     requestId: ctx.requestId,
-    route: ctx.route,
-    start: ctx.start ?? Date.now(),
-    dbProcessIds: ctx.dbProcessIds ?? new Set<number>(),
+    method: ctx.method,
+    path: ctx.path ?? ctx.route,
+    startTime: ctx.startTime ?? ctx.start,
+    sqlTraceEnabled: ctx.sqlTraceEnabled,
+    dbProcessIds: ctx.dbProcessIds,
     idempotencyKeyHash: ctx.idempotencyKeyHash,
   };
-
-  const restore = (): void => {
-    if (previous) {
-      storage.enterWith(previous);
-    }
-  };
-
-  const result = storage.run(store, fn);
-
-  if (result instanceof Promise) {
-    return result.finally(restore) as T;
-  }
-
-  restore();
-  return result;
+  return withRequestContext(input, fn);
 }
 
 export function addRequestDbProcessId(processId: number): void {
-  const store = storage.getStore();
+  const store = getRequestContext();
   if (!store) return;
+  if (!store.dbProcessIds) {
+    store.dbProcessIds = new Set<number>();
+  }
   store.dbProcessIds.add(processId);
 }
 
 export function removeRequestDbProcessId(processId: number): void {
-  const store = storage.getStore();
+  const store = getRequestContext();
   if (!store) return;
-  store.dbProcessIds.delete(processId);
+  store.dbProcessIds?.delete(processId);
 }
 
 export function getRequestDbProcessIds(): number[] {
-  const store = storage.getStore();
-  return store ? Array.from(store.dbProcessIds) : [];
+  const store = getRequestContext();
+  return store?.dbProcessIds ? Array.from(store.dbProcessIds) : [];
 }
 
 export function setRequestIdempotencyKeyHash(value: string): void {
-  const store = storage.getStore();
+  const store = getRequestContext();
   if (!store) return;
   store.idempotencyKeyHash = value;
 }

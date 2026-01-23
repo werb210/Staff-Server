@@ -2,6 +2,7 @@ import { type NextFunction, type Request, type Response } from "express";
 import { AppError } from "./errors";
 import { isDbConnectionFailure } from "../dbRuntime";
 import { logError } from "../observability/logger";
+import { getRequestContext } from "../observability/requestContext";
 
 export type SafeRequestHandler = (
   req: Request,
@@ -21,6 +22,8 @@ export function safeHandler(handler: SafeRequestHandler): SafeRequestHandler {
       }
 
       const requestId = res.locals.requestId ?? "unknown";
+      const requestContext = getRequestContext();
+      const shouldLogStack = requestContext?.sqlTraceEnabled ?? false;
 
       logError("safe_handler_error", {
         requestId,
@@ -30,6 +33,7 @@ export function safeHandler(handler: SafeRequestHandler): SafeRequestHandler {
           err instanceof Error
             ? { name: err.name, message: err.message }
             : "unknown_error",
+        ...(shouldLogStack && err instanceof Error ? { stack: err.stack } : {}),
       });
 
       // Let canonical error handlers deal with known error types
