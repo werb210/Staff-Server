@@ -1,8 +1,4 @@
-export type RequiredDocument = {
-  category: string;
-  required: boolean;
-  description?: string;
-};
+export type RequiredDocument = string;
 
 export type LenderProductRecord = {
   id: string;
@@ -10,7 +6,7 @@ export type LenderProductRecord = {
   name: string;
   description: string | null;
   active: boolean;
-  required_documents: any[];
+  required_documents: RequiredDocument[];
   created_at: Date;
   updated_at: Date;
 };
