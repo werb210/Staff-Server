@@ -37,6 +37,7 @@ beforeAll(async () => {
       disabled boolean null,
       locked_until timestamptz null,
       phone_verified boolean not null default false,
+      updated_at timestamptz null,
       token_version integer not null default 0
     );
   `);

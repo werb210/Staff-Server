@@ -96,6 +96,9 @@ export async function authMeHandler(
       userId: user.userId,
       role: user.role,
       silo,
+      user: {
+        id: user.userId,
+      },
     };
 
     const validation = validateAuthMe(responseBody);

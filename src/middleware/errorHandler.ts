@@ -6,10 +6,11 @@ export function errorHandler(
   res: Response,
   _next: NextFunction
 ) {
-  const status = err.statusCode || 500;
+  const status = err.statusCode || err.status || 500;
+  const message = typeof err?.message === "string" ? err.message : "";
 
   res.status(status).json({
     ok: false,
-    error: err.code || "internal_error",
+    error: err.code || (message ? message : "internal_error"),
   });
 }

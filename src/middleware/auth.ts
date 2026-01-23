@@ -102,6 +102,11 @@ export function requireAuth(
   logAuthHeaderStatus(status);
 
   if (!token) {
+    const rawHeader = req.headers.authorization?.trim().toLowerCase();
+    if (status === "malformed" && rawHeader === "bearer") {
+      res.status(401).json({ error: "missing_token" });
+      return;
+    }
     res
       .status(401)
       .json({ error: status === "malformed" ? "invalid_token" : "missing_token" });

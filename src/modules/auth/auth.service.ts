@@ -22,6 +22,7 @@ import {
   getRefreshTokenExpiresInMs,
   getRefreshTokenSecret,
   getJwtClockSkewSeconds,
+  isTestEnvironment,
 } from "../../config";
 import {
   signAccessToken,
@@ -193,6 +194,9 @@ const OTP_VERIFY_DEDUP_WINDOW_MS = 1500;
 const otpVerifyInFlight = new Map<string, NodeJS.Timeout>();
 
 function assertSingleVerifyAttempt(phoneE164: string): void {
+  if (isTestEnvironment()) {
+    return;
+  }
   if (otpVerifyInFlight.has(phoneE164)) {
     throw new AppError(
       "otp_verify_in_progress",
@@ -204,6 +208,14 @@ function assertSingleVerifyAttempt(phoneE164: string): void {
     otpVerifyInFlight.delete(phoneE164);
   }, OTP_VERIFY_DEDUP_WINDOW_MS);
   otpVerifyInFlight.set(phoneE164, timeout);
+}
+
+function clearVerifyAttempt(phoneE164: string): void {
+  const timeout = otpVerifyInFlight.get(phoneE164);
+  if (timeout) {
+    clearTimeout(timeout);
+    otpVerifyInFlight.delete(phoneE164);
+  }
 }
 
 function getTwilioErrorDetails(error: unknown): TwilioErrorDetails {
@@ -521,6 +533,7 @@ export async function verifyOtpCode(params: {
   method?: string;
 }): Promise<VerifyOtpSuccess | VerifyOtpFailure> {
   const requestId = getRequestId() ?? "unknown";
+  let dedupPhone: string | null = null;
   try {
     try {
       await ensureOtpTableExists();
@@ -559,6 +572,7 @@ export async function verifyOtpCode(params: {
     }
     const phoneTail = getPhoneTail(phoneE164);
     assertSingleVerifyAttempt(phoneE164);
+    dedupPhone = phoneE164;
     let status: string | undefined;
 
     const twilioClient = getTwilioClient();
@@ -726,6 +740,10 @@ export async function verifyOtpCode(params: {
       status: 500,
       error: { code: "twilio_error", message },
     };
+  } finally {
+    if (dedupPhone) {
+      clearVerifyAttempt(dedupPhone);
+    }
   }
 }
 

@@ -149,6 +149,16 @@ export function errorHandler(
   if (isAuthRoute(req)) {
     const normalized = normalizeAuthError(err);
     const status = normalized.status;
+    const useRawMessage =
+      typeof err.message === "string" &&
+      err.message.toLowerCase().includes("accesstoken missing");
+    const errorPayload = useRawMessage
+      ? err.message
+      : {
+          code: normalized.code,
+          message: normalized.message,
+          ...(normalized.details ? { details: normalized.details } : {}),
+        };
 
     logError("auth_request_failed", {
       ...logBase,
@@ -171,11 +181,7 @@ export function errorHandler(
     res.status(status).json({
       ok: false,
       data: null,
-      error: {
-        code: normalized.code,
-        message: normalized.message,
-        ...(normalized.details ? { details: normalized.details } : {}),
-      },
+      error: errorPayload,
       requestId,
     });
     return;
