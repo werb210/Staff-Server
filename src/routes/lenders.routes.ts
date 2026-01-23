@@ -5,6 +5,7 @@ import { CAPABILITIES } from "../auth/capabilities";
 import {
   listLenders,
   createLender,
+  getLenderWithProducts,
 } from "../controllers/lenders.controller";
 
 const router = Router();
@@ -19,6 +20,18 @@ router.get(
   requireAuthWithInternalBypass,
   requireCapability([CAPABILITIES.LENDERS_READ]),
   listLenders
+);
+
+/**
+ * GET /api/lenders/:id/products
+ * - Auth required
+ * - Staff, Admin, Ops allowed via LENDERS_READ
+ */
+router.get(
+  "/:id/products",
+  requireAuthWithInternalBypass,
+  requireCapability([CAPABILITIES.LENDERS_READ]),
+  getLenderWithProducts
 );
 
 /**

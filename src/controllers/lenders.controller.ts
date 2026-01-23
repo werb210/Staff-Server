@@ -1,9 +1,117 @@
 import { Request, Response } from "express";
 import * as repo from "../repositories/lenders.repo";
+import {
+  listLenderProductsByLenderIdService,
+} from "../services/lenderProductsService";
+import { AppError } from "../middleware/errors";
+import { type RequiredDocument } from "../db/schema/lenderProducts";
+
+type LenderProductResponse = {
+  id: string;
+  lenderId: string;
+  name: string;
+  description: string | null;
+  active: boolean;
+  required_documents: RequiredDocument[];
+  createdAt: Date;
+  updatedAt: Date;
+};
 
 export async function listLenders(_req: Request, res: Response) {
   const lenders = await repo.listLenders();
   return res.json(lenders);
+}
+
+function toLenderProductResponse(record: {
+  id: string;
+  lender_id: string;
+  name: string;
+  description: string | null;
+  active: boolean;
+  required_documents: RequiredDocument[];
+  created_at: Date;
+  updated_at: Date;
+}): LenderProductResponse {
+  if (
+    !record ||
+    typeof record.id !== "string" ||
+    typeof record.lender_id !== "string" ||
+    typeof record.name !== "string" ||
+    typeof record.active !== "boolean"
+  ) {
+    throw new AppError("data_error", "Invalid lender product record.", 500);
+  }
+
+  const normalizedDocuments = normalizeRequiredDocuments(
+    record.required_documents
+  );
+
+  return {
+    id: record.id,
+    lenderId: record.lender_id,
+    name: record.name,
+    description: record.description,
+    active: record.active,
+    required_documents: normalizedDocuments,
+    createdAt: parseTimestamp(record.created_at, "created_at"),
+    updatedAt: parseTimestamp(record.updated_at, "updated_at"),
+  };
+}
+
+function parseTimestamp(value: unknown, fieldName: string): Date {
+  if (value instanceof Date) {
+    return value;
+  }
+  if (typeof value === "string" || typeof value === "number") {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.valueOf())) {
+      return parsed;
+    }
+  }
+  throw new AppError(
+    "data_error",
+    `Invalid lender product ${fieldName}.`,
+    500
+  );
+}
+
+function normalizeRequiredDocuments(value: unknown): RequiredDocument[] {
+  if (Array.isArray(value)) {
+    return value as RequiredDocument[];
+  }
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed as RequiredDocument[];
+      }
+    } catch {
+      // fall through to error
+    }
+  }
+  return [];
+}
+
+export async function getLenderWithProducts(req: Request, res: Response) {
+  const { id } = req.params;
+
+  if (typeof id !== "string" || id.trim().length === 0) {
+    throw new AppError("validation_error", "id is required.", 400);
+  }
+
+  const lender = await repo.getLenderById(id.trim());
+  if (!lender) {
+    throw new AppError("not_found", "Lender not found.", 404);
+  }
+
+  const products = await listLenderProductsByLenderIdService({
+    lenderId: id.trim(),
+  });
+
+  return res.json({
+    lender,
+    products: products.map(toLenderProductResponse),
+  });
 }
 
 export async function createLender(req: Request, res: Response) {
