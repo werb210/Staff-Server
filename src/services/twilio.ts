@@ -1,64 +1,51 @@
 import Twilio from "twilio";
+import { env } from "../env";
 
-export type TwilioClient = ReturnType<typeof Twilio>;
+let cachedClient: Twilio.Twilio | null = null;
 
-type TwilioConfig = {
-  accountSid: string;
-  authToken: string;
-  verifyServiceSid: string;
-};
+export function getTwilioClient(): Twilio.Twilio {
+  if (cachedClient) return cachedClient;
 
-function readTwilioConfig(): TwilioConfig | null {
-  const { TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_VERIFY_SERVICE_SID } =
-    process.env;
-  if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_VERIFY_SERVICE_SID) {
-    return null;
+  if (!env.TWILIO_ACCOUNT_SID || !env.TWILIO_AUTH_TOKEN) {
+    throw new Error("Twilio credentials missing");
   }
-  return {
-    accountSid: TWILIO_ACCOUNT_SID,
-    authToken: TWILIO_AUTH_TOKEN,
-    verifyServiceSid: TWILIO_VERIFY_SERVICE_SID,
-  };
+
+  cachedClient = new Twilio(env.TWILIO_ACCOUNT_SID, env.TWILIO_AUTH_TOKEN);
+  return cachedClient;
 }
 
-export const isTwilioEnabled = (): boolean => Boolean(readTwilioConfig());
-
-export let twilioClient: TwilioClient | null = null;
-
-export function getTwilioClient(): TwilioClient | null {
-  const config = readTwilioConfig();
-  if (!config) {
-    return null;
+export function getTwilioVerifyServiceSid(): string {
+  if (!env.TWILIO_VERIFY_SERVICE_SID) {
+    throw new Error("Twilio Verify Service SID missing");
   }
-  if (!twilioClient) {
-    twilioClient = Twilio(config.accountSid, config.authToken);
-  }
-  return twilioClient;
-}
-
-export function getTwilioVerifyServiceSid(): string | null {
-  return readTwilioConfig()?.verifyServiceSid ?? null;
+  return env.TWILIO_VERIFY_SERVICE_SID;
 }
 
 export async function sendOtp(
-  client: NonNullable<ReturnType<typeof getTwilioClient>>,
-  verifyServiceSid: string,
+  client: Twilio.Twilio,
+  serviceSid: string,
   phoneE164: string
-): Promise<{ sid?: string; status?: string }> {
+) {
   return client.verify.v2
-    .services(verifyServiceSid)
-    .verifications.create({ to: phoneE164, channel: "sms" });
+    .services(serviceSid)
+    .verifications.create({
+      to: phoneE164,
+      channel: "sms",
+    });
 }
 
 export async function checkOtp(
-  client: NonNullable<ReturnType<typeof getTwilioClient>>,
-  verifyServiceSid: string,
+  client: Twilio.Twilio,
+  serviceSid: string,
   phoneE164: string,
   code: string
-): Promise<{ status?: string; sid?: string }> {
-  const result = await client.verify.v2
-    .services(verifyServiceSid)
-    .verificationChecks.create({ to: phoneE164, code });
-  const verificationSid = (result as { sid?: string }).sid;
-  return { status: result.status, sid: verificationSid };
+) {
+  // CRITICAL FIX:
+  // verificationChecks (plural) is the ONLY valid endpoint
+  return client.verify.v2
+    .services(serviceSid)
+    .verificationChecks.create({
+      to: phoneE164,
+      code,
+    });
 }
