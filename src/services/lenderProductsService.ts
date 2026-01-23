@@ -30,11 +30,21 @@ function resolveSilo(value: unknown): string {
   return DEFAULT_SILO;
 }
 
-function filterBySilo<T extends { silo?: string | null }>(
+function filterBySilo<T extends Record<string, unknown>>(
   records: T[],
   silo: string
 ): T[] {
-  return records.filter((record) => resolveSilo(record?.silo) === silo);
+  return records.filter((record) => {
+    const recordSilo = record.silo;
+    if (
+      recordSilo === undefined ||
+      recordSilo === null ||
+      (typeof recordSilo === "string" && recordSilo.trim().length === 0)
+    ) {
+      return true;
+    }
+    return resolveSilo(recordSilo) === silo;
+  });
 }
 
 export async function createLenderProductService(params: {
