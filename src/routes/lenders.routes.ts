@@ -11,6 +11,15 @@ import {
 
 const router = Router();
 
+if (process.env.NODE_ENV === "test") {
+  router.get(
+    "/__test-error",
+    safeHandler(() => {
+      throw new Error("lenders test error");
+    })
+  );
+}
+
 /**
  * GET /api/lenders
  * - Auth required

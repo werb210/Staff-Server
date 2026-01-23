@@ -24,6 +24,7 @@ import { ensureIdempotencyKey } from "./middleware/idempotencyKey";
 import { notFoundHandler } from "./middleware/errors";
 import { errorHandler } from "./middleware/errorHandler";
 import { logError } from "./observability/logger";
+import { getRequestContext } from "./observability/requestContext";
 import authRoutes from "./routes/auth";
 import lendersRoutes from "./routes/lenders";
 import lenderProductsRoutes from "./routes/lenderProducts";
@@ -191,6 +192,8 @@ export function registerApiRoutes(app: express.Express): void {
         return;
       }
       const requestId = res.locals.requestId ?? "unknown";
+      const requestContext = getRequestContext();
+      const shouldLogStack = requestContext?.sqlTraceEnabled ?? false;
       logError("request_failed", {
         requestId,
         method: _req.method,
@@ -198,7 +201,7 @@ export function registerApiRoutes(app: express.Express): void {
         statusCode: 500,
         errorName: err.name,
         errorMessage: err.message,
-        ...(process.env.NODE_ENV === "production" ? {} : { stack: err.stack }),
+        ...(shouldLogStack ? { stack: err.stack } : {}),
       });
       res.status(500).json({
         code: "internal_error",

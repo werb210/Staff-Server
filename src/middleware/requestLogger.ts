@@ -1,6 +1,7 @@
 import { type NextFunction, type Request, type Response } from "express";
 import { logInfo } from "../observability/logger";
 import { trackRequest } from "../observability/appInsights";
+import { getRequestContext } from "../observability/requestContext";
 
 const SENSITIVE_FIELD_PATTERN = /(token|password|secret)/i;
 
@@ -40,6 +41,15 @@ export function requestLogger(
   const userAgent = req.get("user-agent");
   const authorizationState = req.get("authorization") ? "PRESENT" : "MISSING";
   const ip = req.ip ?? "unknown";
+  const context = getRequestContext();
+
+  if (context?.sqlTraceEnabled) {
+    logInfo("sql_trace_request", {
+      requestId,
+      method: req.method,
+      path: context.path,
+    });
+  }
 
   logInfo("request_started", {
     requestId,
