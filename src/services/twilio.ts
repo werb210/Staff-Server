@@ -1,28 +1,37 @@
 import Twilio from "twilio";
-import { env } from "../env";
+import type { Twilio as TwilioClient } from "twilio";
 
-let cachedClient: Twilio.Twilio | null = null;
+let client: TwilioClient | null = null;
 
-export function getTwilioClient(): Twilio.Twilio {
-  if (cachedClient) return cachedClient;
+export function isTwilioEnabled(): boolean {
+  return Boolean(
+    process.env.TWILIO_ACCOUNT_SID &&
+      process.env.TWILIO_AUTH_TOKEN &&
+      process.env.TWILIO_VERIFY_SERVICE_SID
+  );
+}
 
-  if (!env.TWILIO_ACCOUNT_SID || !env.TWILIO_AUTH_TOKEN) {
-    throw new Error("Twilio credentials missing");
-  }
+export function getTwilioClient(): TwilioClient | null {
+  if (client) return client;
 
-  cachedClient = new Twilio(env.TWILIO_ACCOUNT_SID, env.TWILIO_AUTH_TOKEN);
-  return cachedClient;
+  const sid = process.env.TWILIO_ACCOUNT_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
+
+  if (!sid || !token) return null;
+
+  client = new Twilio(sid, token);
+  return client;
 }
 
 export function getTwilioVerifyServiceSid(): string {
-  if (!env.TWILIO_VERIFY_SERVICE_SID) {
+  if (!process.env.TWILIO_VERIFY_SERVICE_SID) {
     throw new Error("Twilio Verify Service SID missing");
   }
-  return env.TWILIO_VERIFY_SERVICE_SID;
+  return process.env.TWILIO_VERIFY_SERVICE_SID;
 }
 
 export async function sendOtp(
-  client: Twilio.Twilio,
+  client: TwilioClient,
   serviceSid: string,
   phoneE164: string
 ) {
@@ -35,7 +44,7 @@ export async function sendOtp(
 }
 
 export async function checkOtp(
-  client: Twilio.Twilio,
+  client: TwilioClient,
   serviceSid: string,
   phoneE164: string,
   code: string
