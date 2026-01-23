@@ -5,6 +5,7 @@ import { assertEnv } from "../config";
 import { logError, logWarn } from "../observability/logger";
 import { notFoundHandler } from "../middleware/errors";
 import { markReady } from "../startupState";
+import { getTwilioClient, getVerifyServiceSid } from "../services/twilio";
 
 let processHandlersInstalled = false;
 let server: ReturnType<ReturnType<typeof buildApp>["listen"]> | null = null;
@@ -57,6 +58,8 @@ function resolvePort(): number {
 export async function startServer() {
   installProcessHandlers();
   assertEnv();
+  getTwilioClient();
+  getVerifyServiceSid();
 
   const port = resolvePort();
   server = await new Promise((resolve) => {

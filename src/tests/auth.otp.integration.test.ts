@@ -4,7 +4,7 @@ import { randomUUID } from "crypto";
 import { app } from "../server";
 import { pool } from "../db";
 import { ROLES, type Role } from "../auth/roles";
-import * as twilioService from "../services/twilio";
+import { getTwilioMocks } from "../__tests__/helpers/twilioMocks";
 
 const TEST_PHONE = "+15555550100";
 
@@ -40,14 +40,14 @@ async function upsertUser(params: { phone: string; role: Role }) {
 
 describe("auth otp canary integration", () => {
   it("starts OTP, invokes Twilio send, verifies OTP, and returns role token", async () => {
-    const sendOtpSpy = jest.spyOn(twilioService, "sendOtp");
+    const twilioMocks = getTwilioMocks();
 
     const startRes = await request(app)
       .post("/api/auth/otp/start")
       .send({ phone: TEST_PHONE });
 
     expect([200, 204]).toContain(startRes.status);
-    expect(sendOtpSpy).toHaveBeenCalledTimes(1);
+    expect(twilioMocks.createVerification).toHaveBeenCalledTimes(1);
     expect(
       startRes.body?.accessToken ?? startRes.body?.data?.accessToken
     ).toBeUndefined();

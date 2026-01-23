@@ -7,14 +7,10 @@ describe("startup twilio config", () => {
     jest.resetModules();
 
     jest.isolateModules(() => {
-      const {
-        getTwilioClient,
-        isTwilioEnabled,
-        twilioClient,
-      } = require("../services/twilio");
-      expect(isTwilioEnabled()).toBe(false);
-      expect(twilioClient).toBeNull();
-      expect(getTwilioClient()).toBeNull();
+      const { getTwilioClient } = require("../services/twilio");
+      expect(() => getTwilioClient()).toThrow(
+        "Missing required env var: TWILIO_AUTH_TOKEN"
+      );
     });
 
     process.env = originalEnv;

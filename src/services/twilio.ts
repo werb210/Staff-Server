@@ -2,59 +2,26 @@ import Twilio from "twilio";
 
 type TwilioClient = ReturnType<typeof Twilio>;
 
-let client: TwilioClient | null = null;
+let cachedClient: TwilioClient | null = null;
 
-export function isTwilioEnabled(): boolean {
-  return Boolean(
-    process.env.TWILIO_ACCOUNT_SID &&
-      process.env.TWILIO_AUTH_TOKEN &&
-      process.env.TWILIO_VERIFY_SERVICE_SID
-  );
-}
-
-export function getTwilioClient(): TwilioClient | null {
-  if (client) return client;
-  if (!isTwilioEnabled()) return null;
-
-  client = new Twilio(
-    process.env.TWILIO_ACCOUNT_SID!,
-    process.env.TWILIO_AUTH_TOKEN!
-  );
-  return client;
-}
-
-export function getTwilioVerifyServiceSid(): string {
-  if (!process.env.TWILIO_VERIFY_SERVICE_SID) {
-    throw new Error("Twilio Verify Service SID missing");
+function requireEnv(name: string): string {
+  const v = process.env[name];
+  if (!v || !v.trim()) {
+    throw new Error(`Missing required env var: ${name}`);
   }
-  return process.env.TWILIO_VERIFY_SERVICE_SID;
+  return v;
 }
 
-export async function sendOtp(
-  client: TwilioClient,
-  serviceSid: string,
-  phoneE164: string
-) {
-  return client.verify.v2
-    .services(serviceSid)
-    .verifications.create({
-      to: phoneE164,
-      channel: "sms",
-    });
+export function getTwilioClient(): TwilioClient {
+  if (cachedClient) return cachedClient;
+
+  const accountSid = requireEnv("TWILIO_ACCOUNT_SID");
+  const authToken = requireEnv("TWILIO_AUTH_TOKEN");
+
+  cachedClient = new Twilio(accountSid, authToken);
+  return cachedClient;
 }
 
-export async function checkOtp(
-  client: TwilioClient,
-  serviceSid: string,
-  phoneE164: string,
-  code: string
-) {
-  // CRITICAL FIX:
-  // verificationChecks (plural) is the ONLY valid endpoint
-  return client.verify.v2
-    .services(serviceSid)
-    .verificationChecks.create({
-      to: phoneE164,
-      code,
-    });
+export function getVerifyServiceSid(): string {
+  return requireEnv("TWILIO_VERIFY_SERVICE_SID");
 }

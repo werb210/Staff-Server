@@ -1,5 +1,4 @@
 import { Router } from "express";
-import { isTwilioEnabled } from "../services/twilio";
 import { getBuildInfo } from "../config";
 import { listRouteInventory } from "../debug/printRoutes";
 import { readyHandler } from "./ready";
@@ -24,7 +23,11 @@ router.get("/routes", (req, res) => {
 
 router.get("/env", (_req, res) =>
   res.json({
-    twilioAvailable: isTwilioEnabled(),
+    twilioAvailable: Boolean(
+      process.env.TWILIO_ACCOUNT_SID &&
+        process.env.TWILIO_AUTH_TOKEN &&
+        process.env.TWILIO_VERIFY_SERVICE_SID
+    ),
   })
 );
 
