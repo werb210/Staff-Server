@@ -1,5 +1,6 @@
 import Twilio from "twilio";
-import type { Twilio as TwilioClient } from "twilio";
+
+type TwilioClient = ReturnType<typeof Twilio>;
 
 let client: TwilioClient | null = null;
 
@@ -13,13 +14,12 @@ export function isTwilioEnabled(): boolean {
 
 export function getTwilioClient(): TwilioClient | null {
   if (client) return client;
+  if (!isTwilioEnabled()) return null;
 
-  const sid = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
-
-  if (!sid || !token) return null;
-
-  client = new Twilio(sid, token);
+  client = new Twilio(
+    process.env.TWILIO_ACCOUNT_SID!,
+    process.env.TWILIO_AUTH_TOKEN!
+  );
   return client;
 }
 
