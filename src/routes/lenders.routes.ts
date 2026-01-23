@@ -2,6 +2,7 @@ import { Router } from "express";
 import requireAuthWithInternalBypass from "../middleware/requireAuth";
 import { requireCapability } from "../middleware/auth";
 import { CAPABILITIES } from "../auth/capabilities";
+import { safeHandler } from "../middleware/safeHandler";
 import {
   listLenders,
   createLender,
@@ -19,7 +20,7 @@ router.get(
   "/",
   requireAuthWithInternalBypass,
   requireCapability([CAPABILITIES.LENDERS_READ]),
-  listLenders
+  safeHandler(listLenders)
 );
 
 /**
@@ -31,7 +32,7 @@ router.get(
   "/:id/products",
   requireAuthWithInternalBypass,
   requireCapability([CAPABILITIES.LENDERS_READ]),
-  getLenderWithProducts
+  safeHandler(getLenderWithProducts)
 );
 
 /**
@@ -43,7 +44,7 @@ router.post(
   "/",
   requireAuthWithInternalBypass,
   requireCapability([CAPABILITIES.OPS_MANAGE]),
-  createLender
+  safeHandler(createLender)
 );
 
 export default router;

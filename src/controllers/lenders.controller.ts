@@ -17,9 +17,12 @@ type LenderProductResponse = {
   updatedAt: Date;
 };
 
-export async function listLenders(_req: Request, res: Response) {
+export async function listLenders(
+  _req: Request,
+  res: Response
+): Promise<void> {
   const lenders = await repo.listLenders();
-  return res.json(lenders);
+  res.json(lenders);
 }
 
 function toLenderProductResponse(record: {
@@ -92,7 +95,10 @@ function normalizeRequiredDocuments(value: unknown): RequiredDocument[] {
   return [];
 }
 
-export async function getLenderWithProducts(req: Request, res: Response) {
+export async function getLenderWithProducts(
+  req: Request,
+  res: Response
+): Promise<void> {
   const { id } = req.params;
 
   if (typeof id !== "string" || id.trim().length === 0) {
@@ -108,13 +114,16 @@ export async function getLenderWithProducts(req: Request, res: Response) {
     lenderId: id.trim(),
   });
 
-  return res.json({
+  res.json({
     lender,
     products: products.map(toLenderProductResponse),
   });
 }
 
-export async function createLender(req: Request, res: Response) {
+export async function createLender(
+  req: Request,
+  res: Response
+): Promise<void> {
   const {
     name,
     country,
@@ -126,10 +135,12 @@ export async function createLender(req: Request, res: Response) {
   } = req.body ?? {};
 
   if (!name || typeof name !== "string") {
-    return res.status(400).json({ error: "name_required" });
+    res.status(400).json({ error: "name_required" });
+    return;
   }
   if (!country || typeof country !== "string") {
-    return res.status(400).json({ error: "country_required" });
+    res.status(400).json({ error: "country_required" });
+    return;
   }
 
   const normalizedSubmissionMethod =
@@ -147,5 +158,5 @@ export async function createLender(req: Request, res: Response) {
     postal_code: postal_code ?? null
   });
 
-  return res.status(201).json(lender);
+  res.status(201).json(lender);
 }

@@ -1,9 +1,14 @@
 import jwt, { type JwtPayload, type SignOptions } from "jsonwebtoken";
 import { randomUUID } from "crypto";
+import { type PoolClient } from "pg";
 import {
   createUser,
   findAuthUserByPhone,
   findAuthUserById,
+  findApprovedOtpVerificationByPhone,
+  findLatestOtpVerificationByPhone,
+  createOtpVerification,
+  updateOtpVerificationStatus,
   updateUserRoleById,
   storeRefreshToken,
   consumeRefreshToken,
@@ -192,6 +197,7 @@ type TwilioErrorDetails = {
 
 const OTP_VERIFY_DEDUP_WINDOW_MS = 1500;
 const otpVerifyInFlight = new Map<string, NodeJS.Timeout>();
+const OTP_VERIFICATION_MAX_AGE_MS = 10 * 60 * 1000;
 
 function assertSingleVerifyAttempt(phoneE164: string): void {
   if (isTestEnvironment()) {
@@ -403,6 +409,102 @@ function getPhoneTail(phoneE164: string): string {
   return phoneE164.slice(-2);
 }
 
+function isOtpVerificationFresh(record: {
+  createdAt: Date;
+  verifiedAt: Date | null;
+}): boolean {
+  const timestamp = record.verifiedAt ?? record.createdAt;
+  return Date.now() - timestamp.valueOf() <= OTP_VERIFICATION_MAX_AGE_MS;
+}
+
+function isMissingOtpTableError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { code?: string }).code === "42P01"
+  );
+}
+
+async function safeFindLatestOtpVerificationByPhone(
+  phone: string,
+  requestId: string
+) {
+  try {
+    return await findLatestOtpVerificationByPhone({ phone });
+  } catch (err) {
+    if (isMissingOtpTableError(err)) {
+      logWarn("otp_verification_table_missing", { requestId });
+      return null;
+    }
+    throw err;
+  }
+}
+
+async function safeFindApprovedOtpVerificationByPhone(
+  phone: string,
+  requestId: string
+) {
+  try {
+    return await findApprovedOtpVerificationByPhone({ phone });
+  } catch (err) {
+    if (isMissingOtpTableError(err)) {
+      logWarn("otp_verification_table_missing", { requestId });
+      return null;
+    }
+    throw err;
+  }
+}
+
+async function safeCreateOtpVerification(params: {
+  userId: string;
+  phone: string;
+  verificationSid?: string | null;
+  status: "pending" | "approved" | "expired";
+  verifiedAt?: Date | null;
+  client?: Pick<PoolClient, "query">;
+  requestId: string;
+}): Promise<void> {
+  try {
+    await createOtpVerification({
+      userId: params.userId,
+      phone: params.phone,
+      verificationSid: params.verificationSid ?? null,
+      status: params.status,
+      verifiedAt: params.verifiedAt ?? null,
+      client: params.client,
+    });
+  } catch (err) {
+    if (isMissingOtpTableError(err)) {
+      logWarn("otp_verification_table_missing", { requestId: params.requestId });
+      return;
+    }
+    throw err;
+  }
+}
+
+async function safeUpdateOtpVerificationStatus(params: {
+  id: string;
+  status: "pending" | "approved" | "expired";
+  verifiedAt?: Date | null;
+  client?: Pick<PoolClient, "query">;
+  requestId: string;
+}): Promise<void> {
+  try {
+    await updateOtpVerificationStatus({
+      id: params.id,
+      status: params.status,
+      verifiedAt: params.verifiedAt ?? null,
+      client: params.client,
+    });
+  } catch (err) {
+    if (isMissingOtpTableError(err)) {
+      logWarn("otp_verification_table_missing", { requestId: params.requestId });
+      return;
+    }
+    throw err;
+  }
+}
+
 function normalizeEmail(email: string | null | undefined): string | null {
   if (!email) {
     return null;
@@ -500,6 +602,29 @@ export async function startOtp(
         status: verification.status,
         requestId,
       });
+      try {
+        let userRecord = await findAuthUserByPhone(phoneE164);
+        if (!userRecord && isBootstrapAdminUser({ phoneNumber: phoneE164, email: null })) {
+          userRecord = await createUser({
+            phoneNumber: phoneE164,
+            role: ROLES.ADMIN,
+          });
+        }
+        if (userRecord) {
+          await safeCreateOtpVerification({
+            userId: userRecord.id,
+            phone: phoneE164,
+            verificationSid: verification.sid ?? null,
+            status: "pending",
+            requestId,
+          });
+        }
+      } catch (err) {
+        logError("otp_start_record_failed", {
+          requestId,
+          error: err instanceof Error ? err.message : "unknown_error",
+        });
+      }
       return { ok: true, sid: verification.sid ?? "unknown" };
     } catch (err: any) {
       const details = getTwilioErrorDetails(err);
@@ -575,6 +700,53 @@ export async function verifyOtpCode(params: {
     dedupPhone = phoneE164;
     let status: string | undefined;
 
+    const existingUser = await findAuthUserByPhone(phoneE164);
+    if (!existingUser) {
+      if (!isBootstrapAdminUser({ phoneNumber: phoneE164, email: null })) {
+        return {
+          ok: false,
+          status: 404,
+          error: { code: "user_not_found", message: "User not found." },
+        };
+      }
+    }
+
+    let latestVerification = await safeFindLatestOtpVerificationByPhone(
+      phoneE164,
+      requestId
+    );
+
+    if (!isTestEnvironment()) {
+      if (!latestVerification) {
+        return {
+          ok: false,
+          status: 400,
+          error: { code: "expired_code", message: "OTP code expired." },
+        };
+      }
+
+      if (!isOtpVerificationFresh(latestVerification)) {
+        return {
+          ok: false,
+          status: 400,
+          error: { code: "expired_code", message: "OTP code expired." },
+        };
+      }
+    }
+
+    if (latestVerification?.status === "approved" && isOtpVerificationFresh(latestVerification)) {
+      status = "approved";
+    } else {
+      const approvedVerification = await safeFindApprovedOtpVerificationByPhone(
+        phoneE164,
+        requestId
+      );
+      if (approvedVerification && isOtpVerificationFresh(approvedVerification)) {
+        status = "approved";
+        latestVerification = approvedVerification;
+      }
+    }
+
     const twilioClient = getTwilioClient();
     const serviceSid = getVerifyServiceSid();
 
@@ -584,33 +756,35 @@ export async function verifyOtpCode(params: {
       requestId,
     });
 
-    try {
-      const check = await twilioClient.verify.v2
-        .services(serviceSid)
-        .verificationChecks.create({
-          to: phoneE164,
-          code,
+    if (status !== "approved") {
+      try {
+        const check = await twilioClient.verify.v2
+          .services(serviceSid)
+          .verificationChecks.create({
+            to: phoneE164,
+            code,
+          });
+        status = check.status;
+        logInfo("otp_verify_result", {
+          phoneTail,
+          serviceSid,
+          status,
+          requestId,
         });
-      status = check.status;
-      logInfo("otp_verify_result", {
-        phoneTail,
-        serviceSid,
-        status,
-        requestId,
-      });
-    } catch (err) {
-      const details = getTwilioErrorDetails(err);
-      logError("auth_twilio_verify_failed", {
-        action: "otp_verify",
-        phoneTail,
-        serviceSid,
-        twilioCode: details.code,
-        status: details.status,
-        message: details.message,
-        requestId,
-        error: err,
-      });
-      return mapTwilioVerifyCheckFailure(details, err);
+      } catch (err) {
+        const details = getTwilioErrorDetails(err);
+        logError("auth_twilio_verify_failed", {
+          action: "otp_verify",
+          phoneTail,
+          serviceSid,
+          twilioCode: details.code,
+          status: details.status,
+          message: details.message,
+          requestId,
+          error: err,
+        });
+        return mapTwilioVerifyCheckFailure(details, err);
+      }
     }
 
     if (status !== "approved") {
@@ -659,6 +833,25 @@ export async function verifyOtpCode(params: {
         "update users set phone_verified = $1, updated_at = $2 where id = $3",
         [true, new Date(), userRecord.id]
       );
+
+      if (latestVerification?.status === "pending") {
+        await safeUpdateOtpVerificationStatus({
+          id: latestVerification.id,
+          status: "approved",
+          verifiedAt: new Date(),
+          client: db,
+          requestId,
+        });
+      } else if (!latestVerification || latestVerification.status !== "approved") {
+        await safeCreateOtpVerification({
+          userId: userRecord.id,
+          phone: phoneE164,
+          status: "approved",
+          verifiedAt: new Date(),
+          client: db,
+          requestId,
+        });
+      }
 
       const tokenVersion = userRecord.tokenVersion ?? 0;
       const payload: AccessTokenPayload = {
