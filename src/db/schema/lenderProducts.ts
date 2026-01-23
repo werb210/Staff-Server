@@ -8,7 +8,7 @@ export type JsonValue =
 
 export type JsonObject = { [key: string]: JsonValue };
 export type JsonArray = JsonValue[];
-export type RequiredDocuments = JsonObject | JsonArray;
+export type RequiredDocuments = JsonObject[];
 
 export type LenderProductRecord = {
   id: string;
