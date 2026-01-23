@@ -78,6 +78,7 @@ export async function createLenderProduct(params: {
       "name",
       "description",
       "active",
+      "required_documents",
       "created_at",
       "updated_at",
     ],
@@ -85,18 +86,19 @@ export async function createLenderProduct(params: {
   });
   const res = await runner.query<LenderProductRecord>(
     `insert into lender_products
-     (id, lender_id, name, description, active, created_at, updated_at)
-     values ($1, $2, $3, $4, $5, now(), now())
-     returning id, lender_id, name, description, active, jsonb '[]' as required_documents, created_at, updated_at`,
+     (id, lender_id, name, description, active, required_documents, created_at, updated_at)
+     values ($1, $2, $3, $4, $5, $6::jsonb, now(), now())
+     returning id, lender_id, name, description, active, required_documents, created_at, updated_at`,
     [
       randomUUID(),
       params.lenderId,
       params.name,
       params.description ?? null,
       params.active,
+      JSON.stringify(params.requiredDocuments),
     ]
   );
-  const rows = res.rows ?? [];
+  const rows = res.rows;
   const created = rows[0];
   if (!created) {
     throw new AppError("db_error", "Failed to create lender product.", 500);
@@ -109,7 +111,7 @@ export const LIST_LENDER_PRODUCTS_SQL = `select id,
         coalesce(name, 'Unnamed Product') as name,
         description,
         active,
-        jsonb '[]' as required_documents,
+        required_documents,
         created_at,
         updated_at
  from lender_products
@@ -131,6 +133,7 @@ export async function listLenderProducts(params?: {
         "name",
         "description",
         "active",
+        "required_documents",
         "created_at",
         "updated_at",
       ],
@@ -140,7 +143,7 @@ export async function listLenderProducts(params?: {
       LIST_LENDER_PRODUCTS_SQL,
       [activeOnly]
     );
-    return res.rows ?? [];
+    return res.rows;
   } catch (err) {
     logError("lender_products_query_failed", {
       sql: LIST_LENDER_PRODUCTS_SQL,
@@ -167,6 +170,7 @@ export async function listLenderProductsByLenderId(params: {
       "name",
       "description",
       "active",
+      "required_documents",
       "created_at",
       "updated_at",
     ],
@@ -178,7 +182,7 @@ export async function listLenderProductsByLenderId(params: {
             coalesce(name, 'Unnamed Product') as name,
             description,
             active,
-            jsonb '[]' as required_documents,
+            required_documents,
             created_at,
             updated_at
      from lender_products
@@ -186,7 +190,7 @@ export async function listLenderProductsByLenderId(params: {
      order by created_at desc`,
     [params.lenderId]
   );
-  return res.rows ?? [];
+  return res.rows;
 }
 
 export async function updateLenderProduct(params: {
@@ -204,6 +208,7 @@ export async function updateLenderProduct(params: {
       "name",
       "description",
       "active",
+      "required_documents",
       "created_at",
       "updated_at",
     ],
@@ -212,10 +217,11 @@ export async function updateLenderProduct(params: {
   const res = await runner.query<LenderProductRecord>(
     `update lender_products
      set name = $1,
+         required_documents = $2::jsonb,
          updated_at = now()
-     where id = $2
-     returning id, lender_id, name, description, active, jsonb '[]' as required_documents, created_at, updated_at`,
-    [params.name, params.id]
+     where id = $3
+     returning id, lender_id, name, description, active, required_documents, created_at, updated_at`,
+    [params.name, JSON.stringify(params.requiredDocuments), params.id]
   );
   return res.rows[0] ?? null;
 }

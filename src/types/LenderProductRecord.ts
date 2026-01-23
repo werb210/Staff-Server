@@ -4,7 +4,7 @@ export type LenderProductRecord = {
   name: string;
   description: string | null;
   active: boolean;
-  required_documents: any[];
+  required_documents: string[];
   created_at: Date;
   updated_at: Date;
 };

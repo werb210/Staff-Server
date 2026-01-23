@@ -67,14 +67,7 @@ describe("lender products", () => {
       .set("x-request-id", requestId)
       .send({ name: "Docs Lender", country: "US" });
 
-    const requiredDocuments = [
-      {
-        category: "bank_statement",
-        required: true,
-        description: "Most recent statements",
-      },
-      { category: "id_document", required: false },
-    ];
+    const requiredDocuments = ["bank_statement", "id_document"];
 
     const createResponse = await request(app)
       .post("/api/lender-products")
@@ -101,10 +94,7 @@ describe("lender products", () => {
     expect(listed).toBeDefined();
     expect(listed.required_documents).toEqual(requiredDocuments);
 
-    const updatedDocuments = [
-      { category: "tax_return", required: true },
-      { category: "balance_sheet", required: true, description: "Year end" },
-    ];
+    const updatedDocuments = ["tax_return", "balance_sheet"];
 
     const patchResponse = await request(app)
       .patch(`/api/lender-products/${createResponse.body.id}`)

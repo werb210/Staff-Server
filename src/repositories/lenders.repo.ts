@@ -67,7 +67,7 @@ export const LIST_LENDERS_SQL = `
   SELECT
     id,
     name,
-    NULL as country,
+    country,
     submission_method,
     phone,
     website,
@@ -84,6 +84,7 @@ export async function listLenders() {
       columns: [
         "id",
         "name",
+        "country",
         "submission_method",
         "phone",
         "website",
@@ -92,7 +93,7 @@ export async function listLenders() {
       ],
     });
     const result = await pool.query(LIST_LENDERS_SQL);
-    return result.rows ?? [];
+    return result.rows;
   } catch (err) {
     logError("lenders_query_failed", {
       sql: LIST_LENDERS_SQL,
@@ -112,6 +113,7 @@ export async function getLenderById(id: string) {
     columns: [
       "id",
       "name",
+      "country",
       "submission_method",
       "phone",
       "website",
@@ -124,7 +126,7 @@ export async function getLenderById(id: string) {
     SELECT
       id,
       name,
-      NULL as country,
+      country,
       submission_method,
       phone,
       website,
@@ -136,7 +138,7 @@ export async function getLenderById(id: string) {
     `,
     [id]
   );
-  const rows = result.rows ?? [];
+  const rows = result.rows;
   return rows[0] ?? null;
 }
 
@@ -146,6 +148,7 @@ export async function createLender(input: CreateLenderInput) {
     columns: [
       "id",
       "name",
+      "country",
       "submission_method",
       "email",
       "phone",
@@ -158,17 +161,18 @@ export async function createLender(input: CreateLenderInput) {
     INSERT INTO lenders (
       id,
       name,
+      country,
       submission_method,
       email,
       phone,
       website,
       postal_code
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     RETURNING
       id,
       name,
-      NULL as country,
+      country,
       submission_method,
       email,
       phone,
@@ -179,6 +183,7 @@ export async function createLender(input: CreateLenderInput) {
     [
       randomUUID(),
       input.name,
+      input.country,
       input.submission_method,
       input.email,
       input.phone,
@@ -187,7 +192,7 @@ export async function createLender(input: CreateLenderInput) {
     ]
   );
 
-  const rows = result.rows ?? [];
+  const rows = result.rows;
   const created = rows[0];
   if (!created) {
     throw new AppError("db_error", "Failed to create lender.", 500);

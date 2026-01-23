@@ -80,14 +80,13 @@ function toLenderProductResponse(record: {
     typeof record.id !== "string" ||
     typeof record.lender_id !== "string" ||
     typeof record.name !== "string" ||
-    typeof record.active !== "boolean"
+    typeof record.active !== "boolean" ||
+    !Array.isArray(record.required_documents)
   ) {
     throw new AppError("data_error", "Invalid lender product record.", 500);
   }
 
-  const normalizedDocuments = normalizeRequiredDocuments(
-    record.required_documents
-  );
+  const normalizedDocuments = requireRecordDocuments(record.required_documents);
 
   return {
     id: record.id,
@@ -118,21 +117,16 @@ function parseTimestamp(value: unknown, fieldName: string): Date {
   );
 }
 
-function normalizeRequiredDocuments(value: unknown): RequiredDocument[] {
-  if (Array.isArray(value)) {
-    return value as RequiredDocument[];
+function requireRecordDocuments(value: unknown): RequiredDocument[] {
+  if (!Array.isArray(value)) {
+    throw new AppError("data_error", "Invalid required_documents.", 500);
   }
-  if (typeof value === "string") {
-    try {
-      const parsed = JSON.parse(value);
-      if (Array.isArray(parsed)) {
-        return parsed as RequiredDocument[];
-      }
-    } catch {
-      // fall through to error
+  return value.map((item) => {
+    if (typeof item !== "string" || item.trim().length === 0) {
+      throw new AppError("data_error", "Invalid required_documents.", 500);
     }
-  }
-  return [];
+    return item.trim();
+  });
 }
 
 export async function getLenderWithProducts(

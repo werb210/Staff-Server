@@ -25,9 +25,7 @@ function toLenderProductResponse(
   record: LenderProductRecord
 ): LenderProductResponse {
   assertLenderProductRecord(record);
-  const normalizedDocuments = normalizeRequiredDocuments(
-    record.required_documents
-  );
+  const normalizedDocuments = requireRecordDocuments(record.required_documents);
 
   return {
     id: record.id,
@@ -47,27 +45,18 @@ function assertLenderProductRecord(record: LenderProductRecord): void {
     typeof record.id !== "string" ||
     typeof record.lender_id !== "string" ||
     typeof record.name !== "string" ||
-    typeof record.active !== "boolean"
+    typeof record.active !== "boolean" ||
+    !Array.isArray(record.required_documents)
   ) {
     throw new AppError("data_error", "Invalid lender product record.", 500);
   }
 }
 
-function normalizeRequiredDocuments(value: unknown): RequiredDocument[] {
-  if (Array.isArray(value)) {
-    return value as RequiredDocument[];
+function requireRecordDocuments(value: unknown): RequiredDocument[] {
+  if (!Array.isArray(value)) {
+    throw new AppError("data_error", "Invalid required_documents.", 500);
   }
-  if (typeof value === "string") {
-    try {
-      const parsed = JSON.parse(value);
-      if (Array.isArray(parsed)) {
-        return parsed as RequiredDocument[];
-      }
-    } catch {
-      // fall through to error
-    }
-  }
-  return [];
+  return value.map((item) => validateRequiredDocument(item, "data_error"));
 }
 
 function parseTimestamp(value: unknown, fieldName: string): Date {
@@ -87,14 +76,8 @@ function parseTimestamp(value: unknown, fieldName: string): Date {
   );
 }
 
-function parseRequiredDocuments(
-  value: unknown,
-  options?: { allowUndefined?: boolean }
-): RequiredDocument[] {
+function parseRequiredDocuments(value: unknown): RequiredDocument[] {
   if (value === undefined) {
-    if (options?.allowUndefined) {
-      return [];
-    }
     throw new AppError(
       "validation_error",
       "required_documents is required.",
@@ -110,57 +93,29 @@ function parseRequiredDocuments(
     );
   }
 
-  return value.map((item) => {
-    if (!item || typeof item !== "object") {
-      throw new AppError(
-        "validation_error",
-        "required_documents items must be objects.",
-        400
-      );
-    }
+  return value.map((item) => validateRequiredDocument(item, "validation_error"));
+}
 
-    const { category, required, description } = item as {
-      category?: unknown;
-      required?: unknown;
-      description?: unknown;
-    };
-
-    if (typeof category !== "string" || category.trim().length === 0) {
-      throw new AppError(
-        "validation_error",
-        "required_documents category is required.",
-        400
-      );
-    }
-
-    if (typeof required !== "boolean") {
-      throw new AppError(
-        "validation_error",
-        "required_documents required must be a boolean.",
-        400
-      );
-    }
-
-    if (
-      description !== undefined &&
-      description !== null &&
-      typeof description !== "string"
-    ) {
-      throw new AppError(
-        "validation_error",
-        "required_documents description must be a string.",
-        400
-      );
-    }
-
-    return {
-      category: category.trim(),
-      required,
-      ...(typeof description === "string" && description.trim().length > 0
-        ? { description: description.trim() }
-        : {}),
-    };
-  });
+function validateRequiredDocument(
+  value: unknown,
+  errorCode: "validation_error" | "data_error"
+): RequiredDocument {
+  if (typeof value !== "string") {
+    throw new AppError(
+      errorCode,
+      "required_documents items must be strings.",
+      errorCode === "validation_error" ? 400 : 500
+    );
+  }
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    throw new AppError(
+      errorCode,
+      "required_documents items must be non-empty strings.",
+      errorCode === "validation_error" ? 400 : 500
+    );
+  }
+  return trimmed;
 }
 
 /**
@@ -180,8 +135,14 @@ export async function listLenderProductsHandler(
       activeOnly,
       silo: req.user?.silo ?? null,
     });
-    const safeProducts = Array.isArray(products) ? products : [];
-    res.status(200).json(safeProducts.map(toLenderProductResponse));
+    if (!Array.isArray(products)) {
+      throw new AppError(
+        "data_error",
+        "Invalid lender products response.",
+        500
+      );
+    }
+    res.status(200).json(products.map(toLenderProductResponse));
   } catch (err) {
     logError("lender_products_list_failed", {
       error: err,
@@ -246,8 +207,7 @@ export async function createLenderProductHandler(
     }
 
     const requiredDocumentsList = parseRequiredDocuments(
-      required_documents ?? requiredDocuments,
-      { allowUndefined: true }
+      required_documents ?? requiredDocuments
     );
 
     const lender = await getLenderById(lenderId.trim());
