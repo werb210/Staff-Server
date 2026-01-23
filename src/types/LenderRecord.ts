@@ -8,7 +8,7 @@ export type LenderRecord = {
   street: string | null;
   city: string | null;
   region: string | null;
-  country: string | null;
+  country: string;
   silo?: string | null;
   postal_code: string | null;
   contact_name: string | null;

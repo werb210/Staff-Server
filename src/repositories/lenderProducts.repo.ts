@@ -3,7 +3,7 @@ import { pool } from "../db";
 import { type PoolClient } from "pg";
 import {
   type LenderProductRecord,
-  type RequiredDocument,
+  type RequiredDocuments,
 } from "../db/schema/lenderProducts";
 import { AppError } from "../middleware/errors";
 import { logError } from "../observability/logger";
@@ -66,7 +66,7 @@ export async function createLenderProduct(params: {
   name: string;
   description?: string | null;
   active: boolean;
-  requiredDocuments: RequiredDocument[];
+  requiredDocuments: RequiredDocuments;
   client?: Queryable;
 }): Promise<LenderProductRecord> {
   const runner = params.client ?? pool;
@@ -196,7 +196,7 @@ export async function listLenderProductsByLenderId(params: {
 export async function updateLenderProduct(params: {
   id: string;
   name: string;
-  requiredDocuments: RequiredDocument[];
+  requiredDocuments: RequiredDocuments;
   client?: Queryable;
 }): Promise<LenderProductRecord | null> {
   const runner = params.client ?? pool;

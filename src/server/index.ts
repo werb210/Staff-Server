@@ -64,6 +64,9 @@ export async function startServer() {
     logError("fatal_schema_mismatch", { message: err?.message ?? String(err) });
     process.exit(1);
   }
+  console.log(
+    "schema_assert: OK (lenders.country, lender_products.required_documents)"
+  );
 
   // Register all API routes using the unified registry
   registerApiRoutes(app);

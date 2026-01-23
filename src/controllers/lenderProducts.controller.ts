@@ -5,7 +5,11 @@ import {
   listLenderProductsService,
   updateLenderProductService,
 } from "../services/lenderProductsService";
-import { type LenderProductRecord, type RequiredDocument } from "../db/schema/lenderProducts";
+import {
+  type JsonObject,
+  type LenderProductRecord,
+  type RequiredDocuments,
+} from "../db/schema/lenderProducts";
 import { getLenderById } from "../repositories/lenders.repo";
 import { logError } from "../observability/logger";
 import { LIST_LENDER_PRODUCTS_SQL } from "../repositories/lenderProducts.repo";
@@ -16,7 +20,7 @@ export type LenderProductResponse = {
   name: string;
   description: string | null;
   active: boolean;
-  required_documents: RequiredDocument[];
+  required_documents: RequiredDocuments;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -46,17 +50,17 @@ function assertLenderProductRecord(record: LenderProductRecord): void {
     typeof record.lender_id !== "string" ||
     typeof record.name !== "string" ||
     typeof record.active !== "boolean" ||
-    !Array.isArray(record.required_documents)
+    !isRequiredDocuments(record.required_documents)
   ) {
     throw new AppError("data_error", "Invalid lender product record.", 500);
   }
 }
 
-function requireRecordDocuments(value: unknown): RequiredDocument[] {
-  if (!Array.isArray(value)) {
-    throw new AppError("data_error", "Invalid required_documents.", 500);
+function requireRecordDocuments(value: unknown): RequiredDocuments {
+  if (isRequiredDocuments(value)) {
+    return value;
   }
-  return value.map((item) => validateRequiredDocument(item, "data_error"));
+  throw new AppError("data_error", "Invalid required_documents.", 500);
 }
 
 function parseTimestamp(value: unknown, fieldName: string): Date {
@@ -76,46 +80,40 @@ function parseTimestamp(value: unknown, fieldName: string): Date {
   );
 }
 
-function parseRequiredDocuments(value: unknown): RequiredDocument[] {
+function parseRequiredDocuments(value: unknown): RequiredDocuments {
   if (value === undefined) {
+    return [];
+  }
+
+  if (value === null) {
     throw new AppError(
       "validation_error",
-      "required_documents is required.",
+      "required_documents cannot be null.",
       400
     );
   }
 
-  if (!Array.isArray(value)) {
-    throw new AppError(
-      "validation_error",
-      "required_documents must be an array.",
-      400
-    );
+  if (isRequiredDocuments(value)) {
+    return value;
   }
 
-  return value.map((item) => validateRequiredDocument(item, "validation_error"));
+  throw new AppError(
+    "validation_error",
+    "required_documents must be an object or array.",
+    400
+  );
 }
 
-function validateRequiredDocument(
-  value: unknown,
-  errorCode: "validation_error" | "data_error"
-): RequiredDocument {
-  if (typeof value !== "string") {
-    throw new AppError(
-      errorCode,
-      "required_documents items must be strings.",
-      errorCode === "validation_error" ? 400 : 500
-    );
+function isPlainObject(value: unknown): value is JsonObject {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
   }
-  const trimmed = value.trim();
-  if (trimmed.length === 0) {
-    throw new AppError(
-      errorCode,
-      "required_documents items must be non-empty strings.",
-      errorCode === "validation_error" ? 400 : 500
-    );
-  }
-  return trimmed;
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
+function isRequiredDocuments(value: unknown): value is RequiredDocuments {
+  return Array.isArray(value) || isPlainObject(value);
 }
 
 /**
@@ -169,14 +167,8 @@ export async function createLenderProductHandler(
 ): Promise<void> {
   const requestId = res.locals.requestId ?? "unknown";
   try {
-    const {
-      lenderId,
-      name,
-      description,
-      active,
-      required_documents,
-      requiredDocuments,
-    } = req.body ?? {};
+    const { lenderId, name, description, active, required_documents } =
+      req.body ?? {};
 
     if (typeof lenderId !== "string" || lenderId.trim().length === 0) {
       throw new AppError("validation_error", "lenderId is required.", 400);
@@ -206,9 +198,7 @@ export async function createLenderProductHandler(
       throw new AppError("validation_error", "active must be a boolean.", 400);
     }
 
-    const requiredDocumentsList = parseRequiredDocuments(
-      required_documents ?? requiredDocuments
-    );
+    const requiredDocumentsList = parseRequiredDocuments(required_documents);
 
     const lender = await getLenderById(lenderId.trim());
     if (!lender) {
@@ -262,7 +252,7 @@ export async function updateLenderProductHandler(
       throw new AppError("validation_error", "id is required.", 400);
     }
 
-    const { name, required_documents, requiredDocuments } = req.body ?? {};
+    const { name, required_documents } = req.body ?? {};
 
     if (
       name !== undefined &&
@@ -272,9 +262,7 @@ export async function updateLenderProductHandler(
       throw new AppError("validation_error", "name must be a string.", 400);
     }
 
-    const requiredDocumentsList = parseRequiredDocuments(
-      required_documents ?? requiredDocuments
-    );
+    const requiredDocumentsList = parseRequiredDocuments(required_documents);
 
     const updated = await updateLenderProductService({
       id: id.trim(),
