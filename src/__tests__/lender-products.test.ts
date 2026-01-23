@@ -67,7 +67,10 @@ describe("lender products", () => {
       .set("x-request-id", requestId)
       .send({ name: "Docs Lender", country: "US" });
 
-    const requiredDocuments = ["bank_statement", "id_document"];
+    const requiredDocuments = [
+      { type: "bank_statement" },
+      { type: "id_document" },
+    ];
 
     const createResponse = await request(app)
       .post("/api/lender-products")
@@ -94,7 +97,10 @@ describe("lender products", () => {
     expect(listed).toBeDefined();
     expect(listed.required_documents).toEqual(requiredDocuments);
 
-    const updatedDocuments = ["tax_return", "balance_sheet"];
+    const updatedDocuments = [
+      { type: "tax_return" },
+      { type: "balance_sheet" },
+    ];
 
     const patchResponse = await request(app)
       .patch(`/api/lender-products/${createResponse.body.id}`)

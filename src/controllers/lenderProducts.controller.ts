@@ -99,7 +99,7 @@ function parseRequiredDocuments(value: unknown): RequiredDocuments {
 
   throw new AppError(
     "validation_error",
-    "required_documents must be an object or array.",
+    "required_documents must be an array of objects.",
     400
   );
 }
@@ -113,7 +113,7 @@ function isPlainObject(value: unknown): value is JsonObject {
 }
 
 function isRequiredDocuments(value: unknown): value is RequiredDocuments {
-  return Array.isArray(value) || isPlainObject(value);
+  return Array.isArray(value) && value.every(isPlainObject);
 }
 
 /**

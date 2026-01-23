@@ -1,5 +1,7 @@
-import jwt, { type SignOptions } from "jsonwebtoken";
+import { execFile } from "child_process";
 import type { Server } from "http";
+import jwt, { type SignOptions } from "jsonwebtoken";
+import { promisify } from "util";
 import { ROLES } from "../auth/roles";
 import { startServer } from "../index";
 import { resetStartupState } from "../startupState";
@@ -10,6 +12,22 @@ const TOKEN_OPTIONS: SignOptions = {
   issuer: "boreal-staff-server",
   audience: "boreal-staff-portal",
 };
+
+const execFileAsync = promisify(execFile);
+
+async function runCurl(
+  args: string[],
+  env: Record<string, string>
+): Promise<string> {
+  const { stdout } = await execFileAsync("curl", args, {
+    env: { ...process.env, ...env },
+  });
+  const output = stdout.toString().trim();
+  if (!output) {
+    throw new Error(`Empty response for curl ${args.join(" ")}`);
+  }
+  return output;
+}
 
 describe("runtime schema verification", () => {
   let server: Server | null = null;
@@ -32,22 +50,45 @@ describe("runtime schema verification", () => {
     server = await startServer();
 
     const baseUrl = resolveBaseUrl(server ?? undefined);
+    const base = new URL(baseUrl);
+    const port = base.port;
     const token = jwt.sign(
       { sub: "schema-runtime-user", role: ROLES.STAFF, tokenVersion: 0 },
       process.env.JWT_SECRET ?? "test-access-secret",
       TOKEN_OPTIONS
     );
-    const headers = { Authorization: `Bearer ${token}` };
+    const env = { PORT: port, ACCESS_TOKEN: token };
 
-    const lendersResponse = await fetch(new URL("/api/lenders", baseUrl), {
-      headers,
-    });
-    expect(lendersResponse.status).toBe(200);
-
-    const productsResponse = await fetch(
-      new URL("/api/lender-products", baseUrl),
-      { headers }
+    await runCurl(
+      ["-sf", `http://127.0.0.1:${port}/api/_int/health`],
+      env
     );
-    expect(productsResponse.status).toBe(200);
+    await runCurl(
+      [
+        "-sf",
+        `http://127.0.0.1:${port}/api/auth/me`,
+        "-H",
+        `Authorization: Bearer ${token}`,
+      ],
+      env
+    );
+    await runCurl(
+      [
+        "-sf",
+        `http://127.0.0.1:${port}/api/lenders`,
+        "-H",
+        `Authorization: Bearer ${token}`,
+      ],
+      env
+    );
+    await runCurl(
+      [
+        "-sf",
+        `http://127.0.0.1:${port}/api/lender-products`,
+        "-H",
+        `Authorization: Bearer ${token}`,
+      ],
+      env
+    );
   });
 });

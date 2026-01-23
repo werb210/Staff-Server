@@ -136,7 +136,7 @@ function isPlainObject(value: unknown): value is JsonObject {
 }
 
 function isRequiredDocuments(value: unknown): value is RequiredDocuments {
-  return Array.isArray(value) || isPlainObject(value);
+  return Array.isArray(value) && value.every(isPlainObject);
 }
 
 export async function getLenderWithProducts(
