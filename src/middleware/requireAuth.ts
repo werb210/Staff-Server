@@ -17,10 +17,14 @@ export async function requireAuth(
 
   const token = auth.slice(7);
   const payload = verifyJwt(token);
+  if (!payload.sub) {
+    return res.status(401).json({ ok: false, error: "invalid_token" });
+  }
 
   const { rows } = await db.query(
     `
     SELECT id, role, status, silo, lender_id
+    , active, is_active, disabled
     FROM users
     WHERE id = $1
     `,
@@ -32,7 +36,12 @@ export async function requireAuth(
     return res.status(401).json({ ok: false, error: "invalid_user" });
   }
 
-  if (user.status !== "active") {
+  const isDisabled =
+    user.status !== "active" ||
+    user.disabled === true ||
+    user.is_active === false ||
+    user.active === false;
+  if (isDisabled) {
     return res.status(403).json({ ok: false, error: "user_disabled" });
   }
 

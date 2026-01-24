@@ -32,6 +32,7 @@ export const verifyOtpResponseSchema = z
   .object({
     ok: z.literal(true),
     accessToken: z.string(),
+    refreshToken: z.string(),
     user: z
       .object({
         id: z.string(),

@@ -9,6 +9,7 @@
     "db:migrate": "tsx -e \"import('./src/migrations').then(m => m.runMigrations()).catch(err => { console.error(err); process.exit(1); })\"",
     "db:seed": "tsx src/db/seed.ts",
     "test": "jest",
+    "test:runtime": "npm run build && node scripts/runtime-verify.js",
     "user:set-role": "tsx scripts/set-user-role.ts"
   },
   "dependencies": {

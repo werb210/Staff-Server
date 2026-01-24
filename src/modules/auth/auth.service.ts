@@ -819,7 +819,7 @@ export async function verifyOtpCode(params: {
         `
         INSERT INTO users (id, phone, role, status)
         VALUES ($1, $2, 'Admin', 'active')
-        ON CONFLICT (phone) DO NOTHING
+        ON CONFLICT DO NOTHING
         `,
         [userRecord.id, phoneE164]
       );

@@ -55,6 +55,8 @@ describe("OTP verify contract", () => {
     expect(res.body.ok).toBe(true);
     expect(res.body).toHaveProperty("accessToken");
     expect(typeof res.body.accessToken).toBe("string");
+    expect(res.body).toHaveProperty("refreshToken");
+    expect(typeof res.body.refreshToken).toBe("string");
     expect(res.body).not.toHaveProperty("data");
   });
 

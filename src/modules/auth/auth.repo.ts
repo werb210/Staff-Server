@@ -473,8 +473,13 @@ export async function setUserActive(
   const runner = client ?? pool;
   await runAuthQuery(
     runner,
-    `update users set active = $1 where id = $2`,
-    [active, userId]
+    `update users
+     set active = $1,
+         is_active = $1,
+         disabled = $2,
+         status = $3
+     where id = $4`,
+    [active, !active, active ? "active" : "disabled", userId]
   );
 }
 

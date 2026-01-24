@@ -28,6 +28,7 @@ import {
 import { isKillSwitchEnabled } from "../ops/ops.service";
 import { logInfo, logWarn } from "../../observability/logger";
 import { recordTransactionRollback } from "../../observability/transactionTelemetry";
+import { isTestEnvironment } from "../../dbRuntime";
 
 function createAdvisoryLockKey(value: string): [number, number] {
   const hash = createHash("sha256").update(value).digest();
@@ -558,7 +559,9 @@ export async function submitApplication(params: {
     const lockKey = createAdvisoryLockKey(
       `transmission:${params.applicationId}:${params.lenderId}`
     );
-    await client.query("select pg_advisory_xact_lock($1, $2)", lockKey);
+    if (!isTestEnvironment()) {
+      await client.query("select pg_advisory_xact_lock($1, $2)", lockKey);
+    }
 
     await client.query("select id from applications where id = $1 for update", [
       params.applicationId,

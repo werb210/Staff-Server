@@ -13,6 +13,7 @@ import {
   type RequiredDocuments,
 } from "../db/schema/lenderProducts";
 import { logError } from "../observability/logger";
+import { ROLES } from "../auth/roles";
 
 type LenderProductResponse = {
   id: string;
@@ -48,9 +49,22 @@ export async function listLenders(
   const requestId = res.locals.requestId ?? "unknown";
   try {
     const safeLenders = await listLendersService();
-  const resolvedSilo = resolveSilo(req.user?.silo);
-  const filtered = filterBySilo(safeLenders, resolvedSilo);
-  res.status(200).json(filtered);
+    const user = req.user;
+    if (user?.role === ROLES.LENDER) {
+      const lenderId = user.lenderId;
+      const scoped = lenderId
+        ? safeLenders.filter((lender) => lender.id === lenderId)
+        : [];
+      res.status(200).json(scoped);
+      return;
+    }
+    if (user?.role === ROLES.ADMIN || user?.role === ROLES.OPS) {
+      res.status(200).json(safeLenders);
+      return;
+    }
+    const resolvedSilo = resolveSilo(req.user?.silo);
+    const filtered = filterBySilo(safeLenders, resolvedSilo);
+    res.status(200).json(filtered);
   } catch (err) {
     logError("lenders_list_failed", {
       error: err,
