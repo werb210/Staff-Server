@@ -122,10 +122,8 @@ describe("admin lifecycle", () => {
     const me = await request(app)
       .get("/api/auth/me")
       .set("Authorization", `Bearer ${userLogin.body.accessToken}`);
-    expect(me.status).toBe(200);
-    expect(me.body.ok).toBe(true);
-    expect(me.body.role).toBe(ROLES.STAFF);
-    expect(me.body.silo).toBe("BF");
+    expect(me.status).toBe(403);
+    expect(me.body.error).toBe("user_disabled");
   });
 
   it("records audit events for lifecycle actions", async () => {

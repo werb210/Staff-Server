@@ -7,6 +7,7 @@ import {
   listUsers,
   adminUpdateUser,
 } from "../services/users.service";
+import adminUserRoutes from "../modules/users/users.routes";
 
 const router = Router();
 
@@ -21,5 +22,6 @@ router.patch("/me", requireAuth, updateMe);
  */
 router.get("/", requireAuth, requireAdmin, listUsers);
 router.patch("/:id", requireAuth, requireAdmin, adminUpdateUser);
+router.use("/", requireAuth, requireAdmin, adminUserRoutes);
 
 export default router;

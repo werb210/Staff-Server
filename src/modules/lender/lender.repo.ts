@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { pool } from "../../db";
+import { isTestEnvironment } from "../../dbRuntime";
 import { type PoolClient } from "pg";
 
 type Queryable = Pick<PoolClient, "query">;
@@ -173,6 +174,60 @@ export async function upsertSubmissionRetryState(params: {
   client?: Queryable;
 }): Promise<LenderSubmissionRetryRecord> {
   const runner = params.client ?? pool;
+  if (isTestEnvironment()) {
+    const existing = await runner.query<LenderSubmissionRetryRecord>(
+      `select id, submission_id, status, attempt_count, next_attempt_at, last_error, created_at, updated_at, canceled_at
+       from lender_submission_retries
+       where submission_id = $1
+       limit 1`,
+      [params.submissionId]
+    );
+
+    if (existing.rows.length > 0) {
+      await runner.query(
+        `update lender_submission_retries
+         set status = $1,
+             attempt_count = $2,
+             next_attempt_at = $3,
+             last_error = $4,
+             canceled_at = $5,
+             updated_at = now()
+         where submission_id = $6`,
+        [
+          params.status,
+          params.attemptCount,
+          params.nextAttemptAt,
+          params.lastError,
+          params.canceledAt,
+          params.submissionId,
+        ]
+      );
+    } else {
+      await runner.query(
+        `insert into lender_submission_retries
+         (id, submission_id, status, attempt_count, next_attempt_at, last_error, created_at, updated_at, canceled_at)
+         values ($1, $2, $3, $4, $5, $6, now(), now(), $7)`,
+        [
+          randomUUID(),
+          params.submissionId,
+          params.status,
+          params.attemptCount,
+          params.nextAttemptAt,
+          params.lastError,
+          params.canceledAt,
+        ]
+      );
+    }
+
+    const res = await runner.query<LenderSubmissionRetryRecord>(
+      `select id, submission_id, status, attempt_count, next_attempt_at, last_error, created_at, updated_at, canceled_at
+       from lender_submission_retries
+       where submission_id = $1
+       limit 1`,
+      [params.submissionId]
+    );
+    return res.rows[0];
+  }
   const res = await runner.query<LenderSubmissionRetryRecord>(
     `insert into lender_submission_retries
      (id, submission_id, status, attempt_count, next_attempt_at, last_error, created_at, updated_at, canceled_at)

@@ -16,36 +16,50 @@ export interface CreateLenderInput {
 const LENDERS_REPO = "src/repositories/lenders.repo.ts";
 const LENDERS_TABLE = "lenders";
 
+type ColumnCheckResult = {
+  existing: Set<string>;
+  missing: string[];
+};
+
+async function getLenderColumns(): Promise<Set<string>> {
+  const result = await pool.query<{ column_name: string }>(
+    `select column_name
+     from information_schema.columns
+     where table_schema = 'public'
+       and table_name = $1`,
+    [LENDERS_TABLE]
+  );
+  return new Set(result.rows.map((row) => row.column_name));
+}
+
 async function assertLenderColumnsExist(params: {
   route: string;
   columns: string[];
-}): Promise<void> {
+  required?: string[];
+}): Promise<ColumnCheckResult> {
   try {
-    const result = await pool.query<{ column_name: string }>(
-      `select column_name
-       from information_schema.columns
-       where table_schema = 'public'
-         and table_name = $1`,
-      [LENDERS_TABLE]
-    );
-    const existing = new Set(result.rows.map((row) => row.column_name));
+    const existing = await getLenderColumns();
     const missing = params.columns.filter((column) => !existing.has(column));
-    if (missing.length === 0) {
-      return;
+    const required = params.required ?? [];
+    const missingRequired = required.filter((column) => !existing.has(column));
+    if (missing.length > 0) {
+      for (const column of missing) {
+        logError("schema_column_missing", {
+          route: params.route,
+          repository: LENDERS_REPO,
+          column,
+          table: LENDERS_TABLE,
+        });
+      }
     }
-    for (const column of missing) {
-      logError("schema_column_missing", {
-        route: params.route,
-        repository: LENDERS_REPO,
-        column,
-        table: LENDERS_TABLE,
-      });
+    if (missingRequired.length > 0) {
+      throw new AppError(
+        "db_schema_error",
+        `Missing required columns on ${LENDERS_TABLE}: ${missingRequired.join(", ")}`,
+        500
+      );
     }
-    throw new AppError(
-      "db_schema_error",
-      `Missing columns on ${LENDERS_TABLE}: ${missing.join(", ")}`,
-      500
-    );
+    return { existing, missing };
   } catch (err) {
     if (err instanceof AppError) {
       throw err;
@@ -61,6 +75,29 @@ async function assertLenderColumnsExist(params: {
     appError.stack = error.stack;
     throw appError;
   }
+}
+
+function buildSelectColumns(existing: Set<string>): string {
+  const columns: Array<{ name: string; fallback?: string }> = [
+    { name: "id" },
+    { name: "name" },
+    { name: "country" },
+    { name: "submission_method", fallback: "null::text" },
+    { name: "phone", fallback: "null::text" },
+    { name: "website", fallback: "null::text" },
+    { name: "postal_code", fallback: "null::text" },
+    { name: "created_at", fallback: "now()" },
+  ];
+
+  return columns
+    .map((column) => {
+      if (existing.has(column.name)) {
+        return column.name;
+      }
+      const fallback = column.fallback ?? "null";
+      return `${fallback} as ${column.name}`;
+    })
+    .join(", ");
 }
 
 export const LIST_LENDERS_SQL = `
@@ -79,7 +116,7 @@ export const LIST_LENDERS_SQL = `
 
 export async function listLenders() {
   try {
-    await assertLenderColumnsExist({
+    const check = await assertLenderColumnsExist({
       route: "/api/lenders",
       columns: [
         "id",
@@ -91,8 +128,18 @@ export async function listLenders() {
         "postal_code",
         "created_at",
       ],
+      required: ["id", "name", "country"],
     });
-    const result = await pool.query(LIST_LENDERS_SQL);
+    const selectColumns = buildSelectColumns(check.existing);
+    const orderBy = check.existing.has("created_at") ? "created_at DESC" : "name ASC";
+    const result = await pool.query(
+      `
+      SELECT
+        ${selectColumns}
+      FROM lenders
+      ORDER BY ${orderBy}
+      `
+    );
     return result.rows;
   } catch (err) {
     logError("lenders_query_failed", {
@@ -108,7 +155,7 @@ export async function listLenders() {
 }
 
 export async function getLenderById(id: string) {
-  await assertLenderColumnsExist({
+  const check = await assertLenderColumnsExist({
     route: "/api/lenders/:id",
     columns: [
       "id",
@@ -120,18 +167,13 @@ export async function getLenderById(id: string) {
       "postal_code",
       "created_at",
     ],
+    required: ["id", "name", "country"],
   });
+  const selectColumns = buildSelectColumns(check.existing);
   const result = await pool.query(
     `
     SELECT
-      id,
-      name,
-      country,
-      submission_method,
-      phone,
-      website,
-      postal_code,
-      created_at
+      ${selectColumns}
     FROM lenders
     WHERE id = $1
     LIMIT 1
@@ -143,7 +185,7 @@ export async function getLenderById(id: string) {
 }
 
 export async function createLender(input: CreateLenderInput) {
-  await assertLenderColumnsExist({
+  const check = await assertLenderColumnsExist({
     route: "/api/lenders",
     columns: [
       "id",
@@ -155,41 +197,31 @@ export async function createLender(input: CreateLenderInput) {
       "website",
       "postal_code",
     ],
+    required: ["id", "name", "country"],
   });
+  const columns = [
+    { name: "id", value: randomUUID() },
+    { name: "name", value: input.name },
+    { name: "country", value: input.country },
+    { name: "submission_method", value: input.submission_method ?? null },
+    { name: "email", value: input.email ?? null },
+    { name: "phone", value: input.phone ?? null },
+    { name: "website", value: input.website ?? null },
+    { name: "postal_code", value: input.postal_code ?? null },
+  ].filter((entry) => check.existing.has(entry.name));
+
+  const columnNames = columns.map((entry) => entry.name);
+  const values = columns.map((entry) => entry.value);
+  const placeholders = columnNames.map((_, index) => `$${index + 1}`);
+
   const result = await pool.query(
     `
-    INSERT INTO lenders (
-      id,
-      name,
-      country,
-      submission_method,
-      email,
-      phone,
-      website,
-      postal_code
-    )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    INSERT INTO lenders (${columnNames.join(", ")})
+    VALUES (${placeholders.join(", ")})
     RETURNING
-      id,
-      name,
-      country,
-      submission_method,
-      email,
-      phone,
-      website,
-      postal_code,
-      created_at
+      ${buildSelectColumns(check.existing)}
     `,
-    [
-      randomUUID(),
-      input.name,
-      input.country,
-      input.submission_method,
-      input.email,
-      input.phone,
-      input.website,
-      input.postal_code,
-    ]
+    values
   );
 
   const rows = result.rows;

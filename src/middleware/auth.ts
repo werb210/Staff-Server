@@ -8,6 +8,7 @@ import { ROLES, isRole, type Role } from "../auth/roles";
 import { verifyAccessToken } from "../auth/jwt";
 import { DEFAULT_AUTH_SILO } from "../auth/silo";
 import { logInfo, logWarn } from "../observability/logger";
+import { findAuthUserById } from "../modules/auth/auth.repo";
 
 export interface AuthUser {
   userId: string;
@@ -94,11 +95,11 @@ function getAuthenticatedUserFromToken(token: string): AuthUser | null {
   };
 }
 
-export function requireAuth(
+export async function requireAuth(
   req: Request,
   res: Response,
   next: NextFunction
-): void {
+): Promise<void> {
   const { token, status } = getAuthHeaderInfo(req);
   logAuthHeaderStatus(status);
 
@@ -126,8 +127,31 @@ export function requireAuth(
     role: user.role,
   });
 
-  req.user = user;
-  next();
+  try {
+    const userRecord = await findAuthUserById(user.userId);
+    if (!userRecord) {
+      res.status(401).json({ error: "invalid_user" });
+      return;
+    }
+    const isDisabled =
+      userRecord.disabled === true ||
+      userRecord.isActive === false ||
+      userRecord.active === false;
+    if (isDisabled) {
+      res.status(403).json({ error: "user_disabled" });
+      return;
+    }
+    req.user = {
+      ...user,
+      lenderId: userRecord.lenderId ?? null,
+    };
+    next();
+  } catch (err) {
+    logWarn("auth_user_lookup_failed", {
+      error: err instanceof Error ? err.message : "unknown_error",
+    });
+    res.status(500).json({ error: "auth_lookup_failed" });
+  }
 }
 
 export function getAuthenticatedUserFromRequest(
