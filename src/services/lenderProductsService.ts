@@ -1,6 +1,7 @@
 import { AppError } from "../middleware/errors";
 import {
   createLenderProduct,
+  getLenderProductById,
   listLenderProducts,
   listLenderProductsByLenderId,
   updateLenderProduct,
@@ -76,11 +77,18 @@ export async function listLenderProductsService(params?: {
 
 export async function listLenderProductsByLenderIdService(params: {
   lenderId: string;
+  activeOnly?: boolean;
   silo?: string | null;
 }): Promise<Awaited<ReturnType<typeof listLenderProductsByLenderId>>> {
   const products = await listLenderProductsByLenderId(params);
   const resolvedSilo = resolveSilo(params.silo);
   return filterBySilo(products, resolvedSilo);
+}
+
+export async function getLenderProductByIdService(params: {
+  id: string;
+}): Promise<Awaited<ReturnType<typeof getLenderProductById>>> {
+  return getLenderProductById(params);
 }
 
 export async function updateLenderProductService(params: {

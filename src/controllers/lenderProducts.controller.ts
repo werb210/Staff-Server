@@ -2,7 +2,9 @@ import { type Request, type Response } from "express";
 import { AppError } from "../middleware/errors";
 import {
   createLenderProductService,
+  getLenderProductByIdService,
   listLenderProductsService,
+  listLenderProductsByLenderIdService,
   updateLenderProductService,
 } from "../services/lenderProductsService";
 import {
@@ -13,6 +15,7 @@ import {
 import { getLenderById } from "../repositories/lenders.repo";
 import { logError } from "../observability/logger";
 import { LIST_LENDER_PRODUCTS_SQL } from "../repositories/lenderProducts.repo";
+import { ROLES } from "../auth/roles";
 
 export type LenderProductResponse = {
   id: string;
@@ -129,10 +132,44 @@ export async function listLenderProductsHandler(
   const requestId = res.locals.requestId ?? "unknown";
 
   try {
-    const products = await listLenderProductsService({
-      activeOnly,
-      silo: req.user?.silo ?? null,
-    });
+    const user = req.user;
+    if (!user) {
+      res.status(401).json({
+        code: "missing_token",
+        message: "Authorization token is required.",
+        requestId,
+      });
+      return;
+    }
+
+    if (user.role === ROLES.REFERRER) {
+      res.status(403).json({
+        code: "forbidden",
+        message: "Access denied.",
+        requestId,
+      });
+      return;
+    }
+
+    if (user.role === ROLES.LENDER && !user.lenderId) {
+      throw new AppError(
+        "invalid_lender_binding",
+        "lender_id is required for Lender users.",
+        400
+      );
+    }
+
+    const products =
+      user.role === ROLES.LENDER
+        ? await listLenderProductsByLenderIdService({
+            lenderId: user.lenderId ?? "",
+            activeOnly,
+            silo: user.silo ?? null,
+          })
+        : await listLenderProductsService({
+            activeOnly,
+            silo: user.silo ?? null,
+          });
     if (!Array.isArray(products)) {
       throw new AppError(
         "data_error",
@@ -150,6 +187,14 @@ export async function listLenderProductsHandler(
       params: [activeOnly],
       stack: err instanceof Error ? err.stack : undefined,
     });
+    if (err instanceof AppError) {
+      res.status(err.status).json({
+        code: err.code,
+        message: err.message,
+        requestId,
+      });
+      return;
+    }
     res.status(500).json({
       code: "internal_error",
       message: err instanceof Error ? err.message : "Unknown error",
@@ -167,10 +212,30 @@ export async function createLenderProductHandler(
 ): Promise<void> {
   const requestId = res.locals.requestId ?? "unknown";
   try {
+    const user = req.user;
+    if (!user) {
+      throw new AppError(
+        "missing_token",
+        "Authorization token is required.",
+        401
+      );
+    }
+
+    if (user.role === ROLES.REFERRER) {
+      throw new AppError("forbidden", "Access denied.", 403);
+    }
+
     const { lenderId, name, description, active, required_documents } =
       req.body ?? {};
 
-    if (typeof lenderId !== "string" || lenderId.trim().length === 0) {
+    const resolvedLenderId =
+      user.role === ROLES.LENDER
+        ? user.lenderId
+        : typeof lenderId === "string"
+          ? lenderId.trim()
+          : "";
+
+    if (!resolvedLenderId || resolvedLenderId.length === 0) {
       throw new AppError("validation_error", "lenderId is required.", 400);
     }
 
@@ -200,13 +265,13 @@ export async function createLenderProductHandler(
 
     const requiredDocumentsList = parseRequiredDocuments(required_documents);
 
-    const lender = await getLenderById(lenderId.trim());
+    const lender = await getLenderById(resolvedLenderId.trim());
     if (!lender) {
       throw new AppError("not_found", "Lender not found.", 404);
     }
 
     const created = await createLenderProductService({
-      lenderId: lenderId.trim(),
+      lenderId: resolvedLenderId.trim(),
       name,
       description: typeof description === "string" ? description.trim() : null,
       active: typeof active === "boolean" ? active : true,
@@ -246,6 +311,19 @@ export async function updateLenderProductHandler(
 ): Promise<void> {
   const requestId = res.locals.requestId ?? "unknown";
   try {
+    const user = req.user;
+    if (!user) {
+      throw new AppError(
+        "missing_token",
+        "Authorization token is required.",
+        401
+      );
+    }
+
+    if (user.role === ROLES.REFERRER) {
+      throw new AppError("forbidden", "Access denied.", 403);
+    }
+
     const { id } = req.params;
 
     if (typeof id !== "string" || id.trim().length === 0) {
@@ -263,6 +341,23 @@ export async function updateLenderProductHandler(
     }
 
     const requiredDocumentsList = parseRequiredDocuments(required_documents);
+
+    if (user.role === ROLES.LENDER) {
+      if (!user.lenderId) {
+        throw new AppError(
+          "invalid_lender_binding",
+          "lender_id is required for Lender users.",
+          400
+        );
+      }
+      const existing = await getLenderProductByIdService({ id: id.trim() });
+      if (!existing) {
+        throw new AppError("not_found", "Lender product not found.", 404);
+      }
+      if (existing.lender_id !== user.lenderId) {
+        throw new AppError("forbidden", "Access denied.", 403);
+      }
+    }
 
     const updated = await updateLenderProductService({
       id: id.trim(),

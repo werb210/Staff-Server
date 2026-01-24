@@ -8,7 +8,7 @@ const router = Router();
 
 router.post("/", async (req, res, next) => {
   try {
-    const { email, phoneNumber, role } = req.body;
+    const { email, phoneNumber, role, lenderId } = req.body;
     const normalizedRole = typeof role === "string" ? normalizeRole(role) : null;
     if (!phoneNumber || role === undefined || role === null) {
       throw new AppError(
@@ -24,6 +24,7 @@ router.post("/", async (req, res, next) => {
       email,
       phoneNumber,
       role: normalizedRole,
+      lenderId,
       actorUserId: req.user?.userId ?? null,
       ip: req.ip,
       userAgent: req.get("user-agent"),

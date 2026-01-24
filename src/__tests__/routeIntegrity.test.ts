@@ -7,6 +7,7 @@ import { createUserAccount } from "../modules/auth/auth.service";
 import { seedAdminUser, SEEDED_ADMIN_PHONE } from "../db/seed";
 import { ensureAuditEventSchema } from "./helpers/auditSchema";
 import { otpStartRequest, otpVerifyRequest } from "./helpers/otpAuth";
+import { randomUUID } from "crypto";
 
 const app = buildAppWithApiRoutes();
 
@@ -47,9 +48,15 @@ async function setupRoleUsers(): Promise<void> {
     phoneNumber: rolePhones[ROLES.STAFF],
     role: ROLES.STAFF,
   });
+  const lenderId = randomUUID();
+  await pool.query(
+    `insert into lenders (id, name, country) values ($1, $2, $3)`,
+    [lenderId, "Integrity Lender", "US"]
+  );
   await createUserAccount({
     phoneNumber: rolePhones[ROLES.LENDER],
     role: ROLES.LENDER,
+    lenderId,
   });
   await createUserAccount({
     phoneNumber: rolePhones[ROLES.REFERRER],

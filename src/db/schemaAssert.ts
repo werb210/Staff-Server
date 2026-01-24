@@ -6,8 +6,11 @@ type RequiredColumn = {
 };
 
 const requiredColumns: RequiredColumn[] = [
+  { table: "users", column: "lender_id" },
+  { table: "lenders", column: "id" },
   { table: "lenders", column: "country" },
   { table: "lenders", column: "submission_method" },
+  { table: "lender_products", column: "lender_id" },
   { table: "lender_products", column: "required_documents" },
 ];
 

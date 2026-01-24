@@ -37,6 +37,7 @@ import { DEFAULT_AUTH_SILO } from "../../auth/silo";
 import { hashRefreshToken } from "../../auth/tokenUtils";
 import { getCapabilitiesForRole } from "../../auth/capabilities";
 import { getTwilioClient, getVerifyServiceSid } from "../../services/twilio";
+import { assertLenderBinding } from "../../auth/lenderBinding";
 
 type RefreshTokenPayload = JwtPayload & {
   sub?: string;
@@ -847,6 +848,8 @@ export async function verifyOtpCode(params: {
         }
       }
 
+      assertLenderBinding({ role, lenderId: userRecord.lenderId });
+
       await db.query(
         "update users set phone_verified = $1, updated_at = $2 where id = $3",
         [true, new Date(), userRecord.id]
@@ -1022,6 +1025,8 @@ export async function refreshSession(params: {
         throw err;
       }
 
+      assertLenderBinding({ role, lenderId: userRecord.lenderId });
+
       const tokenVersion = userRecord.tokenVersion ?? 0;
       if (payload.tokenVersion !== tokenVersion) {
         await dbClient.query("commit");
@@ -1106,6 +1111,7 @@ export async function createUserAccount(params: {
   email?: string | null;
   phoneNumber: string;
   role: Role;
+  lenderId?: string | null;
   actorUserId?: string | null;
   ip?: string;
   userAgent?: string;
@@ -1114,10 +1120,15 @@ export async function createUserAccount(params: {
   const db = dbClient;
   try {
     await dbClient.query("begin");
+    const lenderId = assertLenderBinding({
+      role: params.role,
+      lenderId: params.lenderId,
+    });
     const user = await createUser({
       email: params.email,
       phoneNumber: params.phoneNumber,
       role: params.role,
+      lenderId,
       client: db,
     });
     await recordAuditEvent({

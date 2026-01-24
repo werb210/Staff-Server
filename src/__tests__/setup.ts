@@ -33,6 +33,8 @@ beforeAll(async () => {
       phone text null,
       role text null,
       silo text null,
+      lender_id uuid null,
+      status text not null default 'active',
       active boolean not null default true,
       is_active boolean null,
       disabled boolean null,

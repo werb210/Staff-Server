@@ -28,6 +28,7 @@ export interface AuthUser {
   phoneVerified: boolean;
   role: Role | null;
   silo: string | null;
+  lenderId: string | null;
   active: boolean;
   isActive: boolean | null;
   disabled: boolean | null;
@@ -64,6 +65,7 @@ export async function findAuthUserByPhone(
               u.phone_verified as "phoneVerified",
               u.role,
               u.silo,
+              u.lender_id as "lenderId",
               u.active,
               u.is_active as "isActive",
               u.disabled,
@@ -86,6 +88,7 @@ export async function findAuthUserByPhone(
             u.phone_verified as "phoneVerified",
             u.role,
             u.silo,
+            u.lender_id as "lenderId",
             u.active,
             u.is_active as "isActive",
             u.disabled,
@@ -130,6 +133,7 @@ export async function findAuthUserById(
             u.phone_verified as "phoneVerified",
             u.role,
             u.silo,
+            u.lender_id as "lenderId",
             u.active,
             u.is_active as "isActive",
             u.disabled,
@@ -148,6 +152,7 @@ export async function createUser(params: {
   email?: string | null;
   phoneNumber: string;
   role: Role;
+  lenderId?: string | null;
   client?: Queryable;
 }): Promise<AuthUser> {
   const runner = params.client ?? pool;
@@ -156,20 +161,27 @@ export async function createUser(params: {
 
   const res = await runAuthQuery<AuthUser>(
     runner,
-    `insert into users (id, email, phone_number, role, active)
-     values ($1, $2, $3, $4, true)
+    `insert into users (id, email, phone_number, role, lender_id, active)
+     values ($1, $2, $3, $4, $5, true)
      returning id,
               email,
               phone_number as "phoneNumber",
               phone_verified as "phoneVerified",
               role,
               silo,
+              lender_id as "lenderId",
               active,
               is_active as "isActive",
               disabled,
               locked_until as "lockedUntil",
               token_version as "tokenVersion"`,
-    [randomUUID(), resolvedEmail, params.phoneNumber, params.role]
+    [
+      randomUUID(),
+      resolvedEmail,
+      params.phoneNumber,
+      params.role,
+      params.lenderId ?? null,
+    ]
   );
 
   return res.rows[0];
