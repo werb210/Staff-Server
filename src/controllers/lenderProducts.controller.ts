@@ -228,6 +228,26 @@ export async function createLenderProductHandler(
     const { lenderId, name, description, active, required_documents } =
       req.body ?? {};
 
+    if (user.role === ROLES.LENDER) {
+      if (!user.lenderId) {
+        throw new AppError(
+          "invalid_lender_binding",
+          "lender_id is required for Lender users.",
+          400
+        );
+      }
+      if (lenderId !== undefined && lenderId !== null && typeof lenderId !== "string") {
+        throw new AppError("validation_error", "lenderId must be a string.", 400);
+      }
+      if (
+        typeof lenderId === "string" &&
+        lenderId.trim().length > 0 &&
+        lenderId.trim() !== user.lenderId
+      ) {
+        throw new AppError("forbidden", "Access denied.", 403);
+      }
+    }
+
     const resolvedLenderId =
       user.role === ROLES.LENDER
         ? user.lenderId
