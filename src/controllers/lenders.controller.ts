@@ -165,6 +165,19 @@ export async function getLenderWithProducts(
       throw new AppError("validation_error", "id is required.", 400);
     }
 
+    if (req.user?.role === ROLES.LENDER) {
+      if (!req.user.lenderId) {
+        throw new AppError(
+          "invalid_lender_binding",
+          "lender_id is required for Lender users.",
+          400
+        );
+      }
+      if (req.user.lenderId !== id.trim()) {
+        throw new AppError("forbidden", "Access denied.", 403);
+      }
+    }
+
     const lender = await getLenderByIdService(id.trim());
     if (!lender) {
       throw new AppError("not_found", "Lender not found.", 404);

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/requireAuth";
 import { requireAdmin } from "../middleware/requireAdmin";
+import { requireAdminOrStaff } from "../middleware/requireAdminOrStaff";
 import {
   getMe,
   updateMe,
@@ -20,7 +21,7 @@ router.patch("/me", requireAuth, updateMe);
 /**
  * Admin user management
  */
-router.get("/", requireAuth, requireAdmin, listUsers);
+router.get("/", requireAuth, requireAdminOrStaff, listUsers);
 router.patch("/:id", requireAuth, requireAdmin, adminUpdateUser);
 router.use("/", requireAuth, requireAdmin, adminUserRoutes);
 

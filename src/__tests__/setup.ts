@@ -31,6 +31,8 @@ beforeAll(async () => {
       email text null,
       phone_number text null unique,
       phone text null,
+      first_name text null,
+      last_name text null,
       role text null,
       silo text null,
       lender_id uuid null,
@@ -40,6 +42,7 @@ beforeAll(async () => {
       disabled boolean null,
       locked_until timestamptz null,
       phone_verified boolean not null default false,
+      created_at timestamptz not null default now(),
       updated_at timestamptz null,
       last_login_at timestamptz null,
       token_version integer not null default 0
