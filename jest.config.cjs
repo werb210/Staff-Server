@@ -7,6 +7,7 @@ module.exports = {
     "<rootDir>/tests/**/*.test.ts",
     "<rootDir>/tests/**/*.spec.ts",
     "<rootDir>/src/tests/**/*.test.ts",
+    "<rootDir>/src/routes/__tests__/**/*.test.ts",
     "<rootDir>/src/__tests__/int.routes.test.ts",
   ],
   clearMocks: true,

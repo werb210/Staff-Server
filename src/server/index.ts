@@ -24,6 +24,11 @@ if (isProd && !process.env.BASE_URL) {
   throw new Error("BASE_URL must be set in production.");
 }
 
+if (process.env.NODE_ENV === "test") {
+  registerApiRoutes(app);
+  app.use(notFoundHandler);
+}
+
 function installProcessHandlers(): void {
   if (processHandlersInstalled) return;
   processHandlersInstalled = true;

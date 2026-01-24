@@ -1,4 +1,5 @@
 import request from "supertest";
+import { randomUUID } from "crypto";
 import { buildAppWithApiRoutes } from "../src/app";
 import { pool } from "../src/db";
 import { ROLES } from "../src/auth/roles";
@@ -13,11 +14,38 @@ const nextPhone = (): string =>
 async function resetDb(): Promise<void> {
   await pool.query("delete from lender_products");
   await pool.query("delete from lenders");
+  await pool.query(
+    "delete from users where id <> '00000000-0000-0000-0000-000000000001'"
+  );
 }
 
-function createAdminToken(): string {
+async function createAdminToken(): Promise<string> {
+  const userId = randomUUID();
+  const phone = nextPhone();
+  await pool.query(
+    `insert into users (
+      id,
+      email,
+      phone_number,
+      phone,
+      role,
+      status,
+      active,
+      is_active,
+      disabled,
+      phone_verified
+    )
+    values ($1, $2, $3, $4, $5, 'active', true, true, false, true)`,
+    [
+      userId,
+      `lender-contracts-${phone}@example.com`,
+      phone,
+      phone,
+      ROLES.ADMIN,
+    ]
+  );
   return signAccessToken({
-    sub: `lender-contracts-${nextPhone()}`,
+    sub: userId,
     role: ROLES.ADMIN,
     tokenVersion: 1,
     silo: "default",
@@ -41,7 +69,7 @@ beforeEach(async () => {
 
 describe("lender contract integration", () => {
   it("returns lenders with country populated", async () => {
-    const token = createAdminToken();
+    const token = await createAdminToken();
     const lender = await createLender(token);
 
     const response = await request(app)
@@ -58,7 +86,7 @@ describe("lender contract integration", () => {
   });
 
   it("accepts empty required_documents arrays", async () => {
-    const token = createAdminToken();
+    const token = await createAdminToken();
     const lender = await createLender(token);
 
     const response = await request(app)
