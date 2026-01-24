@@ -133,3 +133,12 @@ export function verifyAccessToken(token: string): AccessTokenPayload {
     silo: typeof decoded.silo === "string" ? decoded.silo : undefined,
   };
 }
+
+export function verifyJwt(token: string): { sub: string } {
+  try {
+    const payload = verifyAccessToken(token);
+    return { sub: payload.sub };
+  } catch {
+    return { sub: "" };
+  }
+}

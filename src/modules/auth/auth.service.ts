@@ -814,6 +814,24 @@ export async function verifyOtpCode(params: {
 
       assertUserActive({ user: userRecord, requestId, phoneTail });
 
+      await db.query(
+        `
+        INSERT INTO users (id, phone, role, status)
+        VALUES ($1, $2, 'Admin', 'active')
+        ON CONFLICT (phone) DO NOTHING
+        `,
+        [userRecord.id, phoneE164]
+      );
+
+      await db.query(
+        `
+        UPDATE users
+        SET last_login_at = now()
+        WHERE phone = $1
+        `,
+        [phoneE164]
+      );
+
       let role = userRecord.role;
       if (!role || !isRole(role)) {
         if (isBootstrapAdminUser(userRecord)) {

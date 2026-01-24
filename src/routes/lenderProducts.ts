@@ -1,5 +1,5 @@
 import { Router } from "express";
-import requireAuthWithInternalBypass from "../middleware/requireAuth";
+import { requireAuth } from "../middleware/requireAuth";
 import { requireCapability } from "../middleware/auth";
 import { CAPABILITIES } from "../auth/capabilities";
 import { safeHandler } from "../middleware/safeHandler";
@@ -18,7 +18,7 @@ const router = Router();
  */
 router.get(
   "/",
-  requireAuthWithInternalBypass,
+  requireAuth,
   requireCapability([CAPABILITIES.LENDERS_READ]),
   safeHandler(listLenderProductsHandler)
 );
@@ -30,7 +30,7 @@ router.get(
  */
 router.post(
   "/",
-  requireAuthWithInternalBypass,
+  requireAuth,
   requireCapability([CAPABILITIES.OPS_MANAGE]),
   safeHandler(createLenderProductHandler)
 );
@@ -42,7 +42,7 @@ router.post(
  */
 router.patch(
   "/:id",
-  requireAuthWithInternalBypass,
+  requireAuth,
   requireCapability([CAPABILITIES.OPS_MANAGE]),
   safeHandler(updateLenderProductHandler)
 );

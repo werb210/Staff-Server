@@ -1,6 +1,6 @@
 import { Router } from "express";
 import authRoutes from "../modules/auth/auth.routes";
-import requireAuthWithInternalBypass from "../middleware/requireAuth";
+import { requireAuth } from "../middleware/requireAuth";
 import { notFoundHandler } from "../middleware/errors";
 import { errorHandler } from "../middleware/errorHandler";
 import { authMeHandler } from "./auth/me";
@@ -14,7 +14,7 @@ const router = Router();
  */
 router.get(
   "/me",
-  requireAuthWithInternalBypass,
+  requireAuth,
   authMeHandler
 );
 

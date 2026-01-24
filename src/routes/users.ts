@@ -1,12 +1,25 @@
 import { Router } from "express";
-import usersRoutes from "../modules/users/users.routes";
-import { requireAuth, requireCapability } from "../middleware/auth";
-import { CAPABILITIES } from "../auth/capabilities";
+import { requireAuth } from "../middleware/requireAuth";
+import { requireAdmin } from "../middleware/requireAdmin";
+import {
+  getMe,
+  updateMe,
+  listUsers,
+  adminUpdateUser,
+} from "../services/users.service";
 
 const router = Router();
 
-router.use(requireAuth);
-router.use(requireCapability([CAPABILITIES.USER_MANAGE]));
-router.use("/", usersRoutes);
+/**
+ * Self profile
+ */
+router.get("/me", requireAuth, getMe);
+router.patch("/me", requireAuth, updateMe);
+
+/**
+ * Admin user management
+ */
+router.get("/", requireAuth, requireAdmin, listUsers);
+router.patch("/:id", requireAuth, requireAdmin, adminUpdateUser);
 
 export default router;
