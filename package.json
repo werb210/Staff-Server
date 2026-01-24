@@ -10,6 +10,7 @@
     "db:seed": "tsx src/db/seed.ts",
     "test": "jest",
     "test:runtime": "npm run build && node scripts/runtime-verify.js",
+    "test:codex:server": "node scripts/codex-server-test.js",
     "user:set-role": "tsx scripts/set-user-role.ts"
   },
   "dependencies": {
