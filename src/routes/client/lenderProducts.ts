@@ -1,24 +1,38 @@
 import { Router } from "express";
-import { db } from "../../db";
+import { pool } from "../../db";
+
+type LenderProductRow = {
+  id: string;
+  lender_id: string;
+  product_type: string;
+  min_amount: number | null;
+  max_amount: number | null;
+  countries: string[] | null;
+  interest_rate: number | null;
+  term_months: number | null;
+};
 
 const router = Router();
 
 router.get("/", async (_req, res) => {
-  const products = await db.lenderProducts.findMany({
-    where: { active: true },
-    select: {
-      id: true,
-      lender_id: true,
-      product_type: true,
-      min_amount: true,
-      max_amount: true,
-      countries: true,
-      interest_rate: true,
-      term_months: true,
-    },
-  });
+  const { rows } = await pool.query<LenderProductRow>(
+    `
+    SELECT
+      id,
+      lender_id,
+      product_type,
+      min_amount,
+      max_amount,
+      countries,
+      interest_rate,
+      term_months
+    FROM lender_products
+    WHERE active = true
+    ORDER BY created_at DESC
+    `
+  );
 
-  res.json(products);
+  res.json(rows);
 });
 
 export default router;

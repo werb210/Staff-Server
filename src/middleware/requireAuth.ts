@@ -12,7 +12,7 @@ export async function requireAuth(
 ) {
   const auth = req.headers.authorization;
   if (!auth?.startsWith("Bearer ")) {
-    return res.status(401).json({ ok: false, error: "unauthorized" });
+    return res.status(401).json({ ok: false, error: "missing_token" });
   }
 
   const token = auth.slice(7);

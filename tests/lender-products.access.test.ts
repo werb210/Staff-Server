@@ -90,10 +90,19 @@ describe("lender product access", () => {
       .set("Authorization", `Bearer ${lenderLogin.body.accessToken}`)
       .set("Idempotency-Key", randomUUID())
       .set("x-request-id", requestId)
-      .send({ lenderId: lenderB, name: "Lender Product" });
+      .send({ lenderId: lenderA, name: "Lender Product" });
 
     expect(lenderCreate.status).toBe(201);
     expect(lenderCreate.body.lenderId).toBe(lenderA);
+
+    const lenderCross = await request(app)
+      .post("/api/lender-products")
+      .set("Authorization", `Bearer ${lenderLogin.body.accessToken}`)
+      .set("Idempotency-Key", randomUUID())
+      .set("x-request-id", requestId)
+      .send({ lenderId: lenderB, name: "Cross Lender Product" });
+
+    expect(lenderCross.status).toBe(403);
 
     const adminCreate = await request(app)
       .post("/api/lender-products")
