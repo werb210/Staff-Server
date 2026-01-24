@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import requireAuthWithInternalBypass from "../middleware/requireAuth";
+import { requireAuth } from "../middleware/requireAuth";
 import { requireCapability } from "../middleware/auth";
 import { CAPABILITIES } from "../auth/capabilities";
 import applicationRoutes from "../modules/applications/applications.routes";
@@ -90,7 +90,7 @@ function assertApplicationRecord(record: ApplicationRecord): void {
  */
 router.get(
   "/",
-  requireAuthWithInternalBypass,
+  requireAuth,
   requireCapability([CAPABILITIES.APPLICATION_READ]),
   safeHandler(async (req, res) => {
     try {
@@ -130,7 +130,7 @@ router.get(
  */
 router.post(
   "/",
-  requireAuthWithInternalBypass,
+  requireAuth,
   safeHandler(async (req: Request, res: Response, next) => {
     try {
       const body = (req.body ?? {}) as Record<string, unknown>;
@@ -210,7 +210,7 @@ router.post(
 
 router.get(
   "/:id",
-  requireAuthWithInternalBypass,
+  requireAuth,
   requireCapability([CAPABILITIES.APPLICATION_READ]),
   safeHandler(async (req, res) => {
     try {
@@ -241,7 +241,7 @@ router.get(
  */
 router.use(
   "/",
-  requireAuthWithInternalBypass,
+  requireAuth,
   applicationRoutes
 );
 

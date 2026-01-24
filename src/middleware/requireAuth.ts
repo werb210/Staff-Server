@@ -1,47 +1,45 @@
-import type { NextFunction, Request, Response } from "express";
-import {
-  getAuthenticatedUserFromRequest,
-  requireAuth,
-  requireCapability,
-} from "./auth";
+import { Request, Response, NextFunction } from "express";
+import { verifyJwt } from "../auth/jwt";
+import { db } from "../db";
 
-/**
- * Re-export canonical auth helpers.
- * All routes must use these exports, not reimplement auth logic.
- */
-export { requireAuth, requireCapability, getAuthenticatedUserFromRequest };
-
-/**
- * Auth wrapper with explicit internal-route bypass ONLY.
- *
- * Rules:
- * - /api/_int/* routes bypass auth entirely
- * - ALL other routes REQUIRE a valid access token
- * - NO method-based bypasses
- * - NO silent fallthrough
- */
-export default function requireAuthWithInternalBypass(
+export async function requireAuth(
   req: Request,
   res: Response,
   next: NextFunction
-): void {
-  /**
-   * IMPORTANT:
-   * internal routes are mounted at `/api/_int`,
-   * but at this point req.path === `/_int/...`
-   */
-  if (req.path.startsWith("/_int")) {
-    next();
-    return;
+) {
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith("Bearer ")) {
+    return res.status(401).json({ ok: false, error: "unauthorized" });
   }
 
-  const user = getAuthenticatedUserFromRequest(req);
+  const token = auth.slice(7);
+  const payload = verifyJwt(token);
 
+  const { rows } = await db.query(
+    `
+    SELECT id, role, status, silo
+    FROM users
+    WHERE id = $1
+    `,
+    [payload.sub]
+  );
+
+  const user = rows[0];
   if (!user) {
-    requireAuth(req, res, next);
-    return;
+    return res.status(401).json({ ok: false, error: "invalid_user" });
   }
 
-  req.user = user;
+  if (user.status !== "active") {
+    return res.status(403).json({ ok: false, error: "user_disabled" });
+  }
+
+  req.user = {
+    userId: user.id,
+    role: user.role,
+    silo: user.silo,
+    siloFromToken: false,
+    capabilities: [],
+  };
+
   next();
 }

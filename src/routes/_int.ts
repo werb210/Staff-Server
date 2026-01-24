@@ -2,7 +2,7 @@ import { Router } from "express";
 import { getBuildInfo } from "../config";
 import { listRouteInventory } from "../debug/printRoutes";
 import { readyHandler } from "./ready";
-import requireAuth from "../middleware/requireAuth";
+import { requireAuth } from "../middleware/requireAuth";
 import internalRoutes from "./internal";
 
 const router = Router();

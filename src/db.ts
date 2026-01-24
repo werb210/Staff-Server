@@ -47,6 +47,7 @@ if (isTestEnv) {
  * Exported pool instance.
  */
 export const pool: PgPool = new PoolImpl(poolConfig);
+export const db = pool;
 
 /**
  * Extract SQL text from arguments to pool.query() for instrumentation.
