@@ -159,9 +159,11 @@ export async function listLenderProducts(params?: {
 
 export async function listLenderProductsByLenderId(params: {
   lenderId: string;
+  activeOnly?: boolean;
   client?: Queryable;
 }): Promise<LenderProductRecord[]> {
   const runner = params.client ?? pool;
+  const activeOnly = params.activeOnly === true;
   await assertLenderProductColumnsExist({
     route: "/api/lenders/:id/products",
     columns: [
@@ -187,10 +189,47 @@ export async function listLenderProductsByLenderId(params: {
             updated_at
      from lender_products
      where lender_id = $1
+       and ($2::boolean is false or active = true)
      order by created_at desc`,
-    [params.lenderId]
+    [params.lenderId, activeOnly]
   );
   return res.rows;
+}
+
+export async function getLenderProductById(params: {
+  id: string;
+  client?: Queryable;
+}): Promise<LenderProductRecord | null> {
+  const runner = params.client ?? pool;
+  await assertLenderProductColumnsExist({
+    route: "/api/lender-products/:id",
+    columns: [
+      "id",
+      "lender_id",
+      "name",
+      "description",
+      "active",
+      "required_documents",
+      "created_at",
+      "updated_at",
+    ],
+    client: runner,
+  });
+  const res = await runner.query<LenderProductRecord>(
+    `select id,
+            lender_id,
+            coalesce(name, 'Unnamed Product') as name,
+            description,
+            active,
+            required_documents,
+            created_at,
+            updated_at
+     from lender_products
+     where id = $1
+     limit 1`,
+    [params.id]
+  );
+  return res.rows[0] ?? null;
 }
 
 export async function updateLenderProduct(params: {

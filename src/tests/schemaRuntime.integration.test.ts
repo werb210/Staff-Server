@@ -6,6 +6,8 @@ import { ROLES } from "../auth/roles";
 import { startServer } from "../index";
 import { resetStartupState } from "../startupState";
 import { resolveBaseUrl } from "../__tests__/helpers/baseUrl";
+import { pool } from "../db";
+import { randomUUID } from "crypto";
 
 const TOKEN_OPTIONS: SignOptions = {
   expiresIn: "1h",
@@ -49,11 +51,18 @@ describe("runtime schema verification", () => {
 
     server = await startServer();
 
+    const userId = randomUUID();
+    await pool.query(
+      `insert into users (id, role, status, active)
+       values ($1, $2, $3, true)`,
+      [userId, ROLES.STAFF, "active"]
+    );
+
     const baseUrl = resolveBaseUrl(server ?? undefined);
     const base = new URL(baseUrl);
     const port = base.port;
     const token = jwt.sign(
-      { sub: "schema-runtime-user", role: ROLES.STAFF, tokenVersion: 0 },
+      { sub: userId, role: ROLES.STAFF, tokenVersion: 0 },
       process.env.JWT_SECRET ?? "test-access-secret",
       TOKEN_OPTIONS
     );

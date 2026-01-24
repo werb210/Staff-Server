@@ -65,7 +65,7 @@ export async function startServer() {
     process.exit(1);
   }
   console.log(
-    "schema_assert: OK (lenders.country, lender_products.required_documents)"
+    "schema_assert: OK (users.lender_id, lenders.id, lenders.country, lenders.submission_method, lender_products.lender_id, lender_products.required_documents)"
   );
 
   // Register all API routes using the unified registry

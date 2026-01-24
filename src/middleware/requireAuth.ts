@@ -1,6 +1,9 @@
 import { Request, Response, NextFunction } from "express";
 import { verifyJwt } from "../auth/jwt";
 import { db } from "../db";
+import { getCapabilitiesForRole } from "../auth/capabilities";
+import { isRole } from "../auth/roles";
+import { assertLenderBinding } from "../auth/lenderBinding";
 
 export async function requireAuth(
   req: Request,
@@ -17,7 +20,7 @@ export async function requireAuth(
 
   const { rows } = await db.query(
     `
-    SELECT id, role, status, silo
+    SELECT id, role, status, silo, lender_id
     FROM users
     WHERE id = $1
     `,
@@ -33,12 +36,31 @@ export async function requireAuth(
     return res.status(403).json({ ok: false, error: "user_disabled" });
   }
 
+  if (!isRole(user.role)) {
+    return res.status(403).json({ ok: false, error: "invalid_role" });
+  }
+
+  let lenderId: string | null = null;
+  try {
+    lenderId = assertLenderBinding({ role: user.role, lenderId: user.lender_id });
+  } catch (err) {
+    if (err instanceof Error) {
+      return res
+        .status(400)
+        .json({ ok: false, error: "invalid_lender_binding", message: err.message });
+    }
+    return res
+      .status(400)
+      .json({ ok: false, error: "invalid_lender_binding" });
+  }
+
   req.user = {
     userId: user.id,
     role: user.role,
     silo: user.silo,
     siloFromToken: false,
-    capabilities: [],
+    lenderId,
+    capabilities: getCapabilitiesForRole(user.role),
   };
 
   next();

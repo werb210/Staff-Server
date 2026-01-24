@@ -6,6 +6,7 @@ export interface AuthenticatedUser {
   role: Role;
   silo: string;
   siloFromToken: boolean;
+  lenderId?: string | null;
   phone?: string | null;
   capabilities: Capability[];
 }

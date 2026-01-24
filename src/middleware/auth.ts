@@ -15,6 +15,7 @@ export interface AuthUser {
   silo: string;
   siloFromToken: boolean;
   capabilities: Capability[];
+  lenderId?: string | null;
   phone?: string | null;
 }
 

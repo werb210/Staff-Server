@@ -14,36 +14,36 @@ const router = Router();
 /**
  * GET /api/lender-products
  * - Auth required
- * - Staff / Admin / Ops via LENDERS_READ
+ * - Staff / Admin / Ops / Lender via LENDER_PRODUCTS_READ
  */
 router.get(
   "/",
   requireAuth,
-  requireCapability([CAPABILITIES.LENDERS_READ]),
+  requireCapability([CAPABILITIES.LENDER_PRODUCTS_READ]),
   safeHandler(listLenderProductsHandler)
 );
 
 /**
  * POST /api/lender-products
  * - Auth required
- * - OPS_MANAGE only
+ * - Staff / Admin / Ops / Lender via LENDER_PRODUCTS_WRITE
  */
 router.post(
   "/",
   requireAuth,
-  requireCapability([CAPABILITIES.OPS_MANAGE]),
+  requireCapability([CAPABILITIES.LENDER_PRODUCTS_WRITE]),
   safeHandler(createLenderProductHandler)
 );
 
 /**
  * PATCH /api/lender-products/:id
  * - Auth required
- * - OPS_MANAGE only
+ * - Staff / Admin / Ops / Lender via LENDER_PRODUCTS_WRITE
  */
 router.patch(
   "/:id",
   requireAuth,
-  requireCapability([CAPABILITIES.OPS_MANAGE]),
+  requireCapability([CAPABILITIES.LENDER_PRODUCTS_WRITE]),
   safeHandler(updateLenderProductHandler)
 );
 

@@ -5,6 +5,7 @@ import { createUserAccount } from "../modules/auth/auth.service";
 import { ROLES } from "../auth/roles";
 import { ensureAuditEventSchema } from "./helpers/auditSchema";
 import { otpVerifyRequest } from "./helpers/otpAuth";
+import { randomUUID } from "crypto";
 
 const app = buildAppWithApiRoutes();
 const requestId = "test-request-id";
@@ -34,6 +35,22 @@ async function loginAdmin(): Promise<string> {
     phone,
     requestId,
     idempotencyKey: `idem-lender-products-${phone}`,
+  });
+  return login.body.accessToken as string;
+}
+
+async function loginLender(lenderId: string): Promise<string> {
+  const phone = nextPhone();
+  await createUserAccount({
+    email: `lender-products-lender-${phone}@example.com`,
+    phoneNumber: phone,
+    role: ROLES.LENDER,
+    lenderId,
+  });
+  const login = await otpVerifyRequest(app, {
+    phone,
+    requestId,
+    idempotencyKey: `idem-lender-products-lender-${phone}`,
   });
   return login.body.accessToken as string;
 }
@@ -120,5 +137,62 @@ describe("lender products", () => {
       (item: { id: string }) => item.id === createResponse.body.id
     );
     expect(patched.required_documents).toEqual(updatedDocuments);
+  });
+
+  it("enforces lender product ownership for lender users", async () => {
+    const lenderId = randomUUID();
+    const otherLenderId = randomUUID();
+    await pool.query(
+      `insert into lenders (id, name, country) values ($1, $2, $3), ($4, $5, $6)`,
+      [
+        lenderId,
+        "Lender Owner",
+        "US",
+        otherLenderId,
+        "Other Lender",
+        "US",
+      ]
+    );
+
+    const lenderToken = await loginLender(lenderId);
+
+    const createResponse = await request(app)
+      .post("/api/lender-products")
+      .set("Authorization", `Bearer ${lenderToken}`)
+      .set("x-request-id", requestId)
+      .send({
+        lenderId: otherLenderId,
+        name: "Owner Product",
+      });
+
+    expect(createResponse.status).toBe(201);
+    expect(createResponse.body.lenderId).toBe(lenderId);
+
+    const otherProductResponse = await request(app)
+      .post("/api/lender-products")
+      .set("Authorization", `Bearer ${await loginAdmin()}`)
+      .set("x-request-id", requestId)
+      .send({
+        lenderId: otherLenderId,
+        name: "Other Product",
+      });
+
+    const listResponse = await request(app)
+      .get("/api/lender-products")
+      .set("Authorization", `Bearer ${lenderToken}`)
+      .set("x-request-id", requestId);
+
+    expect(listResponse.status).toBe(200);
+    expect(listResponse.body.every((item: { lenderId: string }) => item.lenderId === lenderId)).toBe(
+      true
+    );
+
+    const patchResponse = await request(app)
+      .patch(`/api/lender-products/${otherProductResponse.body.id}`)
+      .set("Authorization", `Bearer ${lenderToken}`)
+      .set("x-request-id", requestId)
+      .send({ name: "Blocked Update" });
+
+    expect(patchResponse.status).toBe(403);
   });
 });
