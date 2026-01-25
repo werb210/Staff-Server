@@ -116,8 +116,12 @@ beforeAll(async () => {
     create table if not exists lender_products (
       id uuid primary key,
       lender_id uuid not null references lenders(id) on delete cascade,
+      lender_name text not null default '',
       name text not null,
       description text null,
+      type text not null default 'loc',
+      min_amount integer null,
+      max_amount integer null,
       status text not null default 'active',
       active boolean not null default true,
       required_documents jsonb not null default '[]'::jsonb,

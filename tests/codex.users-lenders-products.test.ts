@@ -67,22 +67,36 @@ async function seedScenario() {
   const referrer = await createUserWithToken({ role: ROLES.REFERRER });
 
   await pool.query(
-    `insert into lender_products (id, lender_id, name, description, active, required_documents)
-     values ($1, $2, $3, $4, true, '[]'::jsonb),
-            ($5, $2, $6, $7, true, '[]'::jsonb),
-            ($8, $9, $10, $11, true, '[]'::jsonb)`,
+    `insert into lender_products (id, lender_id, lender_name, name, description, type, min_amount, max_amount, status, active, required_documents)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, '[]'::jsonb),
+            ($10, $2, $3, $11, $12, $13, $14, $15, $16, true, '[]'::jsonb),
+            ($17, $18, $19, $20, $21, $22, $23, $24, $25, true, '[]'::jsonb)`,
     [
       randomUUID(),
       lenderAId,
+      "Lender A",
       "Lender A Term",
       "Product A1",
+      "term",
+      5000,
+      50000,
+      "active",
       randomUUID(),
       "Lender A LOC",
       "Product A2",
+      "loc",
+      10000,
+      75000,
+      "active",
       randomUUID(),
       lenderBId,
+      "Lender B",
       "Lender B Term",
       "Product B1",
+      "term",
+      8000,
+      90000,
+      "active",
     ]
   );
 

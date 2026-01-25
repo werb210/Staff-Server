@@ -50,18 +50,38 @@ function filterBySilo<T extends Record<string, unknown>>(
 
 export async function createLenderProductService(params: {
   lenderId: string;
+  lenderName: string;
   name: unknown;
   description?: string | null;
   active: boolean;
+  type?: unknown;
+  minAmount?: number | null;
+  maxAmount?: number | null;
+  status?: unknown;
   requiredDocuments: RequiredDocuments;
 }): Promise<Awaited<ReturnType<typeof createLenderProduct>>> {
   const normalizedName = normalizeLenderProductName(params.name);
+  const normalizedType =
+    typeof params.type === "string" && params.type.trim().length > 0
+      ? params.type.trim()
+      : "loc";
+  const normalizedStatus =
+    typeof params.status === "string" && params.status.trim().length > 0
+      ? params.status.trim()
+      : params.active
+        ? "active"
+        : "inactive";
 
   return createLenderProduct({
     lenderId: params.lenderId,
+    lenderName: params.lenderName,
     name: normalizedName,
     description: params.description ?? null,
     active: params.active,
+    type: normalizedType,
+    minAmount: params.minAmount ?? null,
+    maxAmount: params.maxAmount ?? null,
+    status: normalizedStatus,
     requiredDocuments: params.requiredDocuments,
   });
 }

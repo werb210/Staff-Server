@@ -14,20 +14,16 @@ router.get("/", async (_req, res, next) => {
       SELECT
         lp.id,
         lp.name,
-        lp.product_type,
+        lp.type,
         lp.min_amount,
-        lp.max_amount,
-        l.id AS lender_id,
-        l.name AS lender_name
+        lp.max_amount
       FROM lender_products lp
-      JOIN lenders l ON l.id = lp.lender_id
       WHERE lp.status = 'active'
-        AND l.status = 'active'
-      ORDER BY l.name, lp.name
+      ORDER BY lp.name
       `
     );
 
-    res.json({ ok: true, data: rows });
+    res.json(rows);
   } catch (err) {
     next(err);
   }

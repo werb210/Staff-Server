@@ -107,6 +107,16 @@ function parseRequiredDocuments(value: unknown): RequiredDocuments {
   );
 }
 
+function parseAmount(value: unknown, fieldName: string): number | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  throw new AppError("validation_error", `${fieldName} must be a number.`, 400);
+}
+
 function isPlainObject(value: unknown): value is JsonObject {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return false;
@@ -225,7 +235,17 @@ export async function createLenderProductHandler(
       throw new AppError("forbidden", "Access denied.", 403);
     }
 
-    const { lenderId, name, description, active, required_documents } =
+    const {
+      lenderId,
+      name,
+      description,
+      active,
+      required_documents,
+      type,
+      min_amount,
+      max_amount,
+      status,
+    } =
       req.body ?? {};
 
     if (user.role === ROLES.LENDER) {
@@ -283,7 +303,17 @@ export async function createLenderProductHandler(
       throw new AppError("validation_error", "active must be a boolean.", 400);
     }
 
+    if (type !== undefined && type !== null && typeof type !== "string") {
+      throw new AppError("validation_error", "type must be a string.", 400);
+    }
+
+    if (status !== undefined && status !== null && typeof status !== "string") {
+      throw new AppError("validation_error", "status must be a string.", 400);
+    }
+
     const requiredDocumentsList = parseRequiredDocuments(required_documents);
+    const minAmount = parseAmount(min_amount, "min_amount");
+    const maxAmount = parseAmount(max_amount, "max_amount");
 
     const lender = await getLenderById(resolvedLenderId.trim());
     if (!lender) {
@@ -292,9 +322,14 @@ export async function createLenderProductHandler(
 
     const created = await createLenderProductService({
       lenderId: resolvedLenderId.trim(),
+      lenderName: lender.name,
       name,
       description: typeof description === "string" ? description.trim() : null,
       active: typeof active === "boolean" ? active : true,
+      type,
+      minAmount,
+      maxAmount,
+      status,
       requiredDocuments: requiredDocumentsList,
     });
 
