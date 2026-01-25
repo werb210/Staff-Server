@@ -12,6 +12,7 @@ const phoneSchema = z
 export const startOtpSchema = z
   .object({
     phone: phoneSchema,
+    email: z.string().email().optional(),
   })
   .strict();
 
@@ -19,6 +20,7 @@ export const verifyOtpSchema = z
   .object({
     phone: phoneSchema,
     code: z.string().length(6, "Code must be 6 characters"),
+    email: z.string().email().optional(),
   })
   .strict();
 

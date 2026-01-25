@@ -119,6 +119,38 @@ export async function findAuthUserByPhone(
   return fallbackRes.rows[0] ?? null;
 }
 
+export async function findAuthUserByEmail(
+  email: string,
+  client?: Queryable,
+  options?: { forUpdate?: boolean }
+): Promise<AuthUser | null> {
+  const runner = client ?? pool;
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!normalizedEmail) {
+    return null;
+  }
+  const forUpdate = options?.forUpdate ? " for update" : "";
+  const res = await runAuthQuery<AuthUser>(
+    runner,
+    `select u.id,
+            u.email,
+            u.phone_number as "phoneNumber",
+            u.phone_verified as "phoneVerified",
+            u.role,
+            u.silo,
+            u.lender_id as "lenderId",
+            u.active,
+            u.is_active as "isActive",
+            u.disabled,
+            u.locked_until as "lockedUntil",
+            u.token_version as "tokenVersion"
+     from users u
+     where lower(u.email) = $1${forUpdate}`,
+    [normalizedEmail]
+  );
+  return res.rows[0] ?? null;
+}
+
 export async function findAuthUserById(
   id: string,
   client?: Queryable
@@ -153,16 +185,18 @@ export async function createUser(params: {
   phoneNumber: string;
   role: Role;
   lenderId?: string | null;
+  active?: boolean;
   client?: Queryable;
 }): Promise<AuthUser> {
   const runner = params.client ?? pool;
   const normalizedEmail = params.email ? params.email.trim().toLowerCase() : null;
   const resolvedEmail = normalizedEmail ?? null;
+  const active = params.active ?? true;
 
   const res = await runAuthQuery<AuthUser>(
     runner,
     `insert into users (id, email, phone_number, role, lender_id, active)
-     values ($1, $2, $3, $4, $5, true)
+     values ($1, $2, $3, $4, $5, $6)
      returning id,
               email,
               phone_number as "phoneNumber",
@@ -181,10 +215,40 @@ export async function createUser(params: {
       params.phoneNumber,
       params.role,
       params.lenderId ?? null,
+      active,
     ]
   );
 
   return res.rows[0];
+}
+
+export async function updateUserPhoneNumber(params: {
+  userId: string;
+  phoneNumber: string;
+  client?: Queryable;
+}): Promise<AuthUser | null> {
+  const runner = params.client ?? pool;
+  const res = await runAuthQuery<AuthUser>(
+    runner,
+    `update users
+     set phone_number = $1,
+         phone = $1
+     where id = $2
+     returning id,
+              email,
+              phone_number as "phoneNumber",
+              phone_verified as "phoneVerified",
+              role,
+              silo,
+              lender_id as "lenderId",
+              active,
+              is_active as "isActive",
+              disabled,
+              locked_until as "lockedUntil",
+              token_version as "tokenVersion"`,
+    [params.phoneNumber, params.userId]
+  );
+  return res.rows[0] ?? null;
 }
 
 export interface RefreshTokenRecord {

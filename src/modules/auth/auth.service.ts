@@ -3,12 +3,15 @@ import { randomUUID } from "crypto";
 import { type PoolClient } from "pg";
 import {
   createUser,
+  findAuthUserByEmail,
   findAuthUserByPhone,
   findAuthUserById,
   findApprovedOtpVerificationByPhone,
   findLatestOtpVerificationByPhone,
   createOtpVerification,
   updateOtpVerificationStatus,
+  updateUserPhoneNumber,
+  setUserActive,
   updateUserRoleById,
   storeRefreshToken,
   consumeRefreshToken,
@@ -555,6 +558,15 @@ function isBootstrapAdminUser(params: {
   );
 }
 
+function generatePlaceholderPhoneNumber(): string {
+  const raw = randomUUID().replace(/-/g, "");
+  const digits = raw.replace(/[a-f]/gi, (value) =>
+    (parseInt(value, 16) % 10).toString()
+  );
+  const suffix = digits.slice(0, 10);
+  return `+1999${suffix}`;
+}
+
 export async function startOtp(
   phone: unknown
 ): Promise<{ ok: true; sid: string }> {
@@ -653,6 +665,7 @@ export async function startOtp(
 export async function verifyOtpCode(params: {
   phone: string;
   code: string;
+  email?: string | null;
   ip?: string;
   userAgent?: string;
   route?: string;
@@ -660,6 +673,7 @@ export async function verifyOtpCode(params: {
 }): Promise<VerifyOtpSuccess | VerifyOtpFailure> {
   const requestId = getRequestId() ?? "unknown";
   let dedupPhone: string | null = null;
+  const normalizedEmail = normalizeEmail(params.email ?? null);
   try {
     try {
       await ensureOtpTableExists();
@@ -702,7 +716,16 @@ export async function verifyOtpCode(params: {
     let status: string | undefined;
 
     const existingUser = await findAuthUserByPhone(phoneE164);
-    if (!existingUser) {
+    const emailUser =
+      !existingUser && normalizedEmail
+        ? await findAuthUserByEmail(normalizedEmail)
+        : null;
+    const canAttachPhone =
+      emailUser &&
+      emailUser.active !== true &&
+      emailUser.isActive !== true &&
+      emailUser.disabled !== true;
+    if (!existingUser && !emailUser) {
       if (!isBootstrapAdminUser({ phoneNumber: phoneE164, email: null })) {
         return {
           ok: false,
@@ -710,6 +733,13 @@ export async function verifyOtpCode(params: {
           error: { code: "user_not_found", message: "User not found." },
         };
       }
+    }
+    if (!existingUser && emailUser && !canAttachPhone) {
+      return {
+        ok: false,
+        status: 404,
+        error: { code: "user_not_found", message: "User not found." },
+      };
     }
 
     let latestVerification = await safeFindLatestOtpVerificationByPhone(
@@ -799,6 +829,23 @@ export async function verifyOtpCode(params: {
       let userRecord = await findAuthUserByPhone(phoneE164, db, {
         forUpdate: true,
       });
+      if (!userRecord && normalizedEmail) {
+        const emailRecord = await findAuthUserByEmail(normalizedEmail, db, {
+          forUpdate: true,
+        });
+        const attachEligible =
+          emailRecord &&
+          emailRecord.active !== true &&
+          emailRecord.isActive !== true &&
+          emailRecord.disabled !== true;
+        if (emailRecord && attachEligible) {
+          userRecord = await updateUserPhoneNumber({
+            userId: emailRecord.id,
+            phoneNumber: phoneE164,
+            client: db,
+          });
+        }
+      }
       if (!userRecord) {
         const bootstrapRole = isBootstrapAdminUser({
           phoneNumber: phoneE164,
@@ -813,15 +860,36 @@ export async function verifyOtpCode(params: {
         });
       }
 
+      if (
+        userRecord.active !== true &&
+        userRecord.isActive !== false &&
+        userRecord.disabled !== true
+      ) {
+        await setUserActive(userRecord.id, true, db);
+        userRecord = {
+          ...userRecord,
+          active: true,
+          isActive: true,
+          disabled: false,
+        };
+      }
+
       assertUserActive({ user: userRecord, requestId, phoneTail });
 
       await db.query(
         `
-        INSERT INTO users (id, phone, role, status)
-        VALUES ($1, $2, 'Admin', 'active')
-        ON CONFLICT DO NOTHING
+        INSERT INTO users (id, phone, email, role, status)
+        VALUES ($1, $2, $3, $4, 'active')
+        ON CONFLICT (id) DO UPDATE
+        SET phone = COALESCE(users.phone, EXCLUDED.phone),
+            email = COALESCE(users.email, EXCLUDED.email),
+            role = COALESCE(users.role, EXCLUDED.role),
+            status = CASE
+              WHEN users.status IS NULL THEN EXCLUDED.status
+              ELSE users.status
+            END
         `,
-        [userRecord.id, phoneE164]
+        [userRecord.id, phoneE164, userRecord.email, userRecord.role ?? null]
       );
 
       await db.query(
@@ -1109,7 +1177,7 @@ export async function refreshSession(params: {
 
 export async function createUserAccount(params: {
   email?: string | null;
-  phoneNumber: string;
+  phoneNumber?: string | null;
   role: Role;
   lenderId?: string | null;
   actorUserId?: string | null;
@@ -1118,6 +1186,10 @@ export async function createUserAccount(params: {
 }): Promise<{ id: string; email: string | null; role: Role }> {
   const dbClient = await pool.connect();
   const db = dbClient;
+  const phoneNumber =
+    params.phoneNumber && params.phoneNumber.trim().length > 0
+      ? params.phoneNumber
+      : generatePlaceholderPhoneNumber();
   try {
     await dbClient.query("begin");
     const lenderId = assertLenderBinding({
@@ -1126,9 +1198,10 @@ export async function createUserAccount(params: {
     });
     const user = await createUser({
       email: params.email,
-      phoneNumber: params.phoneNumber,
+      phoneNumber,
       role: params.role,
       lenderId,
+      active: false,
       client: db,
     });
     await recordAuditEvent({
