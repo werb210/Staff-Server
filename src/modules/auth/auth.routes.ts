@@ -15,6 +15,8 @@ import {
   validateVerifyOtp,
   verifyOtpResponseSchema,
 } from "../../validation/auth.validation";
+import { requireAuth } from "../../middleware/requireAuth";
+import { incrementTokenVersion } from "./auth.repo";
 
 const router = Router();
 
@@ -237,8 +239,20 @@ router.post("/otp/verify", otpRateLimit(), async (req, res, next) => {
 /**
  * POST /api/auth/logout
  */
-router.post("/logout", (_req, res) => {
-  respondOk(res, { ok: true });
+router.post("/logout", requireAuth, async (req, res, next) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      respondError(res, 401, "invalid_token", "Invalid or expired token.");
+      return;
+    }
+
+    await incrementTokenVersion(userId);
+
+    res.status(200).json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
 });
 
 /**

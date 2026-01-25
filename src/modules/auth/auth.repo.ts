@@ -29,6 +29,7 @@ export interface AuthUser {
   role: Role | null;
   silo: string | null;
   lenderId: string | null;
+  status: string | null;
   active: boolean;
   isActive: boolean | null;
   disabled: boolean | null;
@@ -66,6 +67,7 @@ export async function findAuthUserByPhone(
               u.role,
               u.silo,
               u.lender_id as "lenderId",
+              u.status,
               u.active,
               u.is_active as "isActive",
               u.disabled,
@@ -89,6 +91,7 @@ export async function findAuthUserByPhone(
             u.role,
             u.silo,
             u.lender_id as "lenderId",
+            u.status,
             u.active,
             u.is_active as "isActive",
             u.disabled,
@@ -139,6 +142,7 @@ export async function findAuthUserByEmail(
             u.role,
             u.silo,
             u.lender_id as "lenderId",
+            u.status,
             u.active,
             u.is_active as "isActive",
             u.disabled,
@@ -166,6 +170,7 @@ export async function findAuthUserById(
             u.role,
             u.silo,
             u.lender_id as "lenderId",
+            u.status,
             u.active,
             u.is_active as "isActive",
             u.disabled,
@@ -204,6 +209,7 @@ export async function createUser(params: {
               role,
               silo,
               lender_id as "lenderId",
+              status,
               active,
               is_active as "isActive",
               disabled,

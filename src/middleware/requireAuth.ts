@@ -1,6 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { verifyJwt } from "../auth/jwt";
-import { db } from "../db";
+import { verifyAccessTokenWithUser } from "../auth/jwt";
 import { getCapabilitiesForRole } from "../auth/capabilities";
 import { isRole } from "../auth/roles";
 import { assertLenderBinding } from "../auth/lenderBinding";
@@ -16,30 +15,19 @@ export async function requireAuth(
   }
 
   const token = auth.slice(7);
-  const payload = verifyJwt(token);
-  if (!payload.sub) {
+  let authResult: Awaited<ReturnType<typeof verifyAccessTokenWithUser>>;
+  try {
+    authResult = await verifyAccessTokenWithUser(token);
+  } catch {
     return res.status(401).json({ ok: false, error: "invalid_token" });
   }
 
-  const { rows } = await db.query(
-    `
-    SELECT id, role, status, silo, lender_id
-    , active, is_active, disabled
-    FROM users
-    WHERE id = $1
-    `,
-    [payload.sub]
-  );
-
-  const user = rows[0];
-  if (!user) {
-    return res.status(401).json({ ok: false, error: "invalid_user" });
-  }
+  const user = authResult.user;
 
   const isDisabled =
     user.status !== "active" ||
     user.disabled === true ||
-    user.is_active === false ||
+    user.isActive === false ||
     user.active === false;
   if (isDisabled) {
     return res.status(403).json({ ok: false, error: "user_disabled" });
@@ -51,7 +39,7 @@ export async function requireAuth(
 
   let lenderId: string | null = null;
   try {
-    lenderId = assertLenderBinding({ role: user.role, lenderId: user.lender_id });
+    lenderId = assertLenderBinding({ role: user.role, lenderId: user.lenderId });
   } catch (err) {
     if (err instanceof Error) {
       return res
@@ -66,7 +54,7 @@ export async function requireAuth(
   req.user = {
     userId: user.id,
     role: user.role,
-    silo: user.silo,
+    silo: user.silo ?? "",
     siloFromToken: false,
     lenderId,
     capabilities: getCapabilitiesForRole(user.role),
