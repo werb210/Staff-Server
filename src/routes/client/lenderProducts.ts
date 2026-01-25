@@ -1,38 +1,36 @@
 import { Router } from "express";
 import { pool } from "../../db";
 
-type LenderProductRow = {
-  id: string;
-  lender_id: string;
-  product_type: string;
-  min_amount: number | null;
-  max_amount: number | null;
-  countries: string[] | null;
-  interest_rate: number | null;
-  term_months: number | null;
-};
-
 const router = Router();
 
-router.get("/", async (_req, res) => {
-  const { rows } = await pool.query<LenderProductRow>(
-    `
-    SELECT
-      id,
-      lender_id,
-      product_type,
-      min_amount,
-      max_amount,
-      countries,
-      interest_rate,
-      term_months
-    FROM lender_products
-    WHERE active = true
-    ORDER BY created_at DESC
-    `
-  );
+/**
+ * GET /api/client/lender-products
+ * Public, ACTIVE lenders + ACTIVE products only
+ */
+router.get("/", async (_req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `
+      SELECT
+        lp.id,
+        lp.name,
+        lp.product_type,
+        lp.min_amount,
+        lp.max_amount,
+        l.id AS lender_id,
+        l.name AS lender_name
+      FROM lender_products lp
+      JOIN lenders l ON l.id = lp.lender_id
+      WHERE lp.status = 'active'
+        AND l.status = 'active'
+      ORDER BY l.name, lp.name
+      `
+    );
 
-  res.json(rows);
+    res.json({ ok: true, data: rows });
+  } catch (err) {
+    next(err);
+  }
 });
 
 export default router;
