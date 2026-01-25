@@ -72,7 +72,7 @@ export async function startServer() {
   }
   await seedRequirementsForAllProducts();
   console.log(
-    "schema_assert: OK (users.lender_id, lenders.id, lenders.country, lenders.submission_method, lender_products.lender_id, lender_products.required_documents)"
+    "schema_assert: OK (users.lender_id, lenders.id, lenders.country, lenders.submission_method, lender_products.lender_id, lender_products.required_documents, lender_product_requirements.id, lender_product_requirements.lender_product_id, lender_product_requirements.document_type, lender_product_requirements.created_at)"
   );
 
   // Register all API routes using the unified registry
