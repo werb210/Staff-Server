@@ -48,14 +48,28 @@ function assertRoutesMounted(app: express.Express): void {
   }
 }
 
-function buildCorsOptions(): cors.CorsOptions {
+const PORTAL_ORIGINS = [
+  "https://staff.boreal.financial",
+  "https://portal.staff.boreal.financial",
+];
+
+function getCorsAllowlist(): Set<string> {
   const allowlist = new Set(getCorsAllowlistConfig());
-  const portalOrigin = "https://staff.boreal.financial";
-  const portalSecondaryOrigin = "https://portal.boreal.financial";
-  allowlist.add(portalOrigin);
-  allowlist.add(portalSecondaryOrigin);
+  PORTAL_ORIGINS.forEach((origin) => allowlist.add(origin));
   allowlist.add("http://localhost:5173");
   allowlist.add("http://localhost:3000");
+  return allowlist;
+}
+
+export function shouldBlockInternalOriginRequest(
+  path: string,
+  origin?: string
+): boolean {
+  return Boolean(origin) && path.startsWith("/api/_int");
+}
+
+function buildCorsOptions(): cors.CorsOptions {
+  const allowlist = getCorsAllowlist();
   return {
     origin: (origin, callback) => {
       if (!origin) {
@@ -66,17 +80,13 @@ function buildCorsOptions(): cors.CorsOptions {
         callback(null, true);
         return;
       }
-      if (
-        allowlist.has(origin) ||
-        origin.startsWith(`${portalOrigin}/`) ||
-        origin.startsWith(`${portalSecondaryOrigin}/`)
-      ) {
+      if (allowlist.has(origin)) {
         callback(null, true);
         return;
       }
-      callback(new Error("CORS origin not allowed"));
+      callback(null, false);
     },
-    credentials: false,
+    credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: [
       "Authorization",
@@ -88,11 +98,51 @@ function buildCorsOptions(): cors.CorsOptions {
   };
 }
 
+export function assertCorsConfig(): void {
+  const allowlist = getCorsAllowlist();
+  const missingOrigins = PORTAL_ORIGINS.filter((origin) => !allowlist.has(origin));
+  const corsOptions = buildCorsOptions();
+  const allowedHeaders = Array.isArray(corsOptions.allowedHeaders)
+    ? corsOptions.allowedHeaders
+    : typeof corsOptions.allowedHeaders === "string"
+      ? corsOptions.allowedHeaders.split(",").map((header) => header.trim())
+      : [];
+  const hasAuthorization = allowedHeaders.some(
+    (header) => header.toLowerCase() === "authorization"
+  );
+  const shouldBlock = shouldBlockInternalOriginRequest(
+    "/api/_int/routes",
+    "https://staff.boreal.financial"
+  );
+  const shouldAllowServer =
+    !shouldBlockInternalOriginRequest("/api/_int/routes", undefined);
+
+  if (missingOrigins.length > 0) {
+    throw new Error(`Missing CORS allowlist origins: ${missingOrigins.join(", ")}`);
+  }
+  if (corsOptions.credentials !== true) {
+    throw new Error("CORS credentials must be enabled.");
+  }
+  if (!hasAuthorization) {
+    throw new Error("CORS Authorization header must be allowed.");
+  }
+  if (!shouldBlock || !shouldAllowServer) {
+    throw new Error("Internal browser route guard misconfigured.");
+  }
+}
+
 export function buildApp(): express.Express {
   const app = express();
 
   app.use(requestContext);
   app.use(requestLogger);
+  app.use((req, res, next) => {
+    if (shouldBlockInternalOriginRequest(req.path, req.headers.origin)) {
+      res.status(403).json({ ok: false, code: "forbidden" });
+      return;
+    }
+    next();
+  });
   app.use(express.json({ limit: getRequestBodyLimit() }));
   app.use(express.urlencoded({ extended: true }));
   const corsOptions = buildCorsOptions();
