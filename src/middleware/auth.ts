@@ -5,10 +5,10 @@ import {
   type Capability,
 } from "../auth/capabilities";
 import { ROLES, isRole, type Role } from "../auth/roles";
-import { verifyAccessToken } from "../auth/jwt";
+import { verifyAccessTokenWithUser } from "../auth/jwt";
 import { DEFAULT_AUTH_SILO } from "../auth/silo";
 import { logInfo, logWarn } from "../observability/logger";
-import { findAuthUserById } from "../modules/auth/auth.repo";
+import { type AuthUser as AuthUserRecord } from "../modules/auth/auth.repo";
 
 export interface AuthUser {
   userId: string;
@@ -56,43 +56,40 @@ function logAuthHeaderStatus(status: AuthHeaderStatus): void {
   if (status === "malformed") logWarn("auth_header_malformed");
 }
 
-function getAuthenticatedUserFromToken(token: string): AuthUser | null {
-  let payload: unknown;
+type AuthResult = {
+  user: AuthUser;
+  userRecord: AuthUserRecord;
+};
 
+async function getAuthenticatedUserFromToken(
+  token: string
+): Promise<AuthResult | null> {
   try {
-    payload = verifyAccessToken(token);
+    const { payload, user } = await verifyAccessTokenWithUser(token);
+
+    if (!isRole(payload.role)) {
+      return null;
+    }
+
+    const tokenSilo =
+      typeof payload.silo === "string" ? payload.silo.trim() : "";
+    const siloFromToken = tokenSilo.length > 0;
+    const resolvedSilo = siloFromToken ? tokenSilo : DEFAULT_AUTH_SILO;
+
+    return {
+      user: {
+        userId: payload.sub,
+        role: payload.role,
+        silo: resolvedSilo,
+        siloFromToken,
+        capabilities: getCapabilitiesForRole(payload.role),
+        phone: typeof payload.phone === "string" ? payload.phone : null,
+      },
+      userRecord: user,
+    };
   } catch {
     return null;
   }
-
-  if (typeof payload !== "object" || payload === null) {
-    return null;
-  }
-
-  const { sub, role, phone, silo: siloClaim } = payload as {
-    sub?: unknown;
-    role?: unknown;
-    phone?: unknown;
-    silo?: unknown;
-  };
-
-  if (typeof sub !== "string" || !isRole(role)) {
-    return null;
-  }
-
-  const tokenSilo =
-    typeof siloClaim === "string" ? siloClaim.trim() : "";
-  const siloFromToken = tokenSilo.length > 0;
-  const resolvedSilo = siloFromToken ? tokenSilo : DEFAULT_AUTH_SILO;
-
-  return {
-    userId: sub,
-    role,
-    silo: resolvedSilo,
-    siloFromToken,
-    capabilities: getCapabilitiesForRole(role),
-    phone: typeof phone === "string" ? phone : null,
-  };
 }
 
 export async function requireAuth(
@@ -106,39 +103,38 @@ export async function requireAuth(
   if (!token) {
     const rawHeader = req.headers.authorization?.trim().toLowerCase();
     if (status === "malformed" && rawHeader === "bearer") {
-      res.status(401).json({ error: "missing_token" });
+      res.status(401).json({ ok: false, error: "missing_token" });
       return;
     }
     res
       .status(401)
-      .json({ error: status === "malformed" ? "invalid_token" : "missing_token" });
+      .json({
+        ok: false,
+        error: status === "malformed" ? "invalid_token" : "missing_token",
+      });
     return;
   }
 
-  const user = getAuthenticatedUserFromToken(token);
-  if (!user) {
+  const authResult = await getAuthenticatedUserFromToken(token);
+  if (!authResult) {
     logWarn("auth_token_invalid");
-    res.status(401).json({ error: "invalid_token" });
+    res.status(401).json({ ok: false, error: "invalid_token" });
     return;
   }
 
+  const { user, userRecord } = authResult;
   logInfo("auth_token_verified", {
     subject: user.userId,
     role: user.role,
   });
 
   try {
-    const userRecord = await findAuthUserById(user.userId);
-    if (!userRecord) {
-      res.status(401).json({ error: "invalid_user" });
-      return;
-    }
     const isDisabled =
       userRecord.disabled === true ||
       userRecord.isActive === false ||
       userRecord.active === false;
     if (isDisabled) {
-      res.status(403).json({ error: "user_disabled" });
+      res.status(403).json({ ok: false, error: "user_disabled" });
       return;
     }
     req.user = {
@@ -150,16 +146,17 @@ export async function requireAuth(
     logWarn("auth_user_lookup_failed", {
       error: err instanceof Error ? err.message : "unknown_error",
     });
-    res.status(500).json({ error: "auth_lookup_failed" });
+    res.status(500).json({ ok: false, error: "auth_lookup_failed" });
   }
 }
 
-export function getAuthenticatedUserFromRequest(
+export async function getAuthenticatedUserFromRequest(
   req: Request
-): AuthUser | null {
+): Promise<AuthUser | null> {
   const { token } = getAuthHeaderInfo(req);
   if (!token) return null;
-  return getAuthenticatedUserFromToken(token);
+  const result = await getAuthenticatedUserFromToken(token);
+  return result?.user ?? null;
 }
 
 export function requireCapability(required: Capability[]) {
@@ -167,7 +164,7 @@ export function requireCapability(required: Capability[]) {
     const user = req.user;
 
     if (!user) {
-      res.status(401).json({ error: "missing_token" });
+      res.status(401).json({ ok: false, error: "missing_token" });
       return;
     }
 
@@ -192,7 +189,7 @@ export function requireCapability(required: Capability[]) {
     );
 
     if (!hasAll) {
-      res.status(403).json({ error: "insufficient_capabilities" });
+      res.status(403).json({ ok: false, error: "insufficient_capabilities" });
       return;
     }
 

@@ -6,6 +6,7 @@ import {
 } from "../config";
 import { type Role, isRole } from "./roles";
 import { type Capability, isCapability } from "./capabilities";
+import { findAuthUserById, type AuthUser } from "../modules/auth/auth.repo";
 
 export type AccessTokenPayload = {
   sub: string;
@@ -141,4 +142,20 @@ export function verifyJwt(token: string): { sub: string } {
   } catch {
     return { sub: "" };
   }
+}
+
+export async function verifyAccessTokenWithUser(token: string): Promise<{
+  payload: AccessTokenPayload;
+  user: AuthUser;
+}> {
+  const payload = verifyAccessToken(token);
+  const user = await findAuthUserById(payload.sub);
+  if (!user) {
+    throw new AccessTokenVerificationError("Access token user not found");
+  }
+  const tokenVersion = user.tokenVersion ?? 0;
+  if (payload.tokenVersion !== tokenVersion) {
+    throw new AccessTokenVerificationError("Access token has been invalidated");
+  }
+  return { payload, user };
 }
