@@ -1,4 +1,4 @@
-export const LENDER_SUBMISSION_METHODS = ["EMAIL", "API"] as const;
+export const LENDER_SUBMISSION_METHODS = ["EMAIL", "API", "PORTAL"] as const;
 
 export type LenderSubmissionMethod = (typeof LENDER_SUBMISSION_METHODS)[number];
 

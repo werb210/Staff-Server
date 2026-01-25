@@ -19,6 +19,8 @@ const nextRequestId = (): string => `req-e2e-${idempotencyCounter++}`;
 let phoneCounter = 600;
 const nextPhone = (): string =>
   `+1415555${String(phoneCounter++).padStart(4, "0")}`;
+const defaultLenderId = "00000000-0000-0000-0000-00000000a001";
+const defaultLenderProductId = "00000000-0000-0000-0000-00000000b001";
 
 async function resetDb(): Promise<void> {
   await pool.query("delete from client_submissions");
@@ -74,9 +76,13 @@ async function createApplication(token: string): Promise<string> {
     .set("Authorization", `Bearer ${token}`)
     .set("Idempotency-Key", nextIdempotencyKey())
     .set("x-request-id", nextRequestId())
-    .send({ name: "Acme Application", metadata: { source: "e2e" } });
+    .send({ name: "Acme Application", productType: "standard", metadata: { source: "e2e" } });
 
   expect(res.status).toBe(201);
+  await pool.query(
+    "update applications set lender_id = $1, lender_product_id = $2 where id = $3",
+    [defaultLenderId, defaultLenderProductId, res.body.application.id]
+  );
   return res.body.application.id;
 }
 
@@ -125,7 +131,8 @@ async function acceptDocument(
 async function submitToLender(
   token: string,
   applicationId: string,
-  lenderId = "default",
+  lenderId = defaultLenderId,
+  lenderProductId = defaultLenderProductId,
   idempotencyKey?: string
 ): Promise<request.Response> {
   return request(app)
@@ -133,7 +140,7 @@ async function submitToLender(
     .set("Authorization", `Bearer ${token}`)
     .set("Idempotency-Key", idempotencyKey ?? nextIdempotencyKey())
     .set("x-request-id", nextRequestId())
-    .send({ applicationId, lenderId });
+    .send({ applicationId, lenderId, lenderProductId });
 }
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
@@ -202,7 +209,7 @@ describe("submission pipeline end-to-end", () => {
       const submission = await submitToLender(token, applicationId);
 
       expect(submission.status).toBe(201);
-      expect(submission.body.submission.status).toBe("submitted");
+      expect(submission.body.submission.status).toBe("sent");
 
       const finalState = await pool.query<{ pipeline_state: string }>(
         "select pipeline_state from applications where id = $1",
@@ -355,13 +362,17 @@ describe("submission pipeline end-to-end", () => {
 
     await acceptDocument(token, applicationId, bank);
     await acceptDocument(token, applicationId, idDoc);
+    await pool.query("update applications set metadata = $1 where id = $2", [
+      { forceFailure: true },
+      applicationId,
+    ]);
 
     const idemKey = nextIdempotencyKey();
-    const failed = await submitToLender(token, applicationId, "timeout", idemKey);
+    const failed = await submitToLender(token, applicationId, defaultLenderId, defaultLenderProductId, idemKey);
 
     expect(failed.status).toBe(502);
     expect(failed.body.submission.status).toBe("failed");
-    expect(failed.body.submission.failureReason).toBe("lender_timeout");
+    expect(failed.body.submission.failureReason).toBe("lender_error");
 
     const submissionId = failed.body.submission.id;
 
@@ -385,11 +396,11 @@ describe("submission pipeline end-to-end", () => {
     ]);
 
     expect(submissionRow.rows[0]?.status).toBe("failed");
-    expect(submissionRow.rows[0]?.failure_reason).toBe("lender_timeout");
+    expect(submissionRow.rows[0]?.failure_reason).toBe("lender_error");
     expect(retryRow.rows[0]?.status).toBe("pending");
     expect(state.rows[0]?.pipeline_state).toBe("REQUIRES_DOCS");
 
-    const retry = await submitToLender(token, applicationId, "timeout", idemKey);
+    const retry = await submitToLender(token, applicationId, defaultLenderId, defaultLenderProductId, idemKey);
     expect(retry.status).toBe(200);
     expect(retry.body.submission.id).toBe(submissionId);
     expect(retry.body.submission.status).toBe("failed");
@@ -427,7 +438,7 @@ describe("submission pipeline end-to-end", () => {
 
     submissions.forEach(({ submission }) => {
       expect(submission.status).toBe(201);
-      expect(submission.body.submission.status).toBe("submitted");
+      expect(submission.body.submission.status).toBe("sent");
     });
 
     const retryCount = await pool.query<{ count: number }>(
