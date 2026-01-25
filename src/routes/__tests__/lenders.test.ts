@@ -20,7 +20,7 @@ const mockPool = pool as unknown as { query: jest.Mock };
 describe("GET /api/lenders", () => {
   beforeEach(() => {
     mockPool.query.mockImplementation((query: string) => {
-      if (query.includes("FROM users")) {
+      if (query.toLowerCase().includes("from users")) {
         return Promise.resolve({
           rows: [
             {
@@ -54,7 +54,7 @@ describe("GET /api/lenders", () => {
     const token = signAccessToken({
       sub: "user-1",
       role: ROLES.ADMIN,
-      tokenVersion: 1,
+      tokenVersion: 0,
       silo: "default",
     });
     const response = await request(app)

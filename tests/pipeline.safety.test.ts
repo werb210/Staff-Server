@@ -21,9 +21,11 @@ async function ensurePipelineSchema(): Promise<void> {
       metadata jsonb null,
       product_type text not null,
       pipeline_state text not null,
+      status text not null default 'NEW',
       lender_id uuid null,
       lender_product_id uuid null,
       requested_amount integer null,
+      source text null,
       created_at timestamp not null,
       updated_at timestamp not null
     );
@@ -35,6 +37,8 @@ async function ensurePipelineSchema(): Promise<void> {
       owner_user_id uuid not null references users(id) on delete cascade,
       title text not null,
       document_type text not null,
+      version integer not null default 1,
+      status text not null default 'uploaded',
       created_at timestamp not null
     );
   `);

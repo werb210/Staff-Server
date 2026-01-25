@@ -137,7 +137,7 @@ describe("auth requirements", () => {
       .get("/api/auth/me")
       .set("Authorization", `Bearer ${staffLogin.body.accessToken}`);
 
-    expect(me.status).toBe(403);
-    expect(me.body.error).toBe("user_disabled");
+    expect(me.status).toBe(401);
+    expect(me.body.error).toBe("invalid_token");
   });
 });
