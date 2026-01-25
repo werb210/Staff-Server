@@ -54,6 +54,29 @@ afterAll(async () => {
 });
 
 describe("lender product requirements", () => {
+  it("returns 400 for invalid lender product ids", async () => {
+    const response = await request(app).get(
+      "/api/client/lender-products/invalid-id/requirements"
+    );
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({
+      ok: false,
+      error: "INVALID_LENDER_PRODUCT_ID",
+    });
+  });
+
+  it("returns empty requirements for valid but missing lender products", async () => {
+    const missingId = randomUUID();
+    const response = await request(app).get(
+      `/api/client/lender-products/${missingId}/requirements`
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body.productId).toBe(missingId);
+    expect(response.body.requirements).toEqual([]);
+  });
+
   it("seeds requirements when a product is created", async () => {
     const token = await loginAdmin();
 
@@ -73,6 +96,41 @@ describe("lender product requirements", () => {
       .send({
         lenderId: lenderResponse.body.id,
         name: "Seeded LOC",
+        type: "loc",
+        min_amount: 10000,
+        max_amount: 50000,
+        required_documents: [],
+      });
+
+    expect(productResponse.status).toBe(201);
+
+    const requirementsResponse = await request(app).get(
+      `/api/client/lender-products/${productResponse.body.id}/requirements`
+    );
+
+    expect(requirementsResponse.status).toBe(200);
+    expect(requirementsResponse.body.requirements.length).toBeGreaterThan(0);
+  });
+
+  it("returns requirements for a valid lender product", async () => {
+    const token = await loginAdmin();
+
+    const lenderResponse = await request(app)
+      .post("/api/lenders")
+      .set("Authorization", `Bearer ${token}`)
+      .set("x-request-id", requestId)
+      .send({ name: "Requirements Lender", country: "US" });
+
+    expect(lenderResponse.status).toBe(201);
+
+    const productResponse = await request(app)
+      .post("/api/lender-products")
+      .set("Authorization", `Bearer ${token}`)
+      .set("Idempotency-Key", randomUUID())
+      .set("x-request-id", requestId)
+      .send({
+        lenderId: lenderResponse.body.id,
+        name: "Requirements LOC",
         type: "loc",
         min_amount: 10000,
         max_amount: 50000,

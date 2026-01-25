@@ -8,6 +8,9 @@ import {
   updateRequirementForProduct,
 } from "../services/lenderProductRequirementsService";
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 function requireAdmin(user: Request["user"] | undefined): void {
   if (!user) {
     throw new AppError("missing_token", "Authorization token is required.", 401);
@@ -48,6 +51,11 @@ export async function listClientLenderProductRequirementsHandler(
   req: Request,
   res: Response
 ): Promise<void> {
+  if (!UUID_REGEX.test(req.params.id)) {
+    res.status(400).json({ ok: false, error: "INVALID_LENDER_PRODUCT_ID" });
+    return;
+  }
+
   const requestedAmountRaw = req.query.requestedAmount;
   let requestedAmount: number | null = null;
   if (requestedAmountRaw !== undefined) {

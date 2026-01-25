@@ -203,14 +203,17 @@ export async function listClientRequirements(params: {
   requestedAmount?: number | null;
 }): Promise<LenderProductRequirement[]> {
   const product = await findLenderProductById({ id: params.lenderProductId });
-  if (!product || product.status !== "active") {
-    throw new AppError("not_found", "Lender product not found.", 404);
+  if (!product) {
+    return [];
+  }
+  if (product.status !== "active") {
+    throw new AppError("forbidden", "Lender product not found.", 403);
   }
   const requirements = await resolveLenderProductRequirements({
     lenderProductId: params.lenderProductId,
     requestedAmount: params.requestedAmount ?? null,
   });
-  return requirements;
+  return requirements.filter((requirement) => requirement.required);
 }
 
 export async function createRequirementForProduct(params: {
