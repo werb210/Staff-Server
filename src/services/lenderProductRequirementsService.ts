@@ -210,7 +210,7 @@ export async function listClientRequirements(params: {
     lenderProductId: params.lenderProductId,
     requestedAmount: params.requestedAmount ?? null,
   });
-  return requirements.filter((req) => req.required);
+  return requirements;
 }
 
 export async function createRequirementForProduct(params: {

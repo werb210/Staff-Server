@@ -11,6 +11,7 @@ export type ApplicationRecord = {
   metadata: unknown | null;
   product_type: string;
   pipeline_state: string;
+  lender_id: string | null;
   lender_product_id: string | null;
   requested_amount: number | null;
   created_at: Date;
@@ -23,6 +24,7 @@ export type DocumentRecord = {
   owner_user_id: string | null;
   title: string;
   document_type: string;
+  status: string;
   created_at: Date;
 };
 
@@ -49,15 +51,19 @@ export async function createApplication(params: {
   metadata: unknown | null;
   productType: string;
   pipelineState?: string;
+  lenderId?: string | null;
+  lenderProductId?: string | null;
+  requestedAmount?: number | null;
+  source?: string | null;
   client?: Queryable;
 }): Promise<ApplicationRecord> {
   const runner = params.client ?? pool;
   const pipelineState = params.pipelineState ?? "NEW";
   const res = await runner.query<ApplicationRecord>(
     `insert into applications
-     (id, owner_user_id, name, metadata, product_type, pipeline_state, created_at, updated_at)
-     values ($1, $2, $3, $4, $5, $6, now(), now())
-     returning id, owner_user_id, name, metadata, product_type, pipeline_state, lender_product_id, requested_amount, created_at, updated_at`,
+     (id, owner_user_id, name, metadata, product_type, pipeline_state, lender_id, lender_product_id, requested_amount, source, created_at, updated_at)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now(), now())
+     returning id, owner_user_id, name, metadata, product_type, pipeline_state, lender_id, lender_product_id, requested_amount, created_at, updated_at`,
     [
       randomUUID(),
       params.ownerUserId,
@@ -65,6 +71,10 @@ export async function createApplication(params: {
       params.metadata,
       params.productType,
       pipelineState,
+      params.lenderId ?? null,
+      params.lenderProductId ?? null,
+      params.requestedAmount ?? null,
+      params.source ?? null,
     ]
   );
   return res.rows[0];
@@ -88,7 +98,7 @@ export async function listApplications(params?: {
     values.push(stage);
   }
   const res = await runner.query<ApplicationRecord>(
-    `select id, owner_user_id, name, metadata, product_type, pipeline_state, lender_product_id, requested_amount, created_at, updated_at
+    `select id, owner_user_id, name, metadata, product_type, pipeline_state, lender_id, lender_product_id, requested_amount, created_at, updated_at
      from applications
      ${stageClause}
      order by created_at desc
@@ -115,7 +125,7 @@ export async function findApplicationById(
 ): Promise<ApplicationRecord | null> {
   const runner = client ?? pool;
   const res = await runner.query<ApplicationRecord>(
-    `select id, owner_user_id, name, metadata, product_type, pipeline_state, lender_product_id, requested_amount, created_at, updated_at
+    `select id, owner_user_id, name, metadata, product_type, pipeline_state, lender_id, lender_product_id, requested_amount, created_at, updated_at
      from applications
      where id = $1
      limit 1`,
@@ -150,7 +160,7 @@ export async function createDocument(params: {
     `insert into documents
      (id, application_id, owner_user_id, title, document_type, created_at)
      values ($1, $2, $3, $4, $5, now())
-     returning id, application_id, owner_user_id, title, document_type, created_at`,
+     returning id, application_id, owner_user_id, title, document_type, status, created_at`,
     [
       randomUUID(),
       params.applicationId,
@@ -168,7 +178,7 @@ export async function findDocumentById(
 ): Promise<DocumentRecord | null> {
   const runner = client ?? pool;
   const res = await runner.query<DocumentRecord>(
-    `select id, application_id, owner_user_id, title, document_type, created_at
+    `select id, application_id, owner_user_id, title, document_type, status, created_at
      from documents
      where id = $1
      limit 1`,
@@ -184,7 +194,7 @@ export async function findDocumentByApplicationAndType(params: {
 }): Promise<DocumentRecord | null> {
   const runner = params.client ?? pool;
   const res = await runner.query<DocumentRecord>(
-    `select id, application_id, owner_user_id, title, document_type, created_at
+    `select id, application_id, owner_user_id, title, document_type, status, created_at
      from documents
      where application_id = $1
        and document_type = $2
@@ -200,13 +210,83 @@ export async function listDocumentsByApplicationId(
 ): Promise<DocumentRecord[]> {
   const runner = client ?? pool;
   const res = await runner.query<DocumentRecord>(
-    `select id, application_id, owner_user_id, title, document_type, created_at
+    `select id, application_id, owner_user_id, title, document_type, status, created_at
      from documents
      where application_id = $1
      order by created_at asc`,
     [applicationId]
   );
   return Array.isArray(res.rows) ? res.rows : [];
+}
+
+export async function listDocumentsWithLatestVersion(params: {
+  applicationId: string;
+  client?: Queryable;
+}): Promise<
+  Array<{
+    id: string;
+    application_id: string;
+    owner_user_id: string | null;
+    title: string;
+    document_type: string;
+    status: string;
+    created_at: Date;
+    version_id: string | null;
+    version: number | null;
+    metadata: unknown | null;
+    review_status: string | null;
+  }>
+> {
+  const runner = params.client ?? pool;
+  const res = await runner.query<{
+    id: string;
+    application_id: string;
+    owner_user_id: string | null;
+    title: string;
+    document_type: string;
+    status: string;
+    created_at: Date;
+    version_id: string | null;
+    version: number | null;
+    metadata: unknown | null;
+    review_status: string | null;
+  }>(
+    `select d.id,
+            d.application_id,
+            d.owner_user_id,
+            d.title,
+            d.document_type,
+            d.status,
+            d.created_at,
+            dv.id as version_id,
+            dv.version,
+            dv.metadata,
+            r.status as review_status
+     from documents d
+     left join lateral (
+       select dv.id, dv.version, dv.metadata
+       from document_versions dv
+       where dv.document_id = d.id
+       order by dv.version desc
+       limit 1
+     ) dv on true
+     left join document_version_reviews r on r.document_version_id = dv.id
+     where d.application_id = $1
+     order by d.created_at asc`,
+    [params.applicationId]
+  );
+  return Array.isArray(res.rows) ? res.rows : [];
+}
+
+export async function deleteDocumentById(params: {
+  documentId: string;
+  client?: Queryable;
+}): Promise<void> {
+  const runner = params.client ?? pool;
+  await runner.query(
+    "delete from documents where id = $1",
+    [params.documentId]
+  );
 }
 
 export async function getLatestDocumentVersion(

@@ -5,6 +5,7 @@ import {
   createDocument,
   createDocumentVersion,
   createDocumentVersionReview,
+  deleteDocumentById,
   findApplicationById,
   findDocumentById,
   findAcceptedDocumentVersion,
@@ -12,6 +13,7 @@ import {
   findDocumentVersionReview,
   findLatestDocumentVersionStatus,
   getLatestDocumentVersion,
+  listDocumentsWithLatestVersion,
   updateApplicationPipelineState,
 } from "./applications.repo";
 import { pool } from "../../db";
@@ -34,6 +36,9 @@ export type ApplicationResponse = {
   metadata: unknown | null;
   productType: string;
   pipelineState: string;
+  lenderId: string | null;
+  lenderProductId: string | null;
+  requestedAmount: number | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -48,6 +53,21 @@ type MetadataPayload = {
   fileName: string;
   mimeType: string;
   size: number;
+};
+
+export type DocumentSummary = {
+  documentId: string;
+  applicationId: string;
+  title: string;
+  documentType: string;
+  status: string;
+  createdAt: Date;
+  latestVersion: {
+    id: string;
+    version: number;
+    metadata: unknown;
+    reviewStatus: string | null;
+  } | null;
 };
 
 type IdempotentResult<T> = {
@@ -314,6 +334,9 @@ export async function createApplicationForUser(params: {
       metadata: updated.metadata,
       productType: updated.product_type,
       pipelineState: normalizePipelineStage(updated.pipeline_state),
+      lenderId: updated.lender_id ?? null,
+      lenderProductId: updated.lender_product_id ?? null,
+      requestedAmount: updated.requested_amount ?? null,
       createdAt: updated.created_at,
       updatedAt: updated.updated_at,
     };
@@ -322,6 +345,113 @@ export async function createApplicationForUser(params: {
     return { status: 201, value: response, idempotent: false };
   } catch (err) {
     recordTransactionRollback(err);
+    await client.query("rollback");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export async function listDocumentsForApplication(params: {
+  applicationId: string;
+  actorUserId: string;
+  actorRole: Role;
+}): Promise<DocumentSummary[]> {
+  const application = await findApplicationById(params.applicationId);
+  if (!application) {
+    throw new AppError("not_found", "Application not found.", 404);
+  }
+  if (!canAccessApplication(params.actorRole, application.owner_user_id, params.actorUserId)) {
+    throw new AppError("forbidden", "Not authorized.", 403);
+  }
+
+  const documents = await listDocumentsWithLatestVersion({
+    applicationId: params.applicationId,
+  });
+  return documents.map((doc) => ({
+    documentId: doc.id,
+    applicationId: doc.application_id,
+    title: doc.title,
+    documentType: doc.document_type,
+    status: doc.status,
+    createdAt: doc.created_at,
+    latestVersion:
+      doc.version_id && doc.version !== null
+        ? {
+            id: doc.version_id,
+            version: doc.version,
+            metadata: doc.metadata ?? null,
+            reviewStatus: doc.review_status ?? null,
+          }
+        : null,
+  }));
+}
+
+export async function removeDocument(params: {
+  applicationId: string;
+  documentId: string;
+  actorUserId: string;
+  actorRole: Role;
+  ip?: string;
+  userAgent?: string;
+}): Promise<void> {
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const application = await findApplicationById(params.applicationId, client);
+    if (!application) {
+      throw new AppError("not_found", "Application not found.", 404);
+    }
+    if (!canAccessApplication(params.actorRole, application.owner_user_id, params.actorUserId)) {
+      throw new AppError("forbidden", "Not authorized.", 403);
+    }
+    if (!isPipelineState(application.pipeline_state)) {
+      throw new AppError("invalid_state", "Pipeline state is invalid.", 400);
+    }
+
+    const document = await findDocumentById(params.documentId, client);
+    if (!document || document.application_id !== params.applicationId) {
+      throw new AppError("not_found", "Document not found.", 404);
+    }
+
+    await deleteDocumentById({ documentId: params.documentId, client });
+
+    await recordAuditEvent({
+      action: "document_deleted",
+      actorUserId: params.actorUserId,
+      targetUserId: application.owner_user_id,
+      targetType: "document",
+      targetId: params.documentId,
+      ip: params.ip,
+      userAgent: params.userAgent,
+      success: true,
+      client,
+    });
+
+    const evaluation = await evaluateRequirements({
+      applicationId: params.applicationId,
+      actorUserId: params.actorUserId,
+      actorRole: params.actorRole,
+      ip: params.ip,
+      userAgent: params.userAgent,
+      client,
+    });
+
+    if (evaluation.missingRequired && application.pipeline_state !== "REQUIRES_DOCS") {
+      await transitionPipelineState({
+        applicationId: params.applicationId,
+        nextState: "REQUIRES_DOCS",
+        actorUserId: params.actorUserId,
+        actorRole: params.actorRole,
+        allowOverride: false,
+        ip: params.ip,
+        userAgent: params.userAgent,
+        client,
+      });
+    }
+
+    await client.query("commit");
+  } catch (err) {
     await client.query("rollback");
     throw err;
   } finally {
