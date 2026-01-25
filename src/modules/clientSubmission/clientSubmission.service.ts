@@ -6,7 +6,7 @@ import { getDocumentAllowedMimeTypes, getDocumentMaxSizeBytes, getClientSubmissi
 import { createClientSubmission, findClientSubmissionByKey } from "./clientSubmission.repo";
 import { logInfo, logWarn } from "../../observability/logger";
 import { recordTransactionRollback } from "../../observability/transactionTelemetry";
-import { resolveRequirementsForProductType } from "../../services/lenderProductRequirementsService";
+import { resolveRequirementsForApplication } from "../../services/lenderProductRequirementsService";
 
 export type ClientSubmissionResponse = {
   applicationId: string;
@@ -27,6 +27,7 @@ type SubmissionDocument = {
 type ClientSubmissionPayload = {
   submissionKey: string;
   productType: string;
+  selectedLenderProductId?: string | null;
   business: {
     legalName: string;
     taxId: string;
@@ -62,6 +63,18 @@ function assertExactKeys(
   const actual = Object.keys(record).sort();
   const expected = [...keys].sort();
   if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
+    throw new AppError("invalid_payload", `${label} has invalid fields.`, 400);
+  }
+}
+
+function assertAllowedKeys(
+  record: Record<string, unknown>,
+  allowedKeys: string[],
+  label: string
+): void {
+  const allowed = new Set(allowedKeys);
+  const invalid = Object.keys(record).filter((key) => !allowed.has(key));
+  if (invalid.length > 0) {
     throw new AppError("invalid_payload", `${label} has invalid fields.`, 400);
   }
 }
@@ -110,9 +123,37 @@ function assertDocuments(value: unknown): SubmissionDocument[] {
 
 function assertPayload(payload: unknown): ClientSubmissionPayload {
   assertObject(payload, "payload");
-  assertExactKeys(payload, ["submissionKey", "productType", "business", "applicant", "documents"], "payload");
+  assertAllowedKeys(
+    payload,
+    [
+      "submissionKey",
+      "productType",
+      "business",
+      "applicant",
+      "documents",
+      "selected_lender_product_id",
+      "selectedLenderProductId",
+    ],
+    "payload"
+  );
   const submissionKey = assertString(payload.submissionKey, "submissionKey");
   const productType = assertString(payload.productType, "productType");
+  const rawSelected = payload.selected_lender_product_id ?? payload.selectedLenderProductId;
+  if (
+    payload.selected_lender_product_id !== undefined &&
+    payload.selectedLenderProductId !== undefined &&
+    payload.selected_lender_product_id !== payload.selectedLenderProductId
+  ) {
+    throw new AppError(
+      "invalid_payload",
+      "selectedLenderProductId does not match selected_lender_product_id.",
+      400
+    );
+  }
+  const selectedLenderProductId =
+    rawSelected === undefined || rawSelected === null
+      ? null
+      : assertString(rawSelected, "selectedLenderProductId");
   assertObject(payload.business, "business");
   assertExactKeys(
     payload.business,
@@ -148,6 +189,7 @@ function assertPayload(payload: unknown): ClientSubmissionPayload {
   return {
     submissionKey,
     productType,
+    selectedLenderProductId,
     business: {
       legalName,
       taxId,
@@ -159,11 +201,10 @@ function assertPayload(payload: unknown): ClientSubmissionPayload {
   };
 }
 
-async function enforceDocumentRules(
-  productType: string,
+function enforceDocumentRules(
+  requirements: { documentType: string; required: boolean }[],
   documents: SubmissionDocument[]
-): Promise<void> {
-  const { requirements } = await resolveRequirementsForProductType({ productType });
+): void {
   const allowedTypes = new Set(requirements.map((req) => req.documentType));
   const counts = new Map<string, number>();
   documents.forEach((doc) => {
@@ -200,7 +241,11 @@ export async function submitClientApplication(params: {
   userAgent?: string;
 }): Promise<{ status: number; value: ClientSubmissionResponse; idempotent: boolean }> {
   const submission = assertPayload(params.payload);
-  await enforceDocumentRules(submission.productType, submission.documents);
+  const { requirements, lenderProductId } = await resolveRequirementsForApplication({
+    lenderProductId: submission.selectedLenderProductId ?? null,
+    productType: submission.productType,
+  });
+  enforceDocumentRules(requirements, submission.documents);
   enforceDocumentMetadata(submission.documents);
 
   const client = await pool.connect();
@@ -239,8 +284,16 @@ export async function submitClientApplication(params: {
         submissionKey: submission.submissionKey,
         business: submission.business,
         applicant: submission.applicant,
+        requirementsSnapshot: requirements.map((req) => ({
+          documentType: req.documentType,
+          required: req.required,
+          minAmount: req.minAmount ?? null,
+          maxAmount: req.maxAmount ?? null,
+        })),
       },
       productType: submission.productType,
+      lenderProductId,
+      pipelineState: "REQUIRES_DOCS",
       client,
     });
 

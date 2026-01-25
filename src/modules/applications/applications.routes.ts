@@ -3,8 +3,10 @@ import { AppError, forbiddenError } from "../../middleware/errors";
 import {
   changePipelineState,
   createApplicationForUser,
+  listDocumentsForApplication,
   acceptDocumentVersion,
   rejectDocumentVersion,
+  removeDocument,
   uploadDocument,
 } from "./applications.service";
 import { requireAuth, requireCapability } from "../../middleware/auth";
@@ -56,6 +58,27 @@ router.post(
   })
 );
 
+router.get(
+  "/:id/documents",
+  requireAuth,
+  requireCapability([CAPABILITIES.APPLICATION_READ]),
+  safeHandler(async (req, res) => {
+    if (!req.user) {
+      throw new AppError("missing_token", "Authorization token is required.", 401);
+    }
+    const role = req.user.role;
+    if (!role || !isRole(role)) {
+      throw forbiddenError();
+    }
+    const documents = await listDocumentsForApplication({
+      applicationId: req.params.id,
+      actorUserId: req.user.userId,
+      actorRole: role,
+    });
+    res.status(200).json({ documents });
+  })
+);
+
 router.post(
   "/:id/documents",
   requireAuth,
@@ -100,6 +123,30 @@ router.post(
       });
       throw err;
     }
+  })
+);
+
+router.delete(
+  "/:id/documents/:documentId",
+  requireAuth,
+  requireCapability([CAPABILITIES.DOCUMENT_REVIEW]),
+  safeHandler(async (req, res) => {
+    if (!req.user) {
+      throw new AppError("missing_token", "Authorization token is required.", 401);
+    }
+    const role = req.user.role;
+    if (!role || !isRole(role)) {
+      throw forbiddenError();
+    }
+    await removeDocument({
+      applicationId: req.params.id,
+      documentId: req.params.documentId,
+      actorUserId: req.user.userId,
+      actorRole: role,
+      ip: req.ip,
+      userAgent: req.get("user-agent"),
+    });
+    res.status(200).json({ ok: true });
   })
 );
 

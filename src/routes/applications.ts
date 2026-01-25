@@ -31,6 +31,9 @@ type ApplicationResponse = {
   metadata: unknown | null;
   productType: string;
   pipelineState: string;
+  lenderId: string | null;
+  lenderProductId: string | null;
+  requestedAmount: number | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -66,6 +69,9 @@ function toApplicationResponse(
     metadata: record.metadata,
     productType: record.product_type,
     pipelineState: normalizePipelineStage(record.pipeline_state),
+    lenderId: record.lender_id ?? null,
+    lenderProductId: record.lender_product_id ?? null,
+    requestedAmount: record.requested_amount ?? null,
     createdAt: record.created_at,
     updatedAt: record.updated_at,
   };

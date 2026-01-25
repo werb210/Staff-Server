@@ -90,13 +90,13 @@ describe("client submissions", () => {
 
     expect(res.status).toBe(201);
     expect(res.body.submission.applicationId).toBeDefined();
-    expect(res.body.submission.pipelineState).toBe("NEW");
+    expect(res.body.submission.pipelineState).toBe("REQUIRES_DOCS");
 
     const appRes = await pool.query(
       "select pipeline_state from applications where id = $1",
       [res.body.submission.applicationId]
     );
-    expect(appRes.rows[0].pipeline_state).toBe("NEW");
+    expect(appRes.rows[0].pipeline_state).toBe("REQUIRES_DOCS");
 
     const docRes = await pool.query(
       "select count(*)::int as count from documents where application_id = $1",
