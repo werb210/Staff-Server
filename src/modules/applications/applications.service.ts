@@ -7,7 +7,6 @@ import {
   createDocumentVersionReview,
   findApplicationById,
   findDocumentById,
-  findDocumentByApplicationAndType,
   findAcceptedDocumentVersion,
   findDocumentVersionById,
   findDocumentVersionReview,
@@ -18,7 +17,6 @@ import {
 import { pool } from "../../db";
 import { type Role, ROLES } from "../../auth/roles";
 import { type PoolClient } from "pg";
-import { getDocumentCategory, getRequirements, isSupportedProductType } from "./documentRequirements";
 import {
   PIPELINE_STATES,
   canTransition,
@@ -27,6 +25,7 @@ import {
 } from "./pipelineState";
 import { getDocumentAllowedMimeTypes, getDocumentMaxSizeBytes } from "../../config";
 import { recordTransactionRollback } from "../../observability/transactionTelemetry";
+import { resolveRequirementsForApplication } from "../../services/lenderProductRequirementsService";
 
 export type ApplicationResponse = {
   id: string;
@@ -218,9 +217,10 @@ async function evaluateRequirements(params: {
   if (!isPipelineState(application.pipeline_state)) {
     throw new AppError("invalid_state", "Pipeline state is invalid.", 400);
   }
-  const requirements = getRequirements({
+  const { requirements } = await resolveRequirementsForApplication({
+    lenderProductId: application.lender_product_id ?? null,
     productType: application.product_type,
-    pipelineState: application.pipeline_state,
+    requestedAmount: application.requested_amount ?? null,
   });
 
   let missingRequired = false;
@@ -379,36 +379,13 @@ export async function uploadDocument(params: {
     throw new AppError("forbidden", "Not authorized.", 403);
   }
 
-  if (!isSupportedProductType(application.product_type)) {
-    await recordDocumentUploadFailure({
-      actorUserId: params.actorUserId,
-      targetUserId: application.owner_user_id,
-      ip: params.ip,
-      userAgent: params.userAgent,
-    });
-    throw new AppError("invalid_product", "Unsupported product type.", 400);
-  }
-
-  const documentCategory = getDocumentCategory(
-    application.product_type,
-    params.documentType ?? params.title
-  );
-  if (!documentCategory) {
-    await recordDocumentUploadFailure({
-      actorUserId: params.actorUserId,
-      targetUserId: application.owner_user_id,
-      ip: params.ip,
-      userAgent: params.userAgent,
-    });
-    throw new AppError("invalid_document_type", "Document type is not allowed.", 400);
-  }
-
   if (!isPipelineState(application.pipeline_state)) {
     throw new AppError("invalid_state", "Pipeline state is invalid.", 400);
   }
-  const requirements = getRequirements({
+  const { requirements } = await resolveRequirementsForApplication({
+    lenderProductId: application.lender_product_id ?? null,
     productType: application.product_type,
-    pipelineState: application.pipeline_state,
+    requestedAmount: application.requested_amount ?? null,
   });
   const requirement = requirements.find(
     (item) => item.documentType === (params.documentType ?? params.title)
@@ -462,27 +439,6 @@ export async function uploadDocument(params: {
         );
       }
     } else {
-      if (!requirement.multipleAllowed) {
-        const existing = await findDocumentByApplicationAndType({
-          applicationId: params.applicationId,
-          documentType: params.documentType ?? params.title,
-          client,
-        });
-        if (existing) {
-          await recordDocumentUploadFailure({
-            actorUserId: params.actorUserId,
-            targetUserId: application.owner_user_id,
-            ip: params.ip,
-            userAgent: params.userAgent,
-            client,
-          });
-          throw new AppError(
-            "document_duplicate",
-            "Multiple documents are not allowed for this type.",
-            409
-          );
-        }
-      }
       const doc = await createDocument({
         applicationId: params.applicationId,
         ownerUserId: application.owner_user_id,

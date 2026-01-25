@@ -7,6 +7,7 @@ import {
   updateLenderProduct,
 } from "../repositories/lenderProducts.repo";
 import { type RequiredDocuments } from "../db/schema/lenderProducts";
+import { ensureSeedRequirementsForProduct } from "./lenderProductRequirementsService";
 
 export const DEFAULT_LENDER_PRODUCT_NAME = "Unnamed Product";
 const DEFAULT_SILO = "default";
@@ -72,7 +73,7 @@ export async function createLenderProductService(params: {
         ? "active"
         : "inactive";
 
-  return createLenderProduct({
+  const product = await createLenderProduct({
     lenderId: params.lenderId,
     lenderName: params.lenderName,
     name: normalizedName,
@@ -84,6 +85,11 @@ export async function createLenderProductService(params: {
     status: normalizedStatus,
     requiredDocuments: params.requiredDocuments,
   });
+  await ensureSeedRequirementsForProduct({
+    lenderProductId: product.id,
+    productType: normalizedType,
+  });
+  return product;
 }
 
 export async function listLenderProductsService(params?: {

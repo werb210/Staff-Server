@@ -129,6 +129,27 @@ beforeAll(async () => {
       updated_at timestamptz not null default now()
     );
   `);
+  await pool.query(`
+    create table if not exists lender_product_requirements (
+      id uuid primary key,
+      lender_product_id uuid not null references lender_products(id) on delete cascade,
+      document_type text not null,
+      required boolean not null default true,
+      min_amount integer null,
+      max_amount integer null,
+      created_at timestamptz not null default now()
+    );
+  `);
+
+  await pool.query(
+    `insert into lenders (id, name, country, created_at)\n     values ('00000000-0000-0000-0000-00000000a001', 'Test Lender', 'US', now())\n     on conflict (id) do nothing`
+  );
+  await pool.query(
+    `insert into lender_products\n     (id, lender_id, lender_name, name, description, type, min_amount, max_amount, status, active, created_at, updated_at)\n     values ('00000000-0000-0000-0000-00000000b001', '00000000-0000-0000-0000-00000000a001', 'Test Lender', 'Standard LOC', 'Test product', 'standard', 1000, 50000, 'active', true, now(), now())\n     on conflict (id) do nothing`
+  );
+  await pool.query(
+    `insert into lender_product_requirements\n     (id, lender_product_id, document_type, required, created_at)\n     values\n     ('00000000-0000-0000-0000-00000000c001', '00000000-0000-0000-0000-00000000b001', 'bank_statement', true, now()),\n     ('00000000-0000-0000-0000-00000000c002', '00000000-0000-0000-0000-00000000b001', 'id_document', true, now())\n     on conflict (id) do nothing`
+  );
 });
 
 const twilioModule = require("twilio") as {

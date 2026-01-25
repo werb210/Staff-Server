@@ -21,6 +21,8 @@ async function ensurePipelineSchema(): Promise<void> {
       metadata jsonb null,
       product_type text not null,
       pipeline_state text not null,
+      lender_product_id uuid null,
+      requested_amount integer null,
       created_at timestamp not null,
       updated_at timestamp not null
     );
@@ -116,6 +118,18 @@ async function resetDb(): Promise<void> {
   );
 }
 
+async function seedRequirements(): Promise<void> {
+  await pool.query(
+    `insert into lenders (id, name, country, created_at)\n     values ('00000000-0000-0000-0000-00000000d001', 'Pipeline Lender', 'US', now())\n     on conflict (id) do nothing`
+  );
+  await pool.query(
+    `insert into lender_products\n     (id, lender_id, lender_name, name, description, type, min_amount, max_amount, status, active, created_at, updated_at)\n     values ('00000000-0000-0000-0000-00000000d002', '00000000-0000-0000-0000-00000000d001', 'Pipeline Lender', 'Pipeline LOC', 'Pipeline product', 'standard', 1000, 50000, 'active', true, now(), now())\n     on conflict (id) do nothing`
+  );
+  await pool.query(
+    `insert into lender_product_requirements\n     (id, lender_product_id, document_type, required, created_at)\n     values\n     ('00000000-0000-0000-0000-00000000d003', '00000000-0000-0000-0000-00000000d002', 'bank_statement', true, now()),\n     ('00000000-0000-0000-0000-00000000d004', '00000000-0000-0000-0000-00000000d002', 'id_document', true, now())\n     on conflict (id) do nothing`
+  );
+}
+
 beforeAll(async () => {
   process.env.BUILD_TIMESTAMP = "2024-01-01T00:00:00.000Z";
   process.env.COMMIT_SHA = "test-commit";
@@ -133,6 +147,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await resetDb();
+  await seedRequirements();
   phoneCounter = 8600;
 });
 

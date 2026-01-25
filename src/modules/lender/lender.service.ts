@@ -7,9 +7,9 @@ import {
   findApplicationById,
   listLatestAcceptedDocumentVersions,
 } from "../applications/applications.repo";
-import { getRequirements } from "../applications/documentRequirements";
 import { isPipelineState } from "../applications/pipelineState";
 import { transitionPipelineState } from "../applications/applications.service";
+import { resolveRequirementsForApplication } from "../../services/lenderProductRequirementsService";
 import {
   createSubmission,
   findLatestSubmissionByApplicationId,
@@ -153,9 +153,10 @@ async function buildSubmissionPacket(params: {
   if (!isPipelineState(application.pipeline_state)) {
     throw new AppError("invalid_state", "Pipeline state is invalid.", 400);
   }
-  const requirements = getRequirements({
+  const { requirements } = await resolveRequirementsForApplication({
+    lenderProductId: application.lender_product_id ?? null,
     productType: application.product_type,
-    pipelineState: application.pipeline_state,
+    requestedAmount: application.requested_amount ?? null,
   });
   const requiredTypes = requirements.filter((req) => req.required).map((req) => req.documentType);
 

@@ -2,6 +2,7 @@ import { pool } from "../db";
 import { ROLES } from "../auth/roles";
 import { runMigrations } from "../migrations";
 import { logInfo } from "../observability/logger";
+import { ensureSeedRequirementsForProduct } from "../services/lenderProductRequirementsService";
 
 export const SEEDED_ADMIN_PHONE = "+15878881837";
 export const SEEDED_ADMIN_ID = "00000000-0000-0000-0000-000000000099";
@@ -140,6 +141,15 @@ export async function seedBaselineLenders(): Promise<void> {
       "active",
     ]
   );
+
+  await ensureSeedRequirementsForProduct({
+    lenderProductId: SEEDED_LENDER_PRODUCT_TERM_ID,
+    productType: "term",
+  });
+  await ensureSeedRequirementsForProduct({
+    lenderProductId: SEEDED_LENDER_PRODUCT_LOC_ID,
+    productType: "loc",
+  });
 }
 
 export async function seedDatabase(): Promise<void> {

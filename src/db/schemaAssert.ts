@@ -12,6 +12,8 @@ const requiredColumns: RequiredColumn[] = [
   { table: "lenders", column: "submission_method" },
   { table: "lender_products", column: "lender_id" },
   { table: "lender_products", column: "required_documents" },
+  { table: "lender_product_requirements", column: "lender_product_id" },
+  { table: "lender_product_requirements", column: "document_type" },
 ];
 
 export async function assertRequiredSchema(): Promise<void> {

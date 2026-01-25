@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { pool } from "../../db";
+import { listClientLenderProductRequirementsHandler } from "../../controllers/lenderProductRequirements.controller";
 
 const router = Router();
 
@@ -24,6 +25,18 @@ router.get("/", async (_req, res, next) => {
     );
 
     res.json(rows);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/client/lender-products/:id/requirements
+ * Public, ACTIVE products only
+ */
+router.get("/:id/requirements", async (req, res, next) => {
+  try {
+    await listClientLenderProductRequirementsHandler(req, res);
   } catch (err) {
     next(err);
   }

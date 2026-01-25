@@ -11,6 +11,8 @@ export type ApplicationRecord = {
   metadata: unknown | null;
   product_type: string;
   pipeline_state: string;
+  lender_product_id: string | null;
+  requested_amount: number | null;
   created_at: Date;
   updated_at: Date;
 };
@@ -55,7 +57,7 @@ export async function createApplication(params: {
     `insert into applications
      (id, owner_user_id, name, metadata, product_type, pipeline_state, created_at, updated_at)
      values ($1, $2, $3, $4, $5, $6, now(), now())
-     returning id, owner_user_id, name, metadata, product_type, pipeline_state, created_at, updated_at`,
+     returning id, owner_user_id, name, metadata, product_type, pipeline_state, lender_product_id, requested_amount, created_at, updated_at`,
     [
       randomUUID(),
       params.ownerUserId,
@@ -86,7 +88,7 @@ export async function listApplications(params?: {
     values.push(stage);
   }
   const res = await runner.query<ApplicationRecord>(
-    `select id, owner_user_id, name, metadata, product_type, pipeline_state, created_at, updated_at
+    `select id, owner_user_id, name, metadata, product_type, pipeline_state, lender_product_id, requested_amount, created_at, updated_at
      from applications
      ${stageClause}
      order by created_at desc
@@ -113,7 +115,7 @@ export async function findApplicationById(
 ): Promise<ApplicationRecord | null> {
   const runner = client ?? pool;
   const res = await runner.query<ApplicationRecord>(
-    `select id, owner_user_id, name, metadata, product_type, pipeline_state, created_at, updated_at
+    `select id, owner_user_id, name, metadata, product_type, pipeline_state, lender_product_id, requested_amount, created_at, updated_at
      from applications
      where id = $1
      limit 1`,
