@@ -17,7 +17,9 @@ router.post(
     if (!req.user) {
       throw new AppError("missing_token", "Authorization token is required.", 401);
     }
-    const { applicationId, lenderId } = req.body ?? {};
+    const { applicationId, lenderId, lenderProductId, lender_product_id } = req.body ?? {};
+    const resolvedLenderProductId =
+      typeof lenderProductId === "string" ? lenderProductId : lender_product_id;
     if (!applicationId) {
       throw new AppError(
         "missing_fields",
@@ -25,10 +27,17 @@ router.post(
         400
       );
     }
+    if (!lenderId) {
+      throw new AppError("missing_fields", "lenderId is required.", 400);
+    }
+    if (!resolvedLenderProductId) {
+      throw new AppError("missing_fields", "lenderProductId is required.", 400);
+    }
     const submission = await submitApplication({
       applicationId,
       idempotencyKey: req.get("idempotency-key") ?? null,
-      lenderId: lenderId ?? "default",
+      lenderId,
+      lenderProductId: resolvedLenderProductId,
       actorUserId: req.user.userId,
       ip: req.ip,
       userAgent: req.get("user-agent"),

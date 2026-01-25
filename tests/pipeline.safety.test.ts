@@ -21,6 +21,7 @@ async function ensurePipelineSchema(): Promise<void> {
       metadata jsonb null,
       product_type text not null,
       pipeline_state text not null,
+      lender_id uuid null,
       lender_product_id uuid null,
       requested_amount integer null,
       created_at timestamp not null,
@@ -120,7 +121,7 @@ async function resetDb(): Promise<void> {
 
 async function seedRequirements(): Promise<void> {
   await pool.query(
-    `insert into lenders (id, name, country, created_at)\n     values ('00000000-0000-0000-0000-00000000d001', 'Pipeline Lender', 'US', now())\n     on conflict (id) do nothing`
+    `insert into lenders (id, name, country, submission_method, created_at)\n     values ('00000000-0000-0000-0000-00000000d001', 'Pipeline Lender', 'US', 'API', now())\n     on conflict (id) do nothing`
   );
   await pool.query(
     `insert into lender_products\n     (id, lender_id, lender_name, name, description, type, min_amount, max_amount, status, active, created_at, updated_at)\n     values ('00000000-0000-0000-0000-00000000d002', '00000000-0000-0000-0000-00000000d001', 'Pipeline Lender', 'Pipeline LOC', 'Pipeline product', 'standard', 1000, 50000, 'active', true, now(), now())\n     on conflict (id) do nothing`
@@ -262,12 +263,25 @@ describe("pipeline safety", () => {
       .set("x-request-id", requestId)
       .send({ name: "Submission App", productType: "standard" });
 
+    await pool.query(
+      "update applications set lender_id = $1, lender_product_id = $2 where id = $3",
+      [
+        "00000000-0000-0000-0000-00000000d001",
+        "00000000-0000-0000-0000-00000000d002",
+        create.body.application.id,
+      ]
+    );
+
     const submission = await request(app)
       .post("/api/lender/submissions")
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("Idempotency-Key", `idem-submit-request-${phone}`)
       .set("x-request-id", requestId)
-      .send({ applicationId: create.body.application.id });
+      .send({
+        applicationId: create.body.application.id,
+        lenderId: "00000000-0000-0000-0000-00000000d001",
+        lenderProductId: "00000000-0000-0000-0000-00000000d002",
+      });
 
     expect(submission.status).toBe(400);
     expect(submission.body.submission.status).toBe("failed");

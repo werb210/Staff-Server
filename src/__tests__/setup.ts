@@ -104,6 +104,7 @@ beforeAll(async () => {
       name text not null,
       country text not null,
       submission_method text null,
+      submission_email text null,
       status text not null default 'active',
       email text null,
       phone text null,
@@ -142,7 +143,7 @@ beforeAll(async () => {
   `);
 
   await pool.query(
-    `insert into lenders (id, name, country, created_at)\n     values ('00000000-0000-0000-0000-00000000a001', 'Test Lender', 'US', now())\n     on conflict (id) do nothing`
+    `insert into lenders (id, name, country, submission_method, created_at)\n     values ('00000000-0000-0000-0000-00000000a001', 'Test Lender', 'US', 'API', now())\n     on conflict (id) do nothing`
   );
   await pool.query(
     `insert into lender_products\n     (id, lender_id, lender_name, name, description, type, min_amount, max_amount, status, active, created_at, updated_at)\n     values ('00000000-0000-0000-0000-00000000b001', '00000000-0000-0000-0000-00000000a001', 'Test Lender', 'Standard LOC', 'Test product', 'standard', 1000, 50000, 'active', true, now(), now())\n     on conflict (id) do nothing`

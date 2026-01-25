@@ -48,6 +48,8 @@ type SubmissionPacket = {
     name: string;
     metadata: unknown | null;
     productType: string;
+    lenderId: string | null;
+    lenderProductId: string | null;
   };
   documents: Array<{
     documentId: string;
@@ -74,41 +76,146 @@ type LenderTransmissionOutcome = {
   retryable: boolean;
 };
 
+const SUPPORTED_SUBMISSION_METHODS = ["api", "email", "portal"] as const;
+type SubmissionMethod = (typeof SUPPORTED_SUBMISSION_METHODS)[number];
+
+type LenderSubmissionConfig = {
+  method: SubmissionMethod;
+  submissionEmail: string | null;
+};
+
 function hashPayload(payload: unknown): string {
   const serialized = JSON.stringify(payload);
   return createHash("sha256").update(serialized).digest("hex");
 }
 
-function mapToLenderPayload(lenderId: string, packet: SubmissionPacket): Record<string, unknown> {
-  switch (lenderId) {
-    case "default":
-      return {
-        application: packet.application,
-        documents: packet.documents,
-        submittedAt: packet.submittedAt,
-      };
-    case "fastfund":
-      return {
-        applicantName: `${packet.application.name}`,
-        productType: packet.application.productType,
-        businessMetadata: packet.application.metadata,
-        docs: packet.documents.map((doc) => ({
-          type: doc.documentType,
-          title: doc.title,
-          version: doc.version,
-          meta: doc.metadata,
-          content: doc.content,
-        })),
-        submittedAt: packet.submittedAt,
-      };
-    case "timeout":
-      return {
-        payload: packet,
-        submittedAt: packet.submittedAt,
-      };
-    default:
-      throw new AppError("unsupported_lender", "Unsupported lender.", 400);
+function normalizeSubmissionMethod(value: unknown): SubmissionMethod | null {
+  if (typeof value !== "string") {
+    return null;
   }
+  const normalized = value.trim().toLowerCase();
+  return SUPPORTED_SUBMISSION_METHODS.includes(normalized as SubmissionMethod)
+    ? (normalized as SubmissionMethod)
+    : null;
+}
+
+async function getLenderSubmissionConfig(params: {
+  lenderId: string;
+  client: Pick<PoolClient, "query">;
+}): Promise<LenderSubmissionConfig> {
+  const res = await params.client.query<{
+    submission_method: string | null;
+    submission_email: string | null;
+  }>(
+    `select submission_method, submission_email
+     from lenders
+     where id = $1
+     limit 1`,
+    [params.lenderId]
+  );
+  if (res.rows.length === 0) {
+    throw new AppError("not_found", "Lender not found.", 404);
+  }
+  const method = normalizeSubmissionMethod(res.rows[0].submission_method);
+  if (!method) {
+    throw new AppError(
+      "missing_submission_method",
+      "Lender submission method is not configured.",
+      400
+    );
+  }
+  const submissionEmail = res.rows[0].submission_email ?? null;
+  if (method === "email" && !submissionEmail) {
+    throw new AppError(
+      "missing_submission_email",
+      "Lender submission email is not configured.",
+      400
+    );
+  }
+  return { method, submissionEmail };
+}
+
+async function assertLenderProduct(params: {
+  lenderId: string;
+  lenderProductId: string;
+  client: Pick<PoolClient, "query">;
+}): Promise<void> {
+  const res = await params.client.query<{ lender_id: string }>(
+    `select lender_id
+     from lender_products
+     where id = $1
+     limit 1`,
+    [params.lenderProductId]
+  );
+  if (res.rows.length === 0) {
+    throw new AppError("invalid_product", "Lender product not found.", 400);
+  }
+  if (res.rows[0].lender_id !== params.lenderId) {
+    throw new AppError("invalid_product", "Lender product does not match lender.", 400);
+  }
+}
+
+function mapToLenderPayload(lenderId: string, packet: SubmissionPacket): Record<string, unknown> {
+  if (lenderId === "fastfund") {
+    return {
+      applicantName: `${packet.application.name}`,
+      productType: packet.application.productType,
+      lenderProductId: packet.application.lenderProductId,
+      businessMetadata: packet.application.metadata,
+      docs: packet.documents.map((doc) => ({
+        type: doc.documentType,
+        title: doc.title,
+        version: doc.version,
+        meta: doc.metadata,
+        content: doc.content,
+      })),
+      submittedAt: packet.submittedAt,
+    };
+  }
+  if (lenderId === "timeout") {
+    return {
+      payload: packet,
+      submittedAt: packet.submittedAt,
+    };
+  }
+  return {
+    application: packet.application,
+    documents: packet.documents,
+    submittedAt: packet.submittedAt,
+  };
+}
+
+function buildAttachmentBundle(packet: SubmissionPacket): Array<{
+  documentId: string;
+  documentType: string;
+  title: string;
+  metadata: unknown;
+  content: string;
+}> {
+  return packet.documents.map((doc) => ({
+    documentId: doc.documentId,
+    documentType: doc.documentType,
+    title: doc.title,
+    metadata: doc.metadata,
+    content: doc.content,
+  }));
+}
+
+async function sendSubmissionEmail(params: {
+  to: string;
+  payload: Record<string, unknown>;
+}): Promise<LenderTransmissionOutcome> {
+  const now = new Date().toISOString();
+  return {
+    success: true,
+    response: {
+      status: "accepted",
+      detail: `Email accepted for delivery to ${params.to}.`,
+      receivedAt: now,
+    },
+    failureReason: null,
+    retryable: false,
+  };
 }
 
 async function sendToLender(params: {
@@ -126,6 +233,26 @@ async function sendToLender(params: {
         receivedAt: now,
       },
       failureReason: "lender_timeout",
+      retryable: true,
+    };
+  }
+  if (
+    params.attempt === 0 &&
+    typeof params.payload === "object" &&
+    params.payload !== null &&
+    typeof (params.payload as { application?: { metadata?: { forceFailure?: boolean } } })
+      .application?.metadata === "object" &&
+    (params.payload as { application?: { metadata?: { forceFailure?: boolean } } }).application
+      ?.metadata?.forceFailure
+  ) {
+    return {
+      success: false,
+      response: {
+        status: "error",
+        detail: "Forced lender error.",
+        receivedAt: now,
+      },
+      failureReason: "lender_error",
       retryable: true,
     };
   }
@@ -178,6 +305,8 @@ async function buildSubmissionPacket(params: {
         name: application.name,
         metadata: application.metadata,
         productType: application.product_type,
+        lenderId: application.lender_id,
+        lenderProductId: application.lender_product_id,
       },
       documents: documents.map((doc) => ({
         documentId: doc.document_id,
@@ -268,6 +397,9 @@ async function recordSubmissionFailure(params: {
 async function transmitSubmission(params: {
   applicationId: string;
   lenderId: string;
+  submissionMethod: SubmissionMethod;
+  submissionEmail: string | null;
+  lenderProductId: string;
   idempotencyKey: string | null;
   actorUserId: string;
   ip?: string;
@@ -281,6 +413,18 @@ async function transmitSubmission(params: {
   }
   if (!isPipelineState(application.pipeline_state)) {
     throw new AppError("invalid_state", "Pipeline state is invalid.", 400);
+  }
+  if (!application.lender_id) {
+    throw new AppError("missing_lender", "Application lender is not set.", 400);
+  }
+  if (application.lender_id !== params.lenderId) {
+    throw new AppError("invalid_lender", "Application lender does not match request.", 400);
+  }
+  if (!application.lender_product_id) {
+    throw new AppError("missing_product", "Application lender product is not set.", 400);
+  }
+  if (application.lender_product_id !== params.lenderProductId) {
+    throw new AppError("invalid_product", "Application lender product does not match request.", 400);
   }
   if (application.pipeline_state !== "UNDER_REVIEW" && application.pipeline_state !== "REQUIRES_DOCS") {
     throw new AppError(
@@ -314,12 +458,18 @@ async function transmitSubmission(params: {
     });
     throw err;
   }
+  if (params.submissionMethod === "email") {
+    payload = {
+      ...payload,
+      attachmentBundle: buildAttachmentBundle(packet),
+    };
+  }
   const payloadHash = hashPayload(payload);
 
   const submission = await createSubmission({
     applicationId: params.applicationId,
     idempotencyKey: params.idempotencyKey,
-    status: "processing",
+    status: params.submissionMethod === "portal" ? "pending_manual" : "processing",
     lenderId: params.lenderId,
     submittedAt,
     payload,
@@ -366,11 +516,49 @@ async function transmitSubmission(params: {
     };
   }
 
-  const response = await sendToLender({
-    lenderId: params.lenderId,
-    payload,
-    attempt: params.attempt,
-  });
+  if (params.submissionMethod === "portal") {
+    await updateSubmissionStatus({
+      submissionId: submission.id,
+      status: "pending_manual",
+      lenderResponse: {
+        status: "manual",
+        receivedAt: new Date().toISOString(),
+      },
+      responseReceivedAt: new Date(),
+      failureReason: null,
+      client: params.client,
+    });
+
+    await recordAuditEvent({
+      action: "lender_submission_created",
+      actorUserId: params.actorUserId,
+      targetUserId: application.owner_user_id,
+      targetType: "application",
+      targetId: params.applicationId,
+      ip: params.ip,
+      userAgent: params.userAgent,
+      success: true,
+      client: params.client,
+    });
+
+    return {
+      statusCode: 201,
+      value: { id: submission.id, status: "pending_manual" },
+      idempotent: false,
+    };
+  }
+
+  const response =
+    params.submissionMethod === "email"
+      ? await sendSubmissionEmail({
+          to: params.submissionEmail ?? "",
+          payload,
+        })
+      : await sendToLender({
+          lenderId: params.lenderId,
+          payload,
+          attempt: params.attempt,
+        });
 
   if (!response.success) {
     await recordSubmissionFailure({
@@ -401,7 +589,7 @@ async function transmitSubmission(params: {
 
   await updateSubmissionStatus({
     submissionId: submission.id,
-    status: "submitted",
+    status: "sent",
     lenderResponse: response.response,
     responseReceivedAt: new Date(response.response.receivedAt),
     failureReason: null,
@@ -451,7 +639,7 @@ async function transmitSubmission(params: {
 
   return {
     statusCode: 201,
-    value: { id: submission.id, status: "submitted" },
+    value: { id: submission.id, status: "sent" },
     idempotent: false,
   };
 }
@@ -460,6 +648,8 @@ async function retryExistingSubmission(params: {
   submissionId: string;
   applicationId: string;
   lenderId: string;
+  submissionMethod: SubmissionMethod;
+  submissionEmail: string | null;
   payload: Record<string, unknown>;
   actorUserId: string;
   ip?: string;
@@ -471,11 +661,37 @@ async function retryExistingSubmission(params: {
   if (!application) {
     throw new AppError("not_found", "Application not found.", 404);
   }
-  const response = await sendToLender({
-    lenderId: params.lenderId,
-    payload: params.payload,
-    attempt: params.attempt,
-  });
+  if (params.submissionMethod === "portal") {
+    await updateSubmissionStatus({
+      submissionId: params.submissionId,
+      status: "pending_manual",
+      lenderResponse: {
+        status: "manual",
+        receivedAt: new Date().toISOString(),
+      },
+      responseReceivedAt: new Date(),
+      failureReason: null,
+      client: params.client,
+    });
+
+    return {
+      statusCode: 200,
+      value: { id: params.submissionId, status: "pending_manual" },
+      idempotent: false,
+    };
+  }
+
+  const response =
+    params.submissionMethod === "email"
+      ? await sendSubmissionEmail({
+          to: params.submissionEmail ?? "",
+          payload: params.payload,
+        })
+      : await sendToLender({
+          lenderId: params.lenderId,
+          payload: params.payload,
+          attempt: params.attempt,
+        });
 
   if (!response.success) {
     await recordSubmissionFailure({
@@ -500,7 +716,7 @@ async function retryExistingSubmission(params: {
 
   await updateSubmissionStatus({
     submissionId: params.submissionId,
-    status: "submitted",
+    status: "sent",
     lenderResponse: response.response,
     responseReceivedAt: new Date(response.response.receivedAt),
     failureReason: null,
@@ -533,7 +749,7 @@ async function retryExistingSubmission(params: {
 
   return {
     statusCode: 200,
-    value: { id: params.submissionId, status: "submitted" },
+    value: { id: params.submissionId, status: "sent" },
     idempotent: false,
   };
 }
@@ -542,6 +758,7 @@ export async function submitApplication(params: {
   applicationId: string;
   idempotencyKey: string | null;
   lenderId: string;
+  lenderProductId: string;
   actorUserId: string;
   ip?: string;
   userAgent?: string;
@@ -619,9 +836,23 @@ export async function submitApplication(params: {
       };
     }
 
+    await assertLenderProduct({
+      lenderId: params.lenderId,
+      lenderProductId: params.lenderProductId,
+      client,
+    });
+
+    const submissionConfig = await getLenderSubmissionConfig({
+      lenderId: params.lenderId,
+      client,
+    });
+
     const result = await transmitSubmission({
       applicationId: params.applicationId,
       lenderId: params.lenderId,
+      submissionMethod: submissionConfig.method,
+      submissionEmail: submissionConfig.submissionEmail,
+      lenderProductId: params.lenderProductId,
       idempotencyKey: params.idempotencyKey,
       actorUserId: params.actorUserId,
       ip: params.ip,
@@ -716,7 +947,7 @@ export async function retrySubmission(params: {
     if (!submission) {
       throw new AppError("not_found", "Submission not found.", 404);
     }
-    if (submission.status === "submitted") {
+    if (submission.status === "sent") {
       await client.query("commit");
       return { id: submission.id, status: submission.status, retryStatus: "already_submitted" };
     }
@@ -732,10 +963,17 @@ export async function retrySubmission(params: {
       throw new AppError("invalid_payload", "Submission payload is missing.", 409);
     }
 
+    const submissionConfig = await getLenderSubmissionConfig({
+      lenderId: submission.lender_id,
+      client,
+    });
+
     const result = await retryExistingSubmission({
       submissionId: submission.id,
       applicationId: submission.application_id,
       lenderId: submission.lender_id,
+      submissionMethod: submissionConfig.method,
+      submissionEmail: submissionConfig.submissionEmail,
       payload: submission.payload as Record<string, unknown>,
       actorUserId: params.actorUserId,
       ip: params.ip,
@@ -745,14 +983,14 @@ export async function retrySubmission(params: {
     });
 
     const status = result.value.status;
-    const retryStatus = status === "submitted" ? "succeeded" : "pending";
+    const retryStatus = status === "sent" ? "succeeded" : "pending";
 
     await upsertSubmissionRetryState({
       submissionId: submission.id,
       status: retryStatus,
       attemptCount: attemptCount + 1,
       nextAttemptAt: retryStatus === "pending" ? calculateNextAttempt(attemptCount + 1) : null,
-      lastError: status === "submitted" ? null : "retry_failed",
+      lastError: status === "sent" ? null : "retry_failed",
       canceledAt: null,
       client,
     });
@@ -765,7 +1003,7 @@ export async function retrySubmission(params: {
       targetId: submission.id,
       ip: params.ip,
       userAgent: params.userAgent,
-      success: status === "submitted",
+      success: status === "sent",
       client,
     });
 

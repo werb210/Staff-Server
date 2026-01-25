@@ -1,4 +1,5 @@
 import request from "supertest";
+import { randomUUID } from "crypto";
 import { buildAppWithApiRoutes } from "../app";
 import { pool } from "../db";
 import { createUserAccount } from "../modules/auth/auth.service";
@@ -14,6 +15,39 @@ let phoneCounter = 1100;
 const nextPhone = (): string =>
   `+1415555${String(phoneCounter++).padStart(4, "0")}`;
 
+async function seedLenderProduct(submissionMethod: string, email?: string) {
+  const lenderId = randomUUID();
+  const lenderProductId = randomUUID();
+  await pool.query(
+    `insert into lenders (id, name, country, submission_method, submission_email, created_at)
+     values ($1, $2, $3, $4, $5, now())`,
+    [lenderId, "Lender Co", "US", submissionMethod, email ?? null]
+  );
+  await pool.query(
+    `insert into lender_products
+     (id, lender_id, lender_name, name, description, type, min_amount, max_amount, status, active, required_documents, created_at, updated_at)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, '[]'::jsonb, now(), now())`,
+    [
+      lenderProductId,
+      lenderId,
+      "Lender Co",
+      "Standard Product",
+      "Standard product",
+      "standard",
+      1000,
+      50000,
+      "active",
+      true,
+    ]
+  );
+  await pool.query(
+    `insert into lender_product_requirements (id, lender_product_id, document_type, required, created_at)
+     values ($1, $2, $3, true, now()), ($4, $2, $5, true, now())`,
+    [randomUUID(), lenderProductId, "bank_statement", randomUUID(), "id_document"]
+  );
+  return { lenderId, lenderProductId };
+}
+
 async function resetDb(): Promise<void> {
   await pool.query("delete from client_submissions");
   await pool.query("delete from lender_submission_retries");
@@ -28,6 +62,58 @@ async function resetDb(): Promise<void> {
   await pool.query("delete from password_resets");
   await pool.query("delete from audit_events");
   await pool.query("delete from users where id <> '00000000-0000-0000-0000-000000000001'");
+}
+
+async function createApplicationWithDocuments(token: string): Promise<string> {
+  const appRes = await request(app)
+    .post("/api/applications")
+    .set("Idempotency-Key", nextIdempotencyKey())
+    .set("Authorization", `Bearer ${token}`)
+    .set("x-request-id", requestId)
+    .send({ name: "Lender Application", productType: "standard" });
+
+  const applicationId = appRes.body.application.id;
+
+  const bank = await request(app)
+    .post(`/api/applications/${applicationId}/documents`)
+    .set("Idempotency-Key", nextIdempotencyKey())
+    .set("Authorization", `Bearer ${token}`)
+    .set("x-request-id", requestId)
+    .send({
+      title: "Bank Statement",
+      documentType: "bank_statement",
+      metadata: { fileName: "bank.pdf", mimeType: "application/pdf", size: 123 },
+      content: "base64data",
+    });
+  const idDoc = await request(app)
+    .post(`/api/applications/${applicationId}/documents`)
+    .set("Idempotency-Key", nextIdempotencyKey())
+    .set("Authorization", `Bearer ${token}`)
+    .set("x-request-id", requestId)
+    .send({
+      title: "ID",
+      documentType: "id_document",
+      metadata: { fileName: "id.pdf", mimeType: "application/pdf", size: 50 },
+      content: "iddata",
+    });
+
+  await request(app)
+    .post(
+      `/api/applications/${applicationId}/documents/${bank.body.document.documentId}/versions/${bank.body.document.versionId}/accept`
+    )
+    .set("Idempotency-Key", nextIdempotencyKey())
+    .set("Authorization", `Bearer ${token}`)
+    .set("x-request-id", requestId);
+
+  await request(app)
+    .post(
+      `/api/applications/${applicationId}/documents/${idDoc.body.document.documentId}/versions/${idDoc.body.document.versionId}/accept`
+    )
+    .set("Idempotency-Key", nextIdempotencyKey())
+    .set("Authorization", `Bearer ${token}`)
+    .set("x-request-id", requestId);
+
+  return applicationId;
 }
 
 beforeAll(async () => {
@@ -74,6 +160,11 @@ describe("lender submissions", () => {
       .send({ name: "Lender Application", productType: "standard" });
 
     const applicationId = appRes.body.application.id;
+    const { lenderId, lenderProductId } = await seedLenderProduct("API");
+    await pool.query(
+      "update applications set lender_id = $1, lender_product_id = $2 where id = $3",
+      [lenderId, lenderProductId, applicationId]
+    );
 
     const bank = await request(app)
       .post(`/api/applications/${applicationId}/documents`)
@@ -120,7 +211,7 @@ describe("lender submissions", () => {
       .set("Idempotency-Key", idempotencyKey)
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
-      .send({ applicationId });
+      .send({ applicationId, lenderId, lenderProductId });
     expect(submission1.status).toBe(201);
 
     const submission2 = await request(app)
@@ -128,7 +219,7 @@ describe("lender submissions", () => {
       .set("Idempotency-Key", idempotencyKey)
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
-      .send({ applicationId });
+      .send({ applicationId, lenderId, lenderProductId });
     expect(submission2.status).toBe(200);
     expect(submission2.body.submission.id).toBe(submission1.body.submission.id);
 
@@ -136,7 +227,7 @@ describe("lender submissions", () => {
       .get(`/api/lender/submissions/${submission1.body.submission.id}`)
       .set("Authorization", `Bearer ${login.body.accessToken}`);
     expect(status.status).toBe(200);
-    expect(status.body.submission.status).toBe("submitted");
+    expect(status.body.submission.status).toBe("sent");
 
     const audit = await pool.query(
       `select event_action as action
@@ -171,16 +262,164 @@ describe("lender submissions", () => {
       .set("x-request-id", requestId)
       .send({ name: "Blocked Application", productType: "standard" });
 
+    const applicationId = appRes.body.application.id;
+    const { lenderId, lenderProductId } = await seedLenderProduct("API");
+    await pool.query(
+      "update applications set lender_id = $1, lender_product_id = $2 where id = $3",
+      [lenderId, lenderProductId, applicationId]
+    );
+
     const submission = await request(app)
       .post("/api/lender/submissions")
       .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
-      .send({ applicationId: appRes.body.application.id });
+      .send({ applicationId, lenderId, lenderProductId });
 
     expect(submission.status).toBe(400);
     expect(submission.body.submission.status).toBe("failed");
     expect(submission.body.submission.failureReason).toBe("missing_documents");
+  });
+
+  it("submits applications via email and stores an attachment bundle", async () => {
+    const staffPhone = nextPhone();
+    await createUserAccount({
+      email: "email@apps.com",
+      phoneNumber: staffPhone,
+      role: ROLES.STAFF,
+    });
+
+    const login = await otpVerifyRequest(app, {
+      phone: staffPhone,
+      requestId,
+      idempotencyKey: nextIdempotencyKey(),
+    });
+
+    const applicationId = await createApplicationWithDocuments(login.body.accessToken);
+    const { lenderId, lenderProductId } = await seedLenderProduct("EMAIL", "submissions@lender.com");
+    await pool.query(
+      "update applications set lender_id = $1, lender_product_id = $2 where id = $3",
+      [lenderId, lenderProductId, applicationId]
+    );
+
+    const submission = await request(app)
+      .post("/api/lender/submissions")
+      .set("Idempotency-Key", nextIdempotencyKey())
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .set("x-request-id", requestId)
+      .send({ applicationId, lenderId, lenderProductId });
+
+    expect(submission.status).toBe(201);
+    expect(submission.body.submission.status).toBe("sent");
+
+    const stored = await pool.query<{ payload: { attachmentBundle?: unknown[] } }>(
+      "select payload from lender_submissions where id = $1",
+      [submission.body.submission.id]
+    );
+    expect(Array.isArray(stored.rows[0]?.payload?.attachmentBundle)).toBe(true);
+    expect(stored.rows[0]?.payload?.attachmentBundle?.length).toBe(2);
+
+    const audit = await pool.query<{ count: string }>(
+      `select count(*)::int as count
+       from audit_events
+       where event_action = 'lender_submission_created'
+         and target_id = $1`,
+      [applicationId]
+    );
+    expect(Number(audit.rows[0]?.count)).toBeGreaterThan(0);
+  });
+
+  it("creates portal submissions without external transmission", async () => {
+    const staffPhone = nextPhone();
+    await createUserAccount({
+      email: "portal@apps.com",
+      phoneNumber: staffPhone,
+      role: ROLES.STAFF,
+    });
+
+    const login = await otpVerifyRequest(app, {
+      phone: staffPhone,
+      requestId,
+      idempotencyKey: nextIdempotencyKey(),
+    });
+
+    const applicationId = await createApplicationWithDocuments(login.body.accessToken);
+    const { lenderId, lenderProductId } = await seedLenderProduct("PORTAL");
+    await pool.query(
+      "update applications set lender_id = $1, lender_product_id = $2 where id = $3",
+      [lenderId, lenderProductId, applicationId]
+    );
+
+    const submission = await request(app)
+      .post("/api/lender/submissions")
+      .set("Idempotency-Key", nextIdempotencyKey())
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .set("x-request-id", requestId)
+      .send({ applicationId, lenderId, lenderProductId });
+
+    expect(submission.status).toBe(201);
+    expect(submission.body.submission.status).toBe("pending_manual");
+
+    const stored = await pool.query<{ status: string }>(
+      "select status from lender_submissions where id = $1",
+      [submission.body.submission.id]
+    );
+    expect(stored.rows[0]?.status).toBe("pending_manual");
+  });
+
+  it("fails when lender submission configuration is missing", async () => {
+    const staffPhone = nextPhone();
+    await createUserAccount({
+      email: "missing@apps.com",
+      phoneNumber: staffPhone,
+      role: ROLES.STAFF,
+    });
+
+    const login = await otpVerifyRequest(app, {
+      phone: staffPhone,
+      requestId,
+      idempotencyKey: nextIdempotencyKey(),
+    });
+
+    const applicationId = await createApplicationWithDocuments(login.body.accessToken);
+    const lenderId = randomUUID();
+    const lenderProductId = randomUUID();
+    await pool.query(
+      `insert into lenders (id, name, country, created_at)
+       values ($1, $2, $3, now())`,
+      [lenderId, "Missing Config Lender", "US"]
+    );
+    await pool.query(
+      `insert into lender_products
+       (id, lender_id, lender_name, name, description, type, min_amount, max_amount, status, active, required_documents, created_at, updated_at)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, '[]'::jsonb, now(), now())`,
+      [
+        lenderProductId,
+        lenderId,
+        "Missing Config Lender",
+        "Standard Product",
+        "Standard product",
+        "standard",
+        1000,
+        50000,
+        "active",
+        true,
+      ]
+    );
+    await pool.query(
+      "update applications set lender_id = $1, lender_product_id = $2 where id = $3",
+      [lenderId, lenderProductId, applicationId]
+    );
+
+    const submission = await request(app)
+      .post("/api/lender/submissions")
+      .set("Idempotency-Key", nextIdempotencyKey())
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .set("x-request-id", requestId)
+      .send({ applicationId, lenderId, lenderProductId });
+
+    expect(submission.status).toBe(400);
+    expect(submission.body.code).toBe("missing_submission_method");
   });
 
   it("retries failed lender submissions", async () => {
@@ -205,6 +444,11 @@ describe("lender submissions", () => {
       .send({ name: "Retry Application", productType: "standard" });
 
     const applicationId = appRes.body.application.id;
+    const { lenderId, lenderProductId } = await seedLenderProduct("API");
+    await pool.query(
+      "update applications set lender_id = $1, lender_product_id = $2, metadata = $3 where id = $4",
+      [lenderId, lenderProductId, { forceFailure: true }, applicationId]
+    );
 
     const bank = await request(app)
       .post(`/api/applications/${applicationId}/documents`)
@@ -255,9 +499,9 @@ describe("lender submissions", () => {
       .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
-      .send({ applicationId, lenderId: "timeout" });
+      .send({ applicationId, lenderId, lenderProductId });
     expect(submission.status).toBe(502);
-    expect(submission.body.submission.failureReason).toBe("lender_timeout");
+    expect(submission.body.submission.failureReason).toBe("lender_error");
 
     const retry = await request(app)
       .post(`/api/admin/transmissions/${submission.body.submission.id}/retry`)
@@ -265,6 +509,6 @@ describe("lender submissions", () => {
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId);
     expect(retry.status).toBe(200);
-    expect(retry.body.retry.status).toBe("submitted");
+    expect(retry.body.retry.status).toBe("sent");
   });
 });
