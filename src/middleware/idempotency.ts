@@ -44,6 +44,10 @@ function isAuthRoute(req: Request): boolean {
   return path.startsWith("/api/auth/");
 }
 
+function isIdempotencyExempt(req: Request): boolean {
+  return req.path === "/client/submissions";
+}
+
 function shouldBypass(error: unknown): boolean {
   if (isDbConnectionFailure(error)) return true;
   if (!(error instanceof Error)) return false;
@@ -57,6 +61,7 @@ export function idempotencyMiddleware(
   next: NextFunction
 ): void {
   if (isAuthRoute(req)) return next();
+  if (isIdempotencyExempt(req)) return next();
   if (!ENFORCED_METHODS.has(req.method)) return next();
 
   const rawKey = req.get(IDEMPOTENCY_HEADER)?.trim();

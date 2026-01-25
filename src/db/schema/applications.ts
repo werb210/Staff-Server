@@ -6,6 +6,10 @@ export type ApplicationRecord = {
   product_type: string;
   pipeline_state: string;
   status: string;
+  lender_id: string | null;
+  lender_product_id: string | null;
+  requested_amount: number | null;
+  source: string | null;
   submission_key: string | null;
   external_id: string | null;
   client_submission_id: string | null;
