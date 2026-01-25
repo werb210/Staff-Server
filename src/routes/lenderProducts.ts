@@ -8,6 +8,11 @@ import {
   listLenderProductsHandler,
   updateLenderProductHandler,
 } from "../controllers/lenderProducts.controller";
+import {
+  createLenderProductRequirementHandler as createRequirementHandler,
+  updateLenderProductRequirementHandler as updateRequirementHandler,
+  deleteLenderProductRequirementHandler as deleteRequirementHandler,
+} from "../controllers/lenderProductRequirements.controller";
 
 const router = Router();
 
@@ -45,6 +50,39 @@ router.patch(
   requireAuth,
   requireCapability([CAPABILITIES.LENDER_PRODUCTS_WRITE]),
   safeHandler(updateLenderProductHandler)
+);
+
+/**
+ * POST /api/lender-products/:id/requirements
+ * - Auth required
+ * - Admin only
+ */
+router.post(
+  "/:id/requirements",
+  requireAuth,
+  safeHandler(createRequirementHandler)
+);
+
+/**
+ * PUT /api/lender-products/:id/requirements/:reqId
+ * - Auth required
+ * - Admin only
+ */
+router.put(
+  "/:id/requirements/:reqId",
+  requireAuth,
+  safeHandler(updateRequirementHandler)
+);
+
+/**
+ * DELETE /api/lender-products/:id/requirements/:reqId
+ * - Auth required
+ * - Admin only
+ */
+router.delete(
+  "/:id/requirements/:reqId",
+  requireAuth,
+  safeHandler(deleteRequirementHandler)
 );
 
 export default router;

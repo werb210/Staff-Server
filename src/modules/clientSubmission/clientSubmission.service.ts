@@ -2,16 +2,11 @@ import { AppError } from "../../middleware/errors";
 import { pool } from "../../db";
 import { createApplication, createDocument, createDocumentVersion } from "../applications/applications.repo";
 import { recordAuditEvent } from "../audit/audit.service";
-import {
-  getAllowedDocumentTypes,
-  getDocumentCategory,
-  getRequirements,
-  isSupportedProductType,
-} from "../applications/documentRequirements";
 import { getDocumentAllowedMimeTypes, getDocumentMaxSizeBytes, getClientSubmissionOwnerUserId } from "../../config";
 import { createClientSubmission, findClientSubmissionByKey } from "./clientSubmission.repo";
 import { logInfo, logWarn } from "../../observability/logger";
 import { recordTransactionRollback } from "../../observability/transactionTelemetry";
+import { resolveRequirementsForProductType } from "../../services/lenderProductRequirementsService";
 
 export type ClientSubmissionResponse = {
   applicationId: string;
@@ -164,19 +159,16 @@ function assertPayload(payload: unknown): ClientSubmissionPayload {
   };
 }
 
-function enforceDocumentRules(productType: string, documents: SubmissionDocument[]): void {
-  if (!isSupportedProductType(productType)) {
-    throw new AppError("invalid_product", "Unsupported product type.", 400);
-  }
-  const requirements = getRequirements({ productType, pipelineState: "NEW" });
-  const allowedTypes = new Set(getAllowedDocumentTypes(productType));
+async function enforceDocumentRules(
+  productType: string,
+  documents: SubmissionDocument[]
+): Promise<void> {
+  const { requirements } = await resolveRequirementsForProductType({ productType });
+  const allowedTypes = new Set(requirements.map((req) => req.documentType));
   const counts = new Map<string, number>();
   documents.forEach((doc) => {
     if (!allowedTypes.has(doc.documentType)) {
       throw new AppError("invalid_document_type", "Document type is not allowed.", 400);
-    }
-    if (!getDocumentCategory(productType, doc.documentType)) {
-      throw new AppError("invalid_document_type", "Document type is not mapped.", 400);
     }
     counts.set(doc.documentType, (counts.get(doc.documentType) ?? 0) + 1);
   });
@@ -185,13 +177,6 @@ function enforceDocumentRules(productType: string, documents: SubmissionDocument
     const count = counts.get(requirement.documentType) ?? 0;
     if (requirement.required && count === 0) {
       throw new AppError("missing_documents", "Required documents are missing.", 400);
-    }
-    if (!requirement.multipleAllowed && count > 1) {
-      throw new AppError(
-        "document_duplicate",
-        "Multiple documents are not allowed for this type.",
-        400
-      );
     }
   }
 }
@@ -215,7 +200,7 @@ export async function submitClientApplication(params: {
   userAgent?: string;
 }): Promise<{ status: number; value: ClientSubmissionResponse; idempotent: boolean }> {
   const submission = assertPayload(params.payload);
-  enforceDocumentRules(submission.productType, submission.documents);
+  await enforceDocumentRules(submission.productType, submission.documents);
   enforceDocumentMetadata(submission.documents);
 
   const client = await pool.connect();

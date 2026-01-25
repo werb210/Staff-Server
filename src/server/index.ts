@@ -8,6 +8,7 @@ import { logError, logWarn } from "../observability/logger";
 import { notFoundHandler } from "../middleware/errors";
 import { markReady } from "../startupState";
 import { getTwilioClient, getVerifyServiceSid } from "../services/twilio";
+import { seedRequirementsForAllProducts } from "../services/lenderProductRequirementsService";
 
 let processHandlersInstalled = false;
 let server: ReturnType<ReturnType<typeof buildApp>["listen"]> | null = null;
@@ -69,6 +70,7 @@ export async function startServer() {
     logError("fatal_schema_mismatch", { message: err?.message ?? String(err) });
     process.exit(1);
   }
+  await seedRequirementsForAllProducts();
   console.log(
     "schema_assert: OK (users.lender_id, lenders.id, lenders.country, lenders.submission_method, lender_products.lender_id, lender_products.required_documents)"
   );
