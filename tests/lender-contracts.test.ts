@@ -44,10 +44,14 @@ async function createAdminToken(): Promise<string> {
       ROLES.ADMIN,
     ]
   );
+  const { rows } = await pool.query<{ token_version: number }>(
+    "select token_version from users where id = $1",
+    [userId]
+  );
   return signAccessToken({
     sub: userId,
     role: ROLES.ADMIN,
-    tokenVersion: 1,
+    tokenVersion: rows[0]?.token_version ?? 0,
     silo: "default",
   });
 }

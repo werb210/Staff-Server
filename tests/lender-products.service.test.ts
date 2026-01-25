@@ -5,6 +5,7 @@ import {
   listLenderProductsService,
   updateLenderProductService,
 } from "../src/services/lenderProductsService";
+import { ensureSeedRequirementsForProduct } from "../src/services/lenderProductRequirementsService";
 import {
   createLenderProduct,
   listLenderProducts,
@@ -19,6 +20,10 @@ jest.mock("../src/repositories/lenderProducts.repo", () => ({
   updateLenderProduct: jest.fn(),
 }));
 
+jest.mock("../src/services/lenderProductRequirementsService", () => ({
+  ensureSeedRequirementsForProduct: jest.fn(),
+}));
+
 const mockedCreate = createLenderProduct as jest.MockedFunction<typeof createLenderProduct>;
 const mockedList = listLenderProducts as jest.MockedFunction<typeof listLenderProducts>;
 const mockedListByLenderId =
@@ -26,14 +31,19 @@ const mockedListByLenderId =
     typeof listLenderProductsByLenderId
   >;
 const mockedUpdate = updateLenderProduct as jest.MockedFunction<typeof updateLenderProduct>;
+const mockedEnsureSeed =
+  ensureSeedRequirementsForProduct as jest.MockedFunction<
+    typeof ensureSeedRequirementsForProduct
+  >;
 
 describe("lenderProductsService", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockedEnsureSeed.mockResolvedValue(0);
   });
 
   it("defaults null names before create persistence", async () => {
-    mockedCreate.mockResolvedValue({} as any);
+    mockedCreate.mockResolvedValue({ id: "product-1" } as any);
 
     await createLenderProductService({
       lenderId: "lender-1",

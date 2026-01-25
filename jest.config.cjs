@@ -6,6 +6,8 @@ module.exports = {
   testMatch: [
     "<rootDir>/tests/**/*.test.ts",
     "<rootDir>/tests/**/*.spec.ts",
+    "<rootDir>/tests/**/*.smoke.ts",
+    "<rootDir>/tests/**/*.crud.ts",
     "<rootDir>/src/tests/**/*.test.ts",
     "<rootDir>/src/routes/__tests__/**/*.test.ts",
     "<rootDir>/src/__tests__/int.routes.test.ts",

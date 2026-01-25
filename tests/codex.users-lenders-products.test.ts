@@ -35,6 +35,15 @@ async function createUserWithToken(params: {
     role: params.role,
     lenderId: params.lenderId ?? null,
   });
+  await pool.query(
+    `update users
+     set status = 'active',
+         active = true,
+         is_active = true,
+         disabled = false
+     where id = $1`,
+    [user.id]
+  );
   const { rows } = await pool.query<{ token_version: number }>(
     "select token_version from users where id = $1",
     [user.id]
@@ -139,7 +148,8 @@ describe("codex users/lenders/lender products access", () => {
     const staffUsers = await request(app)
       .get("/api/users")
       .set("Authorization", `Bearer ${staff.accessToken}`);
-    expect(staffUsers.status).toBe(200);
+    expect(staffUsers.status).toBe(403);
+    expect(staffUsers.body.error).toBe("forbidden");
 
     const lenderUsers = await request(app)
       .get("/api/users")
