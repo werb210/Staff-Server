@@ -117,18 +117,27 @@ export async function seedBaselineLenders(): Promise<void> {
 
   await pool.query(
     `insert into lender_products
-     (id, lender_id, name, description, active, created_at, updated_at)
+     (id, lender_id, lender_name, name, description, type, min_amount, max_amount, status, active, created_at, updated_at)
      values
-     ($1, $2, $3, $4, true, now(), now()),
-     ($5, $2, $6, $7, true, now(), now())`,
+     ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, now(), now()),
+     ($10, $2, $3, $11, $12, $13, $14, $15, $16, true, now(), now())`,
     [
       SEEDED_LENDER_PRODUCT_TERM_ID,
       SEEDED_LENDER_ID,
+      "Atlas Capital",
       "Term Loan",
       "Term loan product (category: term).",
+      "term",
+      5000,
+      250000,
+      "active",
       SEEDED_LENDER_PRODUCT_LOC_ID,
       "Line of Credit",
       "Revolving line of credit product (category: loc).",
+      "loc",
+      10000,
+      150000,
+      "active",
     ]
   );
 }

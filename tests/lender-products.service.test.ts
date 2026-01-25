@@ -37,9 +37,14 @@ describe("lenderProductsService", () => {
 
     await createLenderProductService({
       lenderId: "lender-1",
+      lenderName: "Lender One",
       name: null,
       description: null,
       active: true,
+      type: "loc",
+      minAmount: 1000,
+      maxAmount: 5000,
+      status: "active",
       requiredDocuments: [],
     });
 

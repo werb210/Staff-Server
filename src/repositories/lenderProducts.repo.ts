@@ -63,9 +63,14 @@ async function assertLenderProductColumnsExist(params: {
 
 export async function createLenderProduct(params: {
   lenderId: string;
+  lenderName: string;
   name: string;
   description?: string | null;
   active: boolean;
+  type: string;
+  minAmount?: number | null;
+  maxAmount?: number | null;
+  status: string;
   requiredDocuments: RequiredDocuments;
   client?: Queryable;
 }): Promise<LenderProductRecord> {
@@ -75,8 +80,13 @@ export async function createLenderProduct(params: {
     columns: [
       "id",
       "lender_id",
+      "lender_name",
       "name",
       "description",
+      "type",
+      "min_amount",
+      "max_amount",
+      "status",
       "active",
       "required_documents",
       "created_at",
@@ -86,14 +96,19 @@ export async function createLenderProduct(params: {
   });
   const res = await runner.query<LenderProductRecord>(
     `insert into lender_products
-     (id, lender_id, name, description, active, required_documents, created_at, updated_at)
-     values ($1, $2, $3, $4, $5, $6::jsonb, now(), now())
+     (id, lender_id, lender_name, name, description, type, min_amount, max_amount, status, active, required_documents, created_at, updated_at)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, now(), now())
      returning id, lender_id, name, description, active, required_documents, created_at, updated_at`,
     [
       randomUUID(),
       params.lenderId,
+      params.lenderName,
       params.name,
       params.description ?? null,
+      params.type,
+      params.minAmount ?? null,
+      params.maxAmount ?? null,
+      params.status,
       params.active,
       JSON.stringify(params.requiredDocuments),
     ]

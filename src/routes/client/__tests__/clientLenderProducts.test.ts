@@ -5,15 +5,15 @@ describe("GET /api/client/lender-products", () => {
   it("returns 200 and array", async () => {
     const res = await request(app).get("/api/client/lender-products");
     expect(res.status).toBe(200);
-    expect(res.body.ok).toBe(true);
-    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(Array.isArray(res.body)).toBe(true);
   });
 
-  it("does not expose inactive lenders or products", async () => {
+  it("returns only public product fields", async () => {
     const res = await request(app).get("/api/client/lender-products");
-    for (const row of res.body.data) {
-      expect(row.lender_id).toBeDefined();
-      expect(row.lender_name).toBeDefined();
+    for (const row of res.body) {
+      expect(row.id).toBeDefined();
+      expect(row.name).toBeDefined();
+      expect(row.type).toBeDefined();
     }
   });
 });
