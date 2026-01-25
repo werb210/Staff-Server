@@ -5,11 +5,18 @@ import {
   createRequirementForProduct,
   deleteRequirementForProduct,
   listClientRequirements,
+  resolveLenderProductRequirements,
   updateRequirementForProduct,
 } from "../services/lenderProductRequirementsService";
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function assertUuid(value: string, label: string): void {
+  if (!UUID_REGEX.test(value)) {
+    throw new AppError("validation_error", `Invalid ${label}.`, 400);
+  }
+}
 
 function requireAdmin(user: Request["user"] | undefined): void {
   if (!user) {
@@ -84,11 +91,49 @@ export async function listClientLenderProductRequirementsHandler(
   });
 }
 
+export async function listLenderProductRequirementsHandler(
+  req: Request,
+  res: Response
+): Promise<void> {
+  assertUuid(req.params.id, "lender product id");
+
+  const requestedAmountRaw = req.query.requestedAmount;
+  let requestedAmount: number | null = null;
+  if (requestedAmountRaw !== undefined) {
+    const parsed = Number(requestedAmountRaw);
+    if (Number.isNaN(parsed)) {
+      throw new AppError(
+        "validation_error",
+        "requestedAmount must be a number.",
+        400
+      );
+    }
+    requestedAmount = parsed;
+  }
+
+  const requirements = await resolveLenderProductRequirements({
+    lenderProductId: req.params.id,
+    requestedAmount,
+  });
+
+  res.status(200).json({
+    productId: req.params.id,
+    requirements: requirements.map((requirement) => ({
+      id: requirement.id,
+      documentType: requirement.documentType,
+      required: requirement.required,
+      minAmount: requirement.minAmount,
+      maxAmount: requirement.maxAmount,
+    })),
+  });
+}
+
 export async function createLenderProductRequirementHandler(
   req: Request,
   res: Response
 ): Promise<void> {
   requireAdmin(req.user);
+  assertUuid(req.params.id, "lender product id");
   const documentType = parseDocumentType(req.body?.document_type);
   const required = parseRequired(req.body?.required);
   const minAmount = parseAmount(req.body?.min_amount, "min_amount");
@@ -110,6 +155,8 @@ export async function updateLenderProductRequirementHandler(
   res: Response
 ): Promise<void> {
   requireAdmin(req.user);
+  assertUuid(req.params.id, "lender product id");
+  assertUuid(req.params.reqId, "requirement id");
   const documentType = parseDocumentType(req.body?.document_type);
   const required = parseRequired(req.body?.required);
   const minAmount = parseAmount(req.body?.min_amount, "min_amount");
@@ -131,6 +178,8 @@ export async function deleteLenderProductRequirementHandler(
   res: Response
 ): Promise<void> {
   requireAdmin(req.user);
+  assertUuid(req.params.id, "lender product id");
+  assertUuid(req.params.reqId, "requirement id");
   const requirement = await deleteRequirementForProduct({ id: req.params.reqId });
   res.status(200).json({ requirement });
 }
