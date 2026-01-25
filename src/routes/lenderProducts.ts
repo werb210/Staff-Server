@@ -12,6 +12,7 @@ import {
   createLenderProductRequirementHandler as createRequirementHandler,
   updateLenderProductRequirementHandler as updateRequirementHandler,
   deleteLenderProductRequirementHandler as deleteRequirementHandler,
+  listLenderProductRequirementsHandler as listRequirementsHandler,
 } from "../controllers/lenderProductRequirements.controller";
 
 const router = Router();
@@ -50,6 +51,18 @@ router.patch(
   requireAuth,
   requireCapability([CAPABILITIES.LENDER_PRODUCTS_WRITE]),
   safeHandler(updateLenderProductHandler)
+);
+
+/**
+ * GET /api/lender-products/:id/requirements
+ * - Auth required
+ * - Staff / Admin / Ops / Lender via LENDER_PRODUCTS_READ
+ */
+router.get(
+  "/:id/requirements",
+  requireAuth,
+  requireCapability([CAPABILITIES.LENDER_PRODUCTS_READ]),
+  safeHandler(listRequirementsHandler)
 );
 
 /**
