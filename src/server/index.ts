@@ -1,6 +1,6 @@
 // src/server/index.ts
 
-import { buildApp, registerApiRoutes } from "../app";
+import { assertCorsConfig, buildApp, registerApiRoutes } from "../app";
 import { assertEnv } from "../config";
 import { warmUpDatabase } from "../db";
 import { assertRequiredSchema } from "../db/schemaAssert";
@@ -73,6 +73,15 @@ export async function startServer() {
   await seedRequirementsForAllProducts();
   console.log(
     "schema_assert: OK (users.lender_id, lenders.id, lenders.country, lenders.submission_method, lender_products.lender_id, lender_products.required_documents, lender_product_requirements.id, lender_product_requirements.lender_product_id, lender_product_requirements.document_type, lender_product_requirements.created_at)"
+  );
+  try {
+    assertCorsConfig();
+  } catch (err: any) {
+    logError("fatal_cors_assert", { message: err?.message ?? String(err) });
+    process.exit(1);
+  }
+  console.log(
+    "cors_assert: OK (portal origins allowed, _int blocked from browsers)"
   );
 
   // Register all API routes using the unified registry
