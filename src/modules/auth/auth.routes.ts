@@ -174,11 +174,16 @@ router.post("/otp/verify", otpRateLimit(), async (req, res, next) => {
       return;
     }
 
-    const { phone, code } = req.body as { phone: string; code: string };
+    const { phone, code, email } = req.body as {
+      phone: string;
+      code: string;
+      email?: string | null;
+    };
 
     const result = await verifyOtpCode({
       phone,
       code,
+      email,
       ip: req.ip,
       userAgent: req.get("user-agent"),
       route,

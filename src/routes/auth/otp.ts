@@ -28,10 +28,11 @@ router.post("/start", otpSendLimiter(), async (req, res, next) => {
 
 router.post("/verify", otpVerifyLimiter(), async (req, res, next) => {
   try {
-    const { phone, code } = req.body ?? {};
+    const { phone, code, email } = req.body ?? {};
     const result = await verifyOtpCode({
       phone,
       code,
+      email,
       ip: req.ip,
       userAgent: req.get("user-agent"),
       route: req.originalUrl,

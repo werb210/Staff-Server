@@ -10,10 +10,14 @@ router.post("/", async (req, res, next) => {
   try {
     const { email, phoneNumber, role, lenderId } = req.body;
     const normalizedRole = typeof role === "string" ? normalizeRole(role) : null;
-    if (!phoneNumber || role === undefined || role === null) {
+    const normalizedEmail =
+      typeof email === "string" && email.trim().length > 0
+        ? email.trim()
+        : null;
+    if (!normalizedEmail || role === undefined || role === null) {
       throw new AppError(
         "missing_fields",
-        "phoneNumber and role are required.",
+        "email and role are required.",
         400
       );
     }
@@ -21,7 +25,7 @@ router.post("/", async (req, res, next) => {
       throw new AppError("invalid_role", "Role is invalid.", 400);
     }
     const user = await createUserAccount({
-      email,
+      email: normalizedEmail,
       phoneNumber,
       role: normalizedRole,
       lenderId,
