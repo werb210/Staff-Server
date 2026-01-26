@@ -16,11 +16,27 @@ export interface CreateLenderInput {
 
 const LENDERS_REPO = "src/repositories/lenders.repo.ts";
 const LENDERS_TABLE = "lenders";
+const ENUM_MISMATCH_CODES = new Set(["22P02"]);
+const CONSTRAINT_VIOLATION_CODES = new Set(["23502", "23505", "23514"]);
 
 type ColumnCheckResult = {
   existing: Set<string>;
   missing: string[];
 };
+
+function isEnumMismatchError(err: unknown): boolean {
+  const code = (err as { code?: string }).code;
+  const message = (err as { message?: string }).message?.toLowerCase() ?? "";
+  return (
+    (typeof code === "string" && ENUM_MISMATCH_CODES.has(code)) ||
+    message.includes("invalid input value for enum")
+  );
+}
+
+function isConstraintViolationError(err: unknown): boolean {
+  const code = (err as { code?: string }).code;
+  return typeof code === "string" && CONSTRAINT_VIOLATION_CODES.has(code);
+}
 
 async function getLenderColumns(): Promise<Set<string>> {
   const result = await pool.query<{ column_name: string }>(
@@ -86,6 +102,7 @@ function buildSelectColumns(existing: Set<string>): string {
     { name: "submission_method", fallback: "null::text" },
     { name: "active", fallback: "true" },
     { name: "status", fallback: "'ACTIVE'::text" },
+    { name: "email", fallback: "null::text" },
     { name: "phone", fallback: "null::text" },
     { name: "website", fallback: "null::text" },
     { name: "postal_code", fallback: "null::text" },
@@ -110,6 +127,8 @@ export const LIST_LENDERS_SQL = `
     country,
     submission_method,
     active,
+    status,
+    email,
     phone,
     website,
     postal_code,
@@ -129,6 +148,7 @@ export async function listLenders() {
         "submission_method",
         "active",
         "status",
+        "email",
         "phone",
         "website",
         "postal_code",
@@ -169,6 +189,7 @@ export async function getLenderById(id: string) {
       "country",
       "submission_method",
       "status",
+      "email",
       "phone",
       "website",
       "postal_code",
@@ -192,22 +213,22 @@ export async function getLenderById(id: string) {
 }
 
 export async function createLender(input: CreateLenderInput) {
-    const check = await assertLenderColumnsExist({
-      route: "/api/lenders",
-      columns: [
-        "id",
-        "name",
-        "country",
-        "submission_method",
-        "active",
-        "status",
-        "email",
-        "phone",
-        "website",
-        "postal_code",
-      ],
-      required: ["id", "name", "country"],
-    });
+  const check = await assertLenderColumnsExist({
+    route: "/api/lenders",
+    columns: [
+      "id",
+      "name",
+      "country",
+      "submission_method",
+      "active",
+      "status",
+      "email",
+      "phone",
+      "website",
+      "postal_code",
+    ],
+    required: ["id", "name", "country"],
+  });
   const resolvedActive = input.active ?? true;
   const resolvedStatus = resolvedActive ? "ACTIVE" : "INACTIVE";
   const columns = [
@@ -227,15 +248,41 @@ export async function createLender(input: CreateLenderInput) {
   const values = columns.map((entry) => entry.value);
   const placeholders = columnNames.map((_, index) => `$${index + 1}`);
 
-  const result = await pool.query(
-    `
-    INSERT INTO lenders (${columnNames.join(", ")})
-    VALUES (${placeholders.join(", ")})
-    RETURNING
-      ${buildSelectColumns(check.existing)}
-    `,
-    values
-  );
+  let result;
+  try {
+    result = await pool.query(
+      `
+      INSERT INTO lenders (${columnNames.join(", ")})
+      VALUES (${placeholders.join(", ")})
+      RETURNING
+        ${buildSelectColumns(check.existing)}
+      `,
+      values
+    );
+  } catch (err) {
+    if (isEnumMismatchError(err)) {
+      logError("lender_enum_mismatch", {
+        route: "/api/lenders",
+        repository: LENDERS_REPO,
+        table: LENDERS_TABLE,
+        code: (err as { code?: string }).code,
+        message: err instanceof Error ? err.message : String(err),
+      });
+      throw new AppError("validation_error", "Invalid lender status.", 400);
+    }
+    if (isConstraintViolationError(err)) {
+      logError("lender_constraint_violation", {
+        route: "/api/lenders",
+        repository: LENDERS_REPO,
+        table: LENDERS_TABLE,
+        code: (err as { code?: string }).code,
+        constraint: (err as { constraint?: string }).constraint,
+        message: err instanceof Error ? err.message : String(err),
+      });
+      throw new AppError("validation_error", "Invalid lender data.", 400);
+    }
+    throw err;
+  }
 
   const rows = result.rows;
   const created = rows[0];

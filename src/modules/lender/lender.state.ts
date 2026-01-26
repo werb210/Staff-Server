@@ -28,7 +28,7 @@ export async function ensureApplicationSubmissionState(params: {
 
   await transitionPipelineState({
     applicationId: params.applicationId,
-    nextState: ApplicationStage.START_UP,
+    nextState: ApplicationStage.STARTUP,
     actorUserId: params.actorUserId,
     actorRole: null,
     allowOverride: false,

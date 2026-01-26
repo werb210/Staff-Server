@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { pool } from "../../db";
 import { Query } from "pg";
+import { PIPELINE_STATES } from "../applications/pipelineState";
 
 export type ExportFormat = "json" | "csv";
 
@@ -11,6 +12,10 @@ export type ExportFilters = {
   lenderId?: string | null;
   productType?: string | null;
 };
+
+const PIPELINE_ORDER_SQL = `ARRAY[${PIPELINE_STATES.map((state) => `'${state}'`).join(
+  ", "
+)}]`;
 
 function buildWhereClause(params: {
   column: string;
@@ -143,7 +148,8 @@ export async function exportPipelineSummary(params: {
   const query = `select snapshot_date, pipeline_state, application_count
                  from reporting_pipeline_daily_snapshots
                  ${clause}
-                 order by snapshot_date desc, pipeline_state asc`;
+                 order by snapshot_date desc,
+                          coalesce(array_position(${PIPELINE_ORDER_SQL}::text[], pipeline_state), 999) asc`;
 
   if (params.format === "csv" && params.write) {
     params.write("snapshot_date,pipeline_state,application_count\n");

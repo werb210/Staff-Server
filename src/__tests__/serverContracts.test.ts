@@ -318,7 +318,7 @@ describe("pipeline state transitions", () => {
       .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
-      .send({ state: "START_UP" });
+      .send({ state: "STARTUP" });
     expect(secondTransition.status).toBe(200);
 
     const thirdTransition = await request(app)

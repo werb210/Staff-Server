@@ -87,7 +87,7 @@ async function seedReportingData(): Promise<{ ownerId: string; staffId: string }
 
   const baseDate = new Date("2024-02-01T10:00:00.000Z");
   const applicationIds = [randomUUID(), randomUUID(), randomUUID(), randomUUID()];
-  const states = ["OFF_TO_LENDER", "ACCEPTED", "DECLINED", "START_UP"];
+  const states = ["OFF_TO_LENDER", "ACCEPTED", "DECLINED", "STARTUP"];
 
   await Promise.all(
     applicationIds.map((id, index) =>
