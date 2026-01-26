@@ -639,7 +639,10 @@ export async function changePipelineState(params: {
   ip?: string;
   userAgent?: string;
 }): Promise<void> {
-  if (!isPipelineState(params.nextState)) {
+  const normalizedState = params.nextState.trim().toUpperCase();
+  const resolvedState =
+    normalizedState === "START_UP" ? ApplicationStage.STARTUP : normalizedState;
+  if (!isPipelineState(resolvedState)) {
     throw new AppError("invalid_state", "Pipeline state is invalid.", 400);
   }
 
@@ -648,7 +651,7 @@ export async function changePipelineState(params: {
     await client.query("begin");
     await transitionPipelineState({
       applicationId: params.applicationId,
-      nextState: params.nextState,
+      nextState: resolvedState,
       actorUserId: params.actorUserId,
       actorRole: params.actorRole,
       allowOverride: params.allowOverride,

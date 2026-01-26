@@ -16,27 +16,11 @@ export interface CreateLenderInput {
 
 const LENDERS_REPO = "src/repositories/lenders.repo.ts";
 const LENDERS_TABLE = "lenders";
-const ENUM_MISMATCH_CODES = new Set(["22P02"]);
-const CONSTRAINT_VIOLATION_CODES = new Set(["23502", "23505", "23514"]);
 
 type ColumnCheckResult = {
   existing: Set<string>;
   missing: string[];
 };
-
-function isEnumMismatchError(err: unknown): boolean {
-  const code = (err as { code?: string }).code;
-  const message = (err as { message?: string }).message?.toLowerCase() ?? "";
-  return (
-    (typeof code === "string" && ENUM_MISMATCH_CODES.has(code)) ||
-    message.includes("invalid input value for enum")
-  );
-}
-
-function isConstraintViolationError(err: unknown): boolean {
-  const code = (err as { code?: string }).code;
-  return typeof code === "string" && CONSTRAINT_VIOLATION_CODES.has(code);
-}
 
 async function getLenderColumns(): Promise<Set<string>> {
   const result = await pool.query<{ column_name: string }>(
@@ -125,10 +109,8 @@ export const LIST_LENDERS_SQL = `
     id,
     name,
     country,
-    submission_method,
-    active,
-    status,
-    email,
+    COALESCE(email, '') AS email,
+    COALESCE(status, 'ACTIVE') AS status,
     phone,
     website,
     postal_code,
@@ -137,47 +119,22 @@ export const LIST_LENDERS_SQL = `
   ORDER BY created_at DESC
 `;
 
-export async function listLenders() {
-  try {
-    const check = await assertLenderColumnsExist({
-      route: "/api/lenders",
-      columns: [
-        "id",
-        "name",
-        "country",
-        "submission_method",
-        "active",
-        "status",
-        "email",
-        "phone",
-        "website",
-        "postal_code",
-        "created_at",
-      ],
-      required: ["id", "name", "country"],
-    });
-    const selectColumns = buildSelectColumns(check.existing);
-    const orderBy = check.existing.has("created_at") ? "created_at DESC" : "name ASC";
-    const result = await pool.query(
-      `
-      SELECT
-        ${selectColumns}
-      FROM lenders
-      ORDER BY ${orderBy}
-      `
-    );
-    return result.rows;
-  } catch (err) {
-    logError("lenders_query_failed", {
-      sql: LIST_LENDERS_SQL,
-      params: [],
-      stack: err instanceof Error ? err.stack : undefined,
-    });
-    const error = err instanceof Error ? err : new Error("Unknown database error.");
-    const appError = new AppError("db_error", error.message, 500);
-    appError.stack = error.stack;
-    throw appError;
-  }
+export async function listLenders(db: { query: typeof pool.query }) {
+  const { rows } = await db.query(`
+    SELECT
+      id,
+      name,
+      country,
+      COALESCE(email, '') AS email,
+      COALESCE(status, 'ACTIVE') AS status,
+      phone,
+      website,
+      postal_code,
+      created_at
+    FROM lenders
+    ORDER BY created_at DESC
+  `);
+  return rows;
 }
 
 export async function getLenderById(id: string) {
@@ -212,82 +169,63 @@ export async function getLenderById(id: string) {
   return rows[0] ?? null;
 }
 
-export async function createLender(input: CreateLenderInput) {
-  const check = await assertLenderColumnsExist({
-    route: "/api/lenders",
-    columns: [
-      "id",
-      "name",
-      "country",
-      "submission_method",
-      "active",
-      "status",
-      "email",
-      "phone",
-      "website",
-      "postal_code",
-    ],
-    required: ["id", "name", "country"],
-  });
-  const resolvedActive = input.active ?? true;
-  const resolvedStatus = resolvedActive ? "ACTIVE" : "INACTIVE";
-  const columns = [
-    { name: "id", value: randomUUID() },
-    { name: "name", value: input.name },
-    { name: "country", value: input.country },
-    { name: "submission_method", value: input.submission_method ?? null },
-    { name: "active", value: resolvedActive },
-    { name: "status", value: resolvedStatus },
-    { name: "email", value: input.email ?? null },
-    { name: "phone", value: input.phone ?? null },
-    { name: "website", value: input.website ?? null },
-    { name: "postal_code", value: input.postal_code ?? null },
-  ].filter((entry) => check.existing.has(entry.name));
+export async function createLender(
+  db: { query: typeof pool.query },
+  input: CreateLenderInput
+) {
+  const { name, country, email = "", phone, website, postal_code } = input;
+  const existingColumns = await getLenderColumns();
+  const includeActive = existingColumns.has("active");
 
-  const columnNames = columns.map((entry) => entry.name);
-  const values = columns.map((entry) => entry.value);
-  const placeholders = columnNames.map((_, index) => `$${index + 1}`);
-
-  let result;
   try {
-    result = await pool.query(
+    const { rows } = await db.query(
       `
-      INSERT INTO lenders (${columnNames.join(", ")})
-      VALUES (${placeholders.join(", ")})
-      RETURNING
-        ${buildSelectColumns(check.existing)}
-      `,
-      values
+      INSERT INTO lenders (
+        id,
+        name,
+        country,
+        email,
+        phone,
+        website,
+        postal_code,
+        status${includeActive ? ",\n        active" : ""}
+      )
+      VALUES (
+        gen_random_uuid(),
+        $1, $2, $3, $4, $5, $6,
+        'ACTIVE'${includeActive ? ",\n        true" : ""}
+      )
+      RETURNING *
+    `,
+      [name, country, email, phone, website, postal_code]
     );
+    return rows[0];
   } catch (err) {
-    if (isEnumMismatchError(err)) {
-      logError("lender_enum_mismatch", {
-        route: "/api/lenders",
-        repository: LENDERS_REPO,
-        table: LENDERS_TABLE,
-        code: (err as { code?: string }).code,
-        message: err instanceof Error ? err.message : String(err),
-      });
-      throw new AppError("validation_error", "Invalid lender status.", 400);
-    }
-    if (isConstraintViolationError(err)) {
-      logError("lender_constraint_violation", {
-        route: "/api/lenders",
-        repository: LENDERS_REPO,
-        table: LENDERS_TABLE,
-        code: (err as { code?: string }).code,
-        constraint: (err as { constraint?: string }).constraint,
-        message: err instanceof Error ? err.message : String(err),
-      });
-      throw new AppError("validation_error", "Invalid lender data.", 400);
+    const code = (err as { code?: string }).code;
+    const message = (err as { message?: string }).message ?? "";
+    if (code === "42883" || message.includes("gen_random_uuid")) {
+      const { rows } = await db.query(
+        `
+        INSERT INTO lenders (
+          id,
+          name,
+          country,
+          email,
+          phone,
+          website,
+          postal_code,
+          status${includeActive ? ",\n          active" : ""}
+        )
+        VALUES (
+          $1, $2, $3, $4, $5, $6, $7,
+          'ACTIVE'${includeActive ? ",\n          true" : ""}
+        )
+        RETURNING *
+      `,
+        [randomUUID(), name, country, email, phone, website, postal_code]
+      );
+      return rows[0];
     }
     throw err;
   }
-
-  const rows = result.rows;
-  const created = rows[0];
-  if (!created) {
-    throw new AppError("db_error", "Failed to create lender.", 500);
-  }
-  return created;
 }

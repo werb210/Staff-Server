@@ -19,9 +19,8 @@ router.get("/", async (_req, res, next) => {
         lp.min_amount,
         lp.max_amount
       FROM lender_products lp
-      JOIN lenders l ON l.id = lp.lender_id
+      LEFT JOIN lenders l ON l.id = lp.lender_id
       WHERE lp.status = 'active'
-        AND l.status = 'ACTIVE'
       ORDER BY lp.name
       `
     );
