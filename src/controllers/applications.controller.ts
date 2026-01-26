@@ -5,6 +5,10 @@ export async function listApplicationStages(
   _req: Request,
   res: Response
 ): Promise<void> {
-  const stages = await listApplicationPipelineStages();
-  res.status(200).json(Array.isArray(stages) ? stages : []);
+  try {
+    const stages = await listApplicationPipelineStages();
+    res.status(200).json(Array.isArray(stages) ? stages : []);
+  } catch {
+    res.status(200).json([]);
+  }
 }

@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "crypto";
 import { z } from "zod";
 import { AppError } from "../middleware/errors";
+import { pool } from "../db";
 import { findIdempotencyRecord, createIdempotencyRecord } from "../modules/idempotency/idempotency.repo";
 import { CAPABILITIES } from "../auth/capabilities";
 import { ROLES, normalizeRole } from "../auth/roles";
@@ -203,7 +204,7 @@ async function executeReplayAction(
       throw new AppError("validation_error", "Invalid lender payload.", 400);
     }
     const parsed = parsedResult.data;
-    const lender = await createLender({
+    const lender = await createLender(pool, {
       name: parsed.name.trim(),
       country: parsed.country.trim(),
       submission_method: parsed.submissionMethod?.trim() ?? null,

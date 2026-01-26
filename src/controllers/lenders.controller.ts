@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { pool } from "../db";
 import * as repo from "../repositories/lenders.repo";
 import {
   getLenderByIdService,
@@ -266,7 +267,7 @@ export async function createLender(
       );
     }
 
-    const lender = await repo.createLender({
+    const lender = await repo.createLender(pool, {
       name: name.trim(),
       country: country.trim(),
       submission_method: normalizedSubmissionMethod,
