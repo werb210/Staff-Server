@@ -14,6 +14,8 @@ export type Role = (typeof ROLES)[keyof typeof ROLES];
  */
 const ROLE_SET: ReadonlySet<Role> = new Set(Object.values(ROLES));
 
+export const ALL_ROLES: Role[] = [...ROLE_SET];
+
 /**
  * Lowercase lookup table is ONLY for explicit normalization flows
  * (e.g. login / provisioning), never for auth enforcement.

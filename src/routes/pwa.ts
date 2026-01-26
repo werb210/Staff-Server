@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { requireAuth } from "../middleware/requireAuth";
-import { requireAdmin } from "../middleware/requireAdmin";
+import { requireAuth, requireAuthorization } from "../middleware/auth";
 import { safeHandler } from "../middleware/safeHandler";
 import {
   listPwaNotificationsForUser,
@@ -15,6 +14,7 @@ import { getBuildInfo } from "../config";
 import { getPushStatus } from "../services/pushService";
 import { replaySyncBatch } from "../services/pwaSyncService";
 import { pool } from "../db";
+import { ALL_ROLES, ROLES } from "../auth/roles";
 
 const router = Router();
 
@@ -34,6 +34,7 @@ const unsubscribeSchema = z.object({
 router.post(
   "/subscribe",
   requireAuth,
+  requireAuthorization({ roles: ALL_ROLES }),
   safeHandler(async (req, res) => {
     const requestId = res.locals.requestId ?? "unknown";
     const parsedResult = subscriptionSchema.safeParse(req.body ?? {});
@@ -59,6 +60,7 @@ router.post(
 router.delete(
   "/unsubscribe",
   requireAuth,
+  requireAuthorization({ roles: ALL_ROLES }),
   safeHandler(async (req, res) => {
     const parsedResult = unsubscribeSchema.safeParse(req.body ?? {});
     if (!parsedResult.success) {
@@ -76,7 +78,7 @@ router.delete(
 router.get(
   "/subscriptions",
   requireAuth,
-  requireAdmin,
+  requireAuthorization({ roles: [ROLES.ADMIN] }),
   safeHandler(async (_req, res) => {
     const subscriptions = await listPwaSubscriptions();
     res.status(200).json({ ok: true, subscriptions });
@@ -86,6 +88,7 @@ router.get(
 router.get(
   "/notifications",
   requireAuth,
+  requireAuthorization({ roles: ALL_ROLES }),
   safeHandler(async (req, res) => {
     const notifications = await listPwaNotificationsForUser(req.user!.userId);
     res.status(200).json({ ok: true, notifications });
@@ -95,6 +98,7 @@ router.get(
 router.post(
   "/notifications/:id/ack",
   requireAuth,
+  requireAuthorization({ roles: ALL_ROLES }),
   safeHandler(async (req, res) => {
     const id = req.params.id;
     if (!id) {
@@ -111,6 +115,7 @@ router.post(
 router.post(
   "/sync",
   requireAuth,
+  requireAuthorization({ roles: ALL_ROLES }),
   safeHandler(async (req, res) => {
     const requestId = res.locals.requestId ?? "unknown";
     const user = req.user!;
@@ -135,6 +140,7 @@ router.post(
 router.get(
   "/runtime",
   requireAuth,
+  requireAuthorization({ roles: ALL_ROLES }),
   safeHandler(async (_req, res) => {
     const { commitHash, buildTimestamp } = getBuildInfo();
     const pushStatus = getPushStatus();
@@ -151,7 +157,7 @@ router.get(
 router.get(
   "/health",
   requireAuth,
-  requireAdmin,
+  requireAuthorization({ roles: [ROLES.ADMIN] }),
   safeHandler(async (_req, res) => {
     const pushStatus = getPushStatus();
     let dbWriteable = false;

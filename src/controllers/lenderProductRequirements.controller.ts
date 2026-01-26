@@ -1,6 +1,5 @@
 import { type Request, type Response } from "express";
 import { AppError } from "../middleware/errors";
-import { ROLES } from "../auth/roles";
 import {
   createRequirementForProduct,
   deleteRequirementForProduct,
@@ -15,15 +14,6 @@ const UUID_REGEX =
 function assertUuid(value: string, label: string): void {
   if (!UUID_REGEX.test(value)) {
     throw new AppError("validation_error", `Invalid ${label}.`, 400);
-  }
-}
-
-function requireAdmin(user: Request["user"] | undefined): void {
-  if (!user) {
-    throw new AppError("missing_token", "Authorization token is required.", 401);
-  }
-  if (user.role !== ROLES.ADMIN) {
-    throw new AppError("forbidden", "Access denied.", 403);
   }
 }
 
@@ -132,7 +122,6 @@ export async function createLenderProductRequirementHandler(
   req: Request,
   res: Response
 ): Promise<void> {
-  requireAdmin(req.user);
   assertUuid(req.params.id, "lender product id");
   const documentType = parseDocumentType(req.body?.document_type);
   const required = parseRequired(req.body?.required);
@@ -154,7 +143,6 @@ export async function updateLenderProductRequirementHandler(
   req: Request,
   res: Response
 ): Promise<void> {
-  requireAdmin(req.user);
   assertUuid(req.params.id, "lender product id");
   assertUuid(req.params.reqId, "requirement id");
   const documentType = parseDocumentType(req.body?.document_type);
@@ -177,7 +165,6 @@ export async function deleteLenderProductRequirementHandler(
   req: Request,
   res: Response
 ): Promise<void> {
-  requireAdmin(req.user);
   assertUuid(req.params.id, "lender product id");
   assertUuid(req.params.reqId, "requirement id");
   const requirement = await deleteRequirementForProduct({ id: req.params.reqId });

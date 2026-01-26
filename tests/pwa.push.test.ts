@@ -72,12 +72,16 @@ describe("PWA push dispatch", () => {
       await pool.query<{ id: string }>("select id from users where role = 'Admin' limit 1")
     ).rows[0].id;
 
-    const actual = await sendNotification(adminUserId, {
+    const actual = await sendNotification(
+      { userId: adminUserId, role: ROLES.ADMIN },
+      {
+        type: "alert",
       title: "Hello",
       body: "World",
       level: "normal",
       sound: false,
-    });
+      }
+    );
 
     expect(actual.sent).toBe(1);
 
@@ -104,16 +108,56 @@ describe("PWA push dispatch", () => {
       await pool.query<{ id: string }>("select id from users where role = 'Admin' limit 1")
     ).rows[0].id;
 
-    const result = await sendNotification(adminUserId, {
+    const result = await sendNotification(
+      { userId: adminUserId, role: ROLES.ADMIN },
+      {
+        type: "alert",
       title: "Expired",
       body: "Gone",
       level: "high",
       sound: false,
-    });
+      }
+    );
 
     expect(result.failed).toBe(1);
 
     const subscriptions = await pool.query("select * from pwa_subscriptions");
     expect(subscriptions.rowCount).toBe(0);
+  });
+
+  it("returns failed counts without dropping valid subscriptions", async () => {
+    const token = await login(ROLES.ADMIN);
+    const endpoint = `https://example.com/push/${randomUUID()}`;
+
+    await request(app)
+      .post("/api/pwa/subscribe")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        endpoint,
+        keys: { p256dh: "key", auth: "auth" },
+        deviceType: "desktop",
+      });
+
+    webPushMock.sendNotification.mockRejectedValueOnce({ statusCode: 500 });
+
+    const adminUserId = (
+      await pool.query<{ id: string }>("select id from users where role = 'Admin' limit 1")
+    ).rows[0].id;
+
+    const result = await sendNotification(
+      { userId: adminUserId, role: ROLES.ADMIN },
+      {
+        type: "alert",
+        title: "Retry",
+        body: "Please retry",
+        level: "normal",
+        sound: false,
+      }
+    );
+
+    expect(result.failed).toBe(1);
+
+    const subscriptions = await pool.query("select * from pwa_subscriptions");
+    expect(subscriptions.rowCount).toBe(1);
   });
 });

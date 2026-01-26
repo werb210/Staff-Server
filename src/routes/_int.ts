@@ -2,11 +2,12 @@ import { Router } from "express";
 import { getBuildInfo } from "../config";
 import { listRouteInventory } from "../debug/printRoutes";
 import { readyHandler } from "./ready";
-import { requireAuth } from "../middleware/requireAuth";
+import { requireAuth, requireAuthorization } from "../middleware/auth";
 import internalRoutes from "./internal";
 import { intHealthHandler } from "./_int/health";
 import { runtimeHandler } from "./_int/runtime";
 import pwaInternalRoutes from "./_int/pwa";
+import { ALL_ROLES } from "../auth/roles";
 
 const router = Router();
 
@@ -33,7 +34,11 @@ router.get("/env", (_req, res) =>
   })
 );
 
-router.post("/twilio-test", requireAuth, async (_req, res) => {
+router.post(
+  "/twilio-test",
+  requireAuth,
+  requireAuthorization({ roles: ALL_ROLES }),
+  async (_req, res) => {
   return res.json({ ok: true });
 });
 

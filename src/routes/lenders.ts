@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { pool } from "../db";
-import { requireAuth } from "../middleware/requireAuth";
-import { requireCapability } from "../middleware/auth";
+import { requireAuth, requireCapability } from "../middleware/auth";
 import { CAPABILITIES } from "../auth/capabilities";
 import { safeHandler } from "../middleware/safeHandler";
 import { ROLES } from "../auth/roles";

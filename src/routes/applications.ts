@@ -1,6 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import { requireAuth } from "../middleware/requireAuth";
-import { requireCapability } from "../middleware/auth";
+import { requireAuth, requireCapability } from "../middleware/auth";
 import { CAPABILITIES } from "../auth/capabilities";
 import applicationRoutes from "../modules/applications/applications.routes";
 import { AppError } from "../middleware/errors";
@@ -137,6 +136,7 @@ router.get(
 router.post(
   "/",
   requireAuth,
+  requireCapability([CAPABILITIES.APPLICATION_CREATE]),
   safeHandler(async (req: Request, res: Response, next) => {
     try {
       const body = (req.body ?? {}) as Record<string, unknown>;

@@ -1,9 +1,10 @@
 import { Router } from "express";
 import authRoutes from "../modules/auth/auth.routes";
-import { requireAuth } from "../middleware/requireAuth";
+import { requireAuth, requireAuthorization } from "../middleware/auth";
 import { notFoundHandler } from "../middleware/errors";
 import { errorHandler } from "../middleware/errorHandler";
 import { authMeHandler } from "./auth/me";
+import { ALL_ROLES } from "../auth/roles";
 
 const router = Router();
 
@@ -15,6 +16,7 @@ const router = Router();
 router.get(
   "/me",
   requireAuth,
+  requireAuthorization({ roles: ALL_ROLES }),
   authMeHandler
 );
 

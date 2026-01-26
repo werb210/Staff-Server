@@ -15,8 +15,9 @@ import {
   validateVerifyOtp,
   verifyOtpResponseSchema,
 } from "../../validation/auth.validation";
-import { requireAuth } from "../../middleware/requireAuth";
+import { requireAuth, requireAuthorization } from "../../middleware/auth";
 import { incrementTokenVersion } from "./auth.repo";
+import { ALL_ROLES } from "../../auth/roles";
 
 const router = Router();
 
@@ -239,7 +240,11 @@ router.post("/otp/verify", otpRateLimit(), async (req, res, next) => {
 /**
  * POST /api/auth/logout
  */
-router.post("/logout", requireAuth, async (req, res, next) => {
+router.post(
+  "/logout",
+  requireAuth,
+  requireAuthorization({ roles: ALL_ROLES }),
+  async (req, res, next) => {
   try {
     const userId = req.user?.userId;
     if (!userId) {
@@ -253,7 +258,8 @@ router.post("/logout", requireAuth, async (req, res, next) => {
   } catch (err) {
     next(err);
   }
-});
+  }
+);
 
 /**
  * POST /api/auth/refresh

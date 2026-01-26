@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { requireAuth } from "../middleware/requireAuth";
-import { requireCapability } from "../middleware/auth";
+import { requireAuth, requireAuthorization, requireCapability } from "../middleware/auth";
 import { CAPABILITIES } from "../auth/capabilities";
+import { ROLES } from "../auth/roles";
 import { safeHandler } from "../middleware/safeHandler";
 import {
   createLenderProductHandler,
@@ -73,6 +73,7 @@ router.get(
 router.post(
   "/:id/requirements",
   requireAuth,
+  requireAuthorization({ roles: [ROLES.ADMIN] }),
   safeHandler(createRequirementHandler)
 );
 
@@ -84,6 +85,7 @@ router.post(
 router.put(
   "/:id/requirements/:reqId",
   requireAuth,
+  requireAuthorization({ roles: [ROLES.ADMIN] }),
   safeHandler(updateRequirementHandler)
 );
 
@@ -95,6 +97,7 @@ router.put(
 router.delete(
   "/:id/requirements/:reqId",
   requireAuth,
+  requireAuthorization({ roles: [ROLES.ADMIN] }),
   safeHandler(deleteRequirementHandler)
 );
 

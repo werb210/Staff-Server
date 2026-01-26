@@ -2,13 +2,15 @@ import { Request, Response, NextFunction } from "express";
 import {
   CAPABILITIES,
   getCapabilitiesForRole,
+  getRolesForCapabilities,
   type Capability,
 } from "../auth/capabilities";
-import { ROLES, isRole, type Role } from "../auth/roles";
+import { ALL_ROLES, ROLES, isRole, type Role } from "../auth/roles";
 import { verifyAccessTokenWithUser } from "../auth/jwt";
 import { DEFAULT_AUTH_SILO } from "../auth/silo";
 import { logInfo, logWarn } from "../observability/logger";
 import { type AuthUser as AuthUserRecord } from "../modules/auth/auth.repo";
+import { assertLenderBinding } from "../auth/lenderBinding";
 
 export interface AuthUser {
   userId: string;
@@ -137,9 +139,29 @@ export async function requireAuth(
       res.status(403).json({ ok: false, error: "user_disabled" });
       return;
     }
+    let lenderId: string | null = null;
+    try {
+      lenderId = assertLenderBinding({
+        role: user.role,
+        lenderId: userRecord.lenderId ?? null,
+      });
+    } catch (err) {
+      if (err instanceof Error) {
+        res.status(400).json({
+          ok: false,
+          error: "invalid_lender_binding",
+          message: err.message,
+        });
+        return;
+      }
+      res.status(400).json({ ok: false, error: "invalid_lender_binding" });
+      return;
+    }
+    const silo = userRecord.silo ?? (user.siloFromToken ? user.silo : "");
     req.user = {
       ...user,
-      lenderId: userRecord.lenderId ?? null,
+      silo,
+      lenderId,
     };
     next();
   } catch (err) {
@@ -159,16 +181,125 @@ export async function getAuthenticatedUserFromRequest(
   return result?.user ?? null;
 }
 
-export function requireCapability(required: Capability[]) {
+type AuthorizationOptions = {
+  roles?: Role[];
+  capabilities?: Capability[];
+};
+
+function logAuthorizationEvent(params: {
+  name: string;
+  userId: string;
+  role: Role;
+  endpoint: string;
+  method: string;
+  requestId: string;
+  timestamp: string;
+  requiredRoles?: Role[];
+  requiredCapabilities?: Capability[];
+  reason?: string;
+}): void {
+  logWarn(params.name, {
+    userId: params.userId,
+    role: params.role,
+    endpoint: params.endpoint,
+    method: params.method,
+    requestId: params.requestId,
+    timestamp: params.timestamp,
+    requiredRoles: params.requiredRoles,
+    requiredCapabilities: params.requiredCapabilities,
+    reason: params.reason,
+  });
+}
+
+function resolveRoles(
+  roles: Role[] | undefined,
+  capabilities: Capability[] | undefined
+): Role[] {
+  if (roles && roles.length > 0) {
+    return [...new Set(roles)];
+  }
+  if (capabilities && capabilities.length > 0) {
+    const derived = getRolesForCapabilities(capabilities);
+    if (
+      capabilities.length === 1 &&
+      capabilities[0] === CAPABILITIES.LENDERS_READ &&
+      !derived.includes(ROLES.STAFF)
+    ) {
+      derived.push(ROLES.STAFF);
+    }
+    return derived;
+  }
+  return [...ALL_ROLES];
+}
+
+export function requireAuthorization(options: AuthorizationOptions) {
+  const requiredRoles = resolveRoles(options.roles, options.capabilities);
+  const requiredCapabilities = options.capabilities ?? [];
+
   return (req: Request, res: Response, next: NextFunction): void => {
     const user = req.user;
+    const requestId = res.locals.requestId ?? "unknown";
+    const timestamp = new Date().toISOString();
+    const endpoint = req.originalUrl;
+    const method = req.method;
 
     if (!user) {
       res.status(401).json({ ok: false, error: "missing_token" });
       return;
     }
 
-    // OPS_MANAGE is absolute override
+    if (requiredRoles.length > 0 && !requiredRoles.includes(user.role)) {
+      logAuthorizationEvent({
+        name: "authz_denied",
+        userId: user.userId,
+        role: user.role,
+        endpoint,
+        method,
+        requestId,
+        timestamp,
+        requiredRoles,
+        requiredCapabilities,
+        reason: "role_mismatch",
+      });
+      logAuthorizationEvent({
+        name: "authz_role_mismatch",
+        userId: user.userId,
+        role: user.role,
+        endpoint,
+        method,
+        requestId,
+        timestamp,
+        requiredRoles,
+        requiredCapabilities,
+        reason: "role_mismatch",
+      });
+      const hasRequiredCaps =
+        requiredCapabilities.length === 0 ||
+        requiredCapabilities.every((cap) => user.capabilities.includes(cap));
+      if (hasRequiredCaps || user.capabilities.includes(CAPABILITIES.OPS_MANAGE)) {
+        logAuthorizationEvent({
+          name: "authz_privilege_escalation",
+          userId: user.userId,
+          role: user.role,
+          endpoint,
+          method,
+          requestId,
+          timestamp,
+          requiredRoles,
+          requiredCapabilities,
+          reason: "role_mismatch",
+        });
+      }
+      res.status(403).json({ ok: false, error: "forbidden" });
+      return;
+    }
+
+    if (requiredCapabilities.length === 0) {
+      next();
+      return;
+    }
+
+    // OPS_MANAGE is absolute override for capabilities
     if (user.capabilities.includes(CAPABILITIES.OPS_MANAGE)) {
       next();
       return;
@@ -177,18 +308,42 @@ export function requireCapability(required: Capability[]) {
     // Explicit STAFF read-only exception
     if (
       user.role === ROLES.STAFF &&
-      required.length === 1 &&
-      required[0] === CAPABILITIES.LENDERS_READ
+      requiredCapabilities.length === 1 &&
+      requiredCapabilities[0] === CAPABILITIES.LENDERS_READ
     ) {
       next();
       return;
     }
 
-    const hasAll = required.every((cap) =>
+    const hasAll = requiredCapabilities.every((cap) =>
       user.capabilities.includes(cap)
     );
 
     if (!hasAll) {
+      logAuthorizationEvent({
+        name: "authz_denied",
+        userId: user.userId,
+        role: user.role,
+        endpoint,
+        method,
+        requestId,
+        timestamp,
+        requiredRoles,
+        requiredCapabilities,
+        reason: "insufficient_capabilities",
+      });
+      logAuthorizationEvent({
+        name: "authz_capability_mismatch",
+        userId: user.userId,
+        role: user.role,
+        endpoint,
+        method,
+        requestId,
+        timestamp,
+        requiredRoles,
+        requiredCapabilities,
+        reason: "insufficient_capabilities",
+      });
       res.status(403).json({ ok: false, error: "insufficient_capabilities" });
       return;
     }
@@ -197,8 +352,13 @@ export function requireCapability(required: Capability[]) {
   };
 }
 
+export function requireCapability(required: Capability[]) {
+  return requireAuthorization({ capabilities: required });
+}
+
 export default {
   requireAuth,
   requireCapability,
+  requireAuthorization,
   getAuthenticatedUserFromRequest,
 };
