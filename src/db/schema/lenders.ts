@@ -7,6 +7,7 @@ export type LenderRecord = {
   name: string;
   status?: string;
   active: boolean;
+  email: string | null;
   phone: string | null;
   website: string | null;
   description: string | null;

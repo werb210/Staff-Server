@@ -515,7 +515,7 @@ describe("applications and documents", () => {
     const stageSequence = [
       "DOCUMENTS_REQUIRED",
       "IN_REVIEW",
-      "START_UP",
+      "STARTUP",
       "OFF_TO_LENDER",
       "ACCEPTED",
     ];

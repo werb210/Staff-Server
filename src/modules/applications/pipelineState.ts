@@ -2,7 +2,7 @@ export enum ApplicationStage {
   RECEIVED = "RECEIVED",
   DOCUMENTS_REQUIRED = "DOCUMENTS_REQUIRED",
   IN_REVIEW = "IN_REVIEW",
-  START_UP = "START_UP",
+  STARTUP = "STARTUP",
   OFF_TO_LENDER = "OFF_TO_LENDER",
   ACCEPTED = "ACCEPTED",
   DECLINED = "DECLINED",
@@ -22,11 +22,11 @@ export const LEGAL_TRANSITIONS: Record<PipelineState, readonly PipelineState[]> 
   [ApplicationStage.RECEIVED]: [ApplicationStage.DOCUMENTS_REQUIRED],
   [ApplicationStage.DOCUMENTS_REQUIRED]: [ApplicationStage.IN_REVIEW],
   [ApplicationStage.IN_REVIEW]: [
-    ApplicationStage.START_UP,
+    ApplicationStage.STARTUP,
     ApplicationStage.DOCUMENTS_REQUIRED,
     ApplicationStage.DECLINED,
   ],
-  [ApplicationStage.START_UP]: [
+  [ApplicationStage.STARTUP]: [
     ApplicationStage.OFF_TO_LENDER,
     ApplicationStage.DOCUMENTS_REQUIRED,
     ApplicationStage.DECLINED,

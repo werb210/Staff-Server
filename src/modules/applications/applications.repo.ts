@@ -2,8 +2,17 @@ import { randomUUID } from "crypto";
 import { pool } from "../../db";
 import { ApplicationStage } from "./pipelineState";
 import { type PoolClient } from "pg";
+import { logError } from "../../observability/logger";
+import { AppError } from "../../middleware/errors";
 
 type Queryable = Pick<PoolClient, "query">;
+
+const PIPELINE_ERROR_CODES = new Set(["22P02", "23514"]);
+
+function isPipelineConstraintError(err: unknown): boolean {
+  const code = (err as { code?: string }).code;
+  return typeof code === "string" && PIPELINE_ERROR_CODES.has(code);
+}
 
 export type ApplicationRecord = {
   id: string;
@@ -60,24 +69,37 @@ export async function createApplication(params: {
 }): Promise<ApplicationRecord> {
   const runner = params.client ?? pool;
   const pipelineState = params.pipelineState ?? ApplicationStage.RECEIVED;
-  const res = await runner.query<ApplicationRecord>(
-    `insert into applications
-     (id, owner_user_id, name, metadata, product_type, pipeline_state, lender_id, lender_product_id, requested_amount, source, created_at, updated_at)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now(), now())
-     returning id, owner_user_id, name, metadata, product_type, pipeline_state, lender_id, lender_product_id, requested_amount, created_at, updated_at`,
-    [
-      randomUUID(),
-      params.ownerUserId,
-      params.name,
-      params.metadata,
-      params.productType,
-      pipelineState,
-      params.lenderId ?? null,
-      params.lenderProductId ?? null,
-      params.requestedAmount ?? null,
-      params.source ?? null,
-    ]
-  );
+  let res;
+  try {
+    res = await runner.query<ApplicationRecord>(
+      `insert into applications
+       (id, owner_user_id, name, metadata, product_type, pipeline_state, lender_id, lender_product_id, requested_amount, source, created_at, updated_at)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now(), now())
+       returning id, owner_user_id, name, metadata, product_type, pipeline_state, lender_id, lender_product_id, requested_amount, created_at, updated_at`,
+      [
+        randomUUID(),
+        params.ownerUserId,
+        params.name,
+        params.metadata,
+        params.productType,
+        pipelineState,
+        params.lenderId ?? null,
+        params.lenderProductId ?? null,
+        params.requestedAmount ?? null,
+        params.source ?? null,
+      ]
+    );
+  } catch (err) {
+    if (isPipelineConstraintError(err)) {
+      logError("pipeline_enum_mismatch", {
+        route: "/api/applications",
+        code: (err as { code?: string }).code,
+        message: err instanceof Error ? err.message : String(err),
+      });
+      throw new AppError("validation_error", "Invalid pipeline state.", 400);
+    }
+    throw err;
+  }
   return res.rows[0];
 }
 
@@ -141,12 +163,24 @@ export async function updateApplicationPipelineState(params: {
   client?: Queryable;
 }): Promise<void> {
   const runner = params.client ?? pool;
-  await runner.query(
-    `update applications
-     set pipeline_state = $1, updated_at = now()
-     where id = $2`,
-    [params.pipelineState, params.applicationId]
-  );
+  try {
+    await runner.query(
+      `update applications
+       set pipeline_state = $1, updated_at = now()
+       where id = $2`,
+      [params.pipelineState, params.applicationId]
+    );
+  } catch (err) {
+    if (isPipelineConstraintError(err)) {
+      logError("pipeline_constraint_violation", {
+        route: "/api/applications/:id/pipeline",
+        code: (err as { code?: string }).code,
+        message: err instanceof Error ? err.message : String(err),
+      });
+      throw new AppError("validation_error", "Invalid pipeline state.", 400);
+    }
+    throw err;
+  }
 }
 
 export async function createDocument(params: {

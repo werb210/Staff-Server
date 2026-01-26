@@ -370,7 +370,11 @@ export async function createLenderProductHandler(
       typeof (lender as { status?: unknown }).status === "string"
         ? (lender as { status?: string }).status?.toUpperCase()
         : "ACTIVE";
-    if (lenderStatus !== "ACTIVE") {
+    const lenderActive =
+      typeof (lender as { active?: unknown }).active === "boolean"
+        ? (lender as { active?: boolean }).active
+        : true;
+    if (lenderStatus !== "ACTIVE" || lenderActive !== true) {
       throw new AppError("lender_inactive", "Lender is inactive", 409);
     }
 
