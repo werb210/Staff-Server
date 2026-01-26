@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { pool } from "../../db";
-import { ApplicationStage } from "./pipelineState";
+import { ApplicationStage, PIPELINE_STATES, isPipelineState } from "./pipelineState";
 import { type PoolClient } from "pg";
 import { logError } from "../../observability/logger";
 import { AppError } from "../../middleware/errors";
@@ -129,6 +129,28 @@ export async function listApplications(params?: {
     values
   );
   return Array.isArray(res.rows) ? res.rows : [];
+}
+
+export async function listApplicationPipelineStages(
+  client?: Queryable
+): Promise<ApplicationStage[]> {
+  const runner = client ?? pool;
+  const res = await runner.query<{
+    pipeline_state: string;
+    position: number | null;
+  }>(
+    `select pipeline_state, position
+     from application_pipeline_stages
+     order by position asc nulls last, pipeline_state asc`
+  );
+  const rows = Array.isArray(res.rows) ? res.rows : [];
+  const stages = rows
+    .map((row) => row.pipeline_state)
+    .filter((stage): stage is ApplicationStage => isPipelineState(stage));
+  if (stages.length === 0) {
+    return [...PIPELINE_STATES];
+  }
+  return stages;
 }
 
 export async function countApplications(client?: Queryable): Promise<number> {
