@@ -85,6 +85,95 @@ export async function listLenders(
   }
 }
 
+export async function getLenderByIdHandler(
+  req: Request,
+  res: Response
+): Promise<void> {
+  const requestId = res.locals.requestId ?? "unknown";
+  try {
+    const { id } = req.params;
+
+    if (typeof id !== "string" || id.trim().length === 0) {
+      throw new AppError("validation_error", "id is required.", 400);
+    }
+
+    if (req.user?.role === ROLES.LENDER) {
+      if (!req.user.lenderId) {
+        throw new AppError(
+          "invalid_lender_binding",
+          "lender_id is required for Lender users.",
+          400
+        );
+      }
+      if (req.user.lenderId !== id.trim()) {
+        throw new AppError("forbidden", "Access denied.", 403);
+      }
+    }
+
+    const lender = await getLenderByIdService(id.trim());
+    if (!lender) {
+      throw new AppError("not_found", "Lender not found.", 404);
+    }
+
+    const statusValue =
+      typeof (lender as { status?: unknown }).status === "string"
+        ? (lender as { status?: string }).status
+        : typeof (lender as { active?: unknown }).active === "boolean"
+          ? (lender as { active: boolean }).active
+            ? "ACTIVE"
+            : "INACTIVE"
+          : "ACTIVE";
+
+    const contactName =
+      (lender as { contact_name?: string | null }).contact_name ??
+      (lender as { primary_contact_name?: string | null }).primary_contact_name ??
+      null;
+
+    res.status(200).json({
+      id: lender.id,
+      name: lender.name,
+      status: statusValue,
+      country: (lender as { country?: string | null }).country ?? null,
+      city: (lender as { city?: string | null }).city ?? null,
+      state:
+        (lender as { state?: string | null }).state ??
+        (lender as { region?: string | null }).region ??
+        null,
+      postal_code: (lender as { postal_code?: string | null }).postal_code ?? null,
+      contact_name: contactName,
+      contact_email:
+        (lender as { contact_email?: string | null }).contact_email ?? null,
+      contact_phone:
+        (lender as { contact_phone?: string | null }).contact_phone ?? null,
+      submission_method:
+        (lender as { submission_method?: string | null }).submission_method ??
+        null,
+      submission_email:
+        (lender as { submission_email?: string | null }).submission_email ?? null,
+    });
+  } catch (err) {
+    logError("lender_get_failed", {
+      error: err,
+      requestId,
+      route: req.originalUrl,
+      stack: err instanceof Error ? err.stack : undefined,
+    });
+    if (err instanceof AppError) {
+      res.status(err.status).json({
+        code: err.code,
+        message: err.message,
+        requestId,
+      });
+      return;
+    }
+    res.status(500).json({
+      code: "internal_error",
+      message: err instanceof Error ? err.message : "Unknown error",
+      requestId,
+    });
+  }
+}
+
 function toLenderProductResponse(record: {
   id: string;
   lender_id: string;
@@ -236,7 +325,6 @@ export async function createLender(
       country,
       submissionMethod,
       active,
-      status,
       contact,
       email,
       submissionEmail,
@@ -253,9 +341,6 @@ export async function createLender(
     }
     if (active !== undefined && typeof active !== "boolean") {
       throw new AppError("validation_error", "active must be a boolean.", 400);
-    }
-    if (status !== undefined && status !== null && typeof status !== "string") {
-      throw new AppError("validation_error", "status must be a string.", 400);
     }
     if (contact !== undefined && contact !== null && typeof contact !== "object") {
       throw new AppError("validation_error", "contact must be an object.", 400);
@@ -276,19 +361,17 @@ export async function createLender(
       contact && typeof (contact as { email?: unknown }).email === "string"
         ? (contact as { email: string }).email.trim()
         : null;
+    const contactPhone =
+      contact && typeof (contact as { phone?: unknown }).phone === "string"
+        ? (contact as { phone: string }).phone.trim()
+        : null;
 
-    let resolvedStatus =
-      typeof status === "string" && status.trim().length > 0
-        ? status.trim()
-        : undefined;
-    if (active === true) {
-      resolvedStatus = "ACTIVE";
-    } else if (active === false && resolvedStatus === undefined) {
-      resolvedStatus = "INACTIVE";
-    }
-    if (!resolvedStatus) {
-      resolvedStatus = "ACTIVE";
-    }
+    const resolvedStatus =
+      typeof active === "boolean"
+        ? active
+          ? "ACTIVE"
+          : "INACTIVE"
+        : "ACTIVE";
 
     const normalizedSubmissionMethod =
       typeof submissionMethod === "string"
@@ -312,7 +395,9 @@ export async function createLender(
       active: typeof active === "boolean" ? active : undefined,
       status: resolvedStatus,
       primary_contact_name: contactName,
-      email: contactEmail ?? email ?? null,
+      contact_email: contactEmail ?? null,
+      contact_phone: contactPhone ?? null,
+      email: typeof email === "string" ? email.trim() : contactEmail ?? null,
       submission_email: submissionEmail ?? null,
       phone: phone ?? null,
       website: website ?? null,
@@ -399,6 +484,10 @@ export async function updateLender(
       contact && typeof (contact as { email?: unknown }).email === "string"
         ? (contact as { email: string }).email.trim()
         : undefined;
+    const contactPhone =
+      contact && typeof (contact as { phone?: unknown }).phone === "string"
+        ? (contact as { phone: string }).phone.trim()
+        : undefined;
 
     let resolvedStatus =
       typeof status === "string" && status.trim().length > 0
@@ -416,6 +505,8 @@ export async function updateLender(
       status: resolvedStatus,
       country: typeof country === "string" ? country.trim() : undefined,
       primary_contact_name: contactName,
+      contact_email: contactEmail,
+      contact_phone: contactPhone,
       email: contactEmail ?? (typeof email === "string" ? email.trim() : undefined),
       submission_email:
         typeof submissionEmail === "string" ? submissionEmail.trim() : undefined,

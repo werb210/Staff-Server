@@ -10,6 +10,8 @@ export interface CreateLenderInput {
   active?: boolean;
   status?: string | null;
   primary_contact_name?: string | null;
+  contact_email?: string | null;
+  contact_phone?: string | null;
   email?: string | null;
   submission_email?: string | null;
   phone?: string | null;
@@ -97,10 +99,15 @@ function buildSelectColumns(existing: Set<string>): string {
     { name: "id" },
     { name: "name" },
     { name: "country" },
+    { name: "city", fallback: "null::text" },
+    { name: "region", fallback: "null::text" },
     { name: "submission_method", fallback: "null::text" },
     { name: "active", fallback: "true" },
     { name: "status", fallback: "'ACTIVE'::text" },
     { name: "primary_contact_name", fallback: "null::text" },
+    { name: "contact_name", fallback: "null::text" },
+    { name: "contact_email", fallback: "null::text" },
+    { name: "contact_phone", fallback: "null::text" },
     { name: "email", fallback: "null::text" },
     { name: "phone", fallback: "null::text" },
     { name: "website", fallback: "null::text" },
@@ -118,6 +125,15 @@ function buildSelectColumns(existing: Set<string>): string {
             : `${primaryContactColumn} as primary_contact_name`;
         }
         return `${column.fallback ?? "null"} as primary_contact_name`;
+      }
+      if (column.name === "contact_name") {
+        if (existing.has("contact_name")) {
+          return "contact_name";
+        }
+        if (primaryContactColumn) {
+          return `${primaryContactColumn} as contact_name`;
+        }
+        return `${column.fallback ?? "null"} as contact_name`;
       }
       if (existing.has(column.name)) {
         return column.name;
@@ -164,9 +180,14 @@ export async function getLenderById(id: string) {
       "id",
       "name",
       "country",
+      "city",
+      "region",
       "submission_method",
       "status",
       "email",
+      "contact_name",
+      "contact_email",
+      "contact_phone",
       "phone",
       "website",
       "postal_code",
@@ -199,6 +220,8 @@ export async function createLender(
     email = "",
     submission_email,
     primary_contact_name,
+    contact_email,
+    contact_phone,
     phone,
     website,
     postal_code,
@@ -227,6 +250,18 @@ export async function createLender(
     columns.push({
       name: primaryContactColumn,
       value: primary_contact_name ?? null,
+    });
+  }
+  if (existingColumns.has("contact_email")) {
+    columns.push({
+      name: "contact_email",
+      value: contact_email ?? null,
+    });
+  }
+  if (existingColumns.has("contact_phone")) {
+    columns.push({
+      name: "contact_phone",
+      value: contact_phone ?? null,
     });
   }
   if (existingColumns.has("submission_email")) {
@@ -304,6 +339,8 @@ export async function updateLender(
     status?: string | null;
     country?: string | null;
     primary_contact_name?: string | null;
+    contact_email?: string | null;
+    contact_phone?: string | null;
     email?: string | null;
     submission_email?: string | null;
     active?: boolean;
@@ -330,6 +367,18 @@ export async function updateLender(
       name: primaryContactColumn,
       value: params.primary_contact_name,
     });
+  }
+  if (
+    params.contact_email !== undefined &&
+    existingColumns.has("contact_email")
+  ) {
+    updates.push({ name: "contact_email", value: params.contact_email });
+  }
+  if (
+    params.contact_phone !== undefined &&
+    existingColumns.has("contact_phone")
+  ) {
+    updates.push({ name: "contact_phone", value: params.contact_phone });
   }
   if (params.email !== undefined && existingColumns.has("email")) {
     updates.push({ name: "email", value: params.email });
