@@ -6,6 +6,8 @@ import {
   updateMe,
   listUsers,
   adminUpdateUser,
+  createUser,
+  deleteUser,
 } from "../services/users.service";
 import adminUserRoutes from "../modules/users/users.routes";
 
@@ -21,7 +23,9 @@ router.patch("/me", requireAuth, updateMe);
  * Admin user management
  */
 router.get("/", requireAuth, requireAdmin, listUsers);
+router.post("/", requireAuth, requireAdmin, createUser);
 router.patch("/:id", requireAuth, requireAdmin, adminUpdateUser);
+router.delete("/:id", requireAuth, requireAdmin, deleteUser);
 router.use("/", requireAuth, requireAdmin, adminUserRoutes);
 
 export default router;

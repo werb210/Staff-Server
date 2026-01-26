@@ -126,6 +126,7 @@ beforeAll(async () => {
       status text not null default 'active',
       active boolean not null default true,
       required_documents jsonb not null default '[]'::jsonb,
+      eligibility jsonb null,
       created_at timestamptz not null default now(),
       updated_at timestamptz not null default now()
     );

@@ -7,6 +7,7 @@ export interface CreateLenderInput {
   name: string;
   country: string;
   submission_method?: string | null;
+  active?: boolean;
   email?: string | null;
   phone?: string | null;
   website?: string | null;
@@ -83,6 +84,8 @@ function buildSelectColumns(existing: Set<string>): string {
     { name: "name" },
     { name: "country" },
     { name: "submission_method", fallback: "null::text" },
+    { name: "active", fallback: "true" },
+    { name: "status", fallback: "'active'::text" },
     { name: "phone", fallback: "null::text" },
     { name: "website", fallback: "null::text" },
     { name: "postal_code", fallback: "null::text" },
@@ -106,6 +109,7 @@ export const LIST_LENDERS_SQL = `
     name,
     country,
     submission_method,
+    active,
     phone,
     website,
     postal_code,
@@ -123,6 +127,8 @@ export async function listLenders() {
         "name",
         "country",
         "submission_method",
+        "active",
+        "status",
         "phone",
         "website",
         "postal_code",
@@ -185,25 +191,31 @@ export async function getLenderById(id: string) {
 }
 
 export async function createLender(input: CreateLenderInput) {
-  const check = await assertLenderColumnsExist({
-    route: "/api/lenders",
-    columns: [
-      "id",
-      "name",
-      "country",
-      "submission_method",
-      "email",
-      "phone",
-      "website",
-      "postal_code",
-    ],
-    required: ["id", "name", "country"],
-  });
+    const check = await assertLenderColumnsExist({
+      route: "/api/lenders",
+      columns: [
+        "id",
+        "name",
+        "country",
+        "submission_method",
+        "active",
+        "status",
+        "email",
+        "phone",
+        "website",
+        "postal_code",
+      ],
+      required: ["id", "name", "country"],
+    });
+  const resolvedActive = input.active ?? true;
+  const resolvedStatus = resolvedActive ? "active" : "inactive";
   const columns = [
     { name: "id", value: randomUUID() },
     { name: "name", value: input.name },
     { name: "country", value: input.country },
     { name: "submission_method", value: input.submission_method ?? null },
+    { name: "active", value: resolvedActive },
+    { name: "status", value: resolvedStatus },
     { name: "email", value: input.email ?? null },
     { name: "phone", value: input.phone ?? null },
     { name: "website", value: input.website ?? null },

@@ -6,7 +6,7 @@ import {
   listLenderProductsByLenderId,
   updateLenderProduct,
 } from "../repositories/lenderProducts.repo";
-import { type RequiredDocuments } from "../db/schema/lenderProducts";
+import { type JsonObject, type RequiredDocuments } from "../db/schema/lenderProducts";
 import { ensureSeedRequirementsForProduct } from "./lenderProductRequirementsService";
 
 export const DEFAULT_LENDER_PRODUCT_NAME = "Unnamed Product";
@@ -60,6 +60,7 @@ export async function createLenderProductService(params: {
   maxAmount?: number | null;
   status?: unknown;
   requiredDocuments: RequiredDocuments;
+  eligibility?: JsonObject | null;
 }): Promise<Awaited<ReturnType<typeof createLenderProduct>>> {
   const normalizedName = normalizeLenderProductName(params.name);
   const normalizedType =
@@ -84,6 +85,7 @@ export async function createLenderProductService(params: {
     maxAmount: params.maxAmount ?? null,
     status: normalizedStatus,
     requiredDocuments: params.requiredDocuments,
+    eligibility: params.eligibility ?? null,
   });
   await ensureSeedRequirementsForProduct({
     lenderProductId: product.id,
@@ -121,6 +123,7 @@ export async function updateLenderProductService(params: {
   id: string;
   name: unknown;
   requiredDocuments: RequiredDocuments;
+  eligibility?: JsonObject | null;
 }): Promise<Awaited<ReturnType<typeof updateLenderProduct>>> {
   const normalizedName = normalizeLenderProductName(params.name);
 
@@ -128,5 +131,6 @@ export async function updateLenderProductService(params: {
     id: params.id,
     name: normalizedName,
     requiredDocuments: params.requiredDocuments,
+    eligibility: params.eligibility,
   });
 }

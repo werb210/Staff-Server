@@ -1,4 +1,4 @@
-import { type RequiredDocuments } from "../db/schema/lenderProducts";
+import { type Eligibility, type RequiredDocuments } from "../db/schema/lenderProducts";
 
 export type LenderProductRecord = {
   id: string;
@@ -7,6 +7,7 @@ export type LenderProductRecord = {
   description: string | null;
   active: boolean;
   required_documents: RequiredDocuments;
+  eligibility: Eligibility;
   created_at: Date;
   updated_at: Date;
 };
