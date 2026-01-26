@@ -8,6 +8,7 @@ import {
 } from "../modules/applications/applications.repo";
 import { ApplicationStage } from "../modules/applications/pipelineState";
 import { safeHandler } from "../middleware/safeHandler";
+import { listApplicationStages } from "../controllers/applications.controller";
 
 const router = Router();
 
@@ -56,6 +57,16 @@ router.get(
     } catch (err) {
       res.status(200).json({ items: [] });
     }
+  })
+);
+
+router.get(
+  "/applications/stages",
+  safeHandler(async (req, res) => {
+    if (!ensureReady(res)) {
+      return;
+    }
+    await listApplicationStages(req, res);
   })
 );
 
