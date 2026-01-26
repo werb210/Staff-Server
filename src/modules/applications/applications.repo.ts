@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { pool } from "../../db";
+import { ApplicationStage } from "./pipelineState";
 import { type PoolClient } from "pg";
 
 type Queryable = Pick<PoolClient, "query">;
@@ -58,7 +59,7 @@ export async function createApplication(params: {
   client?: Queryable;
 }): Promise<ApplicationRecord> {
   const runner = params.client ?? pool;
-  const pipelineState = params.pipelineState ?? "NEW";
+  const pipelineState = params.pipelineState ?? ApplicationStage.RECEIVED;
   const res = await runner.query<ApplicationRecord>(
     `insert into applications
      (id, owner_user_id, name, metadata, product_type, pipeline_state, lender_id, lender_product_id, requested_amount, source, created_at, updated_at)
@@ -92,7 +93,7 @@ export async function listApplications(params?: {
   const stage = params?.stage?.trim();
   const values: Array<string | number> = [limit, offset];
   const stageClause = stage
-    ? `where lower(coalesce(pipeline_state, 'requires_docs')) = lower($${values.length + 1})`
+    ? `where lower(coalesce(pipeline_state, 'received')) = lower($${values.length + 1})`
     : "";
   if (stage) {
     values.push(stage);

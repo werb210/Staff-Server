@@ -56,6 +56,31 @@ beforeEach(async () => {
 });
 
 describe("lender products API", () => {
+  it("defaults new lenders to ACTIVE status", async () => {
+    const token = await loginAdmin();
+    const lender = await createLender(token);
+
+    expect(lender.status).toBe("ACTIVE");
+  });
+
+  it("blocks product creation for inactive lenders", async () => {
+    const token = await loginAdmin();
+    const lender = await createLender(token);
+
+    await pool.query("update lenders set status = 'INACTIVE' where id = $1", [
+      lender.id,
+    ]);
+
+    const response = await request(app)
+      .post("/api/lender-products")
+      .set("Authorization", `Bearer ${token}`)
+      .set("x-request-id", requestId)
+      .send({ lenderId: lender.id, required_documents: [] });
+
+    expect(response.status).toBe(409);
+    expect(response.body.message).toBe("Lender is inactive");
+  });
+
   it("creates and defaults product names", async () => {
     const token = await loginAdmin();
     const lender = await createLender(token);

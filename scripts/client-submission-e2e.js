@@ -350,7 +350,7 @@ async function main() {
   assert(application.json?.application, "application response missing application", application);
   const appRecord = application.json.application;
   assert(
-    ["REQUIRES_DOCS", "UNDER_REVIEW"].includes(appRecord.pipelineState),
+    ["DOCUMENTS_REQUIRED", "IN_REVIEW"].includes(appRecord.pipelineState),
     "unexpected pipeline state",
     application
   );
@@ -460,11 +460,11 @@ async function main() {
   });
   assertNoServerError(afterRemove, "GET /api/applications/:id after delete");
   assert(
-    afterRemove.json?.application?.pipelineState === "REQUIRES_DOCS",
-    "pipeline state did not move to REQUIRES_DOCS after delete",
+    afterRemove.json?.application?.pipelineState === "DOCUMENTS_REQUIRED",
+    "pipeline state did not move to DOCUMENTS_REQUIRED after delete",
     afterRemove
   );
-  logPass("Pipeline moved to REQUIRES_DOCS after delete");
+  logPass("Pipeline moved to DOCUMENTS_REQUIRED after delete");
 
   const reupload = await httpRequest({
     method: "POST",
@@ -496,11 +496,11 @@ async function main() {
   });
   assertNoServerError(afterReupload, "GET /api/applications/:id after reupload");
   assert(
-    afterReupload.json?.application?.pipelineState === "UNDER_REVIEW",
-    "pipeline state did not move to UNDER_REVIEW after reupload",
+    afterReupload.json?.application?.pipelineState === "IN_REVIEW",
+    "pipeline state did not move to IN_REVIEW after reupload",
     afterReupload
   );
-  logPass("Pipeline moved to UNDER_REVIEW after reupload");
+  logPass("Pipeline moved to IN_REVIEW after reupload");
 
   const updatedRequirement = requirementResponses.find((req) => req.documentType === "void_cheque");
   assert(updatedRequirement, "missing requirement to update");

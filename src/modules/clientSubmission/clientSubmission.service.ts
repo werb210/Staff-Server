@@ -1,6 +1,7 @@
 import { AppError } from "../../middleware/errors";
 import { pool } from "../../db";
 import { createApplication, createDocument, createDocumentVersion } from "../applications/applications.repo";
+import { ApplicationStage } from "../applications/pipelineState";
 import { recordAuditEvent } from "../audit/audit.service";
 import { getDocumentAllowedMimeTypes, getDocumentMaxSizeBytes, getClientSubmissionOwnerUserId } from "../../config";
 import { createClientSubmission, findClientSubmissionByKey } from "./clientSubmission.repo";
@@ -271,7 +272,10 @@ export async function submitClientApplication(params: {
       });
       return {
         status: 200,
-        value: { applicationId: existing.application_id, pipelineState: "NEW" },
+        value: {
+          applicationId: existing.application_id,
+          pipelineState: ApplicationStage.RECEIVED,
+        },
         idempotent: true,
       };
     }
@@ -293,7 +297,7 @@ export async function submitClientApplication(params: {
       },
       productType: submission.productType,
       lenderProductId,
-      pipelineState: "REQUIRES_DOCS",
+      pipelineState: ApplicationStage.DOCUMENTS_REQUIRED,
       client,
     });
 

@@ -85,7 +85,7 @@ function buildSelectColumns(existing: Set<string>): string {
     { name: "country" },
     { name: "submission_method", fallback: "null::text" },
     { name: "active", fallback: "true" },
-    { name: "status", fallback: "'active'::text" },
+    { name: "status", fallback: "'ACTIVE'::text" },
     { name: "phone", fallback: "null::text" },
     { name: "website", fallback: "null::text" },
     { name: "postal_code", fallback: "null::text" },
@@ -168,6 +168,7 @@ export async function getLenderById(id: string) {
       "name",
       "country",
       "submission_method",
+      "status",
       "phone",
       "website",
       "postal_code",
@@ -208,7 +209,7 @@ export async function createLender(input: CreateLenderInput) {
       required: ["id", "name", "country"],
     });
   const resolvedActive = input.active ?? true;
-  const resolvedStatus = resolvedActive ? "active" : "inactive";
+  const resolvedStatus = resolvedActive ? "ACTIVE" : "INACTIVE";
   const columns = [
     { name: "id", value: randomUUID() },
     { name: "name", value: input.name },

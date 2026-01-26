@@ -112,7 +112,7 @@ export async function listCurrentPipelineState(params?: {
   const extras = rows
     .filter((row) => row.pipeline_state && !knownStates.has(row.pipeline_state.toLowerCase()))
     .map((row) => ({
-      pipelineState: row.pipeline_state ?? "REQUIRES_DOCS",
+      pipelineState: row.pipeline_state ?? "RECEIVED",
       applicationCount: row.application_count,
     }));
   return [...normalizedDefaults, ...extras];

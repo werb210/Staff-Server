@@ -21,7 +21,7 @@ async function ensurePipelineSchema(): Promise<void> {
       metadata jsonb null,
       product_type text not null,
       pipeline_state text not null,
-      status text not null default 'NEW',
+      status text not null default 'RECEIVED',
       lender_id uuid null,
       lender_product_id uuid null,
       requested_amount integer null,
@@ -190,7 +190,7 @@ describe("pipeline safety", () => {
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("Idempotency-Key", `idem-transition-${phone}`)
       .set("x-request-id", requestId)
-      .send({ state: "LENDER_SUBMITTED" });
+      .send({ state: "OFF_TO_LENDER" });
 
     expect(transition.status).toBe(400);
     expect(transition.body.error).toBe("invalid_transition");
@@ -221,7 +221,7 @@ describe("pipeline safety", () => {
     expect(create.status).toBe(201);
 
     await pool.query(
-      "update applications set pipeline_state = 'UNDER_REVIEW' where id = $1",
+      "update applications set pipeline_state = 'IN_REVIEW' where id = $1",
       [create.body.application.id]
     );
 
@@ -230,7 +230,7 @@ describe("pipeline safety", () => {
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("Idempotency-Key", `idem-transition-override-${phone}`)
       .set("x-request-id", requestId)
-      .send({ state: "LENDER_SUBMITTED", override: true });
+      .send({ state: "START_UP", override: true });
 
     expect(transition.status).toBe(200);
 

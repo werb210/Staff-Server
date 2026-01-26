@@ -7,7 +7,7 @@ import {
   findApplicationById,
   listLatestAcceptedDocumentVersions,
 } from "../applications/applications.repo";
-import { isPipelineState } from "../applications/pipelineState";
+import { ApplicationStage, isPipelineState } from "../applications/pipelineState";
 import { transitionPipelineState } from "../applications/applications.service";
 import { resolveRequirementsForApplication } from "../../services/lenderProductRequirementsService";
 import {
@@ -366,7 +366,9 @@ async function recordSubmissionFailure(params: {
     });
   }
 
-  const nextState = params.retryable ? "REQUIRES_DOCS" : "DECLINED";
+  const nextState = params.retryable
+    ? ApplicationStage.DOCUMENTS_REQUIRED
+    : ApplicationStage.DECLINED;
   const current = await findApplicationById(params.applicationId, params.client);
   if (current && isPipelineState(current.pipeline_state) && current.pipeline_state !== nextState) {
     await transitionPipelineState({
@@ -426,10 +428,13 @@ async function transmitSubmission(params: {
   if (application.lender_product_id !== params.lenderProductId) {
     throw new AppError("invalid_product", "Application lender product does not match request.", 400);
   }
-  if (application.pipeline_state !== "UNDER_REVIEW" && application.pipeline_state !== "REQUIRES_DOCS") {
+  if (
+    application.pipeline_state !== ApplicationStage.IN_REVIEW &&
+    application.pipeline_state !== ApplicationStage.DOCUMENTS_REQUIRED
+  ) {
     throw new AppError(
       "invalid_state",
-      "Application must be in UNDER_REVIEW or REQUIRES_DOCS to submit to lenders.",
+      "Application must be in IN_REVIEW or DOCUMENTS_REQUIRED to submit to lenders.",
       400
     );
   }
@@ -601,10 +606,26 @@ async function transmitSubmission(params: {
     lenderId: params.lenderId,
   });
 
-  if (application.pipeline_state === "REQUIRES_DOCS") {
+  if (application.pipeline_state === ApplicationStage.DOCUMENTS_REQUIRED) {
     await transitionPipelineState({
       applicationId: params.applicationId,
-      nextState: "UNDER_REVIEW",
+      nextState: ApplicationStage.IN_REVIEW,
+      actorUserId: params.actorUserId,
+      actorRole: null,
+      allowOverride: false,
+      ip: params.ip,
+      userAgent: params.userAgent,
+      client: params.client,
+    });
+  }
+
+  if (
+    application.pipeline_state === ApplicationStage.DOCUMENTS_REQUIRED ||
+    application.pipeline_state === ApplicationStage.IN_REVIEW
+  ) {
+    await transitionPipelineState({
+      applicationId: params.applicationId,
+      nextState: ApplicationStage.START_UP,
       actorUserId: params.actorUserId,
       actorRole: null,
       allowOverride: false,
@@ -616,7 +637,7 @@ async function transmitSubmission(params: {
 
   await transitionPipelineState({
     applicationId: params.applicationId,
-    nextState: "LENDER_SUBMITTED",
+    nextState: ApplicationStage.OFF_TO_LENDER,
     actorUserId: params.actorUserId,
     actorRole: null,
     allowOverride: false,
@@ -723,10 +744,26 @@ async function retryExistingSubmission(params: {
     client: params.client,
   });
 
-  if (application.pipeline_state === "REQUIRES_DOCS") {
+  if (application.pipeline_state === ApplicationStage.DOCUMENTS_REQUIRED) {
     await transitionPipelineState({
       applicationId: params.applicationId,
-      nextState: "UNDER_REVIEW",
+      nextState: ApplicationStage.IN_REVIEW,
+      actorUserId: params.actorUserId,
+      actorRole: null,
+      allowOverride: false,
+      ip: params.ip,
+      userAgent: params.userAgent,
+      client: params.client,
+    });
+  }
+
+  if (
+    application.pipeline_state === ApplicationStage.DOCUMENTS_REQUIRED ||
+    application.pipeline_state === ApplicationStage.IN_REVIEW
+  ) {
+    await transitionPipelineState({
+      applicationId: params.applicationId,
+      nextState: ApplicationStage.START_UP,
       actorUserId: params.actorUserId,
       actorRole: null,
       allowOverride: false,
@@ -738,7 +775,7 @@ async function retryExistingSubmission(params: {
 
   await transitionPipelineState({
     applicationId: params.applicationId,
-    nextState: "LENDER_SUBMITTED",
+    nextState: ApplicationStage.OFF_TO_LENDER,
     actorUserId: params.actorUserId,
     actorRole: null,
     allowOverride: false,

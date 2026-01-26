@@ -366,6 +366,13 @@ export async function createLenderProductHandler(
     if (!lender) {
       throw new AppError("not_found", "Lender not found.", 404);
     }
+    const lenderStatus =
+      typeof (lender as { status?: unknown }).status === "string"
+        ? (lender as { status?: string }).status?.toUpperCase()
+        : "ACTIVE";
+    if (lenderStatus !== "ACTIVE") {
+      throw new AppError("lender_inactive", "Lender is inactive", 409);
+    }
 
     const created = await createLenderProductService({
       lenderId: resolvedLenderId.trim(),

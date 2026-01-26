@@ -1,6 +1,6 @@
 import { AppError } from "../../middleware/errors";
 import { findApplicationById } from "../applications/applications.repo";
-import { isPipelineState } from "../applications/pipelineState";
+import { ApplicationStage, isPipelineState } from "../applications/pipelineState";
 import { transitionPipelineState } from "../applications/applications.service";
 import { type PoolClient } from "pg";
 
@@ -18,17 +18,28 @@ export async function ensureApplicationSubmissionState(params: {
   if (!isPipelineState(application.pipeline_state)) {
     throw new AppError("invalid_state", "Pipeline state is invalid.", 400);
   }
-  if (application.pipeline_state !== "UNDER_REVIEW") {
+  if (application.pipeline_state !== ApplicationStage.IN_REVIEW) {
     throw new AppError(
       "invalid_state",
-      "Application must be in UNDER_REVIEW to submit to lenders.",
+      "Application must be in IN_REVIEW to submit to lenders.",
       400
     );
   }
 
   await transitionPipelineState({
     applicationId: params.applicationId,
-    nextState: "LENDER_SUBMITTED",
+    nextState: ApplicationStage.START_UP,
+    actorUserId: params.actorUserId,
+    actorRole: null,
+    allowOverride: false,
+    ip: params.ip,
+    userAgent: params.userAgent,
+    client: params.client,
+  });
+
+  await transitionPipelineState({
+    applicationId: params.applicationId,
+    nextState: ApplicationStage.OFF_TO_LENDER,
     actorUserId: params.actorUserId,
     actorRole: null,
     allowOverride: false,

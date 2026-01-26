@@ -65,10 +65,10 @@ export async function upsertDailyMetricsWindow(params: {
        'daily:' || $1::text,
        $1::date,
        count(*) filter (where created_at >= $1 and created_at < $2)::int as applications_created,
-       count(*) filter (where pipeline_state = 'LENDER_SUBMITTED' and updated_at >= $1 and updated_at < $2)::int as applications_submitted,
-       count(*) filter (where pipeline_state = 'APPROVED' and updated_at >= $1 and updated_at < $2)::int as applications_approved,
+       count(*) filter (where pipeline_state = 'OFF_TO_LENDER' and updated_at >= $1 and updated_at < $2)::int as applications_submitted,
+       count(*) filter (where pipeline_state = 'ACCEPTED' and updated_at >= $1 and updated_at < $2)::int as applications_approved,
        count(*) filter (where pipeline_state = 'DECLINED' and updated_at >= $1 and updated_at < $2)::int as applications_declined,
-       count(*) filter (where pipeline_state = 'FUNDED' and updated_at >= $1 and updated_at < $2)::int as applications_funded,
+       count(*) filter (where pipeline_state = 'ACCEPTED' and updated_at >= $1 and updated_at < $2)::int as applications_funded,
        (select count(*)::int from document_versions where created_at >= $1 and created_at < $2) as documents_uploaded,
        (select count(*)::int from document_version_reviews where status = 'accepted' and reviewed_at >= $1 and reviewed_at < $2) as documents_approved,
        (select count(*)::int from lender_submissions where created_at >= $1 and created_at < $2) as lender_submissions,
@@ -207,13 +207,13 @@ export async function upsertLenderPerformanceWindow(params: {
        $1::date,
        $2::date,
        count(*)::int as submissions,
-       sum(case when a.pipeline_state = 'APPROVED' then 1 else 0 end)::int as approvals,
+       sum(case when a.pipeline_state = 'ACCEPTED' then 1 else 0 end)::int as approvals,
        sum(case when a.pipeline_state = 'DECLINED' then 1 else 0 end)::int as declines,
-       sum(case when a.pipeline_state = 'FUNDED' then 1 else 0 end)::int as funded,
+       sum(case when a.pipeline_state = 'ACCEPTED' then 1 else 0 end)::int as funded,
        coalesce(
          avg(
            case
-             when a.pipeline_state in ('APPROVED', 'DECLINED', 'FUNDED')
+             when a.pipeline_state in ('ACCEPTED', 'DECLINED')
                and ls.submitted_at is not null
              then extract(epoch from (a.updated_at - ls.submitted_at))
              else null
@@ -253,10 +253,10 @@ export async function upsertApplicationVolumeWindow(params: {
        $1::date,
        a.product_type,
        sum(case when a.created_at >= $1 and a.created_at < $2 then 1 else 0 end)::int,
-       sum(case when a.pipeline_state = 'LENDER_SUBMITTED' and a.updated_at >= $1 and a.updated_at < $2 then 1 else 0 end)::int,
-       sum(case when a.pipeline_state = 'APPROVED' and a.updated_at >= $1 and a.updated_at < $2 then 1 else 0 end)::int,
+       sum(case when a.pipeline_state = 'OFF_TO_LENDER' and a.updated_at >= $1 and a.updated_at < $2 then 1 else 0 end)::int,
+       sum(case when a.pipeline_state = 'ACCEPTED' and a.updated_at >= $1 and a.updated_at < $2 then 1 else 0 end)::int,
        sum(case when a.pipeline_state = 'DECLINED' and a.updated_at >= $1 and a.updated_at < $2 then 1 else 0 end)::int,
-       sum(case when a.pipeline_state = 'FUNDED' and a.updated_at >= $1 and a.updated_at < $2 then 1 else 0 end)::int,
+       sum(case when a.pipeline_state = 'ACCEPTED' and a.updated_at >= $1 and a.updated_at < $2 then 1 else 0 end)::int,
        $3::timestamp
      from applications a
      where (a.created_at >= $1 and a.created_at < $2)
@@ -373,8 +373,8 @@ export async function upsertLenderFunnelWindow(params: {
        $1::date,
        ls.lender_id,
        count(*)::int as submissions,
-       count(*) filter (where a.pipeline_state = 'APPROVED')::int as approvals,
-       count(*) filter (where a.pipeline_state = 'FUNDED')::int as funded,
+       count(*) filter (where a.pipeline_state = 'ACCEPTED')::int as approvals,
+       count(*) filter (where a.pipeline_state = 'ACCEPTED')::int as funded,
        $3::timestamp
      from lender_submissions ls
      join applications a on a.id = ls.application_id

@@ -13,7 +13,7 @@ async function ensureSubmissionSchema(): Promise<void> {
       metadata jsonb null,
       product_type text not null,
       pipeline_state text not null,
-      status text not null default 'NEW',
+      status text not null default 'RECEIVED',
       lender_id uuid null,
       lender_product_id uuid null,
       requested_amount numeric null,

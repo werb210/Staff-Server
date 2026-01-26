@@ -21,6 +21,7 @@ import { type Role, ROLES } from "../../auth/roles";
 import { type PoolClient } from "pg";
 import {
   PIPELINE_STATES,
+  ApplicationStage,
   canTransition,
   isPipelineState,
   type PipelineState,
@@ -78,7 +79,7 @@ type IdempotentResult<T> = {
 
 type Queryable = Pick<PoolClient, "query">;
 
-const DEFAULT_PIPELINE_STAGE = "REQUIRES_DOCS";
+const DEFAULT_PIPELINE_STAGE = ApplicationStage.RECEIVED;
 
 function normalizePipelineStage(stage: string | null): string {
   return stage ?? DEFAULT_PIPELINE_STAGE;
@@ -263,10 +264,10 @@ async function evaluateRequirements(params: {
     }
   }
 
-  if (missingRequired && application.pipeline_state === "NEW") {
+  if (missingRequired && application.pipeline_state === ApplicationStage.RECEIVED) {
     await transitionPipelineState({
       applicationId: application.id,
-      nextState: "REQUIRES_DOCS",
+      nextState: ApplicationStage.DOCUMENTS_REQUIRED,
       actorUserId: params.actorUserId,
       actorRole: params.actorRole,
       allowOverride: false,
@@ -437,10 +438,13 @@ export async function removeDocument(params: {
       client,
     });
 
-    if (evaluation.missingRequired && application.pipeline_state !== "REQUIRES_DOCS") {
+    if (
+      evaluation.missingRequired &&
+      application.pipeline_state !== ApplicationStage.DOCUMENTS_REQUIRED
+    ) {
       await transitionPipelineState({
         applicationId: params.applicationId,
-        nextState: "REQUIRES_DOCS",
+        nextState: ApplicationStage.DOCUMENTS_REQUIRED,
         actorUserId: params.actorUserId,
         actorRole: params.actorRole,
         allowOverride: false,
@@ -680,10 +684,13 @@ export async function acceptDocumentVersion(params: {
     if (!canAccessApplication(params.actorRole, application.owner_user_id, params.actorUserId)) {
       throw new AppError("forbidden", "Not authorized.", 403);
     }
-    if (application.pipeline_state !== "REQUIRES_DOCS" && application.pipeline_state !== "NEW") {
+    if (
+      application.pipeline_state !== ApplicationStage.DOCUMENTS_REQUIRED &&
+      application.pipeline_state !== ApplicationStage.RECEIVED
+    ) {
       throw new AppError(
         "invalid_state",
-        "Documents can only be reviewed while in REQUIRES_DOCS.",
+        "Documents can only be reviewed while in DOCUMENTS_REQUIRED.",
         400
       );
     }
@@ -737,10 +744,13 @@ export async function acceptDocumentVersion(params: {
       client,
     });
 
-    if (!evaluation.missingRequired && application.pipeline_state === "REQUIRES_DOCS") {
+    if (
+      !evaluation.missingRequired &&
+      application.pipeline_state === ApplicationStage.DOCUMENTS_REQUIRED
+    ) {
       await transitionPipelineState({
         applicationId: params.applicationId,
-        nextState: "UNDER_REVIEW",
+        nextState: ApplicationStage.IN_REVIEW,
         actorUserId: params.actorUserId,
         actorRole: params.actorRole,
         allowOverride: false,
@@ -778,10 +788,13 @@ export async function rejectDocumentVersion(params: {
     if (!canAccessApplication(params.actorRole, application.owner_user_id, params.actorUserId)) {
       throw new AppError("forbidden", "Not authorized.", 403);
     }
-    if (application.pipeline_state !== "REQUIRES_DOCS" && application.pipeline_state !== "NEW") {
+    if (
+      application.pipeline_state !== ApplicationStage.DOCUMENTS_REQUIRED &&
+      application.pipeline_state !== ApplicationStage.RECEIVED
+    ) {
       throw new AppError(
         "invalid_state",
-        "Documents can only be reviewed while in REQUIRES_DOCS.",
+        "Documents can only be reviewed while in DOCUMENTS_REQUIRED.",
         400
       );
     }
@@ -835,10 +848,10 @@ export async function rejectDocumentVersion(params: {
       client,
     });
 
-    if (application.pipeline_state === "NEW") {
+    if (application.pipeline_state === ApplicationStage.RECEIVED) {
       await transitionPipelineState({
         applicationId: params.applicationId,
-        nextState: "REQUIRES_DOCS",
+        nextState: ApplicationStage.DOCUMENTS_REQUIRED,
         actorUserId: params.actorUserId,
         actorRole: params.actorRole,
         allowOverride: false,
