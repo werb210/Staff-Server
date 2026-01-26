@@ -3,7 +3,6 @@ import { AppError } from "../middleware/errors";
 import {
   createLenderProductService,
   getLenderProductByIdService,
-  listLenderProductsService,
   listLenderProductsByLenderIdService,
   updateLenderProductService,
 } from "../services/lenderProductsService";
@@ -183,7 +182,6 @@ export async function listLenderProductsHandler(
   req: Request,
   res: Response
 ): Promise<void> {
-  const activeOnly = req.query.active === "true";
   const requestId = res.locals.requestId ?? "unknown";
 
   try {
@@ -214,17 +212,22 @@ export async function listLenderProductsHandler(
       );
     }
 
-    const products =
+    const queryLenderId =
+      typeof req.query.lenderId === "string"
+        ? req.query.lenderId.trim()
+        : "";
+    const resolvedLenderId =
       user.role === ROLES.LENDER
-        ? await listLenderProductsByLenderIdService({
-            lenderId: user.lenderId ?? "",
-            activeOnly,
-            silo: user.silo ?? null,
-          })
-        : await listLenderProductsService({
-            activeOnly,
-            silo: user.silo ?? null,
-          });
+        ? user.lenderId ?? ""
+        : queryLenderId;
+    if (!resolvedLenderId) {
+      throw new AppError("validation_error", "lenderId is required.", 400);
+    }
+
+    const products = await listLenderProductsByLenderIdService({
+      lenderId: resolvedLenderId,
+      silo: user.silo ?? null,
+    });
     if (!Array.isArray(products)) {
       throw new AppError(
         "data_error",
@@ -239,7 +242,7 @@ export async function listLenderProductsHandler(
       requestId,
       route: req.originalUrl,
       sql: LIST_LENDER_PRODUCTS_SQL,
-      params: [activeOnly],
+      params: [],
       stack: err instanceof Error ? err.stack : undefined,
     });
     if (err instanceof AppError) {
@@ -368,14 +371,14 @@ export async function createLenderProductHandler(
     }
     const lenderStatus =
       typeof (lender as { status?: unknown }).status === "string"
-        ? (lender as { status?: string }).status?.toUpperCase()
-        : "ACTIVE";
-    const lenderActive =
-      typeof (lender as { active?: unknown }).active === "boolean"
-        ? (lender as { active?: boolean }).active
-        : true;
-    if (lenderStatus !== "ACTIVE" || lenderActive !== true) {
-      throw new AppError("lender_inactive", "Lender is inactive", 409);
+        ? (lender as { status?: string }).status
+        : null;
+    if (lenderStatus !== "ACTIVE") {
+      throw new AppError(
+        "lender_inactive",
+        "Lender must be active to add products",
+        409
+      );
     }
 
     const created = await createLenderProductService({
