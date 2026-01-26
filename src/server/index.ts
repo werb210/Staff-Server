@@ -9,6 +9,7 @@ import { notFoundHandler } from "../middleware/errors";
 import { markReady } from "../startupState";
 import { getTwilioClient, getVerifyServiceSid } from "../services/twilio";
 import { seedRequirementsForAllProducts } from "../services/lenderProductRequirementsService";
+import { initializePushService } from "../services/pushService";
 
 let processHandlersInstalled = false;
 let server: ReturnType<ReturnType<typeof buildApp>["listen"]> | null = null;
@@ -60,6 +61,7 @@ function resolvePort(): number {
 export async function startServer() {
   installProcessHandlers();
   assertEnv();
+  initializePushService();
   getTwilioClient();
   getVerifyServiceSid();
 

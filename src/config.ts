@@ -213,6 +213,42 @@ export function getOcrTimeoutMs(): number {
   return parsePositiveInt(process.env.OCR_TIMEOUT_MS, 30_000);
 }
 
+export function getVapidPublicKey(): string | undefined {
+  return process.env.VAPID_PUBLIC_KEY;
+}
+
+export function getVapidPrivateKey(): string | undefined {
+  return process.env.VAPID_PRIVATE_KEY;
+}
+
+export function getVapidSubject(): string | undefined {
+  return process.env.VAPID_SUBJECT;
+}
+
+export function getPwaPushRateLimitMax(): number {
+  return parsePositiveInt(process.env.PWA_PUSH_RATE_LIMIT_MAX, 20);
+}
+
+export function getPwaPushRateLimitWindowMs(): number {
+  return parsePositiveInt(process.env.PWA_PUSH_RATE_LIMIT_WINDOW_MS, 60_000);
+}
+
+export function getPwaPushPayloadMaxBytes(): number {
+  return parsePositiveInt(process.env.PWA_PUSH_MAX_BYTES, 4096);
+}
+
+export function getPwaSyncMaxActions(): number {
+  return parsePositiveInt(process.env.PWA_SYNC_MAX_ACTIONS, 25);
+}
+
+export function getPwaSyncActionMaxBytes(): number {
+  return parsePositiveInt(process.env.PWA_SYNC_ACTION_MAX_BYTES, 25_000);
+}
+
+export function getPwaSyncBatchMaxBytes(): number {
+  return parsePositiveInt(process.env.PWA_SYNC_BATCH_MAX_BYTES, 100_000);
+}
+
 export function getOpenAiApiKey(): string | undefined {
   return process.env.OPENAI_API_KEY;
 }

@@ -6,6 +6,7 @@ import { requireAuth } from "../middleware/requireAuth";
 import internalRoutes from "./internal";
 import { intHealthHandler } from "./_int/health";
 import { runtimeHandler } from "./_int/runtime";
+import pwaInternalRoutes from "./_int/pwa";
 
 const router = Router();
 
@@ -36,6 +37,7 @@ router.post("/twilio-test", requireAuth, async (_req, res) => {
   return res.json({ ok: true });
 });
 
+router.use(pwaInternalRoutes);
 router.use(internalRoutes);
 
 export default router;

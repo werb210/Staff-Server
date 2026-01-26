@@ -1,0 +1,203 @@
+import { Router } from "express";
+import { z } from "zod";
+import { requireAuth } from "../middleware/requireAuth";
+import { requireAdmin } from "../middleware/requireAdmin";
+import { safeHandler } from "../middleware/safeHandler";
+import {
+  listPwaNotificationsForUser,
+  listPwaSubscriptions,
+  upsertPwaSubscription,
+  deletePwaSubscription,
+  acknowledgePwaNotification,
+} from "../repositories/pwa.repo";
+import { AppError } from "../middleware/errors";
+import { getBuildInfo } from "../config";
+import { getPushStatus } from "../services/pushService";
+import { replaySyncBatch } from "../services/pwaSyncService";
+import { pool } from "../db";
+
+const router = Router();
+
+const subscriptionSchema = z.object({
+  endpoint: z.string().min(1),
+  keys: z.object({
+    p256dh: z.string().min(1),
+    auth: z.string().min(1),
+  }),
+  deviceType: z.enum(["mobile", "desktop"]),
+});
+
+const unsubscribeSchema = z.object({
+  endpoint: z.string().min(1),
+});
+
+router.post(
+  "/subscribe",
+  requireAuth,
+  safeHandler(async (req, res) => {
+    const requestId = res.locals.requestId ?? "unknown";
+    const parsedResult = subscriptionSchema.safeParse(req.body ?? {});
+    if (!parsedResult.success) {
+      throw new AppError("validation_error", "Invalid subscription payload.", 400);
+    }
+    const parsed = parsedResult.data;
+    const subscription = await upsertPwaSubscription({
+      userId: req.user!.userId,
+      endpoint: parsed.endpoint.trim(),
+      p256dh: parsed.keys.p256dh,
+      auth: parsed.keys.auth,
+      deviceType: parsed.deviceType,
+    });
+    res.status(201).json({
+      ok: true,
+      requestId,
+      subscription,
+    });
+  })
+);
+
+router.delete(
+  "/unsubscribe",
+  requireAuth,
+  safeHandler(async (req, res) => {
+    const parsedResult = unsubscribeSchema.safeParse(req.body ?? {});
+    if (!parsedResult.success) {
+      throw new AppError("validation_error", "Invalid unsubscribe payload.", 400);
+    }
+    const parsed = parsedResult.data;
+    const removed = await deletePwaSubscription({
+      userId: req.user!.userId,
+      endpoint: parsed.endpoint.trim(),
+    });
+    res.status(200).json({ ok: true, removed });
+  })
+);
+
+router.get(
+  "/subscriptions",
+  requireAuth,
+  requireAdmin,
+  safeHandler(async (_req, res) => {
+    const subscriptions = await listPwaSubscriptions();
+    res.status(200).json({ ok: true, subscriptions });
+  })
+);
+
+router.get(
+  "/notifications",
+  requireAuth,
+  safeHandler(async (req, res) => {
+    const notifications = await listPwaNotificationsForUser(req.user!.userId);
+    res.status(200).json({ ok: true, notifications });
+  })
+);
+
+router.post(
+  "/notifications/:id/ack",
+  requireAuth,
+  safeHandler(async (req, res) => {
+    const id = req.params.id;
+    if (!id) {
+      throw new AppError("validation_error", "id is required.", 400);
+    }
+    const updated = await acknowledgePwaNotification({
+      userId: req.user!.userId,
+      notificationId: id,
+    });
+    res.status(200).json({ ok: true, acknowledged: updated });
+  })
+);
+
+router.post(
+  "/sync",
+  requireAuth,
+  safeHandler(async (req, res) => {
+    const requestId = res.locals.requestId ?? "unknown";
+    const user = req.user!;
+    const result = await replaySyncBatch({
+      user: {
+        userId: user.userId,
+        role: user.role,
+        lenderId: user.lenderId,
+        capabilities: user.capabilities ?? [],
+      },
+      payload: req.body ?? {},
+      requestId,
+    });
+    res.status(200).json({
+      ok: true,
+      batchId: result.batchId,
+      results: result.results,
+    });
+  })
+);
+
+router.get(
+  "/runtime",
+  requireAuth,
+  safeHandler(async (_req, res) => {
+    const { commitHash, buildTimestamp } = getBuildInfo();
+    const pushStatus = getPushStatus();
+    res.status(200).json({
+      push_enabled: pushStatus.configured,
+      background_sync_enabled: true,
+      vapid_configured: pushStatus.configured,
+      offline_replay_enabled: true,
+      server_version: commitHash ?? buildTimestamp ?? "unknown",
+    });
+  })
+);
+
+router.get(
+  "/health",
+  requireAuth,
+  requireAdmin,
+  safeHandler(async (_req, res) => {
+    const pushStatus = getPushStatus();
+    let dbWriteable = false;
+    let queueProcessingHealthy: boolean | null = null;
+    const warnings: string[] = [];
+
+    try {
+      await pool.query("create temporary table if not exists pwa_health_check (id int)");
+      await pool.query("insert into pwa_health_check (id) values (1)");
+      dbWriteable = true;
+    } catch {
+      dbWriteable = false;
+      warnings.push("db_write_failed");
+    }
+
+    try {
+      const tableCheck = await pool.query<{ exists: string | null }>(
+        "select to_regclass('public.ops_replay_jobs') as exists"
+      );
+      if (!tableCheck.rows[0]?.exists) {
+        queueProcessingHealthy = null;
+        warnings.push("queue_table_missing");
+      } else {
+        const result = await pool.query<{ count: number }>(
+          `select count(*)::int as count
+           from ops_replay_jobs
+           where status in ('queued', 'running')
+             and started_at is not null
+             and started_at < (now()::timestamp - interval '15 minutes')`
+        );
+        queueProcessingHealthy = result.rows[0]?.count === 0;
+      }
+    } catch {
+      queueProcessingHealthy = false;
+      warnings.push("queue_check_failed");
+    }
+
+    res.status(200).json({
+      ok: true,
+      vapid_keys_valid: pushStatus.configured,
+      push_service_reachable: pushStatus.configured,
+      db_writeable: dbWriteable,
+      queue_processing_healthy: queueProcessingHealthy,
+      warnings,
+    });
+  })
+);
+
+export default router;

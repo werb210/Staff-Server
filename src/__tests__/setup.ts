@@ -10,6 +10,10 @@ process.env.TWILIO_ACCOUNT_SID = "ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
 process.env.TWILIO_AUTH_TOKEN = "test-auth-token-1234567890";
 process.env.TWILIO_VERIFY_SERVICE_SID = "VA00000000000000000000000000000000";
 process.env.JWT_SECRET = "test-access-secret";
+process.env.VAPID_PUBLIC_KEY =
+  "BEfWI4_C2Dzb-Nwj0lrRCX3tjsD6SHII7rSHm2T-NsJUdP6KBpfPoAggWrkxCbxat6Vv8O-HBZzYnzHvTT8uh1Q";
+process.env.VAPID_PRIVATE_KEY = "rkOdsYGnG4F-cu0nkuG6Zi5dTlFtOmzLUGCCUyYZZqY";
+process.env.VAPID_SUBJECT = "mailto:tests@example.com";
 process.env.LOGIN_LOCKOUT_THRESHOLD = "2";
 process.env.LOGIN_LOCKOUT_MINUTES = "10";
 process.env.PASSWORD_MAX_AGE_DAYS = "30";
@@ -25,6 +29,8 @@ beforeAll(async () => {
   await pool.query("drop table if exists audit_events cascade;");
   await pool.query("drop table if exists lenders cascade;");
   await pool.query("drop table if exists users cascade;");
+  await pool.query("drop table if exists pwa_subscriptions cascade;");
+  await pool.query("drop table if exists pwa_notifications cascade;");
   await pool.query(`
     create table if not exists users (
       id uuid primary key,
@@ -140,6 +146,31 @@ beforeAll(async () => {
       min_amount integer null,
       max_amount integer null,
       created_at timestamptz not null default now()
+    );
+  `);
+
+  await pool.query(`
+    create table if not exists pwa_subscriptions (
+      id uuid primary key,
+      user_id uuid not null references users(id) on delete cascade,
+      endpoint text not null unique,
+      p256dh text not null,
+      auth text not null,
+      device_type text not null,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    );
+  `);
+  await pool.query(`
+    create table if not exists pwa_notifications (
+      id uuid primary key,
+      user_id uuid not null references users(id) on delete cascade,
+      level text not null,
+      title text not null,
+      body text not null,
+      delivered_at timestamptz not null,
+      acknowledged_at timestamptz null,
+      payload_hash text not null
     );
   `);
 
