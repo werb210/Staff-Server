@@ -165,15 +165,12 @@ export const LIST_LENDER_PRODUCTS_SQL = `select id,
         created_at,
         updated_at
  from lender_products
- where ($1::boolean is false or active = true)
  order by created_at desc`;
 
 export async function listLenderProducts(params?: {
-  activeOnly?: boolean;
   client?: Queryable;
 }): Promise<LenderProductRecord[]> {
   const runner = params?.client ?? pool;
-  const activeOnly = params?.activeOnly === true;
   try {
     const existing = await assertLenderProductColumnsExist({
       route: "/api/lender-products",
@@ -193,15 +190,13 @@ export async function listLenderProducts(params?: {
     const res = await runner.query<LenderProductRecord>(
       `select ${selectColumns}
        from lender_products
-       where ($1::boolean is false or active = true)
-       order by created_at desc`,
-      [activeOnly]
+       order by created_at desc`
     );
     return res.rows;
   } catch (err) {
     logError("lender_products_query_failed", {
       sql: LIST_LENDER_PRODUCTS_SQL,
-      params: [activeOnly],
+      params: [],
       stack: err instanceof Error ? err.stack : undefined,
     });
     const error = err instanceof Error ? err : new Error("Unknown database error.");
@@ -213,11 +208,9 @@ export async function listLenderProducts(params?: {
 
 export async function listLenderProductsByLenderId(params: {
   lenderId: string;
-  activeOnly?: boolean;
   client?: Queryable;
 }): Promise<LenderProductRecord[]> {
   const runner = params.client ?? pool;
-  const activeOnly = params.activeOnly === true;
   const existing = await assertLenderProductColumnsExist({
     route: "/api/lenders/:id/products",
     columns: [
@@ -237,9 +230,8 @@ export async function listLenderProductsByLenderId(params: {
     `select ${selectColumns}
      from lender_products
      where lender_id = $1
-       and ($2::boolean is false or active = true)
      order by created_at desc`,
-    [params.lenderId, activeOnly]
+    [params.lenderId]
   );
   return res.rows;
 }

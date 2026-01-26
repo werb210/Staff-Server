@@ -95,7 +95,6 @@ export async function createLenderProductService(params: {
 }
 
 export async function listLenderProductsService(params?: {
-  activeOnly?: boolean;
   silo?: string | null;
 }): Promise<Awaited<ReturnType<typeof listLenderProducts>>> {
   const products = await listLenderProducts(params);
@@ -105,7 +104,6 @@ export async function listLenderProductsService(params?: {
 
 export async function listLenderProductsByLenderIdService(params: {
   lenderId: string;
-  activeOnly?: boolean;
   silo?: string | null;
 }): Promise<Awaited<ReturnType<typeof listLenderProductsByLenderId>>> {
   const products = await listLenderProductsByLenderId(params);

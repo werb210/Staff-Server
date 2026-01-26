@@ -1,10 +1,11 @@
 import { Router } from "express";
 import { pool } from "../db";
+import { listLenders } from "../repositories/lenders.repo";
 import { requireAuth, requireCapability } from "../middleware/auth";
 import { CAPABILITIES } from "../auth/capabilities";
 import { safeHandler } from "../middleware/safeHandler";
 import { ROLES } from "../auth/roles";
-import { createLender, getLenderWithProducts } from "../controllers/lenders.controller";
+import { createLender, getLenderWithProducts, updateLender } from "../controllers/lenders.controller";
 
 type LenderProductRow = {
   id: string;
@@ -21,6 +22,9 @@ type LenderRow = {
   id: string;
   name: string | null;
   country: string | null;
+  status?: string | null;
+  primary_contact_name?: string | null;
+  email?: string | null;
   submission_method: string[] | string | null;
   products: LenderProductRow[] | null;
   silo?: string | null;
@@ -55,17 +59,7 @@ router.get(
   requireAuth,
   requireCapability([CAPABILITIES.LENDERS_READ]),
   safeHandler(async (req, res) => {
-    const lendersResult = await pool.query<LenderRow>(
-      `
-      SELECT
-        id,
-        name,
-        country,
-        submission_method
-      FROM lenders
-      ORDER BY created_at DESC
-      `
-    );
+    const lendersRows = await listLenders(pool);
     const productsResult = await pool.query<LenderProductRow>(
       `
       SELECT
@@ -89,10 +83,13 @@ router.get(
       productsByLender.set(product.lender_id, list);
     });
 
-    const normalized = lendersResult.rows.map((l: LenderRow) => ({
+    const normalized = lendersRows.map((l: LenderRow) => ({
       id: l.id,
       name: l.name ?? "—",
+      status: l.status ?? "ACTIVE",
       country: l.country ?? null,
+      primary_contact_name: l.primary_contact_name ?? null,
+      email: l.email ?? null,
       submission_method: Array.isArray(l.submission_method)
         ? l.submission_method
         : [],
@@ -114,7 +111,7 @@ router.get(
       return;
     }
     const resolvedSilo = resolveSilo(req.user?.silo);
-    const filtered = filterBySilo(lendersResult.rows, resolvedSilo)
+    const filtered = filterBySilo(lendersRows, resolvedSilo)
       .map((row) => normalizedById.get(row.id))
       .filter((entry): entry is (typeof normalized)[number] => Boolean(entry));
     res.status(200).json(filtered);
@@ -133,6 +130,13 @@ router.post(
   requireAuth,
   requireCapability([CAPABILITIES.OPS_MANAGE]),
   safeHandler(createLender)
+);
+
+router.patch(
+  "/:id",
+  requireAuth,
+  requireCapability([CAPABILITIES.OPS_MANAGE]),
+  safeHandler(updateLender)
 );
 
 export default router;

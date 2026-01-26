@@ -236,7 +236,10 @@ export async function createLender(
       country,
       submissionMethod,
       active,
+      status,
+      contact,
       email,
+      submissionEmail,
       phone,
       website,
       postal_code
@@ -250,6 +253,41 @@ export async function createLender(
     }
     if (active !== undefined && typeof active !== "boolean") {
       throw new AppError("validation_error", "active must be a boolean.", 400);
+    }
+    if (status !== undefined && status !== null && typeof status !== "string") {
+      throw new AppError("validation_error", "status must be a string.", 400);
+    }
+    if (contact !== undefined && contact !== null && typeof contact !== "object") {
+      throw new AppError("validation_error", "contact must be an object.", 400);
+    }
+    if (
+      submissionEmail !== undefined &&
+      submissionEmail !== null &&
+      typeof submissionEmail !== "string"
+    ) {
+      throw new AppError("validation_error", "submissionEmail must be a string.", 400);
+    }
+
+    const contactName =
+      contact && typeof (contact as { name?: unknown }).name === "string"
+        ? (contact as { name: string }).name.trim()
+        : null;
+    const contactEmail =
+      contact && typeof (contact as { email?: unknown }).email === "string"
+        ? (contact as { email: string }).email.trim()
+        : null;
+
+    let resolvedStatus =
+      typeof status === "string" && status.trim().length > 0
+        ? status.trim()
+        : undefined;
+    if (active === true) {
+      resolvedStatus = "ACTIVE";
+    } else if (active === false && resolvedStatus === undefined) {
+      resolvedStatus = "INACTIVE";
+    }
+    if (!resolvedStatus) {
+      resolvedStatus = "ACTIVE";
     }
 
     const normalizedSubmissionMethod =
@@ -272,7 +310,10 @@ export async function createLender(
       country: country.trim(),
       submission_method: normalizedSubmissionMethod,
       active: typeof active === "boolean" ? active : undefined,
-      email: email ?? null,
+      status: resolvedStatus,
+      primary_contact_name: contactName,
+      email: contactEmail ?? email ?? null,
+      submission_email: submissionEmail ?? null,
       phone: phone ?? null,
       website: website ?? null,
       postal_code: postal_code ?? null
@@ -281,6 +322,113 @@ export async function createLender(
     res.status(201).json(lender);
   } catch (err) {
     logError("lender_create_failed", {
+      error: err,
+      requestId,
+      route: req.originalUrl,
+      stack: err instanceof Error ? err.stack : undefined,
+    });
+    if (err instanceof AppError) {
+      res.status(err.status).json({
+        code: err.code,
+        message: err.message,
+        requestId,
+      });
+      return;
+    }
+    res.status(500).json({
+      code: "internal_error",
+      message: err instanceof Error ? err.message : "Unknown error",
+      requestId,
+    });
+  }
+}
+
+export async function updateLender(
+  req: Request,
+  res: Response
+): Promise<void> {
+  const requestId = res.locals.requestId ?? "unknown";
+  try {
+    const { id } = req.params;
+    if (typeof id !== "string" || id.trim().length === 0) {
+      throw new AppError("validation_error", "id is required.", 400);
+    }
+
+    const {
+      name,
+      status,
+      country,
+      active,
+      contact,
+      email,
+      submissionEmail,
+    } = req.body ?? {};
+
+    if (name !== undefined && name !== null && typeof name !== "string") {
+      throw new AppError("validation_error", "name must be a string.", 400);
+    }
+    if (status !== undefined && status !== null && typeof status !== "string") {
+      throw new AppError("validation_error", "status must be a string.", 400);
+    }
+    if (
+      country !== undefined &&
+      country !== null &&
+      typeof country !== "string"
+    ) {
+      throw new AppError("validation_error", "country must be a string.", 400);
+    }
+    if (active !== undefined && typeof active !== "boolean") {
+      throw new AppError("validation_error", "active must be a boolean.", 400);
+    }
+    if (contact !== undefined && contact !== null && typeof contact !== "object") {
+      throw new AppError("validation_error", "contact must be an object.", 400);
+    }
+    if (
+      submissionEmail !== undefined &&
+      submissionEmail !== null &&
+      typeof submissionEmail !== "string"
+    ) {
+      throw new AppError("validation_error", "submissionEmail must be a string.", 400);
+    }
+
+    const contactName =
+      contact && typeof (contact as { name?: unknown }).name === "string"
+        ? (contact as { name: string }).name.trim()
+        : undefined;
+    const contactEmail =
+      contact && typeof (contact as { email?: unknown }).email === "string"
+        ? (contact as { email: string }).email.trim()
+        : undefined;
+
+    let resolvedStatus =
+      typeof status === "string" && status.trim().length > 0
+        ? status.trim()
+        : undefined;
+    if (active === true) {
+      resolvedStatus = "ACTIVE";
+    } else if (active === false && resolvedStatus === undefined) {
+      resolvedStatus = "INACTIVE";
+    }
+
+    const updated = await repo.updateLender(pool, {
+      id: id.trim(),
+      name: typeof name === "string" ? name.trim() : undefined,
+      status: resolvedStatus,
+      country: typeof country === "string" ? country.trim() : undefined,
+      primary_contact_name: contactName,
+      email: contactEmail ?? (typeof email === "string" ? email.trim() : undefined),
+      submission_email:
+        typeof submissionEmail === "string" ? submissionEmail.trim() : undefined,
+      active: typeof active === "boolean" ? active : undefined,
+    });
+
+    if (!updated) {
+      throw new AppError("not_found", "Lender not found.", 404);
+    }
+
+    res.status(200).json(updated);
+  } catch (err) {
+    logError("lender_update_failed", {
       error: err,
       requestId,
       route: req.originalUrl,
