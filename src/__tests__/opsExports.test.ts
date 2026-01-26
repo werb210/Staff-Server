@@ -142,7 +142,7 @@ describe("ops + exports", () => {
       `insert into reporting_pipeline_daily_snapshots
        (id, snapshot_date, pipeline_state, application_count, created_at)
        values ($1, $2, $3, $4, now())`,
-      ["snap-1", new Date("2024-01-05"), "UNDER_REVIEW", 5]
+      ["snap-1", new Date("2024-01-05"), "IN_REVIEW", 5]
     );
 
     const res = await request(app)

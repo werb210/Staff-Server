@@ -192,7 +192,7 @@ describe("submission pipeline end-to-end", () => {
         "select pipeline_state from applications where id = $1",
         [applicationId]
       );
-      expect(createdState.rows[0]?.pipeline_state).toBe("REQUIRES_DOCS");
+      expect(createdState.rows[0]?.pipeline_state).toBe("DOCUMENTS_REQUIRED");
 
       const bank = await uploadDocument(token, applicationId, "bank_statement", "Bank Statement");
       const idDoc = await uploadDocument(token, applicationId, "id_document", "ID Document");
@@ -204,7 +204,7 @@ describe("submission pipeline end-to-end", () => {
         "select pipeline_state from applications where id = $1",
         [applicationId]
       );
-      expect(reviewState.rows[0]?.pipeline_state).toBe("UNDER_REVIEW");
+      expect(reviewState.rows[0]?.pipeline_state).toBe("IN_REVIEW");
 
       const submission = await submitToLender(token, applicationId);
 
@@ -215,7 +215,7 @@ describe("submission pipeline end-to-end", () => {
         "select pipeline_state from applications where id = $1",
         [applicationId]
       );
-      expect(finalState.rows[0]?.pipeline_state).toBe("LENDER_SUBMITTED");
+      expect(finalState.rows[0]?.pipeline_state).toBe("OFF_TO_LENDER");
 
       const [applications, documents, versions, reviews, submissions, retries] = await Promise.all([
         pool.query("select count(*)::int as count from applications where id = $1", [applicationId]),
@@ -307,7 +307,7 @@ describe("submission pipeline end-to-end", () => {
 
     expect(documents.rows[0]?.count).toBe(0);
     expect(versions.rows[0]?.count).toBe(0);
-    expect(appState.rows[0]?.pipeline_state).toBe("REQUIRES_DOCS");
+    expect(appState.rows[0]?.pipeline_state).toBe("DOCUMENTS_REQUIRED");
   });
 
   it("keeps accepted documents when pipeline advance fails", async () => {
@@ -330,7 +330,7 @@ describe("submission pipeline end-to-end", () => {
       .set("Authorization", `Bearer ${token}`)
       .set("Idempotency-Key", nextIdempotencyKey())
       .set("x-request-id", nextRequestId())
-      .send({ state: "LENDER_SUBMITTED" });
+      .send({ state: "OFF_TO_LENDER" });
 
     expect(failed.status).toBe(503);
 
@@ -351,7 +351,7 @@ describe("submission pipeline end-to-end", () => {
     ]);
 
     expect(reviews.rows[0]?.count).toBe(2);
-    expect(state.rows[0]?.pipeline_state).toBe("UNDER_REVIEW");
+    expect(state.rows[0]?.pipeline_state).toBe("IN_REVIEW");
   });
 
   it("keeps lender submission failures consistent and idempotent", async () => {
@@ -398,7 +398,7 @@ describe("submission pipeline end-to-end", () => {
     expect(submissionRow.rows[0]?.status).toBe("failed");
     expect(submissionRow.rows[0]?.failure_reason).toBe("lender_error");
     expect(retryRow.rows[0]?.status).toBe("pending");
-    expect(state.rows[0]?.pipeline_state).toBe("REQUIRES_DOCS");
+    expect(state.rows[0]?.pipeline_state).toBe("DOCUMENTS_REQUIRED");
 
     const retry = await submitToLender(token, applicationId, defaultLenderId, defaultLenderProductId, idemKey);
     expect(retry.status).toBe(200);

@@ -184,7 +184,7 @@ describe("applications and documents", () => {
       .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
-      .send({ state: "LENDER_SUBMITTED" });
+      .send({ state: "OFF_TO_LENDER" });
 
     expect(transition.status).toBe(400);
     expect(transition.body.code).toBe("invalid_transition");
@@ -258,7 +258,7 @@ describe("applications and documents", () => {
       .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
-      .send({ state: "LENDER_SUBMITTED", override: true });
+      .send({ state: "OFF_TO_LENDER", override: true });
 
     expect(transition.status).toBe(200);
 
@@ -266,7 +266,7 @@ describe("applications and documents", () => {
       "select pipeline_state from applications where id = $1",
       [applicationId]
     );
-    expect(dbState.rows[0].pipeline_state).toBe("LENDER_SUBMITTED");
+    expect(dbState.rows[0].pipeline_state).toBe("OFF_TO_LENDER");
   });
 
   it("forces requires docs when documents are missing", async () => {
@@ -290,7 +290,7 @@ describe("applications and documents", () => {
       .set("x-request-id", requestId)
       .send({ name: "Requirement App", productType: "standard" });
     expect(appRes.status).toBe(201);
-    expect(appRes.body.application.pipelineState).toBe("REQUIRES_DOCS");
+    expect(appRes.body.application.pipelineState).toBe("DOCUMENTS_REQUIRED");
   });
 
   it("transitions to under review when required documents are accepted", async () => {
@@ -360,7 +360,7 @@ describe("applications and documents", () => {
       "select pipeline_state from applications where id = $1",
       [applicationId]
     );
-    expect(stateAfterAccept.rows[0].pipeline_state).toBe("UNDER_REVIEW");
+    expect(stateAfterAccept.rows[0].pipeline_state).toBe("IN_REVIEW");
 
     const audit = await pool.query(
       `select event_action as action
@@ -433,7 +433,7 @@ describe("applications and documents", () => {
       "select pipeline_state from applications where id = $1",
       [applicationId]
     );
-    expect(stateAfterReject.rows[0].pipeline_state).toBe("REQUIRES_DOCS");
+    expect(stateAfterReject.rows[0].pipeline_state).toBe("DOCUMENTS_REQUIRED");
   });
 
   it("rejects documents with invalid mime types", async () => {
@@ -477,5 +477,90 @@ describe("applications and documents", () => {
        where event_action = 'document_upload_rejected'`
     );
     expect(audit.rows.length).toBe(1);
+  });
+
+  it("persists applications through all pipeline stages", async () => {
+    const stagePhone = nextPhone();
+    await createUserAccount({
+      email: "stages@apps.com",
+      phoneNumber: stagePhone,
+      role: ROLES.STAFF,
+    });
+
+    const login = await otpVerifyRequest(app, {
+      phone: stagePhone,
+      requestId,
+      idempotencyKey: nextIdempotencyKey(),
+    });
+
+    const appRes = await request(app)
+      .post("/api/applications")
+      .set("Idempotency-Key", nextIdempotencyKey())
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .set("x-request-id", requestId)
+      .send({ name: "Stage App", productType: "standard" });
+
+    const applicationId = appRes.body.application.id;
+
+    await pool.query(
+      "update applications set pipeline_state = 'RECEIVED' where id = $1",
+      [applicationId]
+    );
+    const receivedState = await pool.query(
+      "select pipeline_state from applications where id = $1",
+      [applicationId]
+    );
+    expect(receivedState.rows[0].pipeline_state).toBe("RECEIVED");
+
+    const stageSequence = [
+      "DOCUMENTS_REQUIRED",
+      "IN_REVIEW",
+      "START_UP",
+      "OFF_TO_LENDER",
+      "ACCEPTED",
+    ];
+
+    for (const stage of stageSequence) {
+      const transition = await request(app)
+        .post(`/api/applications/${applicationId}/pipeline`)
+        .set("Idempotency-Key", nextIdempotencyKey())
+        .set("Authorization", `Bearer ${login.body.accessToken}`)
+        .set("x-request-id", requestId)
+        .send({ state: stage });
+      expect(transition.status).toBe(200);
+
+      const current = await pool.query(
+        "select pipeline_state from applications where id = $1",
+        [applicationId]
+      );
+      expect(current.rows[0].pipeline_state).toBe(stage);
+    }
+
+    const declineRes = await request(app)
+      .post("/api/applications")
+      .set("Idempotency-Key", nextIdempotencyKey())
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .set("x-request-id", requestId)
+      .send({ name: "Decline App", productType: "standard" });
+
+    const declinedId = declineRes.body.application.id;
+    await pool.query(
+      "update applications set pipeline_state = 'IN_REVIEW' where id = $1",
+      [declinedId]
+    );
+
+    const declineTransition = await request(app)
+      .post(`/api/applications/${declinedId}/pipeline`)
+      .set("Idempotency-Key", nextIdempotencyKey())
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .set("x-request-id", requestId)
+      .send({ state: "DECLINED" });
+
+    expect(declineTransition.status).toBe(200);
+    const declinedState = await pool.query(
+      "select pipeline_state from applications where id = $1",
+      [declinedId]
+    );
+    expect(declinedState.rows[0].pipeline_state).toBe("DECLINED");
   });
 });

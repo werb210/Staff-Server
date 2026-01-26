@@ -310,7 +310,7 @@ describe("pipeline state transitions", () => {
       .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
-      .send({ state: "UNDER_REVIEW" });
+      .send({ state: "IN_REVIEW" });
     expect(firstTransition.status).toBe(200);
 
     const secondTransition = await request(app)
@@ -318,14 +318,22 @@ describe("pipeline state transitions", () => {
       .set("Idempotency-Key", nextIdempotencyKey())
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId)
-      .send({ state: "LENDER_SUBMITTED" });
+      .send({ state: "START_UP" });
     expect(secondTransition.status).toBe(200);
+
+    const thirdTransition = await request(app)
+      .post(`/api/applications/${appRes.body.application.id}/pipeline`)
+      .set("Idempotency-Key", nextIdempotencyKey())
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .set("x-request-id", requestId)
+      .send({ state: "OFF_TO_LENDER" });
+    expect(thirdTransition.status).toBe(200);
 
     const updated = await pool.query(
       "select pipeline_state, updated_at from applications where id = $1",
       [appRes.body.application.id]
     );
-    expect(updated.rows[0].pipeline_state).toBe("LENDER_SUBMITTED");
+    expect(updated.rows[0].pipeline_state).toBe("OFF_TO_LENDER");
     expect((updated.rows[0].updated_at as Date).getTime()).toBeGreaterThan(
       initialUpdatedAt.getTime()
     );

@@ -10,6 +10,7 @@ import {
   findApplicationById,
   type ApplicationRecord,
 } from "../modules/applications/applications.repo";
+import { ApplicationStage } from "../modules/applications/pipelineState";
 import { safeHandler } from "../middleware/safeHandler";
 import { logError } from "../observability/logger";
 
@@ -50,7 +51,7 @@ const intakeFields = [
 ];
 
 const legacyFields = ["name", "metadata", "productType"];
-const DEFAULT_PIPELINE_STAGE = "REQUIRES_DOCS";
+const DEFAULT_PIPELINE_STAGE = ApplicationStage.RECEIVED;
 
 function normalizePipelineStage(stage: string | null): string {
   return stage ?? DEFAULT_PIPELINE_STAGE;
@@ -183,7 +184,7 @@ router.post(
       const created = await createApplication({
         ownerUserId,
         name: payload.business?.legalName ?? "New application",
-        pipelineState: "new",
+        pipelineState: ApplicationStage.RECEIVED,
         metadata: {
           source: payload.source ?? null,
           country: payload.country ?? null,

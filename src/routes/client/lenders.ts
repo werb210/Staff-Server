@@ -13,7 +13,7 @@ router.get("/", async (_req, res, next) => {
       `
       SELECT id, name
       FROM lenders
-      WHERE status = 'active'
+      WHERE status = 'ACTIVE'
       ORDER BY name ASC
       `
     );

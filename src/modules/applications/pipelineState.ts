@@ -1,27 +1,43 @@
-export const PIPELINE_STATES = [
-  "NEW",
-  "REQUIRES_DOCS",
-  "UNDER_REVIEW",
-  "LENDER_SUBMITTED",
-  "APPROVED",
-  "DECLINED",
-  "FUNDED",
-] as const;
+export enum ApplicationStage {
+  RECEIVED = "RECEIVED",
+  DOCUMENTS_REQUIRED = "DOCUMENTS_REQUIRED",
+  IN_REVIEW = "IN_REVIEW",
+  START_UP = "START_UP",
+  OFF_TO_LENDER = "OFF_TO_LENDER",
+  ACCEPTED = "ACCEPTED",
+  DECLINED = "DECLINED",
+}
 
-export type PipelineState = (typeof PIPELINE_STATES)[number];
+export const PIPELINE_STATES = Object.values(
+  ApplicationStage
+) as ApplicationStage[];
+
+export type PipelineState = ApplicationStage;
 
 export function isPipelineState(value: string): value is PipelineState {
   return (PIPELINE_STATES as readonly string[]).includes(value);
 }
 
 export const LEGAL_TRANSITIONS: Record<PipelineState, readonly PipelineState[]> = {
-  NEW: ["REQUIRES_DOCS"],
-  REQUIRES_DOCS: ["UNDER_REVIEW"],
-  UNDER_REVIEW: ["LENDER_SUBMITTED", "REQUIRES_DOCS", "DECLINED"],
-  LENDER_SUBMITTED: ["APPROVED", "DECLINED", "REQUIRES_DOCS"],
-  APPROVED: ["FUNDED"],
-  DECLINED: [],
-  FUNDED: [],
+  [ApplicationStage.RECEIVED]: [ApplicationStage.DOCUMENTS_REQUIRED],
+  [ApplicationStage.DOCUMENTS_REQUIRED]: [ApplicationStage.IN_REVIEW],
+  [ApplicationStage.IN_REVIEW]: [
+    ApplicationStage.START_UP,
+    ApplicationStage.DOCUMENTS_REQUIRED,
+    ApplicationStage.DECLINED,
+  ],
+  [ApplicationStage.START_UP]: [
+    ApplicationStage.OFF_TO_LENDER,
+    ApplicationStage.DOCUMENTS_REQUIRED,
+    ApplicationStage.DECLINED,
+  ],
+  [ApplicationStage.OFF_TO_LENDER]: [
+    ApplicationStage.ACCEPTED,
+    ApplicationStage.DECLINED,
+    ApplicationStage.DOCUMENTS_REQUIRED,
+  ],
+  [ApplicationStage.ACCEPTED]: [],
+  [ApplicationStage.DECLINED]: [],
 };
 
 export function canTransition(

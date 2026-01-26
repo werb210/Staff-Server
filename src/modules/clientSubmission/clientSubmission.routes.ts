@@ -6,6 +6,7 @@ import { getClientSubmissionOwnerUserId } from "../../config";
 import { AppError } from "../../middleware/errors";
 import { clientSubmissionRateLimit } from "../../middleware/rateLimit";
 import { submitClientApplication } from "./clientSubmission.service";
+import { ApplicationStage } from "../applications/pipelineState";
 
 const router = Router();
 
@@ -33,8 +34,8 @@ router.post("/submissions", clientSubmissionRateLimit(), async (req, res, next) 
           business_name,
           null,
           "standard",
-          "NEW",
-          "NEW",
+          ApplicationStage.RECEIVED,
+          ApplicationStage.RECEIVED,
           lender_id,
           product_id,
           requested_amount,

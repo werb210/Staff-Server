@@ -5,6 +5,7 @@ export type LenderSubmissionMethod = (typeof LENDER_SUBMISSION_METHODS)[number];
 export type LenderRecord = {
   id: string;
   name: string;
+  status?: string;
   active: boolean;
   phone: string | null;
   website: string | null;

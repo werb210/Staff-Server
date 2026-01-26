@@ -87,7 +87,7 @@ async function seedReportingData(): Promise<{ ownerId: string; staffId: string }
 
   const baseDate = new Date("2024-02-01T10:00:00.000Z");
   const applicationIds = [randomUUID(), randomUUID(), randomUUID(), randomUUID()];
-  const states = ["LENDER_SUBMITTED", "APPROVED", "DECLINED", "FUNDED"];
+  const states = ["OFF_TO_LENDER", "ACCEPTED", "DECLINED", "START_UP"];
 
   await Promise.all(
     applicationIds.map((id, index) =>
@@ -381,7 +381,7 @@ describe("reporting", () => {
       `insert into applications
        (id, owner_user_id, name, metadata, product_type, pipeline_state, created_at, updated_at)
        values ($1, $2, $3, $4, $5, $6, $7, $7)`,
-      [randomUUID(), ownerId, "Boundary App", null, "standard", "APPROVED", boundaryEnd]
+      [randomUUID(), ownerId, "Boundary App", null, "standard", "ACCEPTED", boundaryEnd]
     );
 
     await runDailyMetricsJob(boundaryStart);

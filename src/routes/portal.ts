@@ -6,6 +6,7 @@ import {
   findApplicationById,
   listDocumentsByApplicationId,
 } from "../modules/applications/applications.repo";
+import { ApplicationStage } from "../modules/applications/pipelineState";
 import { safeHandler } from "../middleware/safeHandler";
 
 const router = Router();
@@ -48,7 +49,7 @@ router.get(
         items: rows.map((row) => ({
           id: row.id,
           name: row.name,
-          pipelineState: row.pipeline_state ?? "new",
+          pipelineState: row.pipeline_state ?? ApplicationStage.RECEIVED,
           createdAt: row.created_at,
         })),
       });

@@ -61,7 +61,7 @@ Client applications can be submitted without authentication:
 - `POST /api/client/submissions`
 
 Payloads must include `submissionKey`, `productType`, `business`, `applicant`, and `documents`.
-Submissions are idempotent by `submissionKey`, persist applications in `NEW`, and attach documents
+Submissions are idempotent by `submissionKey`, persist applications in `DOCUMENTS_REQUIRED`, and attach documents
 as version 1 for each document type. Invalid or incomplete payloads are rejected.
 
 ## Lender transmission lifecycle (Phase 5)
@@ -71,8 +71,8 @@ Staff submit applications for lender transmission via:
 - `POST /api/lender/submissions`
 
 On success, submissions are logged with lender-specific payload mappings and the application
-transitions to `LENDER_SUBMITTED`. Failures record lender responses and move the pipeline to
-`REQUIRES_DOCS` (retryable) or `DECLINED` (non-retryable) with reason codes.
+transitions to `OFF_TO_LENDER`. Failures record lender responses and move the pipeline to
+`DOCUMENTS_REQUIRED` (retryable) or `DECLINED` (non-retryable) with reason codes.
 
 Admin visibility and controls:
 
