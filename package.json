@@ -26,6 +26,7 @@
     "multer": "^2.0.2",
     "pg": "^8.11.5",
     "twilio": "^5.5.0",
+    "web-push": "^3.6.7",
     "zod": "^3.23.8"
   },
   "devDependencies": {
@@ -37,6 +38,7 @@
     "@types/node": "^25.0.3",
     "@types/pg": "^8.16.0",
     "@types/supertest": "^6.0.2",
+    "@types/web-push": "^3.6.4",
     "jest": "^30.0.5",
     "pg-mem": "^3.0.5",
     "supertest": "^7.1.4",

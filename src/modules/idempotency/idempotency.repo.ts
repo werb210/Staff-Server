@@ -25,7 +25,7 @@ export async function findIdempotencyRecord(params: {
      from idempotency_keys
      where route = $1
        and key = $2
-       and created_at >= (now()::timestamp - interval '24 hours')
+       and created_at >= (now() - interval '24 hours')
      limit 1`,
     [params.route, params.idempotencyKey]
   );

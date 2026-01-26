@@ -19,6 +19,8 @@ import {
   getGlobalRateLimitMaxConfig,
   getGlobalRateLimitWindowMsConfig,
   isTestEnvironment,
+  getPwaPushRateLimitMax,
+  getPwaPushRateLimitWindowMs,
 } from "../config";
 import { logWarn } from "../observability/logger";
 import { hashRefreshToken } from "../auth/tokenUtils";
@@ -194,6 +196,21 @@ export function passwordResetRateLimit(
 
 export function resetLoginRateLimit(): void {
   attemptsByKey.clear();
+}
+
+export function pushSendRateLimit(
+  maxAttempts = getPwaPushRateLimitMax(),
+  windowMs = getPwaPushRateLimitWindowMs()
+): (req: Request, res: Response, next: NextFunction) => void {
+  return createRateLimiter(
+    (req) => {
+      const userId = req.user?.userId ?? "unknown";
+      const ip = req.ip || "unknown";
+      return `push_send:${userId}:${ip}`;
+    },
+    maxAttempts,
+    windowMs
+  );
 }
 
 export function documentUploadRateLimit(
