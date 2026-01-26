@@ -9,6 +9,7 @@ export type JsonValue =
 export type JsonObject = { [key: string]: JsonValue };
 export type JsonArray = JsonValue[];
 export type RequiredDocuments = JsonObject[];
+export type Eligibility = JsonObject | null;
 
 export type LenderProductRecord = {
   id: string;
@@ -17,6 +18,7 @@ export type LenderProductRecord = {
   description: string | null;
   active: boolean;
   required_documents: RequiredDocuments;
+  eligibility: Eligibility;
   created_at: Date;
   updated_at: Date;
 };

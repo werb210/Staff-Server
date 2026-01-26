@@ -30,6 +30,8 @@ import lendersRoutes from "./routes/lenders";
 import lenderProductsRoutes from "./routes/lenderProducts";
 import applicationsRoutes from "./routes/applications";
 import internalRoutes from "./routes/_int";
+import { intHealthHandler } from "./routes/_int/health";
+import { runtimeHandler } from "./routes/_int/runtime";
 
 function assertRoutesMounted(app: express.Express): void {
   const mountedRoutes = listRoutes(app);
@@ -157,6 +159,8 @@ export function buildApp(): express.Express {
   app.use(requestTimeout);
 
   app.use("/api/_int", internalRoutes);
+  app.get("/_int/health", intHealthHandler);
+  app.get("/_int/runtime", runtimeHandler);
 
   app.get("/api/health", healthHandler);
   app.get("/api/ready", readyHandler);

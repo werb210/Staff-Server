@@ -24,6 +24,7 @@ export type LenderProductResponse = {
   description: string | null;
   active: boolean;
   required_documents: RequiredDocuments;
+  eligibility: JsonObject | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -41,6 +42,7 @@ function toLenderProductResponse(
     description: record.description,
     active: record.active,
     required_documents: normalizedDocuments,
+    eligibility: isPlainObject(record.eligibility) ? record.eligibility : null,
     createdAt: parseTimestamp(record.created_at, "created_at"),
     updatedAt: parseTimestamp(record.updated_at, "updated_at"),
   };
@@ -53,7 +55,8 @@ function assertLenderProductRecord(record: LenderProductRecord): void {
     typeof record.lender_id !== "string" ||
     typeof record.name !== "string" ||
     typeof record.active !== "boolean" ||
-    !isRequiredDocuments(record.required_documents)
+    !isRequiredDocuments(record.required_documents) ||
+    !isEligibility(record.eligibility)
   ) {
     throw new AppError("data_error", "Invalid lender product record.", 500);
   }
@@ -96,6 +99,17 @@ function parseRequiredDocuments(value: unknown): RequiredDocuments {
     );
   }
 
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (isRequiredDocuments(parsed)) {
+        return parsed;
+      }
+    } catch {
+      // fall through to validation error
+    }
+  }
+
   if (isRequiredDocuments(value)) {
     return value;
   }
@@ -103,6 +117,33 @@ function parseRequiredDocuments(value: unknown): RequiredDocuments {
   throw new AppError(
     "validation_error",
     "required_documents must be an array of objects.",
+    400
+  );
+}
+
+function parseEligibility(value: unknown): JsonObject | null {
+  if (value === undefined) {
+    return null;
+  }
+  if (value === null) {
+    return null;
+  }
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (isPlainObject(parsed)) {
+        return parsed;
+      }
+    } catch {
+      // fall through
+    }
+  }
+  if (isPlainObject(value)) {
+    return value;
+  }
+  throw new AppError(
+    "validation_error",
+    "eligibility must be a JSON object.",
     400
   );
 }
@@ -127,6 +168,10 @@ function isPlainObject(value: unknown): value is JsonObject {
 
 function isRequiredDocuments(value: unknown): value is RequiredDocuments {
   return Array.isArray(value) && value.every(isPlainObject);
+}
+
+function isEligibility(value: unknown): value is JsonObject | null {
+  return value === null || isPlainObject(value);
 }
 
 /**
@@ -241,6 +286,7 @@ export async function createLenderProductHandler(
       description,
       active,
       required_documents,
+      eligibility,
       type,
       min_amount,
       max_amount,
@@ -312,6 +358,7 @@ export async function createLenderProductHandler(
     }
 
     const requiredDocumentsList = parseRequiredDocuments(required_documents);
+    const eligibilityData = parseEligibility(eligibility);
     const minAmount = parseAmount(min_amount, "min_amount");
     const maxAmount = parseAmount(max_amount, "max_amount");
 
@@ -331,6 +378,7 @@ export async function createLenderProductHandler(
       maxAmount,
       status,
       requiredDocuments: requiredDocumentsList,
+      eligibility: eligibilityData,
     });
 
     res.status(201).json(toLenderProductResponse(created));
@@ -385,7 +433,7 @@ export async function updateLenderProductHandler(
       throw new AppError("validation_error", "id is required.", 400);
     }
 
-    const { name, required_documents } = req.body ?? {};
+    const { name, required_documents, eligibility } = req.body ?? {};
 
     if (
       name !== undefined &&
@@ -396,6 +444,8 @@ export async function updateLenderProductHandler(
     }
 
     const requiredDocumentsList = parseRequiredDocuments(required_documents);
+    const eligibilityData =
+      eligibility !== undefined ? parseEligibility(eligibility) : undefined;
 
     if (user.role === ROLES.LENDER) {
       if (!user.lenderId) {
@@ -418,6 +468,7 @@ export async function updateLenderProductHandler(
       id: id.trim(),
       name,
       requiredDocuments: requiredDocumentsList,
+      eligibility: eligibilityData,
     });
 
     if (!updated) {

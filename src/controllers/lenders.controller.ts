@@ -14,6 +14,7 @@ import {
 } from "../db/schema/lenderProducts";
 import { logError } from "../observability/logger";
 import { ROLES } from "../auth/roles";
+import { LENDER_SUBMISSION_METHODS } from "../db/schema/lenders";
 
 type LenderProductResponse = {
   id: string;
@@ -22,6 +23,7 @@ type LenderProductResponse = {
   description: string | null;
   active: boolean;
   required_documents: RequiredDocuments;
+  eligibility: JsonObject | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -89,6 +91,7 @@ function toLenderProductResponse(record: {
   description: string | null;
   active: boolean;
   required_documents: RequiredDocuments;
+  eligibility: JsonObject | null;
   created_at: Date;
   updated_at: Date;
 }): LenderProductResponse {
@@ -98,7 +101,8 @@ function toLenderProductResponse(record: {
     typeof record.lender_id !== "string" ||
     typeof record.name !== "string" ||
     typeof record.active !== "boolean" ||
-    !isRequiredDocuments(record.required_documents)
+    !isRequiredDocuments(record.required_documents) ||
+    !isEligibility(record.eligibility)
   ) {
     throw new AppError("data_error", "Invalid lender product record.", 500);
   }
@@ -112,6 +116,7 @@ function toLenderProductResponse(record: {
     description: record.description,
     active: record.active,
     required_documents: normalizedDocuments,
+    eligibility: isPlainObject(record.eligibility) ? record.eligibility : null,
     createdAt: parseTimestamp(record.created_at, "created_at"),
     updatedAt: parseTimestamp(record.updated_at, "updated_at"),
   };
@@ -151,6 +156,10 @@ function isPlainObject(value: unknown): value is JsonObject {
 
 function isRequiredDocuments(value: unknown): value is RequiredDocuments {
   return Array.isArray(value) && value.every(isPlainObject);
+}
+
+function isEligibility(value: unknown): value is JsonObject | null {
+  return value === null || isPlainObject(value);
 }
 
 export async function getLenderWithProducts(
@@ -225,30 +234,43 @@ export async function createLender(
       name,
       country,
       submissionMethod,
+      active,
       email,
       phone,
       website,
       postal_code
     } = req.body ?? {};
 
-    if (!name || typeof name !== "string") {
-      res.status(400).json({ error: "name_required" });
-      return;
+    if (!name || typeof name !== "string" || name.trim().length === 0) {
+      throw new AppError("validation_error", "name is required.", 400);
     }
-    if (!country || typeof country !== "string") {
-      res.status(400).json({ error: "country_required" });
-      return;
+    if (!country || typeof country !== "string" || country.trim().length === 0) {
+      throw new AppError("validation_error", "country is required.", 400);
+    }
+    if (active !== undefined && typeof active !== "boolean") {
+      throw new AppError("validation_error", "active must be a boolean.", 400);
     }
 
     const normalizedSubmissionMethod =
       typeof submissionMethod === "string"
-        ? submissionMethod.toLowerCase()
+        ? submissionMethod.trim().toUpperCase()
         : null;
+    if (
+      normalizedSubmissionMethod &&
+      !LENDER_SUBMISSION_METHODS.includes(normalizedSubmissionMethod as any)
+    ) {
+      throw new AppError(
+        "validation_error",
+        "submissionMethod is invalid.",
+        400
+      );
+    }
 
     const lender = await repo.createLender({
-      name,
-      country,
+      name: name.trim(),
+      country: country.trim(),
       submission_method: normalizedSubmissionMethod,
+      active: typeof active === "boolean" ? active : undefined,
       email: email ?? null,
       phone: phone ?? null,
       website: website ?? null,

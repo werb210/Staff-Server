@@ -1,6 +1,10 @@
 import { Request, Response } from "express";
 import { db } from "../db";
 import { z } from "zod";
+import { AppError } from "../middleware/errors";
+import { normalizeRole } from "../auth/roles";
+import { createUserAccount } from "../modules/auth/auth.service";
+import { setUserStatus } from "../modules/users/users.service";
 
 /**
  * Schemas
@@ -15,6 +19,72 @@ const adminUpdateSchema = z.object({
   role: z.enum(["Admin", "Staff", "Lender", "Referrer"]).optional(),
   status: z.enum(["active", "disabled"]).optional(),
 });
+
+const createUserSchema = z.object({
+  email: z.string().email().optional(),
+  phone: z.string().min(1).optional(),
+  role: z.string().min(1),
+  lenderId: z.string().uuid().optional(),
+});
+
+type UserRecord = {
+  id: string;
+  phone: string | null;
+  email: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  role: string | null;
+  status: string | null;
+  silo: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  last_login_at: string | null;
+};
+
+function normalizeOptionalString(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeUserRecord(row: UserRecord): UserRecord {
+  return {
+    ...row,
+    phone: normalizeOptionalString(row.phone),
+    email: normalizeOptionalString(row.email),
+    role: normalizeOptionalString(row.role),
+  };
+}
+
+function handleUserError(
+  res: Response,
+  err: unknown,
+  requestId: string
+): void {
+  if (err instanceof AppError) {
+    res.status(err.status).json({
+      code: err.code,
+      message: err.message,
+      requestId,
+    });
+    return;
+  }
+  if (err instanceof z.ZodError) {
+    res.status(400).json({
+      code: "validation_error",
+      message: "Invalid request payload.",
+      requestId,
+    });
+    return;
+  }
+  res.status(500).json({
+    code: "internal_error",
+    message: err instanceof Error ? err.message : "Unexpected error",
+    requestId,
+  });
+}
 
 /**
  * GET /api/users/me
@@ -42,45 +112,52 @@ export async function getMe(req: Request, res: Response) {
     [userId]
   );
 
-  if (!rows[0]) {
+  const user = rows[0] as UserRecord | undefined;
+  if (!user) {
     return res.status(404).json({ ok: false, error: "user_not_found" });
   }
 
-  res.json({ ok: true, user: rows[0] });
+  res.json({ ok: true, user: normalizeUserRecord(user) });
 }
 
 /**
  * PATCH /api/users/me
  */
 export async function updateMe(req: Request, res: Response) {
-  const userId = req.user!.userId;
-  const input = updateMeSchema.parse(req.body);
+  const requestId = res.locals.requestId ?? "unknown";
+  try {
+    const userId = req.user!.userId;
+    const input = updateMeSchema.parse(req.body);
 
-  if (Object.keys(input).length === 0) {
-    return res.json({ ok: true });
+    if (Object.keys(input).length === 0) {
+      res.json({ ok: true });
+      return;
+    }
+
+    const fields = [];
+    const values: any[] = [];
+    let idx = 1;
+
+    for (const [k, v] of Object.entries(input)) {
+      fields.push(`${k} = $${idx++}`);
+      values.push(v);
+    }
+
+    values.push(userId);
+
+    await db.query(
+      `
+      UPDATE users
+      SET ${fields.join(", ")}, updated_at = now()
+      WHERE id = $${idx}
+      `,
+      values
+    );
+
+    res.json({ ok: true });
+  } catch (err) {
+    handleUserError(res, err, requestId);
   }
-
-  const fields = [];
-  const values: any[] = [];
-  let idx = 1;
-
-  for (const [k, v] of Object.entries(input)) {
-    fields.push(`${k} = $${idx++}`);
-    values.push(v);
-  }
-
-  values.push(userId);
-
-  await db.query(
-    `
-    UPDATE users
-    SET ${fields.join(", ")}, updated_at = now()
-    WHERE id = $${idx}
-    `,
-    values
-  );
-
-  res.json({ ok: true });
 }
 
 /**
@@ -105,7 +182,7 @@ export async function listUsers(req: Request, res: Response) {
 
   const where = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
 
-  const { rows } = await db.query(
+  const { rows } = await db.query<UserRecord>(
     `
     SELECT
       id,
@@ -126,43 +203,110 @@ export async function listUsers(req: Request, res: Response) {
     values
   );
 
-  res.json({ ok: true, users: rows });
+  const users = Array.isArray(rows) ? rows.map(normalizeUserRecord) : [];
+  res.json({ ok: true, users });
 }
 
 /**
  * PATCH /api/users/:id
  */
 export async function adminUpdateUser(req: Request, res: Response) {
-  const targetId = req.params.id;
-  const input = adminUpdateSchema.parse(req.body);
+  const requestId = res.locals.requestId ?? "unknown";
+  try {
+    const targetId = req.params.id;
+    const input = adminUpdateSchema.parse(req.body);
 
-  if (Object.keys(input).length === 0) {
-    return res.json({ ok: true });
+    if (Object.keys(input).length === 0) {
+      res.json({ ok: true });
+      return;
+    }
+
+    const fields = [];
+    const values: any[] = [];
+    let idx = 1;
+
+    for (const [k, v] of Object.entries(input)) {
+      fields.push(`${k} = $${idx++}`);
+      values.push(v);
+    }
+
+    values.push(targetId);
+
+    const result = await db.query(
+      `
+      UPDATE users
+      SET ${fields.join(", ")}, updated_at = now()
+      WHERE id = $${idx}
+      `,
+      values
+    );
+
+    if (result.rowCount === 0) {
+      throw new AppError("not_found", "User not found.", 404);
+    }
+
+    res.json({ ok: true });
+  } catch (err) {
+    handleUserError(res, err, requestId);
   }
+}
 
-  const fields = [];
-  const values: any[] = [];
-  let idx = 1;
+/**
+ * POST /api/users
+ */
+export async function createUser(req: Request, res: Response) {
+  const requestId = res.locals.requestId ?? "unknown";
+  try {
+    const parsed = createUserSchema.parse(req.body ?? {});
+    const normalizedRole = normalizeRole(parsed.role);
+    if (!normalizedRole) {
+      throw new AppError("validation_error", "Role is invalid.", 400);
+    }
 
-  for (const [k, v] of Object.entries(input)) {
-    fields.push(`${k} = $${idx++}`);
-    values.push(v);
+    const user = await createUserAccount({
+      email: parsed.email ?? null,
+      phoneNumber: parsed.phone ?? null,
+      role: normalizedRole,
+      lenderId: parsed.lenderId ?? null,
+      actorUserId: req.user?.userId ?? null,
+      ip: req.ip,
+      userAgent: req.get("user-agent"),
+    });
+
+    res.status(201).json({
+      ok: true,
+      user,
+    });
+  } catch (err) {
+    handleUserError(res, err, requestId);
   }
+}
 
-  values.push(targetId);
+/**
+ * DELETE /api/users/:id (soft delete)
+ */
+export async function deleteUser(req: Request, res: Response) {
+  const requestId = res.locals.requestId ?? "unknown";
+  try {
+    const targetId = req.params.id;
+    if (!targetId || typeof targetId !== "string") {
+      throw new AppError("validation_error", "id is required.", 400);
+    }
+    const actorId = req.user?.userId;
+    if (!actorId) {
+      throw new AppError("missing_token", "Authorization token is required.", 401);
+    }
 
-  const result = await db.query(
-    `
-    UPDATE users
-    SET ${fields.join(", ")}, updated_at = now()
-    WHERE id = $${idx}
-    `,
-    values
-  );
+    await setUserStatus({
+      userId: targetId,
+      active: false,
+      actorId,
+      ip: req.ip,
+      userAgent: req.get("user-agent"),
+    });
 
-  if (result.rowCount === 0) {
-    return res.status(404).json({ ok: false, error: "user_not_found" });
+    res.status(200).json({ ok: true });
+  } catch (err) {
+    handleUserError(res, err, requestId);
   }
-
-  res.json({ ok: true });
 }

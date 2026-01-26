@@ -4,12 +4,13 @@ import { listRouteInventory } from "../debug/printRoutes";
 import { readyHandler } from "./ready";
 import { requireAuth } from "../middleware/requireAuth";
 import internalRoutes from "./internal";
+import { intHealthHandler } from "./_int/health";
+import { runtimeHandler } from "./_int/runtime";
 
 const router = Router();
 
-router.get("/health", (_req, res) => {
-  res.status(200).json({ ok: true });
-});
+router.get("/health", intHealthHandler);
+router.get("/runtime", runtimeHandler);
 router.get("/ready", readyHandler);
 router.get("/build", (_req, res) => {
   const { commitHash, buildTimestamp } = getBuildInfo();
