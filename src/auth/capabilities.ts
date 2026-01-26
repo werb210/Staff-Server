@@ -129,3 +129,12 @@ export function getCapabilitiesForRole(role: Role): Capability[] {
 export function isCapability(value: unknown): value is Capability {
   return typeof value === "string" && CAPABILITY_SET.has(value as Capability);
 }
+
+export function getRolesForCapabilities(
+  required: readonly Capability[]
+): Role[] {
+  const requiredList = [...required];
+  return Object.entries(ROLE_CAPABILITIES)
+    .filter(([_, caps]) => requiredList.every((cap) => caps.includes(cap)))
+    .map(([role]) => role as Role);
+}

@@ -16,16 +16,36 @@ import { AppError } from "../middleware/errors";
 import { logError, logInfo, logWarn } from "../observability/logger";
 import { trackEvent } from "../observability/appInsights";
 import { getRequestContext } from "../observability/requestContext";
+import { type Role } from "../auth/roles";
 
 export type PushLevel = "normal" | "high" | "critical";
 
-export type PushPayload = {
+export type PushAlertPayload = {
+  type: "alert";
   title: string;
   body: string;
   level: PushLevel;
   sound: boolean;
   badge?: string;
   data?: string;
+};
+
+export type PushSilentPayload = {
+  type: "silent";
+  data?: string;
+  badgeIncrement?: number;
+};
+
+export type PushBadgePayload = {
+  type: "badge";
+  increment: number;
+};
+
+export type PushPayload = PushAlertPayload | PushSilentPayload | PushBadgePayload;
+
+export type PushTarget = {
+  userId: string;
+  role: Role;
 };
 
 type PushStatus = {
@@ -60,26 +80,85 @@ function ensurePayloadSize(payload: unknown): void {
   }
 }
 
-function buildWebPushPayload(payload: PushPayload): Record<string, unknown> {
-  const isHigh = payload.level === "high" || payload.level === "critical";
-  const isCritical = payload.level === "critical";
-  const base: Record<string, unknown> = {
-    title: payload.title,
-    body: payload.body,
-    level: payload.level,
-    sound: payload.sound,
-    badge: payload.badge,
+function buildWebPushPayload(
+  payload: PushPayload,
+  target: PushTarget
+): Record<string, unknown> {
+  if (payload.type === "alert") {
+    const isHigh = payload.level === "high" || payload.level === "critical";
+    const isCritical = payload.level === "critical";
+    const base: Record<string, unknown> = {
+      type: payload.type,
+      title: payload.title,
+      body: payload.body,
+      level: payload.level,
+      sound: payload.sound,
+      badge: payload.badge,
+      data: payload.data,
+      vibrate: isCritical ? CRITICAL_VIBRATE_PATTERN : [],
+      userRole: target.role,
+      sentAt: new Date().toISOString(),
+    };
+    if (isHigh) {
+      base.requireInteraction = true;
+    }
+    if (isCritical) {
+      base.requireInteraction = true;
+      base.renotify = true;
+    }
+    return base;
+  }
+
+  if (payload.type === "badge") {
+    return {
+      type: payload.type,
+      badgeIncrement: payload.increment,
+      silent: true,
+      contentAvailable: true,
+      userRole: target.role,
+      sentAt: new Date().toISOString(),
+    };
+  }
+
+  return {
+    type: payload.type,
     data: payload.data,
-    vibrate: isCritical ? CRITICAL_VIBRATE_PATTERN : [],
+    badgeIncrement: payload.badgeIncrement ?? null,
+    silent: true,
+    contentAvailable: true,
+    userRole: target.role,
+    sentAt: new Date().toISOString(),
   };
-  if (isHigh) {
-    base.requireInteraction = true;
+}
+
+function getAuditEntry(payload: PushPayload): {
+  level: string;
+  title: string;
+  body: string;
+} {
+  if (payload.type === "alert") {
+    return {
+      level: payload.level,
+      title: payload.title,
+      body: payload.body,
+    };
   }
-  if (isCritical) {
-    base.requireInteraction = true;
-    base.renotify = true;
+  if (payload.type === "badge") {
+    return {
+      level: "badge",
+      title: "Badge updated",
+      body: `Incremented badge by ${payload.increment}.`,
+    };
   }
-  return base;
+  return {
+    level: "silent",
+    title: "Silent update",
+    body: "Background update delivered.",
+  };
+}
+
+function shouldDeleteSubscription(statusCode: number | undefined): boolean {
+  return statusCode === 404 || statusCode === 410 || statusCode === 400;
 }
 
 export function initializePushService(): PushStatus {
@@ -145,7 +224,7 @@ export function getPushStatus(): PushStatus {
 }
 
 export async function sendNotification(
-  userId: string,
+  target: PushTarget,
   payload: PushPayload
 ): Promise<{ sent: number; failed: number }> {
   initializePushService();
@@ -157,29 +236,39 @@ export async function sendNotification(
     );
   }
   ensurePayloadSize(payload);
-  const subscriptions = await listPwaSubscriptionsByUser(userId);
+  const subscriptions = await listPwaSubscriptionsByUser(target.userId);
   const requestId = getRequestContext()?.requestId ?? "unknown";
 
-  const messagePayload = buildWebPushPayload(payload);
+  const messagePayload = buildWebPushPayload(payload, target);
   const payloadHash = hashPayload(messagePayload);
+  const auditEntry = getAuditEntry(payload);
   await createPwaNotificationAudit({
-    userId,
-    level: payload.level,
-    title: payload.title,
-    body: payload.body,
+    userId: target.userId,
+    level: auditEntry.level,
+    title: auditEntry.title,
+    body: auditEntry.body,
     deliveredAt: new Date(),
     payloadHash,
   });
 
   if (subscriptions.length === 0) {
-    logWarn("push_no_subscriptions", { userId, requestId });
+    logWarn("push_no_subscriptions", {
+      userId: target.userId,
+      role: target.role,
+      requestId,
+    });
     return { sent: 0, failed: 0 };
   }
 
   let sent = 0;
   let failed = 0;
-  const ttl = payload.level === "normal" ? DEFAULT_TTL_SECONDS : HIGH_TTL_SECONDS;
-  const urgency = payload.level === "normal" ? "normal" : "high";
+  const isAlert = payload.type === "alert";
+  const ttl = isAlert
+    ? payload.level === "normal"
+      ? DEFAULT_TTL_SECONDS
+      : HIGH_TTL_SECONDS
+    : DEFAULT_TTL_SECONDS;
+  const urgency = isAlert && payload.level !== "normal" ? "high" : "normal";
 
   for (const subscription of subscriptions) {
     try {
@@ -201,39 +290,43 @@ export async function sendNotification(
       trackEvent({
         name: "push_sent",
         properties: {
-          userId,
+          userId: target.userId,
+          role: target.role,
           requestId,
           endpoint: subscription.endpoint,
-          level: payload.level,
+          payloadType: payload.type,
         },
       });
       logInfo("push_sent", {
-        userId,
+        userId: target.userId,
+        role: target.role,
         requestId,
         endpoint: subscription.endpoint,
-        level: payload.level,
+        payloadType: payload.type,
       });
     } catch (error: any) {
       failed += 1;
       const statusCode = error?.statusCode;
-      if (statusCode === 404 || statusCode === 410) {
+      if (shouldDeleteSubscription(statusCode)) {
         await deletePwaSubscriptionByEndpoint(subscription.endpoint);
       }
       trackEvent({
         name: "push_failed",
         properties: {
-          userId,
+          userId: target.userId,
+          role: target.role,
           requestId,
           endpoint: subscription.endpoint,
-          level: payload.level,
+          payloadType: payload.type,
           statusCode: statusCode ?? "unknown",
         },
       });
       logError("push_failed", {
-        userId,
+        userId: target.userId,
+        role: target.role,
         requestId,
         endpoint: subscription.endpoint,
-        level: payload.level,
+        payloadType: payload.type,
         statusCode: statusCode ?? "unknown",
         message: error instanceof Error ? error.message : "unknown_error",
       });

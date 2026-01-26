@@ -85,6 +85,7 @@ describe("lenderProductsService", () => {
       description: "Short-term funding.",
       active: true,
       required_documents: [],
+      eligibility: null,
       created_at: new Date("2024-01-01T00:00:00Z"),
       updated_at: new Date("2024-01-02T00:00:00Z"),
     };
@@ -111,6 +112,7 @@ describe("lenderProductsService", () => {
       description: null,
       active: false,
       required_documents: [],
+      eligibility: null,
       created_at: new Date("2024-02-01T00:00:00Z"),
       updated_at: new Date("2024-02-02T00:00:00Z"),
     };

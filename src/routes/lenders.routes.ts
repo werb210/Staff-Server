@@ -1,6 +1,5 @@
 import { Router } from "express";
-import { requireAuth } from "../middleware/requireAuth";
-import { requireCapability } from "../middleware/auth";
+import { requireAuth, requireCapability } from "../middleware/auth";
 import { CAPABILITIES } from "../auth/capabilities";
 import { safeHandler } from "../middleware/safeHandler";
 import {
