@@ -167,10 +167,10 @@ export const LIST_LENDER_PRODUCTS_SQL = `select id,
  from lender_products
  order by created_at desc`;
 
-export async function listLenderProducts(params?: {
-  client?: Queryable;
-}): Promise<LenderProductRecord[]> {
-  const runner = params?.client ?? pool;
+export async function listLenderProducts(
+  client?: Queryable
+): Promise<LenderProductRecord[]> {
+  const runner = client ?? pool;
   try {
     const existing = await assertLenderProductColumnsExist({
       route: "/api/lender-products",
@@ -206,11 +206,11 @@ export async function listLenderProducts(params?: {
   }
 }
 
-export async function listLenderProductsByLenderId(params: {
-  lenderId: string;
-  client?: Queryable;
-}): Promise<LenderProductRecord[]> {
-  const runner = params.client ?? pool;
+export async function listLenderProductsByLenderId(
+  lenderId: string,
+  client?: Queryable
+): Promise<LenderProductRecord[]> {
+  const runner = client ?? pool;
   const existing = await assertLenderProductColumnsExist({
     route: "/api/lenders/:id/products",
     columns: [
@@ -231,16 +231,16 @@ export async function listLenderProductsByLenderId(params: {
      from lender_products
      where lender_id = $1
      order by created_at desc`,
-    [params.lenderId]
+    [lenderId]
   );
   return res.rows;
 }
 
-export async function getLenderProductById(params: {
-  id: string;
-  client?: Queryable;
-}): Promise<LenderProductRecord | null> {
-  const runner = params.client ?? pool;
+export async function getLenderProductById(
+  id: string,
+  client?: Queryable
+): Promise<LenderProductRecord | null> {
+  const runner = client ?? pool;
   const existing = await assertLenderProductColumnsExist({
     route: "/api/lender-products/:id",
     columns: [
@@ -261,7 +261,7 @@ export async function getLenderProductById(params: {
      from lender_products
      where id = $1
      limit 1`,
-    [params.id]
+    [id]
   );
   return res.rows[0] ?? null;
 }

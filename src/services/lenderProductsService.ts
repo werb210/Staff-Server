@@ -97,7 +97,7 @@ export async function createLenderProductService(params: {
 export async function listLenderProductsService(params?: {
   silo?: string | null;
 }): Promise<Awaited<ReturnType<typeof listLenderProducts>>> {
-  const products = await listLenderProducts(params);
+  const products = await listLenderProducts();
   const resolvedSilo = resolveSilo(params?.silo);
   return filterBySilo(products, resolvedSilo);
 }
@@ -106,7 +106,7 @@ export async function listLenderProductsByLenderIdService(params: {
   lenderId: string;
   silo?: string | null;
 }): Promise<Awaited<ReturnType<typeof listLenderProductsByLenderId>>> {
-  const products = await listLenderProductsByLenderId(params);
+  const products = await listLenderProductsByLenderId(params.lenderId);
   const resolvedSilo = resolveSilo(params.silo);
   return filterBySilo(products, resolvedSilo);
 }
@@ -114,7 +114,7 @@ export async function listLenderProductsByLenderIdService(params: {
 export async function getLenderProductByIdService(params: {
   id: string;
 }): Promise<Awaited<ReturnType<typeof getLenderProductById>>> {
-  return getLenderProductById(params);
+  return getLenderProductById(params.id);
 }
 
 export async function updateLenderProductService(params: {

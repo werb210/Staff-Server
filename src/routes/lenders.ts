@@ -5,7 +5,12 @@ import { requireAuth, requireCapability } from "../middleware/auth";
 import { CAPABILITIES } from "../auth/capabilities";
 import { safeHandler } from "../middleware/safeHandler";
 import { ROLES } from "../auth/roles";
-import { createLender, getLenderWithProducts, updateLender } from "../controllers/lenders.controller";
+import {
+  createLender,
+  getLenderByIdHandler,
+  getLenderWithProducts,
+  updateLender,
+} from "../controllers/lenders.controller";
 
 type LenderProductRow = {
   id: string;
@@ -123,6 +128,13 @@ router.get(
   requireAuth,
   requireCapability([CAPABILITIES.LENDERS_READ]),
   safeHandler(getLenderWithProducts)
+);
+
+router.get(
+  "/:id",
+  requireAuth,
+  requireCapability([CAPABILITIES.LENDERS_READ]),
+  safeHandler(getLenderByIdHandler)
 );
 
 router.post(
