@@ -130,6 +130,16 @@ export async function updateLenderProductService(params: {
   name: unknown;
   requiredDocuments: RequiredDocuments;
   eligibility?: JsonObject | null;
+  description?: string | null;
+  active?: boolean;
+  type?: string | null;
+  minAmount?: number | null;
+  maxAmount?: number | null;
+  status?: string | null;
+  country?: string | null;
+  rateType?: string | null;
+  minRate?: number | string | null;
+  maxRate?: number | string | null;
 }): Promise<Awaited<ReturnType<typeof updateLenderProduct>>> {
   const normalizedName = normalizeLenderProductName(params.name);
 
@@ -138,5 +148,15 @@ export async function updateLenderProductService(params: {
     name: normalizedName,
     requiredDocuments: params.requiredDocuments,
     eligibility: params.eligibility,
+    description: params.description,
+    active: params.active,
+    type: params.type,
+    minAmount: params.minAmount,
+    maxAmount: params.maxAmount,
+    status: params.status,
+    country: params.country,
+    rateType: params.rateType,
+    minRate: params.minRate,
+    maxRate: params.maxRate,
   });
 }

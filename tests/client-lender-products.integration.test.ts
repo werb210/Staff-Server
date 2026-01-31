@@ -60,7 +60,12 @@ describe("client lender products flow", () => {
       .post("/api/lenders")
       .set("Authorization", `Bearer ${token}`)
       .set("x-request-id", requestId)
-      .send({ name: "Client Lender", country: "US" });
+      .send({
+        name: "Client Lender",
+        country: "US",
+        submissionMethod: "EMAIL",
+        submissionEmail: "submissions@client-lender.com",
+      });
 
     expect(lenderResponse.status).toBe(201);
 

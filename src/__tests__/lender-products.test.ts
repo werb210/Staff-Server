@@ -85,6 +85,7 @@ describe("lender products", () => {
       .send({
         name: "Docs Lender",
         country: "US",
+        submissionMethod: "EMAIL",
         submissionEmail: "submissions@docs-lender.com",
       });
 
@@ -167,6 +168,7 @@ describe("lender products", () => {
         name: "Inactive Lender",
         country: "US",
         active: false,
+        submissionMethod: "EMAIL",
         submissionEmail: "submissions@inactive-lender.com",
       });
 
@@ -190,6 +192,7 @@ describe("lender products", () => {
         name: "Active Lender",
         country: "US",
         active: true,
+        submissionMethod: "EMAIL",
         submissionEmail: "submissions@active-lender.com",
       });
 
@@ -207,7 +210,7 @@ describe("lender products", () => {
     expect(created.body.lenderId).toBe(activeLender.body.id);
   });
 
-  it("stores variable rate min/max as P+X", async () => {
+  it("stores variable rate min/max as P+", async () => {
     const token = await loginAdmin();
     const lenderResponse = await request(app)
       .post("/api/lenders")
@@ -216,6 +219,7 @@ describe("lender products", () => {
       .send({
         name: "Variable Lender",
         country: "US",
+        submissionMethod: "EMAIL",
         submissionEmail: "submissions@variable-lender.com",
       });
 
@@ -245,8 +249,8 @@ describe("lender products", () => {
 
     expect(rateRow.rows[0]).toMatchObject({
       rate_type: "VARIABLE",
-      min_rate: "P+2.5",
-      max_rate: "P+4.25",
+      min_rate: "P+",
+      max_rate: "P+",
     });
   });
 

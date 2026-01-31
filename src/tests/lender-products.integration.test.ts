@@ -68,6 +68,7 @@ describe("lender products integration", () => {
         name: "Inactive Lender",
         country: "US",
         active: false,
+        submissionMethod: "EMAIL",
         submissionEmail: "submissions@inactive-lender.com",
       });
 
@@ -91,6 +92,7 @@ describe("lender products integration", () => {
         name: "Active Lender",
         country: "US",
         active: true,
+        submissionMethod: "EMAIL",
         submissionEmail: "submissions@active-lender.com",
       });
 
@@ -108,7 +110,7 @@ describe("lender products integration", () => {
     expect(created.body.lenderId).toBe(activeLender.body.id);
   });
 
-  it("stores variable rate min/max as P+X", async () => {
+  it("stores variable rate min/max as P+", async () => {
     const token = await loginAdmin();
     const lenderResponse = await request(app)
       .post("/api/lenders")
@@ -117,6 +119,7 @@ describe("lender products integration", () => {
       .send({
         name: "Variable Lender",
         country: "US",
+        submissionMethod: "EMAIL",
         submissionEmail: "submissions@variable-lender.com",
       });
 
@@ -146,8 +149,65 @@ describe("lender products integration", () => {
 
     expect(rateRow.rows[0]).toMatchObject({
       rate_type: "VARIABLE",
-      min_rate: "P+2.5",
-      max_rate: "P+4.25",
+      min_rate: "P+",
+      max_rate: "P+",
     });
+  });
+
+  it("filters lender products by country", async () => {
+    const token = await loginAdmin();
+    const lenderResponse = await request(app)
+      .post("/api/lenders")
+      .set("Authorization", `Bearer ${token}`)
+      .set("x-request-id", requestId)
+      .send({
+        name: "Country Lender",
+        country: "US",
+        submissionMethod: "EMAIL",
+        submissionEmail: "submissions@country-lender.com",
+      });
+
+    await request(app)
+      .post("/api/lender-products")
+      .set("Authorization", `Bearer ${token}`)
+      .set("x-request-id", requestId)
+      .send({
+        lenderId: lenderResponse.body.id,
+        name: "Canada Product",
+        country: "CA",
+        required_documents: [],
+      });
+
+    await request(app)
+      .post("/api/lender-products")
+      .set("Authorization", `Bearer ${token}`)
+      .set("x-request-id", requestId)
+      .send({
+        lenderId: lenderResponse.body.id,
+        name: "Both Product",
+        country: "BOTH",
+        required_documents: [],
+      });
+
+    await request(app)
+      .post("/api/lender-products")
+      .set("Authorization", `Bearer ${token}`)
+      .set("x-request-id", requestId)
+      .send({
+        lenderId: lenderResponse.body.id,
+        name: "US Product",
+        country: "US",
+        required_documents: [],
+      });
+
+    const response = await request(app)
+      .get(`/api/lender-products?lenderId=${lenderResponse.body.id}&country=CA`)
+      .set("Authorization", `Bearer ${token}`)
+      .set("x-request-id", requestId);
+
+    expect(response.status).toBe(200);
+    const productNames = response.body.map((item: { name: string }) => item.name);
+    expect(productNames).toEqual(expect.arrayContaining(["Canada Product", "Both Product"]));
+    expect(productNames).not.toEqual(expect.arrayContaining(["US Product"]));
   });
 });

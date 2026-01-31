@@ -23,6 +23,14 @@ type LenderProductResponse = {
   name: string;
   description: string | null;
   active: boolean;
+  type: string | null;
+  min_amount: number | null;
+  max_amount: number | null;
+  status: string | null;
+  country: string | null;
+  rate_type: string | null;
+  min_rate: string | null;
+  max_rate: string | null;
   required_documents: RequiredDocuments;
   eligibility: JsonObject | null;
   createdAt: Date;
@@ -187,6 +195,14 @@ function toLenderProductResponse(record: {
   name: string;
   description: string | null;
   active: boolean;
+  type?: string | null;
+  min_amount?: number | null;
+  max_amount?: number | null;
+  status?: string | null;
+  country?: string | null;
+  rate_type?: string | null;
+  min_rate?: string | null;
+  max_rate?: string | null;
   required_documents: RequiredDocuments;
   eligibility: JsonObject | null;
   created_at: Date;
@@ -212,6 +228,14 @@ function toLenderProductResponse(record: {
     name: record.name,
     description: record.description,
     active: record.active,
+    type: record.type ?? null,
+    min_amount: record.min_amount ?? null,
+    max_amount: record.max_amount ?? null,
+    status: record.status ?? null,
+    country: record.country ?? null,
+    rate_type: record.rate_type ?? null,
+    min_rate: record.min_rate ?? null,
+    max_rate: record.max_rate ?? null,
     required_documents: normalizedDocuments,
     eligibility: isPlainObject(record.eligibility) ? record.eligibility : null,
     createdAt: parseTimestamp(record.created_at, "created_at"),
@@ -331,6 +355,7 @@ export async function createLender(
       name,
       country,
       submissionMethod,
+      apiConfig,
       active,
       contact,
       email,
@@ -350,6 +375,13 @@ export async function createLender(
     if (!LENDER_COUNTRIES.includes(normalizedCountry as any)) {
       throw new AppError("validation_error", "country is invalid.", 400);
     }
+    if (!submissionMethod || typeof submissionMethod !== "string") {
+      throw new AppError(
+        "validation_error",
+        "submissionMethod is required.",
+        400
+      );
+    }
     if (active !== undefined && typeof active !== "boolean") {
       throw new AppError("validation_error", "active must be a boolean.", 400);
     }
@@ -363,12 +395,6 @@ export async function createLender(
     ) {
       throw new AppError("validation_error", "submissionEmail must be a string.", 400);
     }
-    const normalizedSubmissionEmail =
-      typeof submissionEmail === "string" ? submissionEmail.trim() : "";
-    if (!normalizedSubmissionEmail) {
-      throw new AppError("validation_error", "submissionEmail is required.", 400);
-    }
-
     const contactName =
       contact && typeof (contact as { name?: unknown }).name === "string"
         ? (contact as { name: string }).name.trim()
@@ -403,6 +429,29 @@ export async function createLender(
         400
       );
     }
+    if (normalizedSubmissionMethod === "EMAIL") {
+      const normalizedSubmissionEmail =
+        typeof submissionEmail === "string" ? submissionEmail.trim() : "";
+      if (!normalizedSubmissionEmail) {
+        throw new AppError(
+          "validation_error",
+          "submissionEmail is required for EMAIL submissions.",
+          400
+        );
+      }
+    }
+    if (normalizedSubmissionMethod === "API") {
+      if (apiConfig === undefined || apiConfig === null || typeof apiConfig !== "object") {
+        throw new AppError(
+          "validation_error",
+          "apiConfig is required for API submissions.",
+          400
+        );
+      }
+    }
+
+    const normalizedSubmissionEmail =
+      typeof submissionEmail === "string" ? submissionEmail.trim() : null;
 
     const lender = await repo.createLender(pool, {
       name: name.trim(),
@@ -464,6 +513,7 @@ export async function updateLender(
       email,
       submissionEmail,
       submissionMethod,
+      apiConfig,
       phone,
       website,
       postal_code,
@@ -525,6 +575,26 @@ export async function updateLender(
         "submissionMethod is invalid.",
         400
       );
+    }
+    if (normalizedSubmissionMethod === "EMAIL") {
+      const normalizedSubmissionEmail =
+        typeof submissionEmail === "string" ? submissionEmail.trim() : "";
+      if (!normalizedSubmissionEmail) {
+        throw new AppError(
+          "validation_error",
+          "submissionEmail is required for EMAIL submissions.",
+          400
+        );
+      }
+    }
+    if (normalizedSubmissionMethod === "API") {
+      if (apiConfig === undefined || apiConfig === null || typeof apiConfig !== "object") {
+        throw new AppError(
+          "validation_error",
+          "apiConfig is required for API submissions.",
+          400
+        );
+      }
     }
 
     const contactName =
