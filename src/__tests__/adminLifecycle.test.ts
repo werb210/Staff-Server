@@ -190,4 +190,50 @@ describe("admin lifecycle", () => {
       "user_role_changed",
     ]);
   });
+
+  it("updates user status to ACTIVE/INACTIVE when toggling", async () => {
+    const adminPhone = nextPhone();
+    await createUserAccount({
+      email: "admin-status@example.com",
+      phoneNumber: adminPhone,
+      role: ROLES.ADMIN,
+    });
+    const user = await createUserAccount({
+      email: "status-user@example.com",
+      phoneNumber: nextPhone(),
+      role: ROLES.STAFF,
+    });
+
+    const adminLogin = await otpVerifyRequest(app, {
+      phone: adminPhone,
+      requestId,
+      idempotencyKey: nextIdempotencyKey(),
+    });
+
+    const disable = await request(app)
+      .post(`/api/users/${user.id}/disable`)
+      .set("Idempotency-Key", nextIdempotencyKey())
+      .set("Authorization", `Bearer ${adminLogin.body.accessToken}`)
+      .set("x-request-id", requestId);
+    expect(disable.status).toBe(200);
+
+    const disabledRow = await pool.query<{ status: string }>(
+      "select status from users where id = $1",
+      [user.id]
+    );
+    expect(disabledRow.rows[0]?.status).toBe("INACTIVE");
+
+    const enable = await request(app)
+      .post(`/api/users/${user.id}/enable`)
+      .set("Idempotency-Key", nextIdempotencyKey())
+      .set("Authorization", `Bearer ${adminLogin.body.accessToken}`)
+      .set("x-request-id", requestId);
+    expect(enable.status).toBe(200);
+
+    const enabledRow = await pool.query<{ status: string }>(
+      "select status from users where id = $1",
+      [user.id]
+    );
+    expect(enabledRow.rows[0]?.status).toBe("ACTIVE");
+  });
 });

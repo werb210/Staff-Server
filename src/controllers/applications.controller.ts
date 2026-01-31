@@ -1,14 +1,17 @@
 import { type Request, type Response } from "express";
-import { listApplicationPipelineStages } from "../modules/applications/applications.repo";
+import { ApplicationStage } from "../modules/applications/pipelineState";
 
 export async function listApplicationStages(
   _req: Request,
   res: Response
 ): Promise<void> {
-  try {
-    const stages = await listApplicationPipelineStages();
-    res.status(200).json(Array.isArray(stages) ? stages : []);
-  } catch {
-    res.status(200).json([]);
-  }
+  res.status(200).json([
+    ApplicationStage.RECEIVED,
+    ApplicationStage.DOCUMENTS_REQUIRED,
+    ApplicationStage.IN_REVIEW,
+    ApplicationStage.STARTUP,
+    ApplicationStage.OFF_TO_LENDER,
+    ApplicationStage.ACCEPTED,
+    ApplicationStage.DECLINED,
+  ]);
 }

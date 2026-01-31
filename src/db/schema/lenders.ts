@@ -1,4 +1,8 @@
-export const LENDER_SUBMISSION_METHODS = ["EMAIL", "API", "PORTAL"] as const;
+export const LENDER_SUBMISSION_METHODS = ["EMAIL", "API"] as const;
+
+export const LENDER_COUNTRIES = ["CA", "US", "CA_US"] as const;
+
+export type LenderCountry = (typeof LENDER_COUNTRIES)[number];
 
 export type LenderSubmissionMethod = (typeof LENDER_SUBMISSION_METHODS)[number];
 

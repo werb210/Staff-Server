@@ -111,11 +111,15 @@ beforeAll(async () => {
       country text not null,
       submission_method text null,
       submission_email text null,
-      status text not null default 'active',
+      status text not null default 'ACTIVE',
       email text null,
       phone text null,
       website text null,
       postal_code text null,
+      contact_name text null,
+      contact_email text null,
+      contact_phone text null,
+      active boolean not null default true,
       created_at timestamptz not null default now()
     );
   `);
@@ -131,6 +135,10 @@ beforeAll(async () => {
       max_amount integer null,
       status text not null default 'active',
       active boolean not null default true,
+      country text null,
+      rate_type text null,
+      min_rate text null,
+      max_rate text null,
       required_documents jsonb not null default '[]'::jsonb,
       eligibility jsonb null,
       created_at timestamptz not null default now(),

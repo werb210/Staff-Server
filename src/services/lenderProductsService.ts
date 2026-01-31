@@ -61,6 +61,10 @@ export async function createLenderProductService(params: {
   status?: unknown;
   requiredDocuments: RequiredDocuments;
   eligibility?: JsonObject | null;
+  country?: string | null;
+  rateType?: string | null;
+  minRate?: number | string | null;
+  maxRate?: number | string | null;
 }): Promise<Awaited<ReturnType<typeof createLenderProduct>>> {
   const normalizedName = normalizeLenderProductName(params.name);
   const normalizedType =
@@ -86,6 +90,10 @@ export async function createLenderProductService(params: {
     status: normalizedStatus,
     requiredDocuments: params.requiredDocuments,
     eligibility: params.eligibility ?? null,
+    country: params.country ?? null,
+    rateType: params.rateType ?? null,
+    minRate: params.minRate ?? null,
+    maxRate: params.maxRate ?? null,
   });
   await ensureSeedRequirementsForProduct({
     lenderProductId: product.id,

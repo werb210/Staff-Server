@@ -549,7 +549,7 @@ export async function setUserActive(
          disabled = $2,
          status = $3
      where id = $4`,
-    [active, !active, active ? "active" : "disabled", userId]
+    [active, !active, active ? "ACTIVE" : "INACTIVE", userId]
   );
 }
 

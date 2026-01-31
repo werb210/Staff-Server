@@ -74,7 +74,12 @@ describe("lenders auth", () => {
       .set("Authorization", `Bearer ${token}`)
       .set("Idempotency-Key", `idem-lenders-create-${requestId}`)
       .set("x-request-id", requestId)
-      .send({ name: "Admin Lender", country: "US", active: true });
+      .send({
+        name: "Admin Lender",
+        country: "US",
+        active: true,
+        submissionEmail: "submissions@admin-lender.com",
+      });
 
     expect([200, 201]).toContain(createResponse.status);
   });

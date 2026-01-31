@@ -344,7 +344,7 @@ describe("lender submissions", () => {
     });
 
     const applicationId = await createApplicationWithDocuments(login.body.accessToken);
-    const { lenderId, lenderProductId } = await seedLenderProduct("PORTAL");
+    const { lenderId, lenderProductId } = await seedLenderProduct("API");
     await pool.query(
       "update applications set lender_id = $1, lender_product_id = $2 where id = $3",
       [lenderId, lenderProductId, applicationId]
