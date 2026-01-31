@@ -15,7 +15,7 @@ import {
 } from "../db/schema/lenderProducts";
 import { logError } from "../observability/logger";
 import { ROLES } from "../auth/roles";
-import { LENDER_SUBMISSION_METHODS } from "../db/schema/lenders";
+import { LENDER_COUNTRIES, LENDER_SUBMISSION_METHODS } from "../db/schema/lenders";
 
 type LenderProductResponse = {
   id: string;
@@ -133,6 +133,10 @@ export async function getLenderByIdHandler(
       id: lender.id,
       name: lender.name,
       status: statusValue,
+      active:
+        typeof (lender as { active?: unknown }).active === "boolean"
+          ? (lender as { active: boolean }).active
+          : statusValue === "ACTIVE",
       country: (lender as { country?: string | null }).country ?? null,
       city: (lender as { city?: string | null }).city ?? null,
       state:
@@ -145,6 +149,9 @@ export async function getLenderByIdHandler(
         (lender as { contact_email?: string | null }).contact_email ?? null,
       contact_phone:
         (lender as { contact_phone?: string | null }).contact_phone ?? null,
+      email: (lender as { email?: string | null }).email ?? null,
+      phone: (lender as { phone?: string | null }).phone ?? null,
+      website: (lender as { website?: string | null }).website ?? null,
       submission_method:
         (lender as { submission_method?: string | null }).submission_method ??
         null,
@@ -330,7 +337,7 @@ export async function createLender(
       submissionEmail,
       phone,
       website,
-      postal_code
+      postal_code,
     } = req.body ?? {};
 
     if (!name || typeof name !== "string" || name.trim().length === 0) {
@@ -338,6 +345,10 @@ export async function createLender(
     }
     if (!country || typeof country !== "string" || country.trim().length === 0) {
       throw new AppError("validation_error", "country is required.", 400);
+    }
+    const normalizedCountry = country.trim().toUpperCase();
+    if (!LENDER_COUNTRIES.includes(normalizedCountry as any)) {
+      throw new AppError("validation_error", "country is invalid.", 400);
     }
     if (active !== undefined && typeof active !== "boolean") {
       throw new AppError("validation_error", "active must be a boolean.", 400);
@@ -351,6 +362,11 @@ export async function createLender(
       typeof submissionEmail !== "string"
     ) {
       throw new AppError("validation_error", "submissionEmail must be a string.", 400);
+    }
+    const normalizedSubmissionEmail =
+      typeof submissionEmail === "string" ? submissionEmail.trim() : "";
+    if (!normalizedSubmissionEmail) {
+      throw new AppError("validation_error", "submissionEmail is required.", 400);
     }
 
     const contactName =
@@ -390,18 +406,18 @@ export async function createLender(
 
     const lender = await repo.createLender(pool, {
       name: name.trim(),
-      country: country.trim(),
+      country: normalizedCountry,
       submission_method: normalizedSubmissionMethod,
       active: typeof active === "boolean" ? active : undefined,
       status: resolvedStatus,
       primary_contact_name: contactName,
       contact_email: contactEmail ?? null,
       contact_phone: contactPhone ?? null,
-      email: typeof email === "string" ? email.trim() : contactEmail ?? null,
-      submission_email: submissionEmail ?? null,
-      phone: phone ?? null,
-      website: website ?? null,
-      postal_code: postal_code ?? null
+      email: typeof email === "string" ? email.trim() : null,
+      submission_email: normalizedSubmissionEmail,
+      phone: typeof phone === "string" ? phone.trim() : null,
+      website: typeof website === "string" ? website.trim() : null,
+      postal_code: typeof postal_code === "string" ? postal_code.trim() : null,
     });
 
     res.status(201).json(lender);
@@ -447,6 +463,10 @@ export async function updateLender(
       contact,
       email,
       submissionEmail,
+      submissionMethod,
+      phone,
+      website,
+      postal_code,
     } = req.body ?? {};
 
     if (name !== undefined && name !== null && typeof name !== "string") {
@@ -462,6 +482,16 @@ export async function updateLender(
     ) {
       throw new AppError("validation_error", "country must be a string.", 400);
     }
+    const normalizedCountry =
+      typeof country === "string" && country.trim().length > 0
+        ? country.trim().toUpperCase()
+        : undefined;
+    if (
+      normalizedCountry &&
+      !LENDER_COUNTRIES.includes(normalizedCountry as any)
+    ) {
+      throw new AppError("validation_error", "country is invalid.", 400);
+    }
     if (active !== undefined && typeof active !== "boolean") {
       throw new AppError("validation_error", "active must be a boolean.", 400);
     }
@@ -474,6 +504,27 @@ export async function updateLender(
       typeof submissionEmail !== "string"
     ) {
       throw new AppError("validation_error", "submissionEmail must be a string.", 400);
+    }
+    if (
+      submissionMethod !== undefined &&
+      submissionMethod !== null &&
+      typeof submissionMethod !== "string"
+    ) {
+      throw new AppError("validation_error", "submissionMethod must be a string.", 400);
+    }
+    const normalizedSubmissionMethod =
+      typeof submissionMethod === "string"
+        ? submissionMethod.trim().toUpperCase()
+        : undefined;
+    if (
+      normalizedSubmissionMethod &&
+      !LENDER_SUBMISSION_METHODS.includes(normalizedSubmissionMethod as any)
+    ) {
+      throw new AppError(
+        "validation_error",
+        "submissionMethod is invalid.",
+        400
+      );
     }
 
     const contactName =
@@ -491,26 +542,41 @@ export async function updateLender(
 
     let resolvedStatus =
       typeof status === "string" && status.trim().length > 0
-        ? status.trim()
+        ? status.trim().toUpperCase()
         : undefined;
-    if (active === true) {
-      resolvedStatus = "ACTIVE";
-    } else if (active === false && resolvedStatus === undefined) {
-      resolvedStatus = "INACTIVE";
+    if (active === true || active === false) {
+      resolvedStatus = active ? "ACTIVE" : "INACTIVE";
     }
+    if (
+      resolvedStatus &&
+      resolvedStatus !== "ACTIVE" &&
+      resolvedStatus !== "INACTIVE"
+    ) {
+      throw new AppError("validation_error", "status is invalid.", 400);
+    }
+    const resolvedActive =
+      typeof active === "boolean"
+        ? active
+        : resolvedStatus
+          ? resolvedStatus === "ACTIVE"
+          : undefined;
 
     const updated = await repo.updateLender(pool, {
       id: id.trim(),
       name: typeof name === "string" ? name.trim() : undefined,
       status: resolvedStatus,
-      country: typeof country === "string" ? country.trim() : undefined,
+      country: normalizedCountry,
       primary_contact_name: contactName,
       contact_email: contactEmail,
       contact_phone: contactPhone,
-      email: contactEmail ?? (typeof email === "string" ? email.trim() : undefined),
+      email: typeof email === "string" ? email.trim() : undefined,
       submission_email:
         typeof submissionEmail === "string" ? submissionEmail.trim() : undefined,
-      active: typeof active === "boolean" ? active : undefined,
+      submission_method: normalizedSubmissionMethod,
+      phone: typeof phone === "string" ? phone.trim() : undefined,
+      website: typeof website === "string" ? website.trim() : undefined,
+      postal_code: typeof postal_code === "string" ? postal_code.trim() : undefined,
+      active: resolvedActive,
     });
 
     if (!updated) {

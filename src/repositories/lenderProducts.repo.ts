@@ -98,6 +98,10 @@ export async function createLenderProduct(params: {
   status: string;
   requiredDocuments: RequiredDocuments;
   eligibility?: JsonObject | null;
+  country?: string | null;
+  rateType?: string | null;
+  minRate?: number | string | null;
+  maxRate?: number | string | null;
   client?: Queryable;
 }): Promise<LenderProductRecord> {
   const runner = params.client ?? pool;
@@ -134,6 +138,10 @@ export async function createLenderProduct(params: {
     { name: "active", value: params.active },
     { name: "required_documents", value: JSON.stringify(params.requiredDocuments) },
     { name: "eligibility", value: JSON.stringify(params.eligibility ?? null) },
+    { name: "country", value: params.country ?? null },
+    { name: "rate_type", value: params.rateType ?? null },
+    { name: "min_rate", value: params.minRate ?? null },
+    { name: "max_rate", value: params.maxRate ?? null },
   ].filter((entry) => existing.has(entry.name));
 
   const columnNames = columns.map((entry) => entry.name);

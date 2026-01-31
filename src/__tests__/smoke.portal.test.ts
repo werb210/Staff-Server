@@ -105,7 +105,12 @@ describe("portal smoke endpoints", () => {
       .post("/api/lenders")
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("Idempotency-Key", nextIdempotencyKey())
-      .send({ name: "Smoke Lender", country: "US", active: true });
+      .send({
+        name: "Smoke Lender",
+        country: "US",
+        active: true,
+        submissionEmail: "submissions@smoke-lender.com",
+      });
 
     expect(createRes.status).toBe(201);
     expect(createRes.body.id).toBeDefined();
@@ -124,5 +129,35 @@ describe("portal smoke endpoints", () => {
       country: "US",
       active: true,
     });
+  });
+
+  it("returns ordered pipeline stages", async () => {
+    const staffPhone = nextPhone();
+    await createUserAccount({
+      email: "portal.staff+stages@apps.com",
+      phoneNumber: staffPhone,
+      role: ROLES.STAFF,
+    });
+
+    const login = await otpVerifyRequest(app, {
+      phone: staffPhone,
+      requestId,
+      idempotencyKey: nextIdempotencyKey(),
+    });
+
+    const stagesRes = await request(app)
+      .get("/api/portal/applications/stages")
+      .set("Authorization", `Bearer ${login.body.accessToken}`);
+
+    expect(stagesRes.status).toBe(200);
+    expect(stagesRes.body).toEqual([
+      "RECEIVED",
+      "DOCUMENTS_REQUIRED",
+      "IN_REVIEW",
+      "STARTUP",
+      "OFF_TO_LENDER",
+      "ACCEPTED",
+      "DECLINED",
+    ]);
   });
 });

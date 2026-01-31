@@ -28,6 +28,7 @@ type LenderRow = {
   name: string | null;
   country: string | null;
   status?: string | null;
+  active?: boolean | null;
   primary_contact_name?: string | null;
   email?: string | null;
   submission_method: string[] | string | null;
@@ -46,6 +47,18 @@ function resolveSilo(value: unknown): string {
 
 function filterBySilo<T extends { silo?: string | null }>(records: T[], silo: string): T[] {
   return records.filter((record) => resolveSilo(record.silo) === silo);
+}
+
+function resolveLenderStatus(row: LenderRow): { status: string; active: boolean } {
+  const status = typeof row.status === "string" ? row.status : null;
+  const active =
+    typeof row.active === "boolean"
+      ? row.active
+      : status
+        ? status.toUpperCase() === "ACTIVE"
+        : true;
+  const resolvedStatus = active ? "ACTIVE" : "INACTIVE";
+  return { status: resolvedStatus, active };
 }
 
 const router = Router();
@@ -88,10 +101,13 @@ router.get(
       productsByLender.set(product.lender_id, list);
     });
 
-    const normalized = lendersRows.map((l: LenderRow) => ({
+    const normalized = lendersRows.map((l: LenderRow) => {
+      const resolved = resolveLenderStatus(l);
+      return {
       id: l.id,
       name: l.name ?? "—",
-      status: l.status ?? "ACTIVE",
+      status: resolved.status,
+      active: resolved.active,
       country: l.country ?? null,
       primary_contact_name: l.primary_contact_name ?? null,
       email: l.email ?? null,
@@ -99,27 +115,29 @@ router.get(
         ? l.submission_method
         : [],
       products: productsByLender.get(l.id) ?? [],
-    }));
+      };
+    });
     const normalizedById = new Map(normalized.map((l) => [l.id, l]));
+    const activeOnly = normalized.filter((l) => l.active);
 
     const user = req.user;
     if (user?.role === ROLES.LENDER) {
       const lenderId = user.lenderId;
       const scoped = lenderId
-        ? normalized.filter((l) => l.id === lenderId)
+        ? activeOnly.filter((l) => l.id === lenderId)
         : [];
       res.status(200).json(scoped);
       return;
     }
     if (user?.role === ROLES.ADMIN || user?.role === ROLES.OPS) {
-      res.status(200).json(normalized);
+      res.status(200).json(activeOnly);
       return;
     }
     const resolvedSilo = resolveSilo(req.user?.silo);
     const filtered = filterBySilo(lendersRows, resolvedSilo)
       .map((row) => normalizedById.get(row.id))
       .filter((entry): entry is (typeof normalized)[number] => Boolean(entry));
-    res.status(200).json(filtered);
+    res.status(200).json(filtered.filter((entry) => entry.active));
   })
 );
 

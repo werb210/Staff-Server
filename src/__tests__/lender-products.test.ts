@@ -82,7 +82,11 @@ describe("lender products", () => {
       .post("/api/lenders")
       .set("Authorization", `Bearer ${token}`)
       .set("x-request-id", requestId)
-      .send({ name: "Docs Lender", country: "US" });
+      .send({
+        name: "Docs Lender",
+        country: "US",
+        submissionEmail: "submissions@docs-lender.com",
+      });
 
     const requiredDocuments = [
       { type: "bank_statement" },
@@ -100,7 +104,10 @@ describe("lender products", () => {
       });
 
     expect(createResponse.status).toBe(201);
-    expect(createResponse.body.required_documents).toEqual(requiredDocuments);
+    expect(createResponse.body.required_documents).toEqual([
+      { type: "bank_statement", months: 6 },
+      { type: "id_document" },
+    ]);
 
     const listResponse = await request(app)
       .get("/api/lender-products")
@@ -112,7 +119,10 @@ describe("lender products", () => {
       (item: { id: string }) => item.id === createResponse.body.id
     );
     expect(listed).toBeDefined();
-    expect(listed.required_documents).toEqual(requiredDocuments);
+    expect(listed.required_documents).toEqual([
+      { type: "bank_statement", months: 6 },
+      { type: "id_document" },
+    ]);
 
     const updatedDocuments = [
       { type: "tax_return" },
@@ -126,7 +136,11 @@ describe("lender products", () => {
       .send({ required_documents: updatedDocuments });
 
     expect(patchResponse.status).toBe(200);
-    expect(patchResponse.body.required_documents).toEqual(updatedDocuments);
+    expect(patchResponse.body.required_documents).toEqual([
+      { type: "tax_return" },
+      { type: "balance_sheet" },
+      { type: "bank_statement", months: 6 },
+    ]);
 
     const listAfterPatch = await request(app)
       .get("/api/lender-products")
@@ -136,7 +150,104 @@ describe("lender products", () => {
     const patched = listAfterPatch.body.find(
       (item: { id: string }) => item.id === createResponse.body.id
     );
-    expect(patched.required_documents).toEqual(updatedDocuments);
+    expect(patched.required_documents).toEqual([
+      { type: "tax_return" },
+      { type: "balance_sheet" },
+      { type: "bank_statement", months: 6 },
+    ]);
+  });
+
+  it("blocks lender product creation for inactive lenders", async () => {
+    const token = await loginAdmin();
+    const inactiveLender = await request(app)
+      .post("/api/lenders")
+      .set("Authorization", `Bearer ${token}`)
+      .set("x-request-id", requestId)
+      .send({
+        name: "Inactive Lender",
+        country: "US",
+        active: false,
+        submissionEmail: "submissions@inactive-lender.com",
+      });
+
+    const blocked = await request(app)
+      .post("/api/lender-products")
+      .set("Authorization", `Bearer ${token}`)
+      .set("x-request-id", requestId)
+      .send({
+        lenderId: inactiveLender.body.id,
+        name: "Blocked Product",
+        required_documents: [],
+      });
+
+    expect(blocked.status).toBe(409);
+
+    const activeLender = await request(app)
+      .post("/api/lenders")
+      .set("Authorization", `Bearer ${token}`)
+      .set("x-request-id", requestId)
+      .send({
+        name: "Active Lender",
+        country: "US",
+        active: true,
+        submissionEmail: "submissions@active-lender.com",
+      });
+
+    const created = await request(app)
+      .post("/api/lender-products")
+      .set("Authorization", `Bearer ${token}`)
+      .set("x-request-id", requestId)
+      .send({
+        lenderId: activeLender.body.id,
+        name: "Active Product",
+        required_documents: [],
+      });
+
+    expect(created.status).toBe(201);
+    expect(created.body.lenderId).toBe(activeLender.body.id);
+  });
+
+  it("stores variable rate min/max as P+X", async () => {
+    const token = await loginAdmin();
+    const lenderResponse = await request(app)
+      .post("/api/lenders")
+      .set("Authorization", `Bearer ${token}`)
+      .set("x-request-id", requestId)
+      .send({
+        name: "Variable Lender",
+        country: "US",
+        submissionEmail: "submissions@variable-lender.com",
+      });
+
+    const createResponse = await request(app)
+      .post("/api/lender-products")
+      .set("Authorization", `Bearer ${token}`)
+      .set("x-request-id", requestId)
+      .send({
+        lenderId: lenderResponse.body.id,
+        name: "Variable Product",
+        required_documents: [],
+        rate_type: "VARIABLE",
+        min_rate: 2.5,
+        max_rate: 4.25,
+      });
+
+    expect(createResponse.status).toBe(201);
+
+    const rateRow = await pool.query<{
+      rate_type: string | null;
+      min_rate: string | null;
+      max_rate: string | null;
+    }>(
+      "select rate_type, min_rate, max_rate from lender_products where id = $1",
+      [createResponse.body.id]
+    );
+
+    expect(rateRow.rows[0]).toMatchObject({
+      rate_type: "VARIABLE",
+      min_rate: "P+2.5",
+      max_rate: "P+4.25",
+    });
   });
 
   it("enforces lender product ownership for lender users", async () => {

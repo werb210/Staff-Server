@@ -55,7 +55,7 @@ describe("runtime schema verification", () => {
     await pool.query(
       `insert into users (id, role, status, active)
        values ($1, $2, $3, true)`,
-      [userId, ROLES.STAFF, "active"]
+      [userId, ROLES.STAFF, "ACTIVE"]
     );
 
     const baseUrl = resolveBaseUrl(server ?? undefined);

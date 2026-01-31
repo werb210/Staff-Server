@@ -17,7 +17,7 @@ const updateMeSchema = z.object({
 
 const adminUpdateSchema = z.object({
   role: z.enum(["Admin", "Staff", "Lender", "Referrer"]).optional(),
-  status: z.enum(["active", "disabled"]).optional(),
+  status: z.enum(["ACTIVE", "INACTIVE"]).optional(),
 });
 
 const createUserSchema = z.object({

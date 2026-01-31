@@ -103,7 +103,11 @@ function buildSelectColumns(existing: Set<string>): string {
     { name: "region", fallback: "null::text" },
     { name: "submission_method", fallback: "null::text" },
     { name: "active", fallback: "true" },
-    { name: "status", fallback: "'ACTIVE'::text" },
+    {
+      name: "status",
+      fallback:
+        "case when coalesce(active, true) then 'ACTIVE'::text else 'INACTIVE'::text end",
+    },
     { name: "primary_contact_name", fallback: "null::text" },
     { name: "contact_name", fallback: "null::text" },
     { name: "contact_email", fallback: "null::text" },
@@ -134,6 +138,18 @@ function buildSelectColumns(existing: Set<string>): string {
           return `${primaryContactColumn} as contact_name`;
         }
         return `${column.fallback ?? "null"} as contact_name`;
+      }
+      if (column.name === "status") {
+        if (existing.has("status")) {
+          if (existing.has("active")) {
+            return `coalesce(status, case when coalesce(active, true) then 'ACTIVE'::text else 'INACTIVE'::text end) as status`;
+          }
+          return `coalesce(status, 'ACTIVE'::text) as status`;
+        }
+        if (existing.has("active")) {
+          return `case when coalesce(active, true) then 'ACTIVE'::text else 'INACTIVE'::text end as status`;
+        }
+        return `${column.fallback ?? "'ACTIVE'::text"} as status`;
       }
       if (existing.has(column.name)) {
         return column.name;
@@ -229,7 +245,12 @@ export async function createLender(
   const existingColumns = await getLenderColumns();
   const includeActive = existingColumns.has("active");
   const primaryContactColumn = resolvePrimaryContactColumn(existingColumns);
-  const statusValue = input.status ?? "ACTIVE";
+  const statusValue =
+    typeof input.active === "boolean"
+      ? input.active
+        ? "ACTIVE"
+        : "INACTIVE"
+      : input.status ?? "ACTIVE";
   const activeValue =
     typeof input.active === "boolean"
       ? input.active
@@ -239,7 +260,7 @@ export async function createLender(
     { name: "id", value: "gen_random_uuid()", raw: true },
     { name: "name", value: name },
     { name: "country", value: country },
-    { name: "email", value: email },
+    { name: "email", value: email ?? null },
     { name: "phone", value: phone ?? null },
     { name: "website", value: website ?? null },
     { name: "postal_code", value: postal_code ?? null },
@@ -250,6 +271,12 @@ export async function createLender(
     columns.push({
       name: primaryContactColumn,
       value: primary_contact_name ?? null,
+    });
+  }
+  if (existingColumns.has("submission_method")) {
+    columns.push({
+      name: "submission_method",
+      value: input.submission_method ?? null,
     });
   }
   if (existingColumns.has("contact_email")) {
@@ -274,6 +301,8 @@ export async function createLender(
     columns.push({ name: "active", value: activeValue });
   }
 
+  const filteredColumns = columns.filter((entry) => existingColumns.has(entry.name) || entry.raw);
+
   const buildInsert = (entries: Array<{ name: string; value: unknown; raw?: boolean }>) => {
     const values: unknown[] = [];
     const placeholders = entries.map((entry) => {
@@ -287,8 +316,8 @@ export async function createLender(
   };
 
   try {
-    const columnNames = columns.map((entry) => entry.name);
-    const { values, placeholders } = buildInsert(columns);
+    const columnNames = filteredColumns.map((entry) => entry.name);
+    const { values, placeholders } = buildInsert(filteredColumns);
     const { rows } = await db.query(
       `
       INSERT INTO lenders (
@@ -306,7 +335,7 @@ export async function createLender(
     const code = (err as { code?: string }).code;
     const message = (err as { message?: string }).message ?? "";
     if (code === "42883" || message.includes("gen_random_uuid")) {
-      const adjustedColumns = columns.map((entry) =>
+      const adjustedColumns = filteredColumns.map((entry) =>
         entry.raw
           ? { name: entry.name, value: randomUUID() }
           : entry
@@ -338,11 +367,15 @@ export async function updateLender(
     name?: string | null;
     status?: string | null;
     country?: string | null;
+    submission_method?: string | null;
     primary_contact_name?: string | null;
     contact_email?: string | null;
     contact_phone?: string | null;
     email?: string | null;
     submission_email?: string | null;
+    phone?: string | null;
+    website?: string | null;
+    postal_code?: string | null;
     active?: boolean;
   }
 ) {
@@ -358,6 +391,12 @@ export async function updateLender(
   }
   if (params.country !== undefined && existingColumns.has("country")) {
     updates.push({ name: "country", value: params.country });
+  }
+  if (
+    params.submission_method !== undefined &&
+    existingColumns.has("submission_method")
+  ) {
+    updates.push({ name: "submission_method", value: params.submission_method });
   }
   if (
     params.primary_contact_name !== undefined &&
@@ -388,6 +427,15 @@ export async function updateLender(
     existingColumns.has("submission_email")
   ) {
     updates.push({ name: "submission_email", value: params.submission_email });
+  }
+  if (params.phone !== undefined && existingColumns.has("phone")) {
+    updates.push({ name: "phone", value: params.phone });
+  }
+  if (params.website !== undefined && existingColumns.has("website")) {
+    updates.push({ name: "website", value: params.website });
+  }
+  if (params.postal_code !== undefined && existingColumns.has("postal_code")) {
+    updates.push({ name: "postal_code", value: params.postal_code });
   }
   if (params.active !== undefined && existingColumns.has("active")) {
     updates.push({ name: "active", value: params.active });

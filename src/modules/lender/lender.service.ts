@@ -76,7 +76,7 @@ type LenderTransmissionOutcome = {
   retryable: boolean;
 };
 
-const SUPPORTED_SUBMISSION_METHODS = ["api", "email", "portal"] as const;
+const SUPPORTED_SUBMISSION_METHODS = ["api", "email"] as const;
 type SubmissionMethod = (typeof SUPPORTED_SUBMISSION_METHODS)[number];
 
 type LenderSubmissionConfig = {
@@ -474,7 +474,7 @@ async function transmitSubmission(params: {
   const submission = await createSubmission({
     applicationId: params.applicationId,
     idempotencyKey: params.idempotencyKey,
-    status: params.submissionMethod === "portal" ? "pending_manual" : "processing",
+    status: "processing",
     lenderId: params.lenderId,
     submittedAt,
     payload,
@@ -517,38 +517,6 @@ async function transmitSubmission(params: {
     return {
       statusCode: 400,
       value: { id: submission.id, status: "failed", failureReason: "missing_documents" },
-      idempotent: false,
-    };
-  }
-
-  if (params.submissionMethod === "portal") {
-    await updateSubmissionStatus({
-      submissionId: submission.id,
-      status: "pending_manual",
-      lenderResponse: {
-        status: "manual",
-        receivedAt: new Date().toISOString(),
-      },
-      responseReceivedAt: new Date(),
-      failureReason: null,
-      client: params.client,
-    });
-
-    await recordAuditEvent({
-      action: "lender_submission_created",
-      actorUserId: params.actorUserId,
-      targetUserId: application.owner_user_id,
-      targetType: "application",
-      targetId: params.applicationId,
-      ip: params.ip,
-      userAgent: params.userAgent,
-      success: true,
-      client: params.client,
-    });
-
-    return {
-      statusCode: 201,
-      value: { id: submission.id, status: "pending_manual" },
       idempotent: false,
     };
   }
@@ -681,25 +649,6 @@ async function retryExistingSubmission(params: {
   const application = await findApplicationById(params.applicationId, params.client);
   if (!application) {
     throw new AppError("not_found", "Application not found.", 404);
-  }
-  if (params.submissionMethod === "portal") {
-    await updateSubmissionStatus({
-      submissionId: params.submissionId,
-      status: "pending_manual",
-      lenderResponse: {
-        status: "manual",
-        receivedAt: new Date().toISOString(),
-      },
-      responseReceivedAt: new Date(),
-      failureReason: null,
-      client: params.client,
-    });
-
-    return {
-      statusCode: 200,
-      value: { id: params.submissionId, status: "pending_manual" },
-      idempotent: false,
-    };
   }
 
   const response =
