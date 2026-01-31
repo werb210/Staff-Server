@@ -109,6 +109,7 @@ describe("portal smoke endpoints", () => {
         name: "Smoke Lender",
         country: "US",
         active: true,
+        submissionMethod: "EMAIL",
         submissionEmail: "submissions@smoke-lender.com",
       });
 

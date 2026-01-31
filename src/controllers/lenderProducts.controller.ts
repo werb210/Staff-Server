@@ -20,9 +20,18 @@ import { LENDER_COUNTRIES } from "../db/schema/lenders";
 export type LenderProductResponse = {
   id: string;
   lenderId: string;
+  lenderName: string | null;
   name: string;
   description: string | null;
   active: boolean;
+  type: string | null;
+  min_amount: number | null;
+  max_amount: number | null;
+  status: string | null;
+  country: string | null;
+  rate_type: string | null;
+  min_rate: string | null;
+  max_rate: string | null;
   required_documents: RequiredDocuments;
   eligibility: JsonObject | null;
   createdAt: Date;
@@ -38,9 +47,18 @@ function toLenderProductResponse(
   return {
     id: record.id,
     lenderId: record.lender_id,
+    lenderName: record.lender_name ?? null,
     name: record.name,
     description: record.description,
     active: record.active,
+    type: record.type ?? null,
+    min_amount: record.min_amount ?? null,
+    max_amount: record.max_amount ?? null,
+    status: record.status ?? null,
+    country: record.country ?? null,
+    rate_type: record.rate_type ?? null,
+    min_rate: record.min_rate ?? null,
+    max_rate: record.max_rate ?? null,
     required_documents: normalizedDocuments,
     eligibility: isPlainObject(record.eligibility) ? record.eligibility : null,
     createdAt: parseTimestamp(record.created_at, "created_at"),
@@ -174,17 +192,8 @@ function parseRateValue(value: unknown, fieldName: string): number | string | nu
   throw new AppError("validation_error", `${fieldName} must be a number or string.`, 400);
 }
 
-function normalizeVariableRate(value: number | string | null): string | null {
-  if (value === null) {
-    return null;
-  }
-  if (typeof value === "number") {
-    return `P+${value}`;
-  }
-  if (value.toUpperCase().startsWith("P+")) {
-    return value.toUpperCase();
-  }
-  return `P+${value}`;
+function normalizeVariableRate(): string {
+  return "P+";
 }
 
 function parseAmount(value: unknown, fieldName: string): number | null {
@@ -281,6 +290,14 @@ export async function listLenderProductsHandler(
       return;
     }
 
+    const queryCountry =
+      typeof req.query.country === "string"
+        ? req.query.country.trim().toUpperCase()
+        : "";
+    if (queryCountry && !LENDER_COUNTRIES.includes(queryCountry as any)) {
+      throw new AppError("validation_error", "country is invalid.", 400);
+    }
+
     const products = await listLenderProductsByLenderIdService({
       lenderId: resolvedLenderId,
       silo: user.silo ?? null,
@@ -292,7 +309,14 @@ export async function listLenderProductsHandler(
         500
       );
     }
-    res.status(200).json(products.map(toLenderProductResponse));
+    const filteredProducts = queryCountry
+      ? products.filter((product) => {
+          const productCountry =
+            typeof product.country === "string" ? product.country.toUpperCase() : "BOTH";
+          return productCountry === "BOTH" || productCountry === queryCountry;
+        })
+      : products;
+    res.status(200).json(filteredProducts.map(toLenderProductResponse));
   } catch (err) {
     logError("lender_products_list_failed", {
       error: err,
@@ -450,16 +474,14 @@ export async function createLenderProductHandler(
     const eligibilityData = parseEligibility(eligibility);
     const minAmount = parseAmount(min_amount, "min_amount");
     const maxAmount = parseAmount(max_amount, "max_amount");
-    const parsedMinRate = parseRateValue(min_rate, "min_rate");
-    const parsedMaxRate = parseRateValue(max_rate, "max_rate");
-    const normalizedMinRate =
+    const parsedMinRate =
       normalizedRateType === "VARIABLE"
-        ? normalizeVariableRate(parsedMinRate)
-        : parsedMinRate;
-    const normalizedMaxRate =
+        ? normalizeVariableRate()
+        : parseRateValue(min_rate, "min_rate");
+    const parsedMaxRate =
       normalizedRateType === "VARIABLE"
-        ? normalizeVariableRate(parsedMaxRate)
-        : parsedMaxRate;
+        ? normalizeVariableRate()
+        : parseRateValue(max_rate, "max_rate");
 
     const lender = await getLenderById(resolvedLenderId.trim());
     if (!lender) {
@@ -493,10 +515,10 @@ export async function createLenderProductHandler(
       status,
       requiredDocuments: requiredDocumentsList,
       eligibility: eligibilityData,
-      country: normalizedCountry,
+      country: normalizedCountry ?? "BOTH",
       rateType: normalizedRateType,
-      minRate: normalizedMinRate,
-      maxRate: normalizedMaxRate,
+      minRate: parsedMinRate,
+      maxRate: parsedMaxRate,
     });
 
     res.status(201).json(toLenderProductResponse(created));
@@ -551,7 +573,21 @@ export async function updateLenderProductHandler(
       throw new AppError("validation_error", "id is required.", 400);
     }
 
-    const { name, required_documents, eligibility } = req.body ?? {};
+    const {
+      name,
+      description,
+      active,
+      required_documents,
+      eligibility,
+      type,
+      min_amount,
+      max_amount,
+      status,
+      country,
+      rate_type,
+      min_rate,
+      max_rate,
+    } = req.body ?? {};
 
     if (
       name !== undefined &&
@@ -561,11 +597,66 @@ export async function updateLenderProductHandler(
       throw new AppError("validation_error", "name must be a string.", 400);
     }
 
+    if (description !== undefined && description !== null && typeof description !== "string") {
+      throw new AppError("validation_error", "description must be a string.", 400);
+    }
+
+    if (active !== undefined && typeof active !== "boolean") {
+      throw new AppError("validation_error", "active must be a boolean.", 400);
+    }
+
+    if (type !== undefined && type !== null && typeof type !== "string") {
+      throw new AppError("validation_error", "type must be a string.", 400);
+    }
+
+    if (status !== undefined && status !== null && typeof status !== "string") {
+      throw new AppError("validation_error", "status must be a string.", 400);
+    }
+
+    if (country !== undefined && country !== null && typeof country !== "string") {
+      throw new AppError("validation_error", "country must be a string.", 400);
+    }
+    const normalizedCountry =
+      typeof country === "string" && country.trim().length > 0
+        ? country.trim().toUpperCase()
+        : undefined;
+    if (
+      normalizedCountry &&
+      !LENDER_COUNTRIES.includes(normalizedCountry as any)
+    ) {
+      throw new AppError("validation_error", "country is invalid.", 400);
+    }
+
+    if (rate_type !== undefined && rate_type !== null && typeof rate_type !== "string") {
+      throw new AppError("validation_error", "rate_type must be a string.", 400);
+    }
+    const normalizedRateType =
+      typeof rate_type === "string" && rate_type.trim().length > 0
+        ? rate_type.trim().toUpperCase()
+        : undefined;
+    if (normalizedRateType && normalizedRateType !== "VARIABLE" && normalizedRateType !== "FIXED") {
+      throw new AppError("validation_error", "rate_type is invalid.", 400);
+    }
+
     const requiredDocumentsList = ensureBankStatementDocuments(
       parseRequiredDocuments(required_documents)
     );
     const eligibilityData =
       eligibility !== undefined ? parseEligibility(eligibility) : undefined;
+    const minAmount = min_amount !== undefined ? parseAmount(min_amount, "min_amount") : undefined;
+    const maxAmount = max_amount !== undefined ? parseAmount(max_amount, "max_amount") : undefined;
+    const parsedMinRate =
+      normalizedRateType === "VARIABLE"
+        ? normalizeVariableRate()
+        : min_rate !== undefined
+          ? parseRateValue(min_rate, "min_rate")
+          : undefined;
+    const parsedMaxRate =
+      normalizedRateType === "VARIABLE"
+        ? normalizeVariableRate()
+        : max_rate !== undefined
+          ? parseRateValue(max_rate, "max_rate")
+          : undefined;
 
     if (user.role === ROLES.LENDER) {
       if (!user.lenderId) {
@@ -589,6 +680,16 @@ export async function updateLenderProductHandler(
       name,
       requiredDocuments: requiredDocumentsList,
       eligibility: eligibilityData,
+      description: typeof description === "string" ? description.trim() : undefined,
+      active,
+      type: typeof type === "string" ? type.trim() : undefined,
+      minAmount,
+      maxAmount,
+      status: typeof status === "string" ? status.trim() : undefined,
+      country: normalizedCountry,
+      rateType: normalizedRateType,
+      minRate: parsedMinRate,
+      maxRate: parsedMaxRate,
     });
 
     if (!updated) {

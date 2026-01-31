@@ -66,9 +66,18 @@ function buildSelectColumns(existing: Set<string>): string {
   const columns: Array<{ name: string; fallback?: string }> = [
     { name: "id" },
     { name: "lender_id" },
+    { name: "lender_name", fallback: "''::text" },
     { name: "name", fallback: "'Unnamed Product'::text" },
     { name: "description", fallback: "null::text" },
     { name: "active", fallback: "true" },
+    { name: "type", fallback: "'loc'::text" },
+    { name: "min_amount", fallback: "null::integer" },
+    { name: "max_amount", fallback: "null::integer" },
+    { name: "status", fallback: "'active'::text" },
+    { name: "country", fallback: "'BOTH'::text" },
+    { name: "rate_type", fallback: "null::text" },
+    { name: "min_rate", fallback: "null::text" },
+    { name: "max_rate", fallback: "null::text" },
     { name: "required_documents", fallback: "'[]'::jsonb" },
     { name: "eligibility", fallback: "null::jsonb" },
     { name: "created_at", fallback: "now()" },
@@ -118,7 +127,12 @@ export async function createLenderProduct(params: {
       "max_amount",
       "status",
       "active",
+      "country",
+      "rate_type",
+      "min_rate",
+      "max_rate",
       "required_documents",
+      "eligibility",
       "created_at",
       "updated_at",
     ],
@@ -180,20 +194,30 @@ export async function listLenderProducts(
 ): Promise<LenderProductRecord[]> {
   const runner = client ?? pool;
   try {
-    const existing = await assertLenderProductColumnsExist({
-      route: "/api/lender-products",
-      columns: [
-        "id",
-        "lender_id",
-        "name",
-        "description",
-        "active",
-        "required_documents",
-        "created_at",
-        "updated_at",
-      ],
-      client: runner,
-    });
+  const existing = await assertLenderProductColumnsExist({
+    route: "/api/lender-products",
+    columns: [
+      "id",
+      "lender_id",
+      "lender_name",
+      "name",
+      "description",
+      "active",
+      "type",
+      "min_amount",
+      "max_amount",
+      "status",
+      "country",
+      "rate_type",
+      "min_rate",
+      "max_rate",
+      "required_documents",
+      "eligibility",
+      "created_at",
+      "updated_at",
+    ],
+    client: runner,
+  });
     const selectColumns = buildSelectColumns(existing);
     const res = await runner.query<LenderProductRecord>(
       `select ${selectColumns}
@@ -224,10 +248,20 @@ export async function listLenderProductsByLenderId(
     columns: [
       "id",
       "lender_id",
+      "lender_name",
       "name",
       "description",
       "active",
+      "type",
+      "min_amount",
+      "max_amount",
+      "status",
+      "country",
+      "rate_type",
+      "min_rate",
+      "max_rate",
       "required_documents",
+      "eligibility",
       "created_at",
       "updated_at",
     ],
@@ -254,10 +288,20 @@ export async function getLenderProductById(
     columns: [
       "id",
       "lender_id",
+      "lender_name",
       "name",
       "description",
       "active",
+      "type",
+      "min_amount",
+      "max_amount",
+      "status",
+      "country",
+      "rate_type",
+      "min_rate",
+      "max_rate",
       "required_documents",
+      "eligibility",
       "created_at",
       "updated_at",
     ],
@@ -279,6 +323,16 @@ export async function updateLenderProduct(params: {
   name: string;
   requiredDocuments: RequiredDocuments;
   eligibility?: JsonObject | null;
+  description?: string | null;
+  active?: boolean;
+  type?: string | null;
+  minAmount?: number | null;
+  maxAmount?: number | null;
+  status?: string | null;
+  country?: string | null;
+  rateType?: string | null;
+  minRate?: number | string | null;
+  maxRate?: number | string | null;
   client?: Queryable;
 }): Promise<LenderProductRecord | null> {
   const runner = params.client ?? pool;
@@ -287,16 +341,26 @@ export async function updateLenderProduct(params: {
     columns: [
       "id",
       "lender_id",
+      "lender_name",
       "name",
       "description",
       "active",
+      "type",
+      "min_amount",
+      "max_amount",
+      "status",
+      "country",
+      "rate_type",
+      "min_rate",
+      "max_rate",
       "required_documents",
+      "eligibility",
       "created_at",
       "updated_at",
     ],
     client: runner,
   });
-  const updates = [
+  const updates: Array<{ name: string; value: unknown; cast?: string }> = [
     { name: "name", value: params.name },
     {
       name: "required_documents",
@@ -304,6 +368,36 @@ export async function updateLenderProduct(params: {
       cast: "::jsonb",
     },
   ];
+  if (existing.has("description") && params.description !== undefined) {
+    updates.push({ name: "description", value: params.description ?? null });
+  }
+  if (existing.has("active") && params.active !== undefined) {
+    updates.push({ name: "active", value: params.active });
+  }
+  if (existing.has("type") && params.type !== undefined) {
+    updates.push({ name: "type", value: params.type });
+  }
+  if (existing.has("min_amount") && params.minAmount !== undefined) {
+    updates.push({ name: "min_amount", value: params.minAmount ?? null });
+  }
+  if (existing.has("max_amount") && params.maxAmount !== undefined) {
+    updates.push({ name: "max_amount", value: params.maxAmount ?? null });
+  }
+  if (existing.has("status") && params.status !== undefined) {
+    updates.push({ name: "status", value: params.status });
+  }
+  if (existing.has("country") && params.country !== undefined) {
+    updates.push({ name: "country", value: params.country });
+  }
+  if (existing.has("rate_type") && params.rateType !== undefined) {
+    updates.push({ name: "rate_type", value: params.rateType });
+  }
+  if (existing.has("min_rate") && params.minRate !== undefined) {
+    updates.push({ name: "min_rate", value: params.minRate });
+  }
+  if (existing.has("max_rate") && params.maxRate !== undefined) {
+    updates.push({ name: "max_rate", value: params.maxRate });
+  }
   if (existing.has("eligibility") && params.eligibility !== undefined) {
     updates.push({
       name: "eligibility",

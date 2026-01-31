@@ -69,6 +69,7 @@ describe("portal idempotency behavior", () => {
         name: "Portal Lender",
         country: "US",
         phone: "+1-555-0100",
+        submissionMethod: "EMAIL",
         submissionEmail: "submissions@portal-lender.com",
       });
 
@@ -84,6 +85,7 @@ describe("portal idempotency behavior", () => {
         name: "No Auth Lender",
         country: "US",
         phone: "+1-555-0101",
+        submissionMethod: "EMAIL",
         submissionEmail: "submissions@no-auth-lender.com",
       });
 
@@ -101,6 +103,7 @@ describe("portal idempotency behavior", () => {
         name: "Portal Products Lender",
         country: "US",
         phone: "+1-555-0102",
+        submissionMethod: "EMAIL",
         submissionEmail: "submissions@portal-products-lender.com",
       });
 

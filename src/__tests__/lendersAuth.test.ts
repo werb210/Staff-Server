@@ -78,6 +78,7 @@ describe("lenders auth", () => {
         name: "Admin Lender",
         country: "US",
         active: true,
+        submissionMethod: "EMAIL",
         submissionEmail: "submissions@admin-lender.com",
       });
 

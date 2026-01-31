@@ -162,6 +162,7 @@ describe("lender list endpoints", () => {
         country: "CA",
         active: false,
         submissionMethod: "API",
+        apiConfig: { endpoint: "https://api.lender.test" },
         submissionEmail: "submissions@persistent-lender.ca",
         contact: {
           name: "Taylor Doe",
