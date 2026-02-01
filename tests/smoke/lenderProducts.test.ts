@@ -32,19 +32,22 @@ describe("lender products smoke", () => {
     const lenderName = `Smoke Lender ${randomUUID()}`;
     const lender = await post<{ id: string }>(
       "/api/lenders",
-      { name: lenderName, country: "US", submissionMethod: "API" },
+      {
+        name: lenderName,
+        country: "US",
+        submissionMethod: "API",
+        apiConfig: { endpoint: "https://api.lender.test" },
+      },
       headers
     );
 
     const requiredDocuments = [{ type: "bank_statement" }];
-    const eligibility = { minCreditScore: 650, states: ["CA", "NY"] };
 
     const created = await post<{
       id: string;
       lenderId: string;
       active: boolean;
       required_documents: unknown;
-      eligibility: unknown;
     }>(
       "/api/lender-products",
       {
@@ -52,15 +55,16 @@ describe("lender products smoke", () => {
         name: "Smoke Product",
         active: false,
         required_documents: requiredDocuments,
-        eligibility,
+        category: "LOC",
       },
       headers
     );
 
     expect(created.lenderId).toBe(lender.id);
     expect(created.active).toBe(false);
-    expect(created.required_documents).toEqual(requiredDocuments);
-    expect(created.eligibility).toEqual(eligibility);
+    expect(created.required_documents).toEqual([
+      { type: "bank_statement", months: 6 },
+    ]);
 
     const activeOnly = await get<unknown[]>(
       "/api/lender-products?active=true",
@@ -69,21 +73,20 @@ describe("lender products smoke", () => {
     expect(Array.isArray(activeOnly)).toBe(true);
 
     const updatedDocs = [{ type: "id_document" }];
-    const updatedEligibility = { minCreditScore: 700 };
     const updated = await patch<{
       id: string;
       required_documents: unknown;
-      eligibility: unknown;
     }>(
       `/api/lender-products/${created.id}`,
       {
         required_documents: updatedDocs,
-        eligibility: updatedEligibility,
       },
       headers
     );
 
-    expect(updated.required_documents).toEqual(updatedDocs);
-    expect(updated.eligibility).toEqual(updatedEligibility);
+    expect(updated.required_documents).toEqual([
+      { type: "id_document" },
+      { type: "bank_statement", months: 6 },
+    ]);
   });
 });

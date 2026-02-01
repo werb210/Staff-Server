@@ -37,6 +37,8 @@ describe("lender products CRUD", () => {
       {
         name: "Smoke Test Lender Products",
         country: "CA",
+        submissionMethod: "EMAIL",
+        submissionEmail: "submissions@smoke-lender.com",
       },
       authHeader(accessToken)
     );
@@ -61,8 +63,9 @@ describe("lender products CRUD", () => {
       {
         lenderId,
         name: "Smoke Product",
-        min_amount: 1000,
-        max_amount: 25000,
+        category: "LOC",
+        term_min: 6,
+        term_max: 24,
       },
       authHeader(accessToken)
     );
@@ -84,8 +87,8 @@ describe("lender products CRUD", () => {
       `/api/lender-products/${productId}`,
       {
         name: "Smoke Product Updated",
-        min_amount: 1500,
-        max_amount: 30000,
+        term_min: 9,
+        term_max: 36,
       },
       authHeader(accessToken)
     );

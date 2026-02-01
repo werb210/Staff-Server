@@ -1,16 +1,7 @@
 import { AppError } from "../middleware/errors";
-import {
-  countLenderProductRequirements,
-  countRequiredLenderProductRequirements,
-  createLenderProductRequirement,
-  createRequirementSeeds,
-  deleteLenderProductRequirement,
-  getLenderProductRequirementById,
-  listLenderProductRequirements,
-  updateLenderProductRequirement,
-} from "../repositories/lenderProductRequirements.repo";
 import { logInfo, logWarn } from "../observability/logger";
 import { pool } from "../db";
+import { randomUUID } from "crypto";
 
 export type LenderProductRequirement = {
   id: string;
@@ -20,122 +11,268 @@ export type LenderProductRequirement = {
   maxAmount: number | null;
 };
 
-type RequirementSeedDefinition = {
-  documentType: string;
-  required: boolean;
+type RequiredDocumentEntry = {
+  id?: string;
+  type?: string;
+  documentType?: string;
+  required?: boolean;
+  minAmount?: number | null;
+  maxAmount?: number | null;
+  min_amount?: number | null;
+  max_amount?: number | null;
+  months?: number | null;
 };
 
-type LenderProductLookup = {
+type LenderProductRecord = {
   id: string;
-  type: string;
-  status: string;
+  category: string;
+  country: string;
+  rate_type: string | null;
+  term_min: number | null;
+  term_max: number | null;
+  required_documents: unknown;
+  active: boolean;
+  lender_active: boolean;
 };
 
-const BASE_REQUIREMENTS_BY_TYPE: Record<string, RequirementSeedDefinition[]> = {
-  loc: [
-    { documentType: "bank_statement", required: true },
-    { documentType: "id_document", required: true },
-    { documentType: "void_cheque", required: true },
-  ],
-  term: [
-    { documentType: "bank_statement", required: true },
-    { documentType: "financial_statement", required: true },
-    { documentType: "tax_return", required: true },
-  ],
-  factoring: [
-    { documentType: "ar_aging", required: true },
-    { documentType: "invoice", required: true },
-    { documentType: "contract", required: true },
-  ],
-  standard: [
-    { documentType: "bank_statement", required: true },
-    { documentType: "id_document", required: true },
-    { documentType: "void_cheque", required: true },
-  ],
-};
+function normalizeCategory(productType: string): string {
+  const normalized = productType.trim().toUpperCase();
+  if (normalized === "STANDARD" || normalized === "LOC" || normalized === "LINE_OF_CREDIT") {
+    return "LOC";
+  }
+  if (normalized === "TERM" || normalized === "TERM_LOAN") {
+    return "TERM";
+  }
+  if (normalized === "FACTORING") {
+    return "FACTORING";
+  }
+  if (normalized === "PO" || normalized === "PURCHASE_ORDER") {
+    return "PO";
+  }
+  if (normalized === "EQUIPMENT" || normalized === "EQUIPMENT_FINANCING") {
+    return "EQUIPMENT";
+  }
+  if (normalized === "MCA" || normalized === "MERCHANT_CASH_ADVANCE") {
+    return "MCA";
+  }
+  return normalized;
+}
 
-async function findLenderProductById(params: {
+function normalizeRequirementEntry(entry: RequiredDocumentEntry): LenderProductRequirement | null {
+  const type =
+    typeof entry.type === "string"
+      ? entry.type
+      : typeof entry.documentType === "string"
+        ? entry.documentType
+        : null;
+  if (!type) {
+    return null;
+  }
+  const minAmount =
+    typeof entry.minAmount === "number"
+      ? entry.minAmount
+      : typeof entry.min_amount === "number"
+        ? entry.min_amount
+        : null;
+  const maxAmount =
+    typeof entry.maxAmount === "number"
+      ? entry.maxAmount
+      : typeof entry.max_amount === "number"
+        ? entry.max_amount
+        : null;
+  return {
+    id: typeof entry.id === "string" ? entry.id : randomUUID(),
+    documentType: type,
+    required: entry.required !== false,
+    minAmount,
+    maxAmount,
+  };
+}
+
+function parseRequiredDocuments(value: unknown): RequiredDocumentEntry[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((entry): entry is RequiredDocumentEntry => {
+    return typeof entry === "object" && entry !== null && !Array.isArray(entry);
+  });
+}
+
+function dedupeRequirements(requirements: LenderProductRequirement[]): LenderProductRequirement[] {
+  const map = new Map<string, LenderProductRequirement>();
+  for (const req of requirements) {
+    const existing = map.get(req.documentType);
+    if (!existing) {
+      map.set(req.documentType, { ...req });
+      continue;
+    }
+    map.set(req.documentType, {
+      ...existing,
+      required: existing.required || req.required,
+      minAmount:
+        existing.minAmount === null
+          ? req.minAmount
+          : req.minAmount === null
+            ? existing.minAmount
+            : Math.min(existing.minAmount, req.minAmount),
+      maxAmount:
+        existing.maxAmount === null
+          ? req.maxAmount
+          : req.maxAmount === null
+            ? existing.maxAmount
+            : Math.max(existing.maxAmount, req.maxAmount),
+    });
+  }
+  return Array.from(map.values());
+}
+
+function ensureBankStatement(requirements: LenderProductRequirement[]): LenderProductRequirement[] {
+  const existing = requirements.find((req) => req.documentType === "bank_statement");
+  if (existing) {
+    return requirements;
+  }
+  return [
+    ...requirements,
+    {
+      id: randomUUID(),
+      documentType: "bank_statement",
+      required: true,
+      minAmount: null,
+      maxAmount: null,
+    },
+  ];
+}
+
+async function fetchProductById(params: {
   id: string;
-}): Promise<LenderProductLookup | null> {
-  const res = await pool.query<LenderProductLookup>(
-    `select id, type, status
-     from lender_products
-     where id = $1
+  requireActive?: boolean;
+}): Promise<LenderProductRecord | null> {
+  const res = await pool.query<LenderProductRecord>(
+    `select lp.id,
+            lp.category,
+            lp.country,
+            lp.rate_type,
+            lp.term_min,
+            lp.term_max,
+            lp.required_documents,
+            lp.active,
+            l.active as lender_active
+     from lender_products lp
+     join lenders l on l.id = lp.lender_id
+     where lp.id = $1
      limit 1`,
     [params.id]
   );
-  return res.rows[0] ?? null;
+  const product = res.rows[0] ?? null;
+  if (!product) {
+    return null;
+  }
+  if (params.requireActive && (!product.active || !product.lender_active)) {
+    return null;
+  }
+  return product;
 }
 
-async function findActiveLenderProductByType(params: {
-  type: string;
-}): Promise<LenderProductLookup | null> {
-  const res = await pool.query<LenderProductLookup>(
-    `select id, type, status
-     from lender_products
-     where type = $1
-       and status = 'active'
-     order by created_at asc
-     limit 1`,
-    [params.type]
+async function listMatchingProducts(params: {
+  category: string;
+  country: string;
+  requestedAmount?: number | null;
+}): Promise<LenderProductRecord[]> {
+  const values: Array<string | number> = [params.category, params.country];
+  const amount = params.requestedAmount ?? null;
+  const amountClause = amount === null ? "" : `and (lp.term_min is null or $3 >= lp.term_min)
+     and (lp.term_max is null or $3 <= lp.term_max)`;
+  if (amount !== null) {
+    values.push(amount);
+  }
+  const res = await pool.query<LenderProductRecord>(
+    `select lp.id,
+            lp.category,
+            lp.country,
+            lp.rate_type,
+            lp.term_min,
+            lp.term_max,
+            lp.required_documents,
+            lp.active,
+            l.active as lender_active
+     from lender_products lp
+     join lenders l on l.id = lp.lender_id
+     where lp.active = true
+       and l.active = true
+       and lp.category = $1
+       and (lp.country = $2 or lp.country = 'BOTH' or $2 = 'BOTH')
+       ${amountClause}
+     order by lp.created_at asc`,
+    values
   );
-  return res.rows[0] ?? null;
-}
-
-function mapRequirement(record: {
-  id: string;
-  document_type: string;
-  required: boolean;
-  min_amount: number | null;
-  max_amount: number | null;
-}): LenderProductRequirement {
-  return {
-    id: record.id,
-    documentType: record.document_type,
-    required: record.required,
-    minAmount: record.min_amount,
-    maxAmount: record.max_amount,
-  };
+  return res.rows;
 }
 
 export async function resolveLenderProductRequirements(params: {
   lenderProductId: string;
   requestedAmount?: number | null;
 }): Promise<LenderProductRequirement[]> {
-  const requirements = await listLenderProductRequirements({
-    lenderProductId: params.lenderProductId,
-    requestedAmount: params.requestedAmount ?? null,
+  const product = await fetchProductById({ id: params.lenderProductId });
+  if (!product) {
+    return [];
+  }
+  const documents = parseRequiredDocuments(product.required_documents);
+  const requirements = documents
+    .map((entry) => normalizeRequirementEntry(entry))
+    .filter((entry): entry is LenderProductRequirement => Boolean(entry));
+  const filtered = requirements.filter((req) => {
+    if (params.requestedAmount === undefined || params.requestedAmount === null) {
+      return true;
+    }
+    if (req.minAmount !== null && params.requestedAmount < req.minAmount) {
+      return false;
+    }
+    if (req.maxAmount !== null && params.requestedAmount > req.maxAmount) {
+      return false;
+    }
+    return true;
   });
-  const mapped = requirements.map(mapRequirement);
+  const normalized = ensureBankStatement(dedupeRequirements(filtered));
   logInfo("lender_product_requirements_resolved", {
     lenderProductId: params.lenderProductId,
     requestedAmount: params.requestedAmount ?? null,
-    total: mapped.length,
-    requiredCount: mapped.filter((req) => req.required).length,
+    total: normalized.length,
+    requiredCount: normalized.filter((req) => req.required).length,
   });
-  return mapped;
+  return normalized;
 }
 
 export async function resolveRequirementsForProductType(params: {
   productType: string;
   requestedAmount?: number | null;
-}): Promise<{ requirements: LenderProductRequirement[]; lenderProductId: string } > {
-  const product = await findActiveLenderProductByType({ type: params.productType });
-  if (!product) {
+  country?: string | null;
+}): Promise<{ requirements: LenderProductRequirement[]; lenderProductId: string | null }> {
+  const category = normalizeCategory(params.productType);
+  const country = params.country?.trim().toUpperCase() ?? "BOTH";
+  const products = await listMatchingProducts({
+    category,
+    country,
+    requestedAmount: params.requestedAmount ?? null,
+  });
+  if (products.length === 0) {
     logWarn("lender_product_type_missing", { productType: params.productType });
     throw new AppError("invalid_product", "Unsupported product type.", 400);
   }
-  const requirements = await resolveLenderProductRequirements({
-    lenderProductId: product.id,
-    requestedAmount: params.requestedAmount ?? null,
+  const requirements = products.flatMap((product) => {
+    const docs = parseRequiredDocuments(product.required_documents);
+    return docs
+      .map((entry) => normalizeRequirementEntry(entry))
+      .filter((entry): entry is LenderProductRequirement => Boolean(entry));
   });
-  return { requirements, lenderProductId: product.id };
+  const normalized = ensureBankStatement(dedupeRequirements(requirements));
+  return { requirements: normalized, lenderProductId: products[0]?.id ?? null };
 }
 
 export async function resolveRequirementsForApplication(params: {
   lenderProductId: string | null;
   productType: string;
   requestedAmount?: number | null;
+  country?: string | null;
 }): Promise<{ requirements: LenderProductRequirement[]; lenderProductId: string | null }> {
   if (params.lenderProductId) {
     const requirements = await resolveLenderProductRequirements({
@@ -144,70 +281,24 @@ export async function resolveRequirementsForApplication(params: {
     });
     return { requirements, lenderProductId: params.lenderProductId };
   }
-  const product = await findActiveLenderProductByType({ type: params.productType });
-  if (!product) {
-    logWarn("lender_product_type_missing", {
-      productType: params.productType,
-    });
-    return { requirements: [], lenderProductId: null };
-  }
-  const requirements = await resolveLenderProductRequirements({
-    lenderProductId: product.id,
+  const result = await resolveRequirementsForProductType({
+    productType: params.productType,
     requestedAmount: params.requestedAmount ?? null,
+    country: params.country ?? null,
   });
-  return { requirements, lenderProductId: product.id };
-}
-
-export async function ensureSeedRequirementsForProduct(params: {
-  lenderProductId: string;
-  productType: string;
-}): Promise<number> {
-  const baseRequirements = BASE_REQUIREMENTS_BY_TYPE[params.productType] ?? [];
-  if (baseRequirements.length === 0) {
-    return 0;
-  }
-  const existingCount = await countLenderProductRequirements({
-    lenderProductId: params.lenderProductId,
-  });
-  if (existingCount > 0) {
-    return 0;
-  }
-  const seeded = await createRequirementSeeds({
-    lenderProductId: params.lenderProductId,
-    requirements: baseRequirements,
-  });
-  if (seeded > 0) {
-    logInfo("lender_product_requirements_seeded", {
-      lenderProductId: params.lenderProductId,
-      productType: params.productType,
-      count: seeded,
-    });
-  }
-  return seeded;
-}
-
-export async function seedRequirementsForAllProducts(): Promise<void> {
-  const res = await pool.query<{ id: string; type: string }>(
-    "select id, type from lender_products"
-  );
-  for (const product of res.rows) {
-    await ensureSeedRequirementsForProduct({
-      lenderProductId: product.id,
-      productType: product.type,
-    });
-  }
+  return result;
 }
 
 export async function listClientRequirements(params: {
   lenderProductId: string;
   requestedAmount?: number | null;
 }): Promise<LenderProductRequirement[]> {
-  const product = await findLenderProductById({ id: params.lenderProductId });
+  const product = await fetchProductById({
+    id: params.lenderProductId,
+    requireActive: true,
+  });
   if (!product) {
     return [];
-  }
-  if (product.status !== "active") {
-    throw new AppError("forbidden", "Lender product not found.", 403);
   }
   const requirements = await resolveLenderProductRequirements({
     lenderProductId: params.lenderProductId,
@@ -223,66 +314,116 @@ export async function createRequirementForProduct(params: {
   minAmount?: number | null;
   maxAmount?: number | null;
 }): Promise<LenderProductRequirement> {
-  const product = await findLenderProductById({ id: params.lenderProductId });
+  const product = await fetchProductById({ id: params.lenderProductId });
   if (!product) {
     throw new AppError("not_found", "Lender product not found.", 404);
   }
-  const created = await createLenderProductRequirement({
-    lenderProductId: params.lenderProductId,
-    documentType: params.documentType,
+  const documents = parseRequiredDocuments(product.required_documents);
+  const newEntry: RequiredDocumentEntry = {
+    id: randomUUID(),
+    type: params.documentType,
     required: params.required ?? true,
     minAmount: params.minAmount ?? null,
     maxAmount: params.maxAmount ?? null,
-  });
-  return mapRequirement(created);
+  };
+  documents.push(newEntry);
+  await pool.query(
+    `update lender_products
+     set required_documents = $1,
+         updated_at = now()
+     where id = $2`,
+    [JSON.stringify(documents), params.lenderProductId]
+  );
+  const requirement = normalizeRequirementEntry(newEntry);
+  if (!requirement) {
+    throw new AppError("data_error", "Invalid requirement payload.", 500);
+  }
+  return requirement;
 }
 
 export async function updateRequirementForProduct(params: {
   id: string;
   documentType: string;
-  required: boolean;
+  required?: boolean;
   minAmount?: number | null;
   maxAmount?: number | null;
 }): Promise<LenderProductRequirement> {
-  const existing = await getLenderProductRequirementById({ id: params.id });
-  if (!existing) {
+  const res = await pool.query<{ id: string; required_documents: unknown }>(
+    `select id, required_documents
+     from lender_products
+     where required_documents @> $1::jsonb
+     limit 1`,
+    [JSON.stringify([{ id: params.id }])]
+  );
+  const product = res.rows[0];
+  if (!product) {
     throw new AppError("not_found", "Requirement not found.", 404);
   }
-  const updated = await updateLenderProductRequirement({
+  const documents = parseRequiredDocuments(product.required_documents);
+  const index = documents.findIndex((entry) => entry.id === params.id);
+  if (index < 0) {
+    throw new AppError("not_found", "Requirement not found.", 404);
+  }
+  documents[index] = {
+    ...documents[index],
     id: params.id,
-    documentType: params.documentType,
-    required: params.required,
+    type: params.documentType,
+    required: params.required ?? true,
     minAmount: params.minAmount ?? null,
     maxAmount: params.maxAmount ?? null,
-  });
-  if (!updated) {
-    throw new AppError("not_found", "Requirement not found.", 404);
+  };
+  await pool.query(
+    `update lender_products
+     set required_documents = $1,
+         updated_at = now()
+     where id = $2`,
+    [JSON.stringify(documents), product.id]
+  );
+  const requirement = normalizeRequirementEntry(documents[index]);
+  if (!requirement) {
+    throw new AppError("data_error", "Invalid requirement payload.", 500);
   }
-  return mapRequirement(updated);
+  return requirement;
 }
 
 export async function deleteRequirementForProduct(params: {
   id: string;
 }): Promise<LenderProductRequirement> {
-  const existing = await getLenderProductRequirementById({ id: params.id });
-  if (!existing) {
+  const res = await pool.query<{ id: string; required_documents: unknown }>(
+    `select id, required_documents
+     from lender_products
+     where required_documents @> $1::jsonb
+     limit 1`,
+    [JSON.stringify([{ id: params.id }])]
+  );
+  const product = res.rows[0];
+  if (!product) {
     throw new AppError("not_found", "Requirement not found.", 404);
   }
-  if (existing.required) {
-    const remainingRequired = await countRequiredLenderProductRequirements({
-      lenderProductId: existing.lender_product_id,
-    });
-    if (remainingRequired <= 1) {
-      throw new AppError(
-        "validation_error",
-        "Cannot delete the last required document.",
-        400
-      );
-    }
-  }
-  const deleted = await deleteLenderProductRequirement({ id: params.id });
-  if (!deleted) {
+  const documents = parseRequiredDocuments(product.required_documents);
+  const index = documents.findIndex((entry) => entry.id === params.id);
+  if (index < 0) {
     throw new AppError("not_found", "Requirement not found.", 404);
   }
-  return mapRequirement(deleted);
+  const [removed] = documents.splice(index, 1);
+  await pool.query(
+    `update lender_products
+     set required_documents = $1,
+         updated_at = now()
+     where id = $2`,
+    [JSON.stringify(documents), product.id]
+  );
+  const requirement = normalizeRequirementEntry(removed);
+  if (!requirement) {
+    throw new AppError("data_error", "Invalid requirement payload.", 500);
+  }
+  return requirement;
+}
+
+export async function ensureSeedRequirementsForProduct(): Promise<number> {
+  return 0;
+}
+
+export async function seedRequirementsForAllProducts(): Promise<void> {
+  return;
 }

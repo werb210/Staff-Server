@@ -2,7 +2,6 @@ import { pool } from "../db";
 import { ROLES } from "../auth/roles";
 import { runMigrations } from "../migrations";
 import { logInfo } from "../observability/logger";
-import { ensureSeedRequirementsForProduct } from "../services/lenderProductRequirementsService";
 
 export const SEEDED_ADMIN_PHONE = "+15878881837";
 export const SEEDED_ADMIN_ID = "00000000-0000-0000-0000-000000000099";
@@ -104,52 +103,46 @@ export async function seedBaselineLenders(): Promise<void> {
 
   await pool.query(
     `insert into lenders
-     (id, name, active, phone, website, description, country, created_at)
-     values ($1, $2, true, $3, $4, $5, $6, now())`,
+     (id, name, active, status, submission_method, website, country, created_at, updated_at)
+     values ($1, $2, true, 'ACTIVE', 'EMAIL', $3, $4, now(), now())`,
     [
       SEEDED_LENDER_ID,
       "Atlas Capital",
-      "+1-555-0100",
       "https://atlascapital.example.com",
-      "Seeded lender for staff flow validation.",
       "US",
     ]
   );
 
   await pool.query(
     `insert into lender_products
-     (id, lender_id, lender_name, name, description, type, min_amount, max_amount, status, active, created_at, updated_at)
+     (id, lender_id, name, category, country, rate_type, interest_min, interest_max, term_min, term_max, term_unit, active, required_documents, created_at, updated_at)
      values
-     ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, now(), now()),
-     ($10, $2, $3, $11, $12, $13, $14, $15, $16, true, now(), now())`,
+     ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'MONTHS', true, $11, now(), now()),
+     ($12, $2, $13, $14, $15, $16, $17, $18, $19, $20, 'MONTHS', true, $21, now(), now())`,
     [
       SEEDED_LENDER_PRODUCT_TERM_ID,
       SEEDED_LENDER_ID,
-      "Atlas Capital",
       "Term Loan",
-      "Term loan product (category: term).",
-      "term",
-      5000,
-      250000,
-      "active",
+      "TERM",
+      "US",
+      "FIXED",
+      "8.0",
+      "12.0",
+      12,
+      60,
+      JSON.stringify([{ type: "bank_statement", months: 6 }]),
       SEEDED_LENDER_PRODUCT_LOC_ID,
       "Line of Credit",
-      "Revolving line of credit product (category: loc).",
-      "loc",
-      10000,
-      150000,
-      "active",
+      "LOC",
+      "US",
+      "VARIABLE",
+      "P+",
+      "P+",
+      6,
+      24,
+      JSON.stringify([{ type: "bank_statement", months: 6 }]),
     ]
   );
-
-  await ensureSeedRequirementsForProduct({
-    lenderProductId: SEEDED_LENDER_PRODUCT_TERM_ID,
-    productType: "term",
-  });
-  await ensureSeedRequirementsForProduct({
-    lenderProductId: SEEDED_LENDER_PRODUCT_LOC_ID,
-    productType: "loc",
-  });
 }
 
 export async function seedDatabase(): Promise<void> {

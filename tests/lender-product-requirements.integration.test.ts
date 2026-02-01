@@ -84,7 +84,12 @@ describe("lender product requirements", () => {
       .post("/api/lenders")
       .set("Authorization", `Bearer ${token}`)
       .set("x-request-id", requestId)
-      .send({ name: "Seeded Lender", country: "US" });
+      .send({
+        name: "Seeded Lender",
+        country: "US",
+        submissionMethod: "EMAIL",
+        submissionEmail: "submissions@seeded-lender.com",
+      });
 
     expect(lenderResponse.status).toBe(201);
 
@@ -96,9 +101,9 @@ describe("lender product requirements", () => {
       .send({
         lenderId: lenderResponse.body.id,
         name: "Seeded LOC",
-        type: "loc",
-        min_amount: 10000,
-        max_amount: 50000,
+        category: "LOC",
+        term_min: 6,
+        term_max: 24,
         required_documents: [],
       });
 
@@ -119,7 +124,12 @@ describe("lender product requirements", () => {
       .post("/api/lenders")
       .set("Authorization", `Bearer ${token}`)
       .set("x-request-id", requestId)
-      .send({ name: "Requirements Lender", country: "US" });
+      .send({
+        name: "Requirements Lender",
+        country: "US",
+        submissionMethod: "EMAIL",
+        submissionEmail: "submissions@requirements-lender.com",
+      });
 
     expect(lenderResponse.status).toBe(201);
 
@@ -131,9 +141,9 @@ describe("lender product requirements", () => {
       .send({
         lenderId: lenderResponse.body.id,
         name: "Requirements LOC",
-        type: "loc",
-        min_amount: 10000,
-        max_amount: 50000,
+        category: "LOC",
+        term_min: 6,
+        term_max: 24,
         required_documents: [],
       });
 
@@ -154,7 +164,12 @@ describe("lender product requirements", () => {
       .post("/api/lenders")
       .set("Authorization", `Bearer ${token}`)
       .set("x-request-id", requestId)
-      .send({ name: "Required Lender", country: "US" });
+      .send({
+        name: "Required Lender",
+        country: "US",
+        submissionMethod: "EMAIL",
+        submissionEmail: "submissions@required-lender.com",
+      });
 
     const productResponse = await request(app)
       .post("/api/lender-products")
@@ -164,9 +179,9 @@ describe("lender product requirements", () => {
       .send({
         lenderId: lenderResponse.body.id,
         name: "Required LOC",
-        type: "loc",
-        min_amount: 10000,
-        max_amount: 50000,
+        category: "LOC",
+        term_min: 6,
+        term_max: 24,
         required_documents: [],
       });
 
@@ -199,7 +214,12 @@ describe("lender product requirements", () => {
       .post("/api/lenders")
       .set("Authorization", `Bearer ${token}`)
       .set("x-request-id", requestId)
-      .send({ name: "Conditional Lender", country: "US" });
+      .send({
+        name: "Conditional Lender",
+        country: "US",
+        submissionMethod: "EMAIL",
+        submissionEmail: "submissions@conditional-lender.com",
+      });
 
     const productResponse = await request(app)
       .post("/api/lender-products")
@@ -209,9 +229,9 @@ describe("lender product requirements", () => {
       .send({
         lenderId: lenderResponse.body.id,
         name: "Conditional LOC",
-        type: "loc",
-        min_amount: 10000,
-        max_amount: 50000,
+        category: "LOC",
+        term_min: 6,
+        term_max: 24,
         required_documents: [],
       });
 
@@ -254,7 +274,12 @@ describe("lender product requirements", () => {
       .post("/api/lenders")
       .set("Authorization", `Bearer ${token}`)
       .set("x-request-id", requestId)
-      .send({ name: "Inactive Lender", country: "US" });
+      .send({
+        name: "Inactive Lender",
+        country: "US",
+        submissionMethod: "EMAIL",
+        submissionEmail: "submissions@inactive-lender.com",
+      });
 
     const productResponse = await request(app)
       .post("/api/lender-products")
@@ -264,8 +289,7 @@ describe("lender product requirements", () => {
       .send({
         lenderId: lenderResponse.body.id,
         name: "Inactive LOC",
-        type: "loc",
-        status: "inactive",
+        category: "LOC",
         active: false,
         required_documents: [],
       });
@@ -276,6 +300,7 @@ describe("lender product requirements", () => {
       `/api/client/lender-products/${productResponse.body.id}/requirements`
     );
 
-    expect([403, 404]).toContain(requirementsResponse.status);
+    expect(requirementsResponse.status).toBe(200);
+    expect(requirementsResponse.body.requirements).toEqual([]);
   });
 });

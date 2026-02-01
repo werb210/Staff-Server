@@ -6,17 +6,15 @@ import { logError } from "../observability/logger";
 export interface CreateLenderInput {
   name: string;
   country: string;
-  submission_method?: string | null;
+  submission_method: string;
   active?: boolean;
   status?: string | null;
   primary_contact_name?: string | null;
-  contact_email?: string | null;
-  contact_phone?: string | null;
-  email?: string | null;
+  primary_contact_email?: string | null;
+  primary_contact_phone?: string | null;
   submission_email?: string | null;
-  phone?: string | null;
+  api_config?: Record<string, unknown> | null;
   website?: string | null;
-  postal_code?: string | null;
 }
 
 const LENDERS_REPO = "src/repositories/lenders.repo.ts";
@@ -83,74 +81,26 @@ async function assertLenderColumnsExist(params: {
   }
 }
 
-function resolvePrimaryContactColumn(existing: Set<string>): string | null {
-  if (existing.has("primary_contact_name")) {
-    return "primary_contact_name";
-  }
-  if (existing.has("contact_name")) {
-    return "contact_name";
-  }
-  return null;
-}
-
 function buildSelectColumns(existing: Set<string>): string {
-  const primaryContactColumn = resolvePrimaryContactColumn(existing);
   const columns: Array<{ name: string; fallback?: string }> = [
     { name: "id" },
     { name: "name" },
     { name: "country" },
-    { name: "city", fallback: "null::text" },
-    { name: "region", fallback: "null::text" },
-    { name: "submission_method", fallback: "null::text" },
+    { name: "submission_method", fallback: "'EMAIL'::text" },
     { name: "active", fallback: "true" },
-    {
-      name: "status",
-      fallback:
-        "case when coalesce(active, true) then 'ACTIVE'::text else 'INACTIVE'::text end",
-    },
+    { name: "status", fallback: "'ACTIVE'::text" },
     { name: "primary_contact_name", fallback: "null::text" },
-    { name: "contact_name", fallback: "null::text" },
-    { name: "contact_email", fallback: "null::text" },
-    { name: "contact_phone", fallback: "null::text" },
-    { name: "email", fallback: "null::text" },
-    { name: "phone", fallback: "null::text" },
+    { name: "primary_contact_email", fallback: "null::text" },
+    { name: "primary_contact_phone", fallback: "null::text" },
     { name: "website", fallback: "null::text" },
-    { name: "postal_code", fallback: "null::text" },
     { name: "submission_email", fallback: "null::text" },
+    { name: "api_config", fallback: "null::jsonb" },
     { name: "created_at", fallback: "now()" },
+    { name: "updated_at", fallback: "now()" },
   ];
 
   return columns
     .map((column) => {
-      if (column.name === "primary_contact_name") {
-        if (primaryContactColumn) {
-          return primaryContactColumn === "primary_contact_name"
-            ? "primary_contact_name"
-            : `${primaryContactColumn} as primary_contact_name`;
-        }
-        return `${column.fallback ?? "null"} as primary_contact_name`;
-      }
-      if (column.name === "contact_name") {
-        if (existing.has("contact_name")) {
-          return "contact_name";
-        }
-        if (primaryContactColumn) {
-          return `${primaryContactColumn} as contact_name`;
-        }
-        return `${column.fallback ?? "null"} as contact_name`;
-      }
-      if (column.name === "status") {
-        if (existing.has("status")) {
-          if (existing.has("active")) {
-            return `coalesce(status, case when coalesce(active, true) then 'ACTIVE'::text else 'INACTIVE'::text end) as status`;
-          }
-          return `coalesce(status, 'ACTIVE'::text) as status`;
-        }
-        if (existing.has("active")) {
-          return `case when coalesce(active, true) then 'ACTIVE'::text else 'INACTIVE'::text end as status`;
-        }
-        return `${column.fallback ?? "'ACTIVE'::text"} as status`;
-      }
       if (existing.has(column.name)) {
         return column.name;
       }
@@ -165,13 +115,12 @@ export const LIST_LENDERS_SQL = `
     id,
     name,
     country,
-    COALESCE(email, '') AS email,
     COALESCE(status, 'ACTIVE') AS status,
-    COALESCE(primary_contact_name, contact_name) AS primary_contact_name,
+    COALESCE(primary_contact_name, '') AS primary_contact_name,
     submission_email,
-    phone,
     website,
-    postal_code,
+    api_config,
+    active,
     created_at
   FROM lenders
   ORDER BY created_at DESC
@@ -196,18 +145,17 @@ export async function getLenderById(id: string) {
       "id",
       "name",
       "country",
-      "city",
-      "region",
-      "submission_method",
       "status",
-      "email",
-      "contact_name",
-      "contact_email",
-      "contact_phone",
-      "phone",
+      "submission_method",
+      "submission_email",
+      "api_config",
+      "primary_contact_name",
+      "primary_contact_email",
+      "primary_contact_phone",
       "website",
-      "postal_code",
       "created_at",
+      "updated_at",
+      "active",
     ],
     required: ["id", "name", "country"],
   });
@@ -233,18 +181,15 @@ export async function createLender(
   const {
     name,
     country,
-    email = "",
-    submission_email,
     primary_contact_name,
-    contact_email,
-    contact_phone,
-    phone,
+    primary_contact_email,
+    primary_contact_phone,
+    submission_email,
+    api_config,
     website,
-    postal_code,
   } = input;
   const existingColumns = await getLenderColumns();
   const includeActive = existingColumns.has("active");
-  const primaryContactColumn = resolvePrimaryContactColumn(existingColumns);
   const statusValue =
     typeof input.active === "boolean"
       ? input.active
@@ -260,43 +205,34 @@ export async function createLender(
     { name: "id", value: "gen_random_uuid()", raw: true },
     { name: "name", value: name },
     { name: "country", value: country },
-    { name: "email", value: email ?? null },
-    { name: "phone", value: phone ?? null },
     { name: "website", value: website ?? null },
-    { name: "postal_code", value: postal_code ?? null },
     { name: "status", value: statusValue },
   ];
 
-  if (primaryContactColumn) {
-    columns.push({
-      name: primaryContactColumn,
-      value: primary_contact_name ?? null,
-    });
-  }
-  if (existingColumns.has("submission_method")) {
-    columns.push({
-      name: "submission_method",
-      value: input.submission_method ?? null,
-    });
-  }
-  if (existingColumns.has("contact_email")) {
-    columns.push({
-      name: "contact_email",
-      value: contact_email ?? null,
-    });
-  }
-  if (existingColumns.has("contact_phone")) {
-    columns.push({
-      name: "contact_phone",
-      value: contact_phone ?? null,
-    });
-  }
-  if (existingColumns.has("submission_email")) {
-    columns.push({
-      name: "submission_email",
-      value: submission_email ?? null,
-    });
-  }
+  columns.push({
+    name: "primary_contact_name",
+    value: primary_contact_name ?? null,
+  });
+  columns.push({
+    name: "primary_contact_email",
+    value: primary_contact_email ?? null,
+  });
+  columns.push({
+    name: "primary_contact_phone",
+    value: primary_contact_phone ?? null,
+  });
+  columns.push({
+    name: "submission_method",
+    value: input.submission_method ?? null,
+  });
+  columns.push({
+    name: "submission_email",
+    value: submission_email ?? null,
+  });
+  columns.push({
+    name: "api_config",
+    value: api_config ?? null,
+  });
   if (includeActive) {
     columns.push({ name: "active", value: activeValue });
   }
@@ -369,18 +305,15 @@ export async function updateLender(
     country?: string | null;
     submission_method?: string | null;
     primary_contact_name?: string | null;
-    contact_email?: string | null;
-    contact_phone?: string | null;
-    email?: string | null;
+    primary_contact_email?: string | null;
+    primary_contact_phone?: string | null;
     submission_email?: string | null;
-    phone?: string | null;
+    api_config?: Record<string, unknown> | null;
     website?: string | null;
-    postal_code?: string | null;
     active?: boolean;
   }
 ) {
   const existingColumns = await getLenderColumns();
-  const primaryContactColumn = resolvePrimaryContactColumn(existingColumns);
   const updates: Array<{ name: string; value: unknown }> = [];
 
   if (params.name !== undefined && existingColumns.has("name")) {
@@ -398,29 +331,14 @@ export async function updateLender(
   ) {
     updates.push({ name: "submission_method", value: params.submission_method });
   }
-  if (
-    params.primary_contact_name !== undefined &&
-    primaryContactColumn
-  ) {
-    updates.push({
-      name: primaryContactColumn,
-      value: params.primary_contact_name,
-    });
+  if (params.primary_contact_name !== undefined) {
+    updates.push({ name: "primary_contact_name", value: params.primary_contact_name });
   }
-  if (
-    params.contact_email !== undefined &&
-    existingColumns.has("contact_email")
-  ) {
-    updates.push({ name: "contact_email", value: params.contact_email });
+  if (params.primary_contact_email !== undefined) {
+    updates.push({ name: "primary_contact_email", value: params.primary_contact_email });
   }
-  if (
-    params.contact_phone !== undefined &&
-    existingColumns.has("contact_phone")
-  ) {
-    updates.push({ name: "contact_phone", value: params.contact_phone });
-  }
-  if (params.email !== undefined && existingColumns.has("email")) {
-    updates.push({ name: "email", value: params.email });
+  if (params.primary_contact_phone !== undefined) {
+    updates.push({ name: "primary_contact_phone", value: params.primary_contact_phone });
   }
   if (
     params.submission_email !== undefined &&
@@ -428,14 +346,11 @@ export async function updateLender(
   ) {
     updates.push({ name: "submission_email", value: params.submission_email });
   }
-  if (params.phone !== undefined && existingColumns.has("phone")) {
-    updates.push({ name: "phone", value: params.phone });
+  if (params.api_config !== undefined && existingColumns.has("api_config")) {
+    updates.push({ name: "api_config", value: params.api_config });
   }
   if (params.website !== undefined && existingColumns.has("website")) {
     updates.push({ name: "website", value: params.website });
-  }
-  if (params.postal_code !== undefined && existingColumns.has("postal_code")) {
-    updates.push({ name: "postal_code", value: params.postal_code });
   }
   if (params.active !== undefined && existingColumns.has("active")) {
     updates.push({ name: "active", value: params.active });

@@ -136,13 +136,15 @@ export async function listApplicationPipelineStages(
 ): Promise<string[]> {
   const runner = client ?? pool;
   try {
-    const res = await runner.query<{ status: string }>(
-      `SELECT DISTINCT status
+    const res = await runner.query<{ pipeline_state: string }>(
+      `SELECT DISTINCT pipeline_state
        FROM applications
-       ORDER BY status`
+       ORDER BY pipeline_state`
     );
     return Array.isArray(res.rows)
-      ? res.rows.map((row) => row.status).filter((status) => Boolean(status))
+      ? res.rows
+          .map((row) => row.pipeline_state)
+          .filter((state) => Boolean(state))
       : [];
   } catch (err) {
     logError("pipeline_stages_query_failed", {

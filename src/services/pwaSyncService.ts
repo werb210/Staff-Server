@@ -61,23 +61,26 @@ const lenderSchema = z.object({
   country: z.string().min(1),
   submissionMethod: z.string().optional(),
   active: z.boolean().optional(),
-  email: z.string().email().optional(),
-  phone: z.string().optional(),
   website: z.string().optional(),
-  postal_code: z.string().optional(),
+  submissionEmail: z.string().email().optional(),
+  apiConfig: z.record(z.unknown()).optional(),
+  primaryContactName: z.string().optional(),
+  primaryContactEmail: z.string().email().optional(),
+  primaryContactPhone: z.string().optional(),
 });
 
 const lenderProductSchema = z.object({
   lenderId: z.string().uuid(),
   name: z.string().optional(),
-  description: z.string().optional(),
   active: z.boolean().optional(),
   required_documents: z.array(z.record(z.unknown())).optional(),
-  eligibility: z.record(z.unknown()).optional(),
-  type: z.string().optional(),
-  min_amount: z.number().optional(),
-  max_amount: z.number().optional(),
-  status: z.string().optional(),
+  category: z.string().optional(),
+  country: z.string().optional(),
+  rate_type: z.string().optional(),
+  interest_min: z.string().optional(),
+  interest_max: z.string().optional(),
+  term_min: z.number().optional(),
+  term_max: z.number().optional(),
 });
 
 const userSchema = z.object({
@@ -207,12 +210,14 @@ async function executeReplayAction(
     const lender = await createLender(pool, {
       name: parsed.name.trim(),
       country: parsed.country.trim(),
-      submission_method: parsed.submissionMethod?.trim() ?? null,
+      submission_method: parsed.submissionMethod?.trim() ?? "EMAIL",
       active: parsed.active,
-      email: parsed.email ?? null,
-      phone: parsed.phone ?? null,
       website: parsed.website ?? null,
-      postal_code: parsed.postal_code ?? null,
+      submission_email: parsed.submissionEmail ?? null,
+      api_config: parsed.apiConfig ?? null,
+      primary_contact_name: parsed.primaryContactName ?? null,
+      primary_contact_email: parsed.primaryContactEmail ?? null,
+      primary_contact_phone: parsed.primaryContactPhone ?? null,
     });
     return { statusCode: 201, body: lender };
   }
@@ -243,30 +248,18 @@ async function executeReplayAction(
     const requiredDocuments = requireRequiredDocuments(
       parsed.required_documents ?? []
     );
-    const eligibility =
-      parsed.eligibility === undefined || parsed.eligibility === null
-        ? null
-        : isJsonObject(parsed.eligibility)
-          ? parsed.eligibility
-          : (() => {
-              throw new AppError(
-                "validation_error",
-                "eligibility must be a JSON object.",
-                400
-              );
-            })();
     const created = await createLenderProductService({
       lenderId: parsed.lenderId,
-      lenderName: lender.name,
       name: parsed.name ?? null,
-      description: parsed.description ?? null,
       active: parsed.active ?? true,
-      type: parsed.type,
-      minAmount: parsed.min_amount ?? null,
-      maxAmount: parsed.max_amount ?? null,
-      status: parsed.status,
+      category: parsed.category,
       requiredDocuments,
-      eligibility,
+      country: parsed.country ?? null,
+      rateType: parsed.rate_type ?? null,
+      interestMin: parsed.interest_min ?? null,
+      interestMax: parsed.interest_max ?? null,
+      termMin: parsed.term_min ?? null,
+      termMax: parsed.term_max ?? null,
     });
     return { statusCode: 201, body: created };
   }

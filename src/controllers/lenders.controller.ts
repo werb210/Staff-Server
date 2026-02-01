@@ -21,18 +21,16 @@ type LenderProductResponse = {
   id: string;
   lenderId: string;
   name: string;
-  description: string | null;
   active: boolean;
-  type: string | null;
-  min_amount: number | null;
-  max_amount: number | null;
-  status: string | null;
-  country: string | null;
+  category: string;
+  country: string;
   rate_type: string | null;
-  min_rate: string | null;
-  max_rate: string | null;
+  interest_min: string | null;
+  interest_max: string | null;
+  term_min: number | null;
+  term_max: number | null;
+  term_unit: string;
   required_documents: RequiredDocuments;
-  eligibility: JsonObject | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -133,8 +131,16 @@ export async function getLenderByIdHandler(
           : "ACTIVE";
 
     const contactName =
-      (lender as { contact_name?: string | null }).contact_name ??
       (lender as { primary_contact_name?: string | null }).primary_contact_name ??
+      (lender as { contact_name?: string | null }).contact_name ??
+      null;
+    const contactEmail =
+      (lender as { primary_contact_email?: string | null }).primary_contact_email ??
+      (lender as { contact_email?: string | null }).contact_email ??
+      null;
+    const contactPhone =
+      (lender as { primary_contact_phone?: string | null }).primary_contact_phone ??
+      (lender as { contact_phone?: string | null }).contact_phone ??
       null;
 
     res.status(200).json({
@@ -146,25 +152,22 @@ export async function getLenderByIdHandler(
           ? (lender as { active: boolean }).active
           : statusValue === "ACTIVE",
       country: (lender as { country?: string | null }).country ?? null,
-      city: (lender as { city?: string | null }).city ?? null,
-      state:
-        (lender as { state?: string | null }).state ??
-        (lender as { region?: string | null }).region ??
-        null,
-      postal_code: (lender as { postal_code?: string | null }).postal_code ?? null,
+      primary_contact_name: contactName,
+      primary_contact_email: contactEmail,
+      primary_contact_phone: contactPhone,
       contact_name: contactName,
-      contact_email:
-        (lender as { contact_email?: string | null }).contact_email ?? null,
-      contact_phone:
-        (lender as { contact_phone?: string | null }).contact_phone ?? null,
-      email: (lender as { email?: string | null }).email ?? null,
-      phone: (lender as { phone?: string | null }).phone ?? null,
+      contact_email: contactEmail,
+      contact_phone: contactPhone,
       website: (lender as { website?: string | null }).website ?? null,
       submission_method:
         (lender as { submission_method?: string | null }).submission_method ??
         null,
       submission_email:
         (lender as { submission_email?: string | null }).submission_email ?? null,
+      api_config:
+        (lender as { api_config?: JsonObject | null }).api_config ?? null,
+      created_at: (lender as { created_at?: Date }).created_at ?? null,
+      updated_at: (lender as { updated_at?: Date }).updated_at ?? null,
     });
   } catch (err) {
     logError("lender_get_failed", {
@@ -193,18 +196,16 @@ function toLenderProductResponse(record: {
   id: string;
   lender_id: string;
   name: string;
-  description: string | null;
   active: boolean;
-  type?: string | null;
-  min_amount?: number | null;
-  max_amount?: number | null;
-  status?: string | null;
+  category?: string | null;
   country?: string | null;
   rate_type?: string | null;
-  min_rate?: string | null;
-  max_rate?: string | null;
+  interest_min?: string | null;
+  interest_max?: string | null;
+  term_min?: number | null;
+  term_max?: number | null;
+  term_unit?: string | null;
   required_documents: RequiredDocuments;
-  eligibility: JsonObject | null;
   created_at: Date;
   updated_at: Date;
 }): LenderProductResponse {
@@ -214,8 +215,7 @@ function toLenderProductResponse(record: {
     typeof record.lender_id !== "string" ||
     typeof record.name !== "string" ||
     typeof record.active !== "boolean" ||
-    !isRequiredDocuments(record.required_documents) ||
-    !isEligibility(record.eligibility)
+    !isRequiredDocuments(record.required_documents)
   ) {
     throw new AppError("data_error", "Invalid lender product record.", 500);
   }
@@ -226,18 +226,16 @@ function toLenderProductResponse(record: {
     id: record.id,
     lenderId: record.lender_id,
     name: record.name,
-    description: record.description,
     active: record.active,
-    type: record.type ?? null,
-    min_amount: record.min_amount ?? null,
-    max_amount: record.max_amount ?? null,
-    status: record.status ?? null,
-    country: record.country ?? null,
+    category: record.category ?? "LOC",
+    country: record.country ?? "BOTH",
     rate_type: record.rate_type ?? null,
-    min_rate: record.min_rate ?? null,
-    max_rate: record.max_rate ?? null,
+    interest_min: record.interest_min ?? null,
+    interest_max: record.interest_max ?? null,
+    term_min: record.term_min ?? null,
+    term_max: record.term_max ?? null,
+    term_unit: record.term_unit ?? "MONTHS",
     required_documents: normalizedDocuments,
-    eligibility: isPlainObject(record.eligibility) ? record.eligibility : null,
     createdAt: parseTimestamp(record.created_at, "created_at"),
     updatedAt: parseTimestamp(record.updated_at, "updated_at"),
   };
@@ -277,10 +275,6 @@ function isPlainObject(value: unknown): value is JsonObject {
 
 function isRequiredDocuments(value: unknown): value is RequiredDocuments {
   return Array.isArray(value) && value.every(isPlainObject);
-}
-
-function isEligibility(value: unknown): value is JsonObject | null {
-  return value === null || isPlainObject(value);
 }
 
 export async function getLenderWithProducts(
@@ -358,11 +352,8 @@ export async function createLender(
       apiConfig,
       active,
       contact,
-      email,
       submissionEmail,
-      phone,
       website,
-      postal_code,
     } = req.body ?? {};
 
     if (!name || typeof name !== "string" || name.trim().length === 0) {
@@ -456,17 +447,16 @@ export async function createLender(
     const lender = await repo.createLender(pool, {
       name: name.trim(),
       country: normalizedCountry,
-      submission_method: normalizedSubmissionMethod,
+      submission_method: normalizedSubmissionMethod ?? "EMAIL",
       active: typeof active === "boolean" ? active : undefined,
       status: resolvedStatus,
       primary_contact_name: contactName,
-      contact_email: contactEmail ?? null,
-      contact_phone: contactPhone ?? null,
-      email: typeof email === "string" ? email.trim() : null,
+      primary_contact_email: contactEmail ?? null,
+      primary_contact_phone: contactPhone ?? null,
       submission_email: normalizedSubmissionEmail,
-      phone: typeof phone === "string" ? phone.trim() : null,
       website: typeof website === "string" ? website.trim() : null,
-      postal_code: typeof postal_code === "string" ? postal_code.trim() : null,
+      api_config:
+        apiConfig && typeof apiConfig === "object" ? (apiConfig as JsonObject) : null,
     });
 
     res.status(201).json(lender);
@@ -510,13 +500,10 @@ export async function updateLender(
       country,
       active,
       contact,
-      email,
       submissionEmail,
       submissionMethod,
       apiConfig,
-      phone,
       website,
-      postal_code,
     } = req.body ?? {};
 
     if (name !== undefined && name !== null && typeof name !== "string") {
@@ -637,16 +624,15 @@ export async function updateLender(
       status: resolvedStatus,
       country: normalizedCountry,
       primary_contact_name: contactName,
-      contact_email: contactEmail,
-      contact_phone: contactPhone,
-      email: typeof email === "string" ? email.trim() : undefined,
+      primary_contact_email: contactEmail,
+      primary_contact_phone: contactPhone,
       submission_email:
         typeof submissionEmail === "string" ? submissionEmail.trim() : undefined,
       submission_method: normalizedSubmissionMethod,
-      phone: typeof phone === "string" ? phone.trim() : undefined,
       website: typeof website === "string" ? website.trim() : undefined,
-      postal_code: typeof postal_code === "string" ? postal_code.trim() : undefined,
       active: resolvedActive,
+      api_config:
+        apiConfig && typeof apiConfig === "object" ? (apiConfig as JsonObject) : undefined,
     });
 
     if (!updated) {

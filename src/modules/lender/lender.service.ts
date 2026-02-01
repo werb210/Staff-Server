@@ -99,6 +99,24 @@ function normalizeSubmissionMethod(value: unknown): SubmissionMethod | null {
     : null;
 }
 
+function resolveApplicationCountry(metadata: unknown): string | null {
+  if (!metadata || typeof metadata !== "object") {
+    return null;
+  }
+  const business = (metadata as { business?: unknown }).business;
+  if (!business || typeof business !== "object") {
+    return null;
+  }
+  const address = (business as { address?: unknown }).address;
+  if (!address || typeof address !== "object") {
+    return null;
+  }
+  const country = (address as { country?: unknown }).country;
+  return typeof country === "string" && country.trim().length > 0
+    ? country.trim()
+    : null;
+}
+
 async function getLenderSubmissionConfig(params: {
   lenderId: string;
   client: Pick<PoolClient, "query">;
@@ -284,6 +302,7 @@ async function buildSubmissionPacket(params: {
     lenderProductId: application.lender_product_id ?? null,
     productType: application.product_type,
     requestedAmount: application.requested_amount ?? null,
+    country: resolveApplicationCountry(application.metadata),
   });
   const requiredTypes = requirements.filter((req) => req.required).map((req) => req.documentType);
 

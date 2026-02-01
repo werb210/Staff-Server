@@ -11,23 +11,37 @@ export type JsonArray = JsonValue[];
 export type RequiredDocuments = JsonObject[];
 export type Eligibility = JsonObject | null;
 
+export const LENDER_PRODUCT_CATEGORIES = [
+  "LOC",
+  "TERM",
+  "FACTORING",
+  "PO",
+  "EQUIPMENT",
+  "MCA",
+] as const;
+
+export const LENDER_PRODUCT_RATE_TYPES = ["FIXED", "VARIABLE"] as const;
+
+export const LENDER_PRODUCT_TERM_UNITS = ["MONTHS"] as const;
+
+export type LenderProductCategory = (typeof LENDER_PRODUCT_CATEGORIES)[number];
+export type LenderProductRateType = (typeof LENDER_PRODUCT_RATE_TYPES)[number];
+export type LenderProductTermUnit = (typeof LENDER_PRODUCT_TERM_UNITS)[number];
+
 export type LenderProductRecord = {
   id: string;
   lender_id: string;
-  lender_name?: string | null;
   name: string;
-  description: string | null;
+  category: LenderProductCategory;
+  country: string;
+  rate_type: LenderProductRateType | null;
+  interest_min: string | null;
+  interest_max: string | null;
+  term_min: number | null;
+  term_max: number | null;
+  term_unit: LenderProductTermUnit;
   active: boolean;
-  type?: string | null;
-  min_amount?: number | null;
-  max_amount?: number | null;
-  status?: string | null;
-  country?: string | null;
-  rate_type?: string | null;
-  min_rate?: string | null;
-  max_rate?: string | null;
   required_documents: RequiredDocuments;
-  eligibility: Eligibility;
   created_at: Date;
   updated_at: Date;
 };

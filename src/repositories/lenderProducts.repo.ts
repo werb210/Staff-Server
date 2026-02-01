@@ -2,7 +2,6 @@ import { randomUUID } from "crypto";
 import { pool } from "../db";
 import { type PoolClient } from "pg";
 import {
-  type JsonObject,
   type LenderProductRecord,
   type RequiredDocuments,
 } from "../db/schema/lenderProducts";
@@ -66,20 +65,17 @@ function buildSelectColumns(existing: Set<string>): string {
   const columns: Array<{ name: string; fallback?: string }> = [
     { name: "id" },
     { name: "lender_id" },
-    { name: "lender_name", fallback: "''::text" },
     { name: "name", fallback: "'Unnamed Product'::text" },
-    { name: "description", fallback: "null::text" },
-    { name: "active", fallback: "true" },
-    { name: "type", fallback: "'loc'::text" },
-    { name: "min_amount", fallback: "null::integer" },
-    { name: "max_amount", fallback: "null::integer" },
-    { name: "status", fallback: "'active'::text" },
+    { name: "category", fallback: "'LOC'::text" },
     { name: "country", fallback: "'BOTH'::text" },
+    { name: "active", fallback: "true" },
     { name: "rate_type", fallback: "null::text" },
-    { name: "min_rate", fallback: "null::text" },
-    { name: "max_rate", fallback: "null::text" },
+    { name: "interest_min", fallback: "null::text" },
+    { name: "interest_max", fallback: "null::text" },
+    { name: "term_min", fallback: "null::integer" },
+    { name: "term_max", fallback: "null::integer" },
+    { name: "term_unit", fallback: "'MONTHS'::text" },
     { name: "required_documents", fallback: "'[]'::jsonb" },
-    { name: "eligibility", fallback: "null::jsonb" },
     { name: "created_at", fallback: "now()" },
     { name: "updated_at", fallback: "now()" },
   ];
@@ -97,20 +93,16 @@ function buildSelectColumns(existing: Set<string>): string {
 
 export async function createLenderProduct(params: {
   lenderId: string;
-  lenderName: string;
   name: string;
-  description?: string | null;
   active: boolean;
-  type: string;
-  minAmount?: number | null;
-  maxAmount?: number | null;
-  status: string;
+  category: string;
   requiredDocuments: RequiredDocuments;
-  eligibility?: JsonObject | null;
   country?: string | null;
   rateType?: string | null;
-  minRate?: number | string | null;
-  maxRate?: number | string | null;
+  interestMin?: number | string | null;
+  interestMax?: number | string | null;
+  termMin?: number | null;
+  termMax?: number | null;
   client?: Queryable;
 }): Promise<LenderProductRecord> {
   const runner = params.client ?? pool;
@@ -119,20 +111,17 @@ export async function createLenderProduct(params: {
     columns: [
       "id",
       "lender_id",
-      "lender_name",
       "name",
-      "description",
-      "type",
-      "min_amount",
-      "max_amount",
-      "status",
       "active",
       "country",
       "rate_type",
-      "min_rate",
-      "max_rate",
+      "interest_min",
+      "interest_max",
+      "term_min",
+      "term_max",
+      "term_unit",
+      "category",
       "required_documents",
-      "eligibility",
       "created_at",
       "updated_at",
     ],
@@ -142,20 +131,17 @@ export async function createLenderProduct(params: {
   const columns = [
     { name: "id", value: randomUUID() },
     { name: "lender_id", value: params.lenderId },
-    { name: "lender_name", value: params.lenderName },
     { name: "name", value: params.name },
-    { name: "description", value: params.description ?? null },
-    { name: "type", value: params.type },
-    { name: "min_amount", value: params.minAmount ?? null },
-    { name: "max_amount", value: params.maxAmount ?? null },
-    { name: "status", value: params.status },
+    { name: "category", value: params.category },
     { name: "active", value: params.active },
     { name: "required_documents", value: JSON.stringify(params.requiredDocuments) },
-    { name: "eligibility", value: JSON.stringify(params.eligibility ?? null) },
     { name: "country", value: params.country ?? null },
     { name: "rate_type", value: params.rateType ?? null },
-    { name: "min_rate", value: params.minRate ?? null },
-    { name: "max_rate", value: params.maxRate ?? null },
+    { name: "interest_min", value: params.interestMin ?? null },
+    { name: "interest_max", value: params.interestMax ?? null },
+    { name: "term_min", value: params.termMin ?? null },
+    { name: "term_max", value: params.termMax ?? null },
+    { name: "term_unit", value: "MONTHS" },
   ].filter((entry) => existing.has(entry.name));
 
   const columnNames = columns.map((entry) => entry.name);
@@ -179,11 +165,17 @@ export async function createLenderProduct(params: {
 
 export const LIST_LENDER_PRODUCTS_SQL = `select id,
         lender_id,
-        coalesce(name, 'Unnamed Product') as name,
-        description,
+        name,
+        category,
+        country,
         active,
+        rate_type,
+        interest_min,
+        interest_max,
+        term_min,
+        term_max,
+        term_unit,
         required_documents,
-        eligibility,
         created_at,
         updated_at
  from lender_products
@@ -199,20 +191,17 @@ export async function listLenderProducts(
     columns: [
       "id",
       "lender_id",
-      "lender_name",
       "name",
-      "description",
       "active",
-      "type",
-      "min_amount",
-      "max_amount",
-      "status",
+      "category",
       "country",
       "rate_type",
-      "min_rate",
-      "max_rate",
+      "interest_min",
+      "interest_max",
+      "term_min",
+      "term_max",
+      "term_unit",
       "required_documents",
-      "eligibility",
       "created_at",
       "updated_at",
     ],
@@ -248,20 +237,17 @@ export async function listLenderProductsByLenderId(
     columns: [
       "id",
       "lender_id",
-      "lender_name",
       "name",
-      "description",
       "active",
-      "type",
-      "min_amount",
-      "max_amount",
-      "status",
+      "category",
       "country",
       "rate_type",
-      "min_rate",
-      "max_rate",
+      "interest_min",
+      "interest_max",
+      "term_min",
+      "term_max",
+      "term_unit",
       "required_documents",
-      "eligibility",
       "created_at",
       "updated_at",
     ],
@@ -288,20 +274,17 @@ export async function getLenderProductById(
     columns: [
       "id",
       "lender_id",
-      "lender_name",
       "name",
-      "description",
       "active",
-      "type",
-      "min_amount",
-      "max_amount",
-      "status",
+      "category",
       "country",
       "rate_type",
-      "min_rate",
-      "max_rate",
+      "interest_min",
+      "interest_max",
+      "term_min",
+      "term_max",
+      "term_unit",
       "required_documents",
-      "eligibility",
       "created_at",
       "updated_at",
     ],
@@ -322,17 +305,14 @@ export async function updateLenderProduct(params: {
   id: string;
   name: string;
   requiredDocuments: RequiredDocuments;
-  eligibility?: JsonObject | null;
-  description?: string | null;
   active?: boolean;
-  type?: string | null;
-  minAmount?: number | null;
-  maxAmount?: number | null;
-  status?: string | null;
+  category?: string | null;
   country?: string | null;
   rateType?: string | null;
-  minRate?: number | string | null;
-  maxRate?: number | string | null;
+  interestMin?: number | string | null;
+  interestMax?: number | string | null;
+  termMin?: number | null;
+  termMax?: number | null;
   client?: Queryable;
 }): Promise<LenderProductRecord | null> {
   const runner = params.client ?? pool;
@@ -341,20 +321,17 @@ export async function updateLenderProduct(params: {
     columns: [
       "id",
       "lender_id",
-      "lender_name",
       "name",
-      "description",
       "active",
-      "type",
-      "min_amount",
-      "max_amount",
-      "status",
+      "category",
       "country",
       "rate_type",
-      "min_rate",
-      "max_rate",
+      "interest_min",
+      "interest_max",
+      "term_min",
+      "term_max",
+      "term_unit",
       "required_documents",
-      "eligibility",
       "created_at",
       "updated_at",
     ],
@@ -368,23 +345,11 @@ export async function updateLenderProduct(params: {
       cast: "::jsonb",
     },
   ];
-  if (existing.has("description") && params.description !== undefined) {
-    updates.push({ name: "description", value: params.description ?? null });
-  }
   if (existing.has("active") && params.active !== undefined) {
     updates.push({ name: "active", value: params.active });
   }
-  if (existing.has("type") && params.type !== undefined) {
-    updates.push({ name: "type", value: params.type });
-  }
-  if (existing.has("min_amount") && params.minAmount !== undefined) {
-    updates.push({ name: "min_amount", value: params.minAmount ?? null });
-  }
-  if (existing.has("max_amount") && params.maxAmount !== undefined) {
-    updates.push({ name: "max_amount", value: params.maxAmount ?? null });
-  }
-  if (existing.has("status") && params.status !== undefined) {
-    updates.push({ name: "status", value: params.status });
+  if (existing.has("category") && params.category !== undefined) {
+    updates.push({ name: "category", value: params.category });
   }
   if (existing.has("country") && params.country !== undefined) {
     updates.push({ name: "country", value: params.country });
@@ -392,18 +357,17 @@ export async function updateLenderProduct(params: {
   if (existing.has("rate_type") && params.rateType !== undefined) {
     updates.push({ name: "rate_type", value: params.rateType });
   }
-  if (existing.has("min_rate") && params.minRate !== undefined) {
-    updates.push({ name: "min_rate", value: params.minRate });
+  if (existing.has("interest_min") && params.interestMin !== undefined) {
+    updates.push({ name: "interest_min", value: params.interestMin });
   }
-  if (existing.has("max_rate") && params.maxRate !== undefined) {
-    updates.push({ name: "max_rate", value: params.maxRate });
+  if (existing.has("interest_max") && params.interestMax !== undefined) {
+    updates.push({ name: "interest_max", value: params.interestMax });
   }
-  if (existing.has("eligibility") && params.eligibility !== undefined) {
-    updates.push({
-      name: "eligibility",
-      value: JSON.stringify(params.eligibility),
-      cast: "::jsonb",
-    });
+  if (existing.has("term_min") && params.termMin !== undefined) {
+    updates.push({ name: "term_min", value: params.termMin ?? null });
+  }
+  if (existing.has("term_max") && params.termMax !== undefined) {
+    updates.push({ name: "term_max", value: params.termMax ?? null });
   }
 
   const setClauses = updates.map(

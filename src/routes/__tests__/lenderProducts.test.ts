@@ -21,9 +21,10 @@ describe("GET /api/client/lender-products", () => {
       rows: [
         {
           id: "product-1",
-          type: "term",
-          min_amount: 1000,
-          max_amount: 10000,
+          category: "TERM",
+          term_min: 6,
+          term_max: 24,
+          country: "US",
           name: "Term Product",
         },
       ],

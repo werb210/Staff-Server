@@ -61,7 +61,12 @@ async function createLender(token: string) {
     .post("/api/lenders")
     .set("Authorization", `Bearer ${token}`)
     .set("x-request-id", requestId)
-    .send({ name: "Contract Lender", country: "US" });
+    .send({
+      name: "Contract Lender",
+      country: "US",
+      submissionMethod: "API",
+      apiConfig: { endpoint: "https://api.contracts.test" },
+    });
 
   return lenderResponse.body;
 }
@@ -100,6 +105,8 @@ describe("lender contract integration", () => {
       .send({ lenderId: lender.id, required_documents: [] });
 
     expect(response.status).toBe(201);
-    expect(response.body.required_documents).toEqual([]);
+    expect(response.body.required_documents).toEqual([
+      { type: "bank_statement", months: 6 },
+    ]);
   });
 });

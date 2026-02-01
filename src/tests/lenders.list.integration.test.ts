@@ -78,8 +78,8 @@ describe("lender list endpoints", () => {
     const token = await loginStaff();
     const lenderId = randomUUID();
     await pool.query(
-      `insert into lenders (id, name, country, submission_email, status, active)
-       values ($1, $2, $3, $4, $5, $6)`,
+      `insert into lenders (id, name, country, submission_email, submission_method, status, active, created_at, updated_at)
+       values ($1, $2, $3, $4, 'EMAIL', $5, $6, now(), now())`,
       [
         lenderId,
         "List Lender",
@@ -91,18 +91,19 @@ describe("lender list endpoints", () => {
     );
     await pool.query(
       `insert into lender_products
-       (id, lender_id, lender_name, name, description, type, min_amount, max_amount, status, active, required_documents, created_at, updated_at)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, now(), now())`,
+       (id, lender_id, name, category, country, rate_type, interest_min, interest_max, term_min, term_max, term_unit, active, required_documents, created_at, updated_at)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'MONTHS', $11, $12, now(), now())`,
       [
         randomUUID(),
         lenderId,
-        "List Lender",
         "List Product",
-        "List product description",
-        "loc",
-        1000,
-        2000,
-        "active",
+        "LOC",
+        "US",
+        "FIXED",
+        "8.5",
+        "12.5",
+        6,
+        24,
         true,
         JSON.stringify([{ type: "bank_statement", months: 6 }]),
       ]
@@ -144,10 +145,7 @@ describe("lender list endpoints", () => {
           email: "pat@persistent-lender.com",
           phone: "15551234567",
         },
-        email: "hello@persistent-lender.com",
-        phone: "15559876543",
         website: "https://persistent-lender.com",
-        postal_code: "12345",
       });
 
     expect(createResponse.status).toBe(201);
@@ -169,10 +167,7 @@ describe("lender list endpoints", () => {
           email: "taylor@persistent-lender.ca",
           phone: "15557654321",
         },
-        email: "hello@persistent-lender.ca",
-        phone: "15550001111",
         website: "https://persistent-lender.ca",
-        postal_code: "A1B2C3",
       });
 
     expect(updateResponse.status).toBe(200);
@@ -192,10 +187,8 @@ describe("lender list endpoints", () => {
       contact_name: "Taylor Doe",
       contact_email: "taylor@persistent-lender.ca",
       contact_phone: "15557654321",
-      email: "hello@persistent-lender.ca",
-      phone: "15550001111",
       website: "https://persistent-lender.ca",
-      postal_code: "A1B2C3",
+      api_config: { endpoint: "https://api.lender.test" },
       submission_method: "API",
       submission_email: "submissions@persistent-lender.ca",
     });

@@ -1,4 +1,3 @@
-import axios from "axios";
 import type { Server } from "http";
 import { buildAppWithApiRoutes } from "../../src/app";
 import { get, patch, post } from "../_utils/http";
@@ -50,6 +49,8 @@ describe("lenders CRUD", () => {
       {
         name: "Smoke Test Lender",
         country: "CA",
+        submissionMethod: "EMAIL",
+        submissionEmail: "submissions@smoke-lender.com",
       },
       authHeader(accessToken)
     );
@@ -67,22 +68,13 @@ describe("lenders CRUD", () => {
   });
 
   test("PATCH /api/lenders/:id", async () => {
-    let error: unknown;
-    try {
-      await patch<{ id: string; name?: string }>(
-        `/api/lenders/${lenderId}`,
-        {
-          name: "Smoke Test Lender Updated",
-        },
-        authHeader(accessToken)
-      );
-    } catch (err) {
-      error = err;
-    }
-
-    expect(error).toBeTruthy();
-    if (axios.isAxiosError(error)) {
-      expect(error.response?.status).toBe(404);
-    }
+    const response = await patch<{ id: string; name?: string }>(
+      `/api/lenders/${lenderId}`,
+      {
+        name: "Smoke Test Lender Updated",
+      },
+      authHeader(accessToken)
+    );
+    expect(response.id).toBe(lenderId);
   });
 });

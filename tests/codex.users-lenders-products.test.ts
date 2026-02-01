@@ -37,7 +37,7 @@ async function createUserWithToken(params: {
   });
   await pool.query(
     `update users
-     set status = 'active',
+     set status = 'ACTIVE',
          active = true,
          is_active = true,
          disabled = false
@@ -62,8 +62,9 @@ async function seedScenario() {
   const lenderAId = randomUUID();
   const lenderBId = randomUUID();
   await pool.query(
-    `insert into lenders (id, name, country)
-     values ($1, $2, $3), ($4, $5, $6)`,
+    `insert into lenders (id, name, country, submission_method, active, status, created_at, updated_at)
+     values ($1, $2, $3, 'EMAIL', true, 'ACTIVE', now(), now()),
+            ($4, $5, $6, 'EMAIL', true, 'ACTIVE', now(), now())`,
     [lenderAId, "Lender A", "US", lenderBId, "Lender B", "CA"]
   );
 
@@ -76,36 +77,40 @@ async function seedScenario() {
   const referrer = await createUserWithToken({ role: ROLES.REFERRER });
 
   await pool.query(
-    `insert into lender_products (id, lender_id, lender_name, name, description, type, min_amount, max_amount, status, active, required_documents)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, '[]'::jsonb),
-            ($10, $2, $3, $11, $12, $13, $14, $15, $16, true, '[]'::jsonb),
-            ($17, $18, $19, $20, $21, $22, $23, $24, $25, true, '[]'::jsonb)`,
+    `insert into lender_products (id, lender_id, name, category, country, rate_type, interest_min, interest_max, term_min, term_max, term_unit, active, required_documents, created_at, updated_at)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'MONTHS', true, '[]'::jsonb, now(), now()),
+            ($11, $2, $12, $13, $14, $15, $16, $17, $18, $19, 'MONTHS', true, '[]'::jsonb, now(), now()),
+            ($20, $21, $22, $23, $24, $25, $26, $27, $28, $29, 'MONTHS', true, '[]'::jsonb, now(), now())`,
     [
       randomUUID(),
       lenderAId,
-      "Lender A",
       "Lender A Term",
-      "Product A1",
-      "term",
-      5000,
-      50000,
-      "active",
+      "TERM",
+      "US",
+      "FIXED",
+      "8.0",
+      "12.0",
+      12,
+      60,
       randomUUID(),
       "Lender A LOC",
-      "Product A2",
-      "loc",
-      10000,
-      75000,
-      "active",
+      "LOC",
+      "US",
+      "VARIABLE",
+      "P+",
+      "P+",
+      6,
+      24,
       randomUUID(),
       lenderBId,
-      "Lender B",
       "Lender B Term",
-      "Product B1",
-      "term",
-      8000,
-      90000,
-      "active",
+      "TERM",
+      "CA",
+      "FIXED",
+      "7.5",
+      "11.5",
+      12,
+      48,
     ]
   );
 
@@ -164,7 +169,12 @@ describe("codex users/lenders/lender products access", () => {
     const createLender = await request(app)
       .post("/api/lenders")
       .set("Authorization", `Bearer ${admin.accessToken}`)
-      .send({ name: "New Lender", country: "US" });
+      .send({
+        name: "New Lender",
+        country: "US",
+        submissionMethod: "EMAIL",
+        submissionEmail: "submissions@new-lender.com",
+      });
     expect(createLender.status).toBe(201);
 
     const { rows } = await pool.query<{ id: string }>(

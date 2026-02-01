@@ -108,41 +108,37 @@ beforeAll(async () => {
     create table if not exists lenders (
       id uuid primary key,
       name text not null,
-      country text not null,
-      submission_method text null,
-      submission_email text null,
-      status text not null default 'ACTIVE',
-      email text null,
-      phone text null,
-      website text null,
-      postal_code text null,
-      contact_name text null,
-      contact_email text null,
-      contact_phone text null,
       active boolean not null default true,
-      created_at timestamptz not null default now()
+      status text not null default 'ACTIVE',
+      country text not null,
+      submission_method text not null default 'EMAIL',
+      submission_email text null,
+      api_config jsonb null,
+      primary_contact_name text null,
+      primary_contact_email text null,
+      primary_contact_phone text null,
+      website text null,
+      created_at timestamp not null default now(),
+      updated_at timestamp not null default now()
     );
   `);
   await pool.query(`
     create table if not exists lender_products (
       id uuid primary key,
       lender_id uuid not null references lenders(id) on delete cascade,
-      lender_name text not null default '',
       name text not null,
-      description text null,
-      type text not null default 'loc',
-      min_amount integer null,
-      max_amount integer null,
-      status text not null default 'active',
-      active boolean not null default true,
-      country text null,
+      category text not null,
+      country text not null,
       rate_type text null,
-      min_rate text null,
-      max_rate text null,
+      interest_min text null,
+      interest_max text null,
+      term_min integer null,
+      term_max integer null,
+      term_unit text not null default 'MONTHS',
+      active boolean not null default true,
       required_documents jsonb not null default '[]'::jsonb,
-      eligibility jsonb null,
-      created_at timestamptz not null default now(),
-      updated_at timestamptz not null default now()
+      created_at timestamp not null default now(),
+      updated_at timestamp not null default now()
     );
   `);
   await pool.query(`
@@ -183,13 +179,10 @@ beforeAll(async () => {
   `);
 
   await pool.query(
-    `insert into lenders (id, name, country, submission_method, created_at)\n     values ('00000000-0000-0000-0000-00000000a001', 'Test Lender', 'US', 'API', now())\n     on conflict (id) do nothing`
+    `insert into lenders (id, name, country, submission_method, created_at, updated_at)\n     values ('00000000-0000-0000-0000-00000000a001', 'Test Lender', 'US', 'API', now(), now())\n     on conflict (id) do nothing`
   );
   await pool.query(
-    `insert into lender_products\n     (id, lender_id, lender_name, name, description, type, min_amount, max_amount, status, active, created_at, updated_at)\n     values ('00000000-0000-0000-0000-00000000b001', '00000000-0000-0000-0000-00000000a001', 'Test Lender', 'Standard LOC', 'Test product', 'standard', 1000, 50000, 'active', true, now(), now())\n     on conflict (id) do nothing`
-  );
-  await pool.query(
-    `insert into lender_product_requirements\n     (id, lender_product_id, document_type, required, created_at)\n     values\n     ('00000000-0000-0000-0000-00000000c001', '00000000-0000-0000-0000-00000000b001', 'bank_statement', true, now()),\n     ('00000000-0000-0000-0000-00000000c002', '00000000-0000-0000-0000-00000000b001', 'id_document', true, now())\n     on conflict (id) do nothing`
+    `insert into lender_products\n     (id, lender_id, name, category, country, rate_type, interest_min, interest_max, term_min, term_max, term_unit, active, required_documents, created_at, updated_at)\n     values (\n       '00000000-0000-0000-0000-00000000b001',\n       '00000000-0000-0000-0000-00000000a001',\n       'Standard LOC',\n       'LOC',\n       'US',\n       'FIXED',\n       '8.5',\n       '12.5',\n       6,\n       24,\n       'MONTHS',\n       true,\n       '[{\"type\":\"bank_statement\",\"months\":6},{\"type\":\"id_document\",\"required\":true}]'::jsonb,\n       now(),\n       now()\n     )\n     on conflict (id) do nothing`
   );
 });
 

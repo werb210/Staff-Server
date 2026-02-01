@@ -92,7 +92,12 @@ describe("server smoke test", () => {
     const lenderCreate = await request(app)
       .post("/api/lenders")
       .set("Authorization", `Bearer ${accessToken}`)
-      .send({ name: "Smoke Lender", country: "US" });
+      .send({
+        name: "Smoke Lender",
+        country: "US",
+        submissionMethod: "API",
+        apiConfig: { endpoint: "https://api.smoke-server.test" },
+      });
     expect(lenderCreate.status).toBe(201);
 
     const lenderProducts = await request(app)
