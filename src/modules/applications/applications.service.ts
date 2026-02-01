@@ -29,6 +29,10 @@ import {
 import { getDocumentAllowedMimeTypes, getDocumentMaxSizeBytes } from "../../config";
 import { recordTransactionRollback } from "../../observability/transactionTelemetry";
 import { resolveRequirementsForApplication } from "../../services/lenderProductRequirementsService";
+import {
+  getDocumentTypeAliases,
+  normalizeRequiredDocumentKey,
+} from "../../db/schema/requiredDocuments";
 
 export type ApplicationResponse = {
   id: string;
@@ -268,11 +272,20 @@ async function evaluateRequirements(params: {
     if (!requirement.required) {
       continue;
     }
-    const latest = await findLatestDocumentVersionStatus({
-      applicationId: application.id,
-      documentType: requirement.documentType,
-      client: params.client,
-    });
+    const normalized = normalizeRequiredDocumentKey(requirement.documentType);
+    const aliases = normalized ? getDocumentTypeAliases(normalized) : [requirement.documentType];
+    let latest = null;
+    for (const docType of aliases) {
+      const candidate = await findLatestDocumentVersionStatus({
+        applicationId: application.id,
+        documentType: docType,
+        client: params.client,
+      });
+      if (candidate) {
+        latest = candidate;
+        break;
+      }
+    }
     if (!latest) {
       missingRequired = true;
       break;
@@ -541,9 +554,14 @@ export async function uploadDocument(params: {
     requestedAmount: application.requested_amount ?? null,
     country: resolveApplicationCountry(application.metadata),
   });
-  const requirement = requirements.find(
-    (item) => item.documentType === (params.documentType ?? params.title)
-  );
+  const requestedType = params.documentType ?? params.title;
+  const normalizedRequested = normalizeRequiredDocumentKey(requestedType);
+  const requirement = requirements.find((item) => {
+    const normalizedRequirement = normalizeRequiredDocumentKey(item.documentType);
+    return normalizedRequirement && normalizedRequested
+      ? normalizedRequirement === normalizedRequested
+      : item.documentType === requestedType;
+  });
   if (!requirement) {
     await recordDocumentUploadFailure({
       actorUserId: params.actorUserId,
@@ -564,7 +582,15 @@ export async function uploadDocument(params: {
         await client.query("rollback");
         throw new AppError("not_found", "Document not found.", 404);
       }
-      if (existingDoc.document_type !== (params.documentType ?? existingDoc.document_type)) {
+      const incomingType = params.documentType ?? existingDoc.document_type;
+      const normalizedExisting = normalizeRequiredDocumentKey(existingDoc.document_type);
+      const normalizedIncoming = normalizeRequiredDocumentKey(incomingType);
+      if (
+        normalizedExisting &&
+        normalizedIncoming
+          ? normalizedExisting !== normalizedIncoming
+          : existingDoc.document_type !== incomingType
+      ) {
         await recordDocumentUploadFailure({
           actorUserId: params.actorUserId,
           targetUserId: application.owner_user_id,

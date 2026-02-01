@@ -190,7 +190,7 @@ describe("lender product requirements", () => {
       .set("Authorization", `Bearer ${token}`)
       .set("x-request-id", requestId)
       .send({
-        document_type: "optional_doc",
+        document_type: "void_cheque",
         required: false,
       });
 
@@ -204,7 +204,7 @@ describe("lender product requirements", () => {
     const docs = requirementsResponse.body.requirements.map(
       (req: { documentType: string }) => req.documentType
     );
-    expect(docs).not.toContain("optional_doc");
+    expect(docs).not.toContain("void_cheque");
   });
 
   it("filters conditional requirements by requested amount", async () => {
@@ -240,7 +240,7 @@ describe("lender product requirements", () => {
       .set("Authorization", `Bearer ${token}`)
       .set("x-request-id", requestId)
       .send({
-        document_type: "conditional_doc",
+        document_type: "tax_returns",
         required: true,
         min_amount: 20000,
         max_amount: 30000,
@@ -255,7 +255,7 @@ describe("lender product requirements", () => {
     const outsideDocs = outsideResponse.body.requirements.map(
       (req: { documentType: string }) => req.documentType
     );
-    expect(outsideDocs).not.toContain("conditional_doc");
+    expect(outsideDocs).not.toContain("tax_returns");
 
     const insideResponse = await request(app).get(
       `/api/client/lender-products/${productResponse.body.id}/requirements?requestedAmount=25000`
@@ -264,7 +264,7 @@ describe("lender product requirements", () => {
     const insideDocs = insideResponse.body.requirements.map(
       (req: { documentType: string }) => req.documentType
     );
-    expect(insideDocs).toContain("conditional_doc");
+    expect(insideDocs).toContain("tax_returns");
   });
 
   it("blocks inactive products", async () => {
@@ -302,5 +302,62 @@ describe("lender product requirements", () => {
 
     expect(requirementsResponse.status).toBe(200);
     expect(requirementsResponse.body.requirements).toEqual([]);
+  });
+
+  it("aggregates requirements for client product filters", async () => {
+    const token = await loginAdmin();
+
+    const lenderResponse = await request(app)
+      .post("/api/lenders")
+      .set("Authorization", `Bearer ${token}`)
+      .set("x-request-id", requestId)
+      .send({
+        name: "Aggregation Lender",
+        country: "US",
+        submissionMethod: "EMAIL",
+        submissionEmail: "submissions@aggregation-lender.com",
+      });
+
+    await request(app)
+      .post("/api/lender-products")
+      .set("Authorization", `Bearer ${token}`)
+      .set("Idempotency-Key", randomUUID())
+      .set("x-request-id", requestId)
+      .send({
+        lenderId: lenderResponse.body.id,
+        name: "Aggregation LOC 1",
+        category: "LOC",
+        country: "US",
+        term_min: 6,
+        term_max: 24,
+        required_documents: [{ type: "void_cheque" }],
+      });
+
+    await request(app)
+      .post("/api/lender-products")
+      .set("Authorization", `Bearer ${token}`)
+      .set("Idempotency-Key", randomUUID())
+      .set("x-request-id", requestId)
+      .send({
+        lenderId: lenderResponse.body.id,
+        name: "Aggregation LOC 2",
+        category: "LOC",
+        country: "US",
+        term_min: 6,
+        term_max: 24,
+        required_documents: [{ type: "government_id" }],
+      });
+
+    const response = await request(app).get(
+      "/api/client/lender-products/requirements?category=LOC&country=US&requestedAmount=12"
+    );
+
+    expect(response.status).toBe(200);
+    const docs = response.body.requirements.map(
+      (req: { documentType: string }) => req.documentType
+    );
+    expect(docs).toContain("bank_statements_6_months");
+    expect(docs).toContain("void_cheque");
+    expect(docs).toContain("government_id");
   });
 });

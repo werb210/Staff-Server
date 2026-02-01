@@ -11,6 +11,10 @@ import { ApplicationStage, isPipelineState } from "../applications/pipelineState
 import { transitionPipelineState } from "../applications/applications.service";
 import { resolveRequirementsForApplication } from "../../services/lenderProductRequirementsService";
 import {
+  getDocumentTypeAliases,
+  normalizeRequiredDocumentKey,
+} from "../../db/schema/requiredDocuments";
+import {
   createSubmission,
   findLatestSubmissionByApplicationId,
   findSubmissionByApplicationAndLender,
@@ -304,17 +308,31 @@ async function buildSubmissionPacket(params: {
     requestedAmount: application.requested_amount ?? null,
     country: resolveApplicationCountry(application.metadata),
   });
-  const requiredTypes = requirements.filter((req) => req.required).map((req) => req.documentType);
+  const requiredTypes = requirements
+    .filter((req) => req.required)
+    .map((req) => req.documentType);
+  const requiredAliases = requiredTypes.flatMap((type) => {
+    const normalized = normalizeRequiredDocumentKey(type);
+    return normalized ? getDocumentTypeAliases(normalized) : [type];
+  });
 
   const documents = await listLatestAcceptedDocumentVersions({
     applicationId: application.id,
-    documentTypes: requiredTypes,
+    documentTypes: requiredAliases,
     client: params.client,
   });
 
-  const missingDocumentTypes = requiredTypes.filter(
-    (docType) => !documents.some((doc) => doc.document_type === docType)
+  const normalizedDocs = new Set(
+    documents
+      .map((doc) =>
+        normalizeRequiredDocumentKey(doc.document_type) ?? doc.document_type
+      )
+      .filter((docType) => docType)
   );
+  const missingDocumentTypes = requiredTypes.filter((docType) => {
+    const normalized = normalizeRequiredDocumentKey(docType) ?? docType;
+    return !normalizedDocs.has(normalized);
+  });
 
   return {
     packet: {

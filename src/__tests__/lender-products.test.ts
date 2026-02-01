@@ -90,8 +90,8 @@ describe("lender products", () => {
       });
 
     const requiredDocuments = [
-      { type: "bank_statement" },
-      { type: "id_document" },
+      { type: "bank_statements_6_months" },
+      { type: "government_id" },
     ];
 
     const createResponse = await request(app)
@@ -106,8 +106,8 @@ describe("lender products", () => {
 
     expect(createResponse.status).toBe(201);
     expect(createResponse.body.required_documents).toEqual([
-      { type: "bank_statement", months: 6 },
-      { type: "id_document" },
+      { type: "bank_statements_6_months", document_key: "bank_statements_6_months" },
+      { type: "government_id", document_key: "government_id" },
     ]);
 
     const listResponse = await request(app)
@@ -121,13 +121,13 @@ describe("lender products", () => {
     );
     expect(listed).toBeDefined();
     expect(listed.required_documents).toEqual([
-      { type: "bank_statement", months: 6 },
-      { type: "id_document" },
+      { type: "bank_statements_6_months", document_key: "bank_statements_6_months" },
+      { type: "government_id", document_key: "government_id" },
     ]);
 
     const updatedDocuments = [
-      { type: "tax_return" },
-      { type: "balance_sheet" },
+      { type: "tax_returns" },
+      { type: "financial_statements" },
     ];
 
     const patchResponse = await request(app)
@@ -138,9 +138,9 @@ describe("lender products", () => {
 
     expect(patchResponse.status).toBe(200);
     expect(patchResponse.body.required_documents).toEqual([
-      { type: "tax_return" },
-      { type: "balance_sheet" },
-      { type: "bank_statement", months: 6 },
+      { type: "tax_returns", document_key: "tax_returns" },
+      { type: "financial_statements", document_key: "financial_statements" },
+      { type: "bank_statements_6_months", document_key: "bank_statements_6_months" },
     ]);
 
     const listAfterPatch = await request(app)
@@ -152,9 +152,9 @@ describe("lender products", () => {
       (item: { id: string }) => item.id === createResponse.body.id
     );
     expect(patched.required_documents).toEqual([
-      { type: "tax_return" },
-      { type: "balance_sheet" },
-      { type: "bank_statement", months: 6 },
+      { type: "tax_returns", document_key: "tax_returns" },
+      { type: "financial_statements", document_key: "financial_statements" },
+      { type: "bank_statements_6_months", document_key: "bank_statements_6_months" },
     ]);
   });
 
@@ -210,7 +210,7 @@ describe("lender products", () => {
     expect(created.body.lenderId).toBe(activeLender.body.id);
   });
 
-  it("stores variable rate min/max as P+", async () => {
+  it("stores variable rate min/max as Prime + X", async () => {
     const token = await loginAdmin();
     const lenderResponse = await request(app)
       .post("/api/lenders")
@@ -249,8 +249,8 @@ describe("lender products", () => {
 
     expect(rateRow.rows[0]).toMatchObject({
       rate_type: "VARIABLE",
-      interest_min: "P+",
-      interest_max: "P+",
+      interest_min: "Prime + 2.5",
+      interest_max: "Prime + 4.25",
     });
   });
 

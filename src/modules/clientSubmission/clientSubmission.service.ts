@@ -8,6 +8,10 @@ import { createClientSubmission, findClientSubmissionByKey } from "./clientSubmi
 import { logInfo, logWarn } from "../../observability/logger";
 import { recordTransactionRollback } from "../../observability/transactionTelemetry";
 import { resolveRequirementsForApplication } from "../../services/lenderProductRequirementsService";
+import {
+  normalizeRequiredDocumentKey,
+  type RequiredDocumentKey,
+} from "../../db/schema/requiredDocuments";
 
 export type ClientSubmissionResponse = {
   applicationId: string;
@@ -206,17 +210,23 @@ function enforceDocumentRules(
   requirements: { documentType: string; required: boolean }[],
   documents: SubmissionDocument[]
 ): void {
-  const allowedTypes = new Set(requirements.map((req) => req.documentType));
+  const allowedTypes = new Set(
+    requirements
+      .map((req) => normalizeRequiredDocumentKey(req.documentType))
+      .filter((key): key is RequiredDocumentKey => Boolean(key))
+  );
   const counts = new Map<string, number>();
   documents.forEach((doc) => {
-    if (!allowedTypes.has(doc.documentType)) {
+    const normalized = normalizeRequiredDocumentKey(doc.documentType);
+    if (!normalized || !allowedTypes.has(normalized)) {
       throw new AppError("invalid_document_type", "Document type is not allowed.", 400);
     }
-    counts.set(doc.documentType, (counts.get(doc.documentType) ?? 0) + 1);
+    counts.set(normalized, (counts.get(normalized) ?? 0) + 1);
   });
 
   for (const requirement of requirements) {
-    const count = counts.get(requirement.documentType) ?? 0;
+    const normalized = normalizeRequiredDocumentKey(requirement.documentType);
+    const count = normalized ? counts.get(normalized) ?? 0 : 0;
     if (requirement.required && count === 0) {
       throw new AppError("missing_documents", "Required documents are missing.", 400);
     }

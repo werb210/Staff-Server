@@ -237,6 +237,7 @@ describe("GET /api/lenders/:id", () => {
       status: "ACTIVE",
       active: true,
       country: "US",
+      email: null,
       primary_contact_name: "Jamie Doe",
       primary_contact_email: "jamie@example.com",
       primary_contact_phone: "15555550111",
@@ -325,8 +326,8 @@ describe("POST /api/lender-products", () => {
         category: "LOC",
         country: "US",
         rate_type: "FIXED",
-        interest_min: "8.5",
-        interest_max: "12.5",
+        interest_min: 8.5,
+        interest_max: 12.5,
         term_min: 6,
         term_max: 24,
       });

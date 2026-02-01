@@ -82,7 +82,7 @@ describe("lender products integration", () => {
         required_documents: [],
       });
 
-    expect(blocked.status).toBe(409);
+    expect(blocked.status).toBe(400);
 
     const activeLender = await request(app)
       .post("/api/lenders")
@@ -110,7 +110,7 @@ describe("lender products integration", () => {
     expect(created.body.lenderId).toBe(activeLender.body.id);
   });
 
-  it("stores variable rate min/max as P+", async () => {
+  it("stores variable rate min/max as Prime + X", async () => {
     const token = await loginAdmin();
     const lenderResponse = await request(app)
       .post("/api/lenders")
@@ -149,8 +149,8 @@ describe("lender products integration", () => {
 
     expect(rateRow.rows[0]).toMatchObject({
       rate_type: "VARIABLE",
-      interest_min: "P+",
-      interest_max: "P+",
+      interest_min: "Prime + 2.5",
+      interest_max: "Prime + 4.25",
     });
   });
 
