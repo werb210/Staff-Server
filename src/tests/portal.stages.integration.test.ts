@@ -65,7 +65,7 @@ describe("portal pipeline stages", () => {
       "DOCUMENTS_REQUIRED",
       "IN_REVIEW",
       "STARTUP",
-      "OFF_TO_LENDER",
+      "SENT_TO_LENDER",
       "ACCEPTED",
       "DECLINED",
     ]);
