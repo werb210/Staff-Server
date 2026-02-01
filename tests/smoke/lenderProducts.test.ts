@@ -41,7 +41,7 @@ describe("lender products smoke", () => {
       headers
     );
 
-    const requiredDocuments = [{ type: "bank_statement" }];
+    const requiredDocuments = [{ type: "bank_statements_6_months" }];
 
     const created = await post<{
       id: string;
@@ -63,7 +63,7 @@ describe("lender products smoke", () => {
     expect(created.lenderId).toBe(lender.id);
     expect(created.active).toBe(false);
     expect(created.required_documents).toEqual([
-      { type: "bank_statement", months: 6 },
+      { type: "bank_statements_6_months", document_key: "bank_statements_6_months" },
     ]);
 
     const activeOnly = await get<unknown[]>(
@@ -72,7 +72,7 @@ describe("lender products smoke", () => {
     );
     expect(Array.isArray(activeOnly)).toBe(true);
 
-    const updatedDocs = [{ type: "id_document" }];
+    const updatedDocs = [{ type: "government_id" }];
     const updated = await patch<{
       id: string;
       required_documents: unknown;
@@ -85,8 +85,8 @@ describe("lender products smoke", () => {
     );
 
     expect(updated.required_documents).toEqual([
-      { type: "id_document" },
-      { type: "bank_statement", months: 6 },
+      { type: "government_id", document_key: "government_id" },
+      { type: "bank_statements_6_months", document_key: "bank_statements_6_months" },
     ]);
   });
 });

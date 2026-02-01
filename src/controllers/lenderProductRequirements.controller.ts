@@ -7,6 +7,7 @@ import {
   resolveLenderProductRequirements,
   updateRequirementForProduct,
 } from "../services/lenderProductRequirementsService";
+import { normalizeRequiredDocumentKey } from "../db/schema/requiredDocuments";
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -31,7 +32,11 @@ function parseDocumentType(value: unknown): string {
   if (typeof value !== "string" || value.trim().length === 0) {
     throw new AppError("validation_error", "document_type is required.", 400);
   }
-  return value.trim();
+  const normalized = normalizeRequiredDocumentKey(value);
+  if (!normalized) {
+    throw new AppError("validation_error", "document_type is invalid.", 400);
+  }
+  return normalized;
 }
 
 function parseRequired(value: unknown): boolean {

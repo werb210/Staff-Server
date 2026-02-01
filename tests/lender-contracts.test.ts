@@ -106,7 +106,7 @@ describe("lender contract integration", () => {
 
     expect(response.status).toBe(201);
     expect(response.body.required_documents).toEqual([
-      { type: "bank_statement", months: 6 },
+      { type: "bank_statements_6_months", document_key: "bank_statements_6_months" },
     ]);
   });
 });

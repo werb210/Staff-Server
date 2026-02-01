@@ -13,6 +13,11 @@ import { trackEvent } from "../observability/appInsights";
 import { logInfo } from "../observability/logger";
 import { type JsonObject, type JsonValue, type RequiredDocuments } from "../db/schema/lenderProducts";
 import {
+  ALWAYS_REQUIRED_DOCUMENTS,
+  normalizeRequiredDocumentKey,
+  type RequiredDocumentKey,
+} from "../db/schema/requiredDocuments";
+import {
   getPwaSyncActionMaxBytes,
   getPwaSyncBatchMaxBytes,
   getPwaSyncMaxActions,
@@ -136,18 +141,125 @@ function isJsonObject(value: unknown): value is JsonObject {
   return Object.values(value as Record<string, unknown>).every(isJsonValue);
 }
 
+function toRequiredDocumentEntry(key: RequiredDocumentKey): JsonObject {
+  return { type: key, document_key: key };
+}
+
 function requireRequiredDocuments(value: unknown): RequiredDocuments {
   if (!Array.isArray(value)) {
     throw new AppError("validation_error", "required_documents must be an array.", 400);
   }
-  if (!value.every(isJsonObject)) {
+
+  const normalized: RequiredDocuments = [];
+  for (const entry of value) {
+    if (typeof entry === "string") {
+      const normalizedKey = normalizeRequiredDocumentKey(entry);
+      if (!normalizedKey) {
+        throw new AppError(
+          "validation_error",
+          "required_documents contains invalid keys.",
+          400
+        );
+      }
+      normalized.push(toRequiredDocumentEntry(normalizedKey));
+      continue;
+    }
+    if (isJsonObject(entry)) {
+      const rawType =
+        typeof entry.type === "string"
+          ? entry.type
+          : typeof entry.documentType === "string"
+            ? entry.documentType
+            : typeof entry.document_key === "string"
+              ? entry.document_key
+              : typeof entry.key === "string"
+                ? entry.key
+                : null;
+      if (!rawType) {
+        continue;
+      }
+      const normalizedKey = normalizeRequiredDocumentKey(rawType);
+      if (!normalizedKey) {
+        throw new AppError(
+          "validation_error",
+          "required_documents contains invalid keys.",
+          400
+        );
+      }
+      normalized.push({ ...entry, type: normalizedKey, document_key: normalizedKey });
+      continue;
+    }
     throw new AppError(
       "validation_error",
-      "required_documents must contain JSON objects.",
+      "required_documents must contain strings or objects.",
       400
     );
   }
-  return value;
+
+  const existing = new Set(
+    normalized
+      .map((doc) => {
+        const rawType =
+          typeof doc.document_key === "string"
+            ? doc.document_key
+            : typeof doc.type === "string"
+              ? doc.type
+              : typeof doc.documentType === "string"
+                ? doc.documentType
+                : typeof doc.key === "string"
+                  ? doc.key
+                  : null;
+        return rawType ? normalizeRequiredDocumentKey(rawType) : null;
+      })
+      .filter((key): key is RequiredDocumentKey => Boolean(key))
+  );
+
+  ALWAYS_REQUIRED_DOCUMENTS.forEach((doc) => {
+    if (!existing.has(doc)) {
+      normalized.push(toRequiredDocumentEntry(doc));
+    }
+  });
+
+  return normalized;
+}
+
+function normalizeVariableRateString(value: string | undefined, fieldName: string): string {
+  if (!value || value.trim().length === 0) {
+    throw new AppError(
+      "validation_error",
+      `${fieldName} is required for VARIABLE rates.`,
+      400
+    );
+  }
+  const trimmed = value.trim();
+  const primeMatch = trimmed.match(/^p\\+\\s*(.+)$/i) ?? trimmed.match(/^prime\\s*\\+\\s*(.+)$/i);
+  if (primeMatch) {
+    return `Prime + ${primeMatch[1].trim()}`;
+  }
+  const numeric = Number(trimmed);
+  if (!Number.isNaN(numeric)) {
+    return `Prime + ${trimmed}`;
+  }
+  throw new AppError(
+    "validation_error",
+    `${fieldName} must be a number or Prime + X.`,
+    400
+  );
+}
+
+function isLenderActive(lender: unknown): boolean {
+  const status =
+    typeof (lender as { status?: unknown }).status === "string"
+      ? (lender as { status?: string }).status
+      : null;
+  const activeFlag =
+    typeof (lender as { active?: unknown }).active === "boolean"
+      ? (lender as { active: boolean }).active
+      : null;
+  if (activeFlag !== null) {
+    return activeFlag;
+  }
+  return status === "ACTIVE";
 }
 
 function assertActionPayloadSize(body: unknown): void {
@@ -245,9 +357,26 @@ async function executeReplayAction(
     if (!lender) {
       throw new AppError("not_found", "Lender not found.", 404);
     }
+    if (!isLenderActive(lender)) {
+      throw new AppError(
+        "lender_inactive",
+        "Lender must be active to add products.",
+        400
+      );
+    }
     const requiredDocuments = requireRequiredDocuments(
       parsed.required_documents ?? []
     );
+    const normalizedRateType =
+      typeof parsed.rate_type === "string" ? parsed.rate_type.trim().toUpperCase() : null;
+    const interestMin =
+      normalizedRateType === "VARIABLE"
+        ? normalizeVariableRateString(parsed.interest_min, "interest_min")
+        : parsed.interest_min ?? null;
+    const interestMax =
+      normalizedRateType === "VARIABLE"
+        ? normalizeVariableRateString(parsed.interest_max, "interest_max")
+        : parsed.interest_max ?? null;
     const created = await createLenderProductService({
       lenderId: parsed.lenderId,
       name: parsed.name ?? null,
@@ -255,9 +384,9 @@ async function executeReplayAction(
       category: parsed.category,
       requiredDocuments,
       country: parsed.country ?? null,
-      rateType: parsed.rate_type ?? null,
-      interestMin: parsed.interest_min ?? null,
-      interestMax: parsed.interest_max ?? null,
+      rateType: normalizedRateType,
+      interestMin,
+      interestMax,
       termMin: parsed.term_min ?? null,
       termMax: parsed.term_max ?? null,
     });

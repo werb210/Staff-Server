@@ -18,6 +18,11 @@ import { LIST_LENDER_PRODUCTS_SQL } from "../repositories/lenderProducts.repo";
 import { ROLES } from "../auth/roles";
 import { LENDER_COUNTRIES } from "../db/schema/lenders";
 import { LENDER_PRODUCT_CATEGORIES } from "../db/schema/lenderProducts";
+import {
+  ALWAYS_REQUIRED_DOCUMENTS,
+  normalizeRequiredDocumentKey,
+  type RequiredDocumentKey,
+} from "../db/schema/requiredDocuments";
 
 export type LenderProductResponse = {
   id: string;
@@ -99,6 +104,10 @@ function parseTimestamp(value: unknown, fieldName: string): Date {
   );
 }
 
+function toRequiredDocumentEntry(key: RequiredDocumentKey): JsonObject {
+  return { type: key, document_key: key };
+}
+
 function parseRequiredDocuments(value: unknown): RequiredDocuments {
   if (value === undefined) {
     return [];
@@ -112,39 +121,101 @@ function parseRequiredDocuments(value: unknown): RequiredDocuments {
     );
   }
 
-  if (typeof value === "string") {
-    try {
-      const parsed = JSON.parse(value);
-      if (isRequiredDocuments(parsed)) {
-        return parsed;
+  const parsedValue =
+    typeof value === "string"
+      ? (() => {
+          try {
+            return JSON.parse(value);
+          } catch {
+            return null;
+          }
+        })()
+      : value;
+
+  if (!Array.isArray(parsedValue)) {
+    throw new AppError(
+      "validation_error",
+      "required_documents must be an array.",
+      400
+    );
+  }
+
+  const normalized: RequiredDocuments = [];
+  for (const entry of parsedValue) {
+    if (typeof entry === "string") {
+      const normalizedKey = normalizeRequiredDocumentKey(entry);
+      if (!normalizedKey) {
+        throw new AppError(
+          "validation_error",
+          "required_documents contains invalid keys.",
+          400
+        );
       }
-    } catch {
-      // fall through to validation error
+      normalized.push(toRequiredDocumentEntry(normalizedKey));
+      continue;
     }
+    if (isPlainObject(entry)) {
+      const rawType =
+        typeof entry.type === "string"
+          ? entry.type
+          : typeof entry.documentType === "string"
+            ? entry.documentType
+            : typeof entry.document_key === "string"
+              ? entry.document_key
+              : typeof entry.key === "string"
+                ? entry.key
+                : null;
+      if (!rawType) {
+        continue;
+      }
+      const normalizedKey = normalizeRequiredDocumentKey(rawType);
+      if (!normalizedKey) {
+        throw new AppError(
+          "validation_error",
+          "required_documents contains invalid keys.",
+          400
+        );
+      }
+      normalized.push({ ...entry, type: normalizedKey, document_key: normalizedKey });
+      continue;
+    }
+    throw new AppError(
+      "validation_error",
+      "required_documents must contain strings or objects.",
+      400
+    );
   }
 
-  if (isRequiredDocuments(value)) {
-    return value;
-  }
-
-  throw new AppError(
-    "validation_error",
-    "required_documents must be an array of objects.",
-    400
-  );
+  return normalized;
 }
 
-function ensureBankStatementDocuments(documents: RequiredDocuments): RequiredDocuments {
+function ensureAlwaysRequiredDocuments(documents: RequiredDocuments): RequiredDocuments {
   const normalized = documents.map((doc) => ({ ...doc })) as RequiredDocuments;
-  const bankIndex = normalized.findIndex((doc) => doc.type === "bank_statement");
-  if (bankIndex >= 0) {
-    const existing = normalized[bankIndex] as JsonObject;
-    if (existing.months !== 6) {
-      normalized[bankIndex] = { ...existing, months: 6 };
+  const existingKeys = new Set(
+    normalized
+      .map((doc) => {
+        const rawType =
+          typeof doc.type === "string"
+            ? doc.type
+            : typeof doc.documentType === "string"
+              ? doc.documentType
+              : typeof doc.document_key === "string"
+                ? doc.document_key
+                : typeof doc.key === "string"
+                  ? doc.key
+                  : null;
+        return rawType ? normalizeRequiredDocumentKey(rawType) : null;
+      })
+      .filter((key): key is RequiredDocumentKey => Boolean(key))
+  );
+
+  ALWAYS_REQUIRED_DOCUMENTS.forEach((doc) => {
+    if (!existingKeys.has(doc)) {
+      normalized.push(toRequiredDocumentEntry(doc));
     }
-    return normalized;
-  }
-  return [...normalized, { type: "bank_statement", months: 6 }];
+  });
+
+  return normalized;
 }
 
 function parseRateValue(value: unknown, fieldName: string): number | string | null {
@@ -160,8 +231,40 @@ function parseRateValue(value: unknown, fieldName: string): number | string | nu
   throw new AppError("validation_error", `${fieldName} must be a number or string.`, 400);
 }
 
-function normalizeVariableRate(): string {
-  return "P+";
+function parseVariableRateValue(value: unknown, fieldName: string): string {
+  if (value === undefined || value === null || value === "") {
+    throw new AppError(
+      "validation_error",
+      `${fieldName} is required for VARIABLE rates.`,
+      400
+    );
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return `Prime + ${value}`;
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed.length === 0) {
+      throw new AppError(
+        "validation_error",
+        `${fieldName} is required for VARIABLE rates.`,
+        400
+      );
+    }
+    const primeMatch = trimmed.match(/^p\\+\\s*(.+)$/i) ?? trimmed.match(/^prime\\s*\\+\\s*(.+)$/i);
+    if (primeMatch) {
+      return `Prime + ${primeMatch[1].trim()}`;
+    }
+    const numeric = Number(trimmed);
+    if (Number.isFinite(numeric)) {
+      return `Prime + ${trimmed}`;
+    }
+  }
+  throw new AppError(
+    "validation_error",
+    `${fieldName} must be a number or Prime + X.`,
+    400
+  );
 }
 
 function parseFixedRateValue(value: unknown, fieldName: string): number {
@@ -455,7 +558,7 @@ export async function createLenderProductHandler(
       throw new AppError("validation_error", "rate_type is invalid.", 400);
     }
 
-    const requiredDocumentsList = ensureBankStatementDocuments(
+    const requiredDocumentsList = ensureAlwaysRequiredDocuments(
       parseRequiredDocuments(required_documents)
     );
     const normalizedCategory =
@@ -472,13 +575,13 @@ export async function createLenderProductHandler(
     const termMax = parseAmount(term_max, "term_max");
     const parsedMinRate =
       normalizedRateType === "VARIABLE"
-        ? normalizeVariableRate()
+        ? parseVariableRateValue(interest_min, "interest_min")
         : normalizedRateType === "FIXED"
           ? parseFixedRateValue(interest_min, "interest_min")
         : parseRateValue(interest_min, "interest_min");
     const parsedMaxRate =
       normalizedRateType === "VARIABLE"
-        ? normalizeVariableRate()
+        ? parseVariableRateValue(interest_max, "interest_max")
         : normalizedRateType === "FIXED"
           ? parseFixedRateValue(interest_max, "interest_max")
         : parseRateValue(interest_max, "interest_max");
@@ -619,7 +722,7 @@ export async function updateLenderProductHandler(
       throw new AppError("validation_error", "rate_type is invalid.", 400);
     }
 
-    const requiredDocumentsList = ensureBankStatementDocuments(
+    const requiredDocumentsList = ensureAlwaysRequiredDocuments(
       parseRequiredDocuments(required_documents)
     );
     const normalizedCategory =
@@ -638,7 +741,7 @@ export async function updateLenderProductHandler(
     const termMax = term_max !== undefined ? parseAmount(term_max, "term_max") : undefined;
     const parsedMinRate =
       normalizedRateType === "VARIABLE"
-        ? normalizeVariableRate()
+        ? parseVariableRateValue(interest_min, "interest_min")
         : normalizedRateType === "FIXED"
           ? parseFixedRateValue(interest_min, "interest_min")
           : interest_min !== undefined
@@ -646,7 +749,7 @@ export async function updateLenderProductHandler(
             : undefined;
     const parsedMaxRate =
       normalizedRateType === "VARIABLE"
-        ? normalizeVariableRate()
+        ? parseVariableRateValue(interest_max, "interest_max")
         : normalizedRateType === "FIXED"
           ? parseFixedRateValue(interest_max, "interest_max")
           : interest_max !== undefined

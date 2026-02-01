@@ -2,6 +2,10 @@ import { AppError } from "../middleware/errors";
 import { logInfo, logWarn } from "../observability/logger";
 import { pool } from "../db";
 import { randomUUID } from "crypto";
+import {
+  ALWAYS_REQUIRED_DOCUMENTS,
+  normalizeRequiredDocumentKey,
+} from "../db/schema/requiredDocuments";
 
 export type LenderProductRequirement = {
   id: string;
@@ -15,6 +19,8 @@ type RequiredDocumentEntry = {
   id?: string;
   type?: string;
   documentType?: string;
+  document_key?: string;
+  key?: string;
   required?: boolean;
   minAmount?: number | null;
   maxAmount?: number | null;
@@ -59,13 +65,21 @@ function normalizeCategory(productType: string): string {
 }
 
 function normalizeRequirementEntry(entry: RequiredDocumentEntry): LenderProductRequirement | null {
-  const type =
+  const rawType =
     typeof entry.type === "string"
       ? entry.type
       : typeof entry.documentType === "string"
         ? entry.documentType
-        : null;
-  if (!type) {
+        : typeof entry.document_key === "string"
+          ? entry.document_key
+          : typeof entry.key === "string"
+            ? entry.key
+            : null;
+  if (!rawType) {
+    return null;
+  }
+  const normalizedType = normalizeRequiredDocumentKey(rawType);
+  if (!normalizedType) {
     return null;
   }
   const minAmount =
@@ -82,7 +96,7 @@ function normalizeRequirementEntry(entry: RequiredDocumentEntry): LenderProductR
         : null;
   return {
     id: typeof entry.id === "string" ? entry.id : randomUUID(),
-    documentType: type,
+    documentType: normalizedType,
     required: entry.required !== false,
     minAmount,
     maxAmount,
@@ -126,21 +140,23 @@ function dedupeRequirements(requirements: LenderProductRequirement[]): LenderPro
   return Array.from(map.values());
 }
 
-function ensureBankStatement(requirements: LenderProductRequirement[]): LenderProductRequirement[] {
-  const existing = requirements.find((req) => req.documentType === "bank_statement");
-  if (existing) {
+function ensureAlwaysRequired(
+  requirements: LenderProductRequirement[]
+): LenderProductRequirement[] {
+  const existing = new Set(requirements.map((req) => req.documentType));
+  const additions = ALWAYS_REQUIRED_DOCUMENTS.filter(
+    (doc) => !existing.has(doc)
+  ).map((doc) => ({
+    id: randomUUID(),
+    documentType: doc,
+    required: true,
+    minAmount: null,
+    maxAmount: null,
+  }));
+  if (additions.length === 0) {
     return requirements;
   }
-  return [
-    ...requirements,
-    {
-      id: randomUUID(),
-      documentType: "bank_statement",
-      required: true,
-      minAmount: null,
-      maxAmount: null,
-    },
-  ];
+  return [...requirements, ...additions];
 }
 
 async function fetchProductById(params: {
@@ -208,6 +224,28 @@ async function listMatchingProducts(params: {
   return res.rows;
 }
 
+export async function listRequirementsForFilters(params: {
+  category: string;
+  country?: string | null;
+  requestedAmount?: number | null;
+}): Promise<LenderProductRequirement[]> {
+  const category = normalizeCategory(params.category);
+  const country = params.country?.trim().toUpperCase() ?? "BOTH";
+  const products = await listMatchingProducts({
+    category,
+    country,
+    requestedAmount: params.requestedAmount ?? null,
+  });
+  const requirements = products.flatMap((product) => {
+    const docs = parseRequiredDocuments(product.required_documents);
+    return docs
+      .map((entry) => normalizeRequirementEntry(entry))
+      .filter((entry): entry is LenderProductRequirement => Boolean(entry));
+  });
+  const normalized = ensureAlwaysRequired(dedupeRequirements(requirements));
+  return normalized;
+}
+
 export async function resolveLenderProductRequirements(params: {
   lenderProductId: string;
   requestedAmount?: number | null;
@@ -232,7 +270,7 @@ export async function resolveLenderProductRequirements(params: {
     }
     return true;
   });
-  const normalized = ensureBankStatement(dedupeRequirements(filtered));
+  const normalized = ensureAlwaysRequired(dedupeRequirements(filtered));
   logInfo("lender_product_requirements_resolved", {
     lenderProductId: params.lenderProductId,
     requestedAmount: params.requestedAmount ?? null,
@@ -264,7 +302,7 @@ export async function resolveRequirementsForProductType(params: {
       .map((entry) => normalizeRequirementEntry(entry))
       .filter((entry): entry is LenderProductRequirement => Boolean(entry));
   });
-  const normalized = ensureBankStatement(dedupeRequirements(requirements));
+  const normalized = ensureAlwaysRequired(dedupeRequirements(requirements));
   return { requirements: normalized, lenderProductId: products[0]?.id ?? null };
 }
 

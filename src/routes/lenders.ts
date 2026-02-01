@@ -138,19 +138,17 @@ router.get(
       };
     });
     const normalizedById = new Map(normalized.map((l) => [l.id, l]));
-    const activeOnly = normalized.filter((l) => l.active);
-
     const user = req.user;
     if (user?.role === ROLES.LENDER) {
       const lenderId = user.lenderId;
       const scoped = lenderId
-        ? activeOnly.filter((l) => l.id === lenderId)
+        ? normalized.filter((l) => l.id === lenderId)
         : [];
       res.status(200).json(scoped);
       return;
     }
     if (user?.role === ROLES.ADMIN || user?.role === ROLES.OPS) {
-      res.status(200).json(activeOnly);
+      res.status(200).json(normalized);
       return;
     }
     const resolvedSilo = resolveSilo(req.user?.silo);
