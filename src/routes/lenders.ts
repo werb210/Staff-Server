@@ -16,7 +16,14 @@ type LenderProductRow = {
   id: string;
   lender_id: string;
   name: string | null;
-  description: string | null;
+  category: string | null;
+  country: string | null;
+  rate_type: string | null;
+  interest_min: string | null;
+  interest_max: string | null;
+  term_min: number | null;
+  term_max: number | null;
+  term_unit: string | null;
   active: boolean | null;
   required_documents: unknown;
   created_at: string | null;
@@ -30,8 +37,12 @@ type LenderRow = {
   status?: string | null;
   active?: boolean | null;
   primary_contact_name?: string | null;
-  email?: string | null;
-  submission_method: string[] | string | null;
+  primary_contact_email?: string | null;
+  primary_contact_phone?: string | null;
+  submission_method: string | null;
+  submission_email?: string | null;
+  api_config?: unknown | null;
+  website?: string | null;
   products: LenderProductRow[] | null;
   silo?: string | null;
 };
@@ -84,7 +95,14 @@ router.get(
         id,
         lender_id,
         name,
-        description,
+        category,
+        country,
+        rate_type,
+        interest_min,
+        interest_max,
+        term_min,
+        term_max,
+        term_unit,
         active,
         required_documents,
         created_at,
@@ -110,10 +128,12 @@ router.get(
       active: resolved.active,
       country: l.country ?? null,
       primary_contact_name: l.primary_contact_name ?? null,
-      email: l.email ?? null,
-      submission_method: Array.isArray(l.submission_method)
-        ? l.submission_method
-        : [],
+      primary_contact_email: l.primary_contact_email ?? null,
+      primary_contact_phone: l.primary_contact_phone ?? null,
+      submission_method: l.submission_method ?? null,
+      submission_email: l.submission_email ?? null,
+      api_config: l.api_config ?? null,
+      website: l.website ?? null,
       products: productsByLender.get(l.id) ?? [],
       };
     });
@@ -138,6 +158,37 @@ router.get(
       .map((row) => normalizedById.get(row.id))
       .filter((entry): entry is (typeof normalized)[number] => Boolean(entry));
     res.status(200).json(filtered.filter((entry) => entry.active));
+  })
+);
+
+router.get(
+  "/active",
+  requireAuth,
+  requireCapability([CAPABILITIES.LENDERS_READ]),
+  safeHandler(async (_req, res) => {
+    const { rows } = await pool.query(
+      `
+      SELECT
+        id,
+        name,
+        country,
+        active,
+        status,
+        submission_method,
+        submission_email,
+        api_config,
+        primary_contact_name,
+        primary_contact_email,
+        primary_contact_phone,
+        website,
+        created_at,
+        updated_at
+      FROM lenders
+      WHERE active = true
+      ORDER BY name ASC
+      `
+    );
+    res.status(200).json(rows);
   })
 );
 

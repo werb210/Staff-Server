@@ -50,7 +50,8 @@ async function setupRoleUsers(): Promise<void> {
   });
   const lenderId = randomUUID();
   await pool.query(
-    `insert into lenders (id, name, country) values ($1, $2, $3)`,
+    `insert into lenders (id, name, country, submission_method, active, status, created_at, updated_at)
+     values ($1, $2, $3, 'EMAIL', true, 'ACTIVE', now(), now())`,
     [lenderId, "Integrity Lender", "US"]
   );
   await createUserAccount({

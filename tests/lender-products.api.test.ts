@@ -41,7 +41,12 @@ async function createLender(token: string) {
     .post("/api/lenders")
     .set("Authorization", `Bearer ${token}`)
     .set("x-request-id", requestId)
-    .send({ name: "Test Lender", country: "US" });
+    .send({
+      name: "Test Lender",
+      country: "US",
+      submissionMethod: "EMAIL",
+      submissionEmail: "submissions@test-lender.com",
+    });
 
   return lenderResponse.body;
 }
@@ -67,9 +72,10 @@ describe("lender products API", () => {
     const token = await loginAdmin();
     const lender = await createLender(token);
 
-    await pool.query("update lenders set status = 'INACTIVE' where id = $1", [
-      lender.id,
-    ]);
+    await pool.query(
+      "update lenders set status = 'INACTIVE', active = false where id = $1",
+      [lender.id]
+    );
 
     const response = await request(app)
       .post("/api/lender-products")
@@ -78,7 +84,7 @@ describe("lender products API", () => {
       .send({ lenderId: lender.id, required_documents: [] });
 
     expect(response.status).toBe(409);
-    expect(response.body.message).toBe("Lender is inactive");
+    expect(response.body.message).toBe("Lender must be active to add products");
   });
 
   it("creates and defaults product names", async () => {

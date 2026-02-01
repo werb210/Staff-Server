@@ -6,11 +6,30 @@ import {
   listLenderProductsByLenderId,
   updateLenderProduct,
 } from "../repositories/lenderProducts.repo";
-import { type JsonObject, type RequiredDocuments } from "../db/schema/lenderProducts";
-import { ensureSeedRequirementsForProduct } from "./lenderProductRequirementsService";
+import { type RequiredDocuments } from "../db/schema/lenderProducts";
 
 export const DEFAULT_LENDER_PRODUCT_NAME = "Unnamed Product";
 const DEFAULT_SILO = "default";
+
+function normalizeCategory(value: string): string {
+  const normalized = value.trim().toUpperCase();
+  if (normalized === "STANDARD" || normalized === "LINE_OF_CREDIT") {
+    return "LOC";
+  }
+  if (normalized === "TERM_LOAN") {
+    return "TERM";
+  }
+  if (normalized === "PURCHASE_ORDER") {
+    return "PO";
+  }
+  if (normalized === "EQUIPMENT_FINANCING") {
+    return "EQUIPMENT";
+  }
+  if (normalized === "MERCHANT_CASH_ADVANCE") {
+    return "MCA";
+  }
+  return normalized;
+}
 
 function normalizeLenderProductName(value: unknown): string {
   if (value === undefined || value === null) {
@@ -51,53 +70,35 @@ function filterBySilo<T extends Record<string, unknown>>(
 
 export async function createLenderProductService(params: {
   lenderId: string;
-  lenderName: string;
   name: unknown;
-  description?: string | null;
   active: boolean;
-  type?: unknown;
-  minAmount?: number | null;
-  maxAmount?: number | null;
-  status?: unknown;
+  category?: unknown;
   requiredDocuments: RequiredDocuments;
-  eligibility?: JsonObject | null;
   country?: string | null;
   rateType?: string | null;
-  minRate?: number | string | null;
-  maxRate?: number | string | null;
+  interestMin?: number | string | null;
+  interestMax?: number | string | null;
+  termMin?: number | null;
+  termMax?: number | null;
 }): Promise<Awaited<ReturnType<typeof createLenderProduct>>> {
   const normalizedName = normalizeLenderProductName(params.name);
-  const normalizedType =
-    typeof params.type === "string" && params.type.trim().length > 0
-      ? params.type.trim()
-      : "loc";
-  const normalizedStatus =
-    typeof params.status === "string" && params.status.trim().length > 0
-      ? params.status.trim()
-      : params.active
-        ? "active"
-        : "inactive";
+  const normalizedCategory =
+    typeof params.category === "string" && params.category.trim().length > 0
+      ? normalizeCategory(params.category)
+      : "LOC";
 
   const product = await createLenderProduct({
     lenderId: params.lenderId,
-    lenderName: params.lenderName,
     name: normalizedName,
-    description: params.description ?? null,
     active: params.active,
-    type: normalizedType,
-    minAmount: params.minAmount ?? null,
-    maxAmount: params.maxAmount ?? null,
-    status: normalizedStatus,
+    category: normalizedCategory,
     requiredDocuments: params.requiredDocuments,
-    eligibility: params.eligibility ?? null,
     country: params.country ?? null,
     rateType: params.rateType ?? null,
-    minRate: params.minRate ?? null,
-    maxRate: params.maxRate ?? null,
-  });
-  await ensureSeedRequirementsForProduct({
-    lenderProductId: product.id,
-    productType: normalizedType,
+    interestMin: params.interestMin ?? null,
+    interestMax: params.interestMax ?? null,
+    termMin: params.termMin ?? null,
+    termMax: params.termMax ?? null,
   });
   return product;
 }
@@ -129,17 +130,14 @@ export async function updateLenderProductService(params: {
   id: string;
   name: unknown;
   requiredDocuments: RequiredDocuments;
-  eligibility?: JsonObject | null;
-  description?: string | null;
   active?: boolean;
-  type?: string | null;
-  minAmount?: number | null;
-  maxAmount?: number | null;
-  status?: string | null;
+  category?: string | null;
   country?: string | null;
   rateType?: string | null;
-  minRate?: number | string | null;
-  maxRate?: number | string | null;
+  interestMin?: number | string | null;
+  interestMax?: number | string | null;
+  termMin?: number | null;
+  termMax?: number | null;
 }): Promise<Awaited<ReturnType<typeof updateLenderProduct>>> {
   const normalizedName = normalizeLenderProductName(params.name);
 
@@ -147,16 +145,13 @@ export async function updateLenderProductService(params: {
     id: params.id,
     name: normalizedName,
     requiredDocuments: params.requiredDocuments,
-    eligibility: params.eligibility,
-    description: params.description,
     active: params.active,
-    type: params.type,
-    minAmount: params.minAmount,
-    maxAmount: params.maxAmount,
-    status: params.status,
+    category: params.category,
     country: params.country,
     rateType: params.rateType,
-    minRate: params.minRate,
-    maxRate: params.maxRate,
+    interestMin: params.interestMin,
+    interestMax: params.interestMax,
+    termMin: params.termMin,
+    termMax: params.termMax,
   });
 }

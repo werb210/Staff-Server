@@ -132,25 +132,25 @@ describe("lender products integration", () => {
         name: "Variable Product",
         required_documents: [],
         rate_type: "VARIABLE",
-        min_rate: 2.5,
-        max_rate: 4.25,
+        interest_min: 2.5,
+        interest_max: 4.25,
       });
 
     expect(createResponse.status).toBe(201);
 
     const rateRow = await pool.query<{
       rate_type: string | null;
-      min_rate: string | null;
-      max_rate: string | null;
+      interest_min: string | null;
+      interest_max: string | null;
     }>(
-      "select rate_type, min_rate, max_rate from lender_products where id = $1",
+      "select rate_type, interest_min, interest_max from lender_products where id = $1",
       [createResponse.body.id]
     );
 
     expect(rateRow.rows[0]).toMatchObject({
       rate_type: "VARIABLE",
-      min_rate: "P+",
-      max_rate: "P+",
+      interest_min: "P+",
+      interest_max: "P+",
     });
   });
 

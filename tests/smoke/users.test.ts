@@ -43,7 +43,7 @@ describe("users smoke", () => {
 
     const updated = await patch<{ ok: boolean }>(
       `/api/users/${created.user.id}`,
-      { status: "disabled" },
+      { status: "INACTIVE" },
       headers
     );
     expect(updated.ok).toBe(true);

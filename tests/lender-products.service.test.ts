@@ -5,6 +5,7 @@ import {
   listLenderProductsService,
   updateLenderProductService,
 } from "../src/services/lenderProductsService";
+import type { LenderProductRecord } from "../src/types/LenderProductRecord";
 import { ensureSeedRequirementsForProduct } from "../src/services/lenderProductRequirementsService";
 import {
   createLenderProduct,
@@ -47,14 +48,15 @@ describe("lenderProductsService", () => {
 
     await createLenderProductService({
       lenderId: "lender-1",
-      lenderName: "Lender One",
       name: null,
-      description: null,
       active: true,
-      type: "loc",
-      minAmount: 1000,
-      maxAmount: 5000,
-      status: "active",
+      category: "LOC",
+      country: "US",
+      rateType: "FIXED",
+      interestMin: "6.5",
+      interestMax: "12.5",
+      termMin: 6,
+      termMax: 24,
       requiredDocuments: [],
     });
 
@@ -78,14 +80,20 @@ describe("lenderProductsService", () => {
   });
 
   it("returns full lender product records when listing all products", async () => {
-    const record = {
+    const record: LenderProductRecord = {
       id: "product-1",
       lender_id: "lender-1",
       name: "Bridge Loan",
-      description: "Short-term funding.",
+      category: "TERM",
+      country: "US",
+      rate_type: "FIXED",
+      interest_min: "6.5",
+      interest_max: "12.5",
+      term_min: 6,
+      term_max: 24,
+      term_unit: "MONTHS",
       active: true,
       required_documents: [],
-      eligibility: null,
       created_at: new Date("2024-01-01T00:00:00Z"),
       updated_at: new Date("2024-01-02T00:00:00Z"),
     };
@@ -105,14 +113,20 @@ describe("lenderProductsService", () => {
   });
 
   it("returns full lender product records when listing by lender id", async () => {
-    const record = {
+    const record: LenderProductRecord = {
       id: "product-2",
       lender_id: "lender-2",
       name: "Construction Loan",
-      description: null,
+      category: "LOC",
+      country: "CA",
+      rate_type: "VARIABLE",
+      interest_min: "P+",
+      interest_max: "P+",
+      term_min: 12,
+      term_max: 36,
+      term_unit: "MONTHS",
       active: false,
       required_documents: [],
-      eligibility: null,
       created_at: new Date("2024-02-01T00:00:00Z"),
       updated_at: new Date("2024-02-02T00:00:00Z"),
     };

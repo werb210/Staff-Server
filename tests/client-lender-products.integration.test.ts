@@ -77,9 +77,9 @@ describe("client lender products flow", () => {
       .send({
         lenderId: lenderResponse.body.id,
         name: "Client LOC",
-        type: "loc",
-        min_amount: 10000,
-        max_amount: 50000,
+        category: "LOC",
+        term_min: 6,
+        term_max: 24,
         required_documents: [],
       });
 
@@ -94,14 +94,14 @@ describe("client lender products flow", () => {
       (item: { id: string }) => item.id === productResponse.body.id
     );
     expect(returned).toBeDefined();
-    expect(returned.type).toBe("loc");
-    expect(returned.min_amount).toBe(10000);
-    expect(returned.max_amount).toBe(50000);
+    expect(returned.category).toBe("LOC");
+    expect(returned.term_min).toBe(6);
+    expect(returned.term_max).toBe(24);
 
-    const statusCheck = await pool.query<{ status: string }>(
-      "select status from lender_products where id = $1",
+    const statusCheck = await pool.query<{ active: boolean }>(
+      "select active from lender_products where id = $1",
       [productResponse.body.id]
     );
-    expect(statusCheck.rows[0]?.status).toBe("active");
+    expect(statusCheck.rows[0]?.active).toBe(true);
   });
 });

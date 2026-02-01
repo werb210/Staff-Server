@@ -19,31 +19,31 @@ async function seedLenderProduct(submissionMethod: string, email?: string) {
   const lenderId = randomUUID();
   const lenderProductId = randomUUID();
   await pool.query(
-    `insert into lenders (id, name, country, submission_method, submission_email, created_at)
-     values ($1, $2, $3, $4, $5, now())`,
+    `insert into lenders (id, name, country, submission_method, submission_email, active, status, created_at, updated_at)
+     values ($1, $2, $3, $4, $5, true, 'ACTIVE', now(), now())`,
     [lenderId, "Lender Co", "US", submissionMethod, email ?? null]
   );
   await pool.query(
     `insert into lender_products
-     (id, lender_id, lender_name, name, description, type, min_amount, max_amount, status, active, required_documents, created_at, updated_at)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, '[]'::jsonb, now(), now())`,
+     (id, lender_id, name, category, country, rate_type, interest_min, interest_max, term_min, term_max, term_unit, active, required_documents, created_at, updated_at)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'MONTHS', $11, $12, now(), now())`,
     [
       lenderProductId,
       lenderId,
-      "Lender Co",
       "Standard Product",
-      "Standard product",
-      "standard",
-      1000,
-      50000,
-      "active",
+      "LOC",
+      "US",
+      "FIXED",
+      "8.5",
+      "12.5",
+      6,
+      24,
       true,
+      JSON.stringify([
+        { type: "bank_statement", months: 6 },
+        { type: "id_document", required: true },
+      ]),
     ]
-  );
-  await pool.query(
-    `insert into lender_product_requirements (id, lender_product_id, document_type, required, created_at)
-     values ($1, $2, $3, true, now()), ($4, $2, $5, true, now())`,
-    [randomUUID(), lenderProductId, "bank_statement", randomUUID(), "id_document"]
   );
   return { lenderId, lenderProductId };
 }
@@ -367,7 +367,7 @@ describe("lender submissions", () => {
     expect(stored.rows[0]?.status).toBe("pending_manual");
   });
 
-  it("fails when lender submission configuration is missing", async () => {
+  it("fails when lender submission email is missing", async () => {
     const staffPhone = nextPhone();
     await createUserAccount({
       email: "missing@apps.com",
@@ -385,25 +385,27 @@ describe("lender submissions", () => {
     const lenderId = randomUUID();
     const lenderProductId = randomUUID();
     await pool.query(
-      `insert into lenders (id, name, country, created_at)
-       values ($1, $2, $3, now())`,
+      `insert into lenders (id, name, country, submission_method, active, status, created_at, updated_at)
+       values ($1, $2, $3, 'EMAIL', true, 'ACTIVE', now(), now())`,
       [lenderId, "Missing Config Lender", "US"]
     );
     await pool.query(
       `insert into lender_products
-       (id, lender_id, lender_name, name, description, type, min_amount, max_amount, status, active, required_documents, created_at, updated_at)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, '[]'::jsonb, now(), now())`,
+       (id, lender_id, name, category, country, rate_type, interest_min, interest_max, term_min, term_max, term_unit, active, required_documents, created_at, updated_at)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'MONTHS', $11, $12, now(), now())`,
       [
         lenderProductId,
         lenderId,
-        "Missing Config Lender",
         "Standard Product",
-        "Standard product",
-        "standard",
-        1000,
-        50000,
-        "active",
+        "LOC",
+        "US",
+        "FIXED",
+        "8.5",
+        "12.5",
+        6,
+        24,
         true,
+        JSON.stringify([{ type: "bank_statement", months: 6 }]),
       ]
     );
     await pool.query(
@@ -419,7 +421,7 @@ describe("lender submissions", () => {
       .send({ applicationId, lenderId, lenderProductId });
 
     expect(submission.status).toBe(400);
-    expect(submission.body.code).toBe("missing_submission_method");
+    expect(submission.body.code).toBe("missing_submission_email");
   });
 
   it("retries failed lender submissions", async () => {

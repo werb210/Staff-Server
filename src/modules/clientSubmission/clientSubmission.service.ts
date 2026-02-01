@@ -245,6 +245,7 @@ export async function submitClientApplication(params: {
   const { requirements, lenderProductId } = await resolveRequirementsForApplication({
     lenderProductId: submission.selectedLenderProductId ?? null,
     productType: submission.productType,
+    country: submission.business.address.country,
   });
   enforceDocumentRules(requirements, submission.documents);
   enforceDocumentMetadata(submission.documents);

@@ -15,12 +15,14 @@ router.get("/", async (_req, res, next) => {
       SELECT
         lp.id,
         lp.name,
-        lp.type,
-        lp.min_amount,
-        lp.max_amount
+        lp.category,
+        lp.term_min,
+        lp.term_max,
+        lp.country
       FROM lender_products lp
       LEFT JOIN lenders l ON l.id = lp.lender_id
-      WHERE lp.status = 'active'
+      WHERE lp.active = true
+        AND l.active = true
       ORDER BY lp.name
       `
     );

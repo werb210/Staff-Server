@@ -79,6 +79,24 @@ type IdempotentResult<T> = {
 
 type Queryable = Pick<PoolClient, "query">;
 
+function resolveApplicationCountry(metadata: unknown): string | null {
+  if (!metadata || typeof metadata !== "object") {
+    return null;
+  }
+  const business = (metadata as { business?: unknown }).business;
+  if (!business || typeof business !== "object") {
+    return null;
+  }
+  const address = (business as { address?: unknown }).address;
+  if (!address || typeof address !== "object") {
+    return null;
+  }
+  const country = (address as { country?: unknown }).country;
+  return typeof country === "string" && country.trim().length > 0
+    ? country.trim()
+    : null;
+}
+
 const DEFAULT_PIPELINE_STAGE = ApplicationStage.RECEIVED;
 
 function normalizePipelineStage(stage: string | null): string {
@@ -242,6 +260,7 @@ async function evaluateRequirements(params: {
     lenderProductId: application.lender_product_id ?? null,
     productType: application.product_type,
     requestedAmount: application.requested_amount ?? null,
+    country: resolveApplicationCountry(application.metadata),
   });
 
   let missingRequired = false;
@@ -520,6 +539,7 @@ export async function uploadDocument(params: {
     lenderProductId: application.lender_product_id ?? null,
     productType: application.product_type,
     requestedAmount: application.requested_amount ?? null,
+    country: resolveApplicationCountry(application.metadata),
   });
   const requirement = requirements.find(
     (item) => item.documentType === (params.documentType ?? params.title)

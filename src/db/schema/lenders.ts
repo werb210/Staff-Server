@@ -2,29 +2,27 @@ export const LENDER_SUBMISSION_METHODS = ["EMAIL", "API"] as const;
 
 export const LENDER_COUNTRIES = ["CA", "US", "BOTH"] as const;
 
+export const LENDER_STATUSES = ["ACTIVE", "INACTIVE"] as const;
+
 export type LenderCountry = (typeof LENDER_COUNTRIES)[number];
 
 export type LenderSubmissionMethod = (typeof LENDER_SUBMISSION_METHODS)[number];
 
+export type LenderStatus = (typeof LENDER_STATUSES)[number];
+
 export type LenderRecord = {
   id: string;
   name: string;
-  status?: string;
+  status: LenderStatus;
   active: boolean;
-  email: string | null;
-  phone: string | null;
   website: string | null;
-  description: string | null;
-  street: string | null;
-  city: string | null;
-  region: string | null;
-  country: string | null;
-  silo?: string | null;
-  postal_code: string | null;
-  contact_name: string | null;
-  contact_email: string | null;
-  contact_phone: string | null;
-  submission_method: LenderSubmissionMethod | null;
+  country: LenderCountry;
+  submission_method: LenderSubmissionMethod;
   submission_email: string | null;
+  api_config: Record<string, unknown> | null;
+  primary_contact_name: string | null;
+  primary_contact_email: string | null;
+  primary_contact_phone: string | null;
   created_at: Date;
+  updated_at: Date;
 };
