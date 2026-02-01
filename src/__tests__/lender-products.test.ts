@@ -182,7 +182,7 @@ describe("lender products", () => {
         required_documents: [],
       });
 
-    expect(blocked.status).toBe(409);
+    expect(blocked.status).toBe(400);
 
     const activeLender = await request(app)
       .post("/api/lenders")

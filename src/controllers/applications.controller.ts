@@ -10,7 +10,7 @@ export async function listApplicationStages(
     ApplicationStage.DOCUMENTS_REQUIRED,
     ApplicationStage.IN_REVIEW,
     ApplicationStage.STARTUP,
-    ApplicationStage.OFF_TO_LENDER,
+    "SENT_TO_LENDER",
     ApplicationStage.ACCEPTED,
     ApplicationStage.DECLINED,
   ]);

@@ -9,6 +9,7 @@ export interface CreateLenderInput {
   submission_method: string;
   active?: boolean;
   status?: string | null;
+  email?: string | null;
   primary_contact_name?: string | null;
   primary_contact_email?: string | null;
   primary_contact_phone?: string | null;
@@ -89,6 +90,7 @@ function buildSelectColumns(existing: Set<string>): string {
     { name: "submission_method", fallback: "'EMAIL'::text" },
     { name: "active", fallback: "true" },
     { name: "status", fallback: "'ACTIVE'::text" },
+    { name: "email", fallback: "null::text" },
     { name: "primary_contact_name", fallback: "null::text" },
     { name: "primary_contact_email", fallback: "null::text" },
     { name: "primary_contact_phone", fallback: "null::text" },
@@ -146,6 +148,7 @@ export async function getLenderById(id: string) {
       "name",
       "country",
       "status",
+      "email",
       "submission_method",
       "submission_email",
       "api_config",
@@ -181,6 +184,7 @@ export async function createLender(
   const {
     name,
     country,
+    email,
     primary_contact_name,
     primary_contact_email,
     primary_contact_phone,
@@ -190,16 +194,19 @@ export async function createLender(
   } = input;
   const existingColumns = await getLenderColumns();
   const includeActive = existingColumns.has("active");
+  const normalizedStatus =
+    typeof input.status === "string"
+      ? input.status.trim().toUpperCase()
+      : null;
   const statusValue =
     typeof input.active === "boolean"
       ? input.active
         ? "ACTIVE"
         : "INACTIVE"
-      : input.status ?? "ACTIVE";
-  const activeValue =
-    typeof input.active === "boolean"
-      ? input.active
-      : statusValue === "ACTIVE";
+      : normalizedStatus === "ACTIVE" || normalizedStatus === "INACTIVE"
+        ? normalizedStatus
+        : "ACTIVE";
+  const activeValue = statusValue === "ACTIVE";
 
   const columns: Array<{ name: string; value: unknown; raw?: boolean }> = [
     { name: "id", value: "gen_random_uuid()", raw: true },
@@ -209,6 +216,10 @@ export async function createLender(
     { name: "status", value: statusValue },
   ];
 
+  columns.push({
+    name: "email",
+    value: email ?? null,
+  });
   columns.push({
     name: "primary_contact_name",
     value: primary_contact_name ?? null,
@@ -303,6 +314,7 @@ export async function updateLender(
     name?: string | null;
     status?: string | null;
     country?: string | null;
+    email?: string | null;
     submission_method?: string | null;
     primary_contact_name?: string | null;
     primary_contact_email?: string | null;
@@ -315,15 +327,36 @@ export async function updateLender(
 ) {
   const existingColumns = await getLenderColumns();
   const updates: Array<{ name: string; value: unknown }> = [];
+  const normalizedStatus =
+    typeof params.status === "string"
+      ? params.status.trim().toUpperCase()
+      : null;
+  const resolvedStatus =
+    typeof params.active === "boolean"
+      ? params.active
+        ? "ACTIVE"
+        : "INACTIVE"
+      : normalizedStatus === "ACTIVE" || normalizedStatus === "INACTIVE"
+        ? normalizedStatus
+        : null;
+  const resolvedActive =
+    typeof params.active === "boolean"
+      ? params.active
+      : resolvedStatus
+        ? resolvedStatus === "ACTIVE"
+        : undefined;
 
   if (params.name !== undefined && existingColumns.has("name")) {
     updates.push({ name: "name", value: params.name });
   }
-  if (params.status !== undefined && existingColumns.has("status")) {
-    updates.push({ name: "status", value: params.status });
+  if (resolvedStatus !== null && existingColumns.has("status")) {
+    updates.push({ name: "status", value: resolvedStatus });
   }
   if (params.country !== undefined && existingColumns.has("country")) {
     updates.push({ name: "country", value: params.country });
+  }
+  if (params.email !== undefined && existingColumns.has("email")) {
+    updates.push({ name: "email", value: params.email });
   }
   if (
     params.submission_method !== undefined &&
@@ -352,8 +385,8 @@ export async function updateLender(
   if (params.website !== undefined && existingColumns.has("website")) {
     updates.push({ name: "website", value: params.website });
   }
-  if (params.active !== undefined && existingColumns.has("active")) {
-    updates.push({ name: "active", value: params.active });
+  if (resolvedActive !== undefined && existingColumns.has("active")) {
+    updates.push({ name: "active", value: resolvedActive });
   }
 
   if (updates.length === 0) {

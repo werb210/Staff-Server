@@ -164,6 +164,13 @@ function normalizeVariableRate(): string {
   return "P+";
 }
 
+function parseFixedRateValue(value: unknown, fieldName: string): number {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  throw new AppError("validation_error", `${fieldName} must be a number.`, 400);
+}
+
 function normalizeCategoryValue(value: string): string {
   const normalized = value.trim().toUpperCase();
   if (normalized === "STANDARD" || normalized === "LINE_OF_CREDIT") {
@@ -204,6 +211,21 @@ function isPlainObject(value: unknown): value is JsonObject {
 
 function isRequiredDocuments(value: unknown): value is RequiredDocuments {
   return Array.isArray(value) && value.every(isPlainObject);
+}
+
+function isLenderActive(lender: unknown): boolean {
+  const status =
+    typeof (lender as { status?: unknown }).status === "string"
+      ? (lender as { status?: string }).status
+      : null;
+  const activeFlag =
+    typeof (lender as { active?: unknown }).active === "boolean"
+      ? (lender as { active: boolean }).active
+      : null;
+  if (activeFlag !== null) {
+    return activeFlag;
+  }
+  return status === "ACTIVE";
 }
 
 /**
@@ -263,15 +285,7 @@ export async function listLenderProductsHandler(
       if (!lender) {
         throw new AppError("not_found", "Lender not found.", 404);
       }
-      const lenderStatus =
-        typeof (lender as { status?: unknown }).status === "string"
-          ? (lender as { status?: string }).status
-          : null;
-      const lenderActive =
-        typeof (lender as { active?: unknown }).active === "boolean"
-          ? (lender as { active: boolean }).active
-          : lenderStatus === "ACTIVE";
-      if (!lenderActive) {
+      if (!isLenderActive(lender)) {
         res.status(200).json([]);
         return;
       }
@@ -459,29 +473,25 @@ export async function createLenderProductHandler(
     const parsedMinRate =
       normalizedRateType === "VARIABLE"
         ? normalizeVariableRate()
+        : normalizedRateType === "FIXED"
+          ? parseFixedRateValue(interest_min, "interest_min")
         : parseRateValue(interest_min, "interest_min");
     const parsedMaxRate =
       normalizedRateType === "VARIABLE"
         ? normalizeVariableRate()
+        : normalizedRateType === "FIXED"
+          ? parseFixedRateValue(interest_max, "interest_max")
         : parseRateValue(interest_max, "interest_max");
 
     const lender = await getLenderById(resolvedLenderId.trim());
     if (!lender) {
       throw new AppError("not_found", "Lender not found.", 404);
     }
-    const lenderStatus =
-      typeof (lender as { status?: unknown }).status === "string"
-        ? (lender as { status?: string }).status
-        : null;
-    const lenderActive =
-      typeof (lender as { active?: unknown }).active === "boolean"
-        ? (lender as { active: boolean }).active
-        : lenderStatus === "ACTIVE";
-    if (!lenderActive) {
+    if (!isLenderActive(lender)) {
       throw new AppError(
         "lender_inactive",
-        "Lender must be active to add products",
-        409
+        "Lender must be active to add products.",
+        400
       );
     }
 
@@ -629,15 +639,45 @@ export async function updateLenderProductHandler(
     const parsedMinRate =
       normalizedRateType === "VARIABLE"
         ? normalizeVariableRate()
-        : interest_min !== undefined
-          ? parseRateValue(interest_min, "interest_min")
-          : undefined;
+        : normalizedRateType === "FIXED"
+          ? parseFixedRateValue(interest_min, "interest_min")
+          : interest_min !== undefined
+            ? parseRateValue(interest_min, "interest_min")
+            : undefined;
     const parsedMaxRate =
       normalizedRateType === "VARIABLE"
         ? normalizeVariableRate()
-        : interest_max !== undefined
-          ? parseRateValue(interest_max, "interest_max")
-          : undefined;
+        : normalizedRateType === "FIXED"
+          ? parseFixedRateValue(interest_max, "interest_max")
+          : interest_max !== undefined
+            ? parseRateValue(interest_max, "interest_max")
+            : undefined;
+
+    if (normalizedRateType === "FIXED") {
+      if (interest_min === undefined || interest_max === undefined) {
+        throw new AppError(
+          "validation_error",
+          "interest_min and interest_max are required for FIXED rates.",
+          400
+        );
+      }
+    }
+
+    const existing = await getLenderProductByIdService({ id: id.trim() });
+    if (!existing) {
+      throw new AppError("not_found", "Lender product not found.", 404);
+    }
+    const lender = await getLenderById(existing.lender_id);
+    if (!lender) {
+      throw new AppError("not_found", "Lender not found.", 404);
+    }
+    if (!isLenderActive(lender)) {
+      throw new AppError(
+        "lender_inactive",
+        "Lender must be active to update products.",
+        400
+      );
+    }
 
     if (user.role === ROLES.LENDER) {
       if (!user.lenderId) {
@@ -646,10 +686,6 @@ export async function updateLenderProductHandler(
           "lender_id is required for Lender users.",
           400
         );
-      }
-      const existing = await getLenderProductByIdService({ id: id.trim() });
-      if (!existing) {
-        throw new AppError("not_found", "Lender product not found.", 404);
       }
       if (existing.lender_id !== user.lenderId) {
         throw new AppError("forbidden", "Access denied.", 403);

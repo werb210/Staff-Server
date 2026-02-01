@@ -152,6 +152,7 @@ export async function getLenderByIdHandler(
           ? (lender as { active: boolean }).active
           : statusValue === "ACTIVE",
       country: (lender as { country?: string | null }).country ?? null,
+      email: (lender as { email?: string | null }).email ?? null,
       primary_contact_name: contactName,
       primary_contact_email: contactEmail,
       primary_contact_phone: contactPhone,
@@ -352,6 +353,7 @@ export async function createLender(
       apiConfig,
       active,
       contact,
+      email,
       submissionEmail,
       website,
     } = req.body ?? {};
@@ -378,6 +380,9 @@ export async function createLender(
     }
     if (contact !== undefined && contact !== null && typeof contact !== "object") {
       throw new AppError("validation_error", "contact must be an object.", 400);
+    }
+    if (email !== undefined && email !== null && typeof email !== "string") {
+      throw new AppError("validation_error", "email must be a string.", 400);
     }
     if (
       submissionEmail !== undefined &&
@@ -450,6 +455,7 @@ export async function createLender(
       submission_method: normalizedSubmissionMethod ?? "EMAIL",
       active: typeof active === "boolean" ? active : undefined,
       status: resolvedStatus,
+      email: typeof email === "string" ? email.trim() : null,
       primary_contact_name: contactName,
       primary_contact_email: contactEmail ?? null,
       primary_contact_phone: contactPhone ?? null,
@@ -500,6 +506,7 @@ export async function updateLender(
       country,
       active,
       contact,
+      email,
       submissionEmail,
       submissionMethod,
       apiConfig,
@@ -534,6 +541,9 @@ export async function updateLender(
     }
     if (contact !== undefined && contact !== null && typeof contact !== "object") {
       throw new AppError("validation_error", "contact must be an object.", 400);
+    }
+    if (email !== undefined && email !== null && typeof email !== "string") {
+      throw new AppError("validation_error", "email must be a string.", 400);
     }
     if (
       submissionEmail !== undefined &&
@@ -623,6 +633,7 @@ export async function updateLender(
       name: typeof name === "string" ? name.trim() : undefined,
       status: resolvedStatus,
       country: normalizedCountry,
+      email: typeof email === "string" ? email.trim() : undefined,
       primary_contact_name: contactName,
       primary_contact_email: contactEmail,
       primary_contact_phone: contactPhone,

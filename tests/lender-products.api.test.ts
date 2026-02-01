@@ -83,8 +83,8 @@ describe("lender products API", () => {
       .set("x-request-id", requestId)
       .send({ lenderId: lender.id, required_documents: [] });
 
-    expect(response.status).toBe(409);
-    expect(response.body.message).toBe("Lender must be active to add products");
+    expect(response.status).toBe(400);
+    expect(response.body.message).toBe("Lender must be active to add products.");
   });
 
   it("creates and defaults product names", async () => {
