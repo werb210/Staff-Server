@@ -32,6 +32,8 @@ export type CallLogRecord = {
   application_id: string | null;
   error_code: string | null;
   error_message: string | null;
+  recording_sid: string | null;
+  recording_duration_seconds: number | null;
   created_at: Date;
   started_at: Date;
   ended_at: Date | null;
@@ -57,8 +59,8 @@ export async function createCallLog(params: {
       application_id, created_at, started_at)
      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now(), now())
      returning id, phone_number, from_number, to_number, twilio_call_sid, direction, status, duration_seconds,
-               staff_user_id, crm_contact_id, application_id, error_code, error_message, created_at, started_at,
-               ended_at`,
+               staff_user_id, crm_contact_id, application_id, error_code, error_message, recording_sid,
+               recording_duration_seconds, created_at, started_at, ended_at`,
     [
       id,
       params.phoneNumber,
@@ -82,8 +84,8 @@ export async function findCallLogById(
   const runner = client ?? pool;
   const res = await runner.query<CallLogRecord>(
     `select id, phone_number, from_number, to_number, twilio_call_sid, direction, status, duration_seconds,
-            staff_user_id, crm_contact_id, application_id, error_code, error_message, created_at, started_at,
-            ended_at
+            staff_user_id, crm_contact_id, application_id, error_code, error_message, recording_sid,
+            recording_duration_seconds, created_at, started_at, ended_at
      from call_logs
      where id = $1
      limit 1`,
@@ -99,8 +101,8 @@ export async function findCallLogByTwilioSid(
   const runner = client ?? pool;
   const res = await runner.query<CallLogRecord>(
     `select id, phone_number, from_number, to_number, twilio_call_sid, direction, status, duration_seconds,
-            staff_user_id, crm_contact_id, application_id, error_code, error_message, created_at, started_at,
-            ended_at
+            staff_user_id, crm_contact_id, application_id, error_code, error_message, recording_sid,
+            recording_duration_seconds, created_at, started_at, ended_at
      from call_logs
      where twilio_call_sid = $1
      limit 1`,
@@ -128,8 +130,8 @@ export async function listCallLogs(params: {
   const whereClause = filters.length > 0 ? `where ${filters.join(" and ")}` : "";
   const res = await runner.query<CallLogRecord>(
     `select id, phone_number, from_number, to_number, twilio_call_sid, direction, status, duration_seconds,
-            staff_user_id, crm_contact_id, application_id, error_code, error_message, created_at, started_at,
-            ended_at
+            staff_user_id, crm_contact_id, application_id, error_code, error_message, recording_sid,
+            recording_duration_seconds, created_at, started_at, ended_at
      from call_logs
      ${whereClause}
      order by created_at desc`,
@@ -147,6 +149,8 @@ export async function updateCallLogStatus(params: {
   toNumber?: string | null;
   errorCode?: string | null;
   errorMessage?: string | null;
+  recordingSid?: string | null;
+  recordingDurationSeconds?: number | null;
   client?: Queryable;
 }): Promise<CallLogRecord | null> {
   const runner = params.client ?? pool;
@@ -171,6 +175,15 @@ export async function updateCallLogStatus(params: {
   if (params.errorMessage !== undefined) {
     updates.push({ name: "error_message", value: params.errorMessage });
   }
+  if (params.recordingSid !== undefined) {
+    updates.push({ name: "recording_sid", value: params.recordingSid });
+  }
+  if (params.recordingDurationSeconds !== undefined) {
+    updates.push({
+      name: "recording_duration_seconds",
+      value: params.recordingDurationSeconds,
+    });
+  }
 
   const setClauses = updates.map(
     (entry, index) => `${entry.name} = $${index + 1}`
@@ -183,8 +196,8 @@ export async function updateCallLogStatus(params: {
      set ${setClauses.join(", ")}
      where id = $${values.length}
      returning id, phone_number, from_number, to_number, twilio_call_sid, direction, status, duration_seconds,
-               staff_user_id, crm_contact_id, application_id, error_code, error_message, created_at, started_at,
-               ended_at`,
+               staff_user_id, crm_contact_id, application_id, error_code, error_message, recording_sid,
+               recording_duration_seconds, created_at, started_at, ended_at`,
     values
   );
   return res.rows[0] ?? null;

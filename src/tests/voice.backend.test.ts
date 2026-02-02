@@ -90,6 +90,30 @@ describe("voice endpoints", () => {
     expect(end.body.call.status).toBe("completed");
   });
 
+  it("starts and ends a voice call via start/end endpoints", async () => {
+    const phone = nextPhone();
+    await createUserAccount({ phoneNumber: phone, role: ROLES.STAFF });
+    const login = await otpVerifyRequest(app, { phone });
+
+    const contactId = randomUUID();
+    const start = await request(app)
+      .post("/api/voice/call/start")
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .send({ toPhone: "+14155559999", contactId });
+
+    expect(start.status).toBe(201);
+    expect(start.body.callSid).toBe("CA-VOICE-1");
+
+    const end = await request(app)
+      .post("/api/voice/call/end")
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .send({ callSid: "CA-VOICE-1", status: "completed", durationSeconds: 12 });
+
+    expect(end.status).toBe(200);
+    expect(end.body.call.status).toBe("completed");
+    expect(end.body.call.duration_seconds).toBe(12);
+  });
+
   it("prevents staff from controlling another user's call", async () => {
     const staffOnePhone = nextPhone();
     const staffTwoPhone = nextPhone();

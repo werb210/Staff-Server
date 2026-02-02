@@ -137,10 +137,15 @@ beforeAll(async () => {
       application_id uuid null,
       error_code text null,
       error_message text null,
+      recording_sid text null,
+      recording_duration_seconds integer null,
       created_at timestamptz not null default now(),
       started_at timestamptz not null default now(),
       ended_at timestamptz null,
-      constraint call_logs_duration_check check (duration_seconds is null or duration_seconds >= 0)
+      constraint call_logs_duration_check check (duration_seconds is null or duration_seconds >= 0),
+      constraint call_logs_recording_duration_check check (
+        recording_duration_seconds is null or recording_duration_seconds >= 0
+      )
     );
   `);
   await pool.query(`
