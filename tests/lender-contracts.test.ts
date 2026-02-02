@@ -35,7 +35,7 @@ async function createAdminToken(): Promise<string> {
       disabled,
       phone_verified
     )
-    values ($1, $2, $3, $4, $5, 'active', true, true, false, true)`,
+    values ($1, $2, $3, $4, $5, 'ACTIVE', true, true, false, true)`,
     [
       userId,
       `lender-contracts-${phone}@example.com`,

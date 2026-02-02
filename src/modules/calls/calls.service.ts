@@ -1,0 +1,147 @@
+import { AppError } from "../../middleware/errors";
+import { recordAuditEvent } from "../audit/audit.service";
+import {
+  type CallLogRecord,
+  type CallStatus,
+  createCallLog,
+  findCallLogById,
+  listCallLogs,
+  updateCallLogStatus,
+} from "./calls.repo";
+
+export async function startCall(params: {
+  phoneNumber: string;
+  direction: "outbound" | "inbound";
+  status?: CallStatus;
+  staffUserId: string | null;
+  crmContactId?: string | null;
+  applicationId?: string | null;
+  ip?: string;
+  userAgent?: string;
+}): Promise<CallLogRecord> {
+  const status = params.status ?? "initiated";
+  const record = await createCallLog({
+    phoneNumber: params.phoneNumber,
+    direction: params.direction,
+    status,
+    staffUserId: params.staffUserId,
+    crmContactId: params.crmContactId ?? null,
+    applicationId: params.applicationId ?? null,
+  });
+
+  await recordAuditEvent({
+    action: "call_started",
+    actorUserId: params.staffUserId,
+    targetUserId: null,
+    targetType: "call_log",
+    targetId: record.id,
+    ip: params.ip,
+    userAgent: params.userAgent,
+    success: true,
+    metadata: {
+      phone_number: record.phone_number,
+      direction: record.direction,
+      status: record.status,
+      crm_contact_id: record.crm_contact_id,
+      application_id: record.application_id,
+    },
+  });
+
+  return record;
+}
+
+export async function updateCallStatus(params: {
+  id: string;
+  status: CallStatus;
+  durationSeconds?: number | null;
+  ip?: string;
+  userAgent?: string;
+}): Promise<CallLogRecord> {
+  const existing = await findCallLogById(params.id);
+  if (!existing) {
+    throw new AppError("not_found", "Call not found.", 404);
+  }
+
+  const shouldUpdateStatus = existing.status !== params.status;
+  const shouldUpdateDuration =
+    params.durationSeconds !== undefined &&
+    params.durationSeconds !== existing.duration_seconds;
+  const shouldEnd =
+    (params.status === "ended" || params.status === "failed") &&
+    existing.ended_at === null;
+
+  if (!shouldUpdateStatus && !shouldUpdateDuration && !shouldEnd) {
+    return existing;
+  }
+
+  const updated = await updateCallLogStatus({
+    id: params.id,
+    status: params.status,
+    durationSeconds:
+      params.durationSeconds !== undefined
+        ? params.durationSeconds
+        : existing.duration_seconds,
+    endedAt: shouldEnd ? new Date() : existing.ended_at,
+  });
+
+  if (!updated) {
+    throw new AppError("not_found", "Call not found.", 404);
+  }
+
+  return updated;
+}
+
+export async function endCall(params: {
+  id: string;
+  durationSeconds?: number | null;
+  staffUserId: string | null;
+  ip?: string;
+  userAgent?: string;
+}): Promise<CallLogRecord> {
+  const existing = await findCallLogById(params.id);
+  if (!existing) {
+    throw new AppError("not_found", "Call not found.", 404);
+  }
+
+  const shouldEnd = existing.status !== "ended";
+  const updated = await updateCallStatus({
+    id: params.id,
+    status: "ended",
+    durationSeconds: params.durationSeconds ?? existing.duration_seconds,
+    ip: params.ip,
+    userAgent: params.userAgent,
+  });
+
+  if (shouldEnd) {
+    await recordAuditEvent({
+      action: "call_ended",
+      actorUserId: params.staffUserId,
+      targetUserId: null,
+      targetType: "call_log",
+      targetId: updated.id,
+      ip: params.ip,
+      userAgent: params.userAgent,
+      success: true,
+      metadata: {
+        phone_number: updated.phone_number,
+        direction: updated.direction,
+        status: updated.status,
+        duration_seconds: updated.duration_seconds,
+        crm_contact_id: updated.crm_contact_id,
+        application_id: updated.application_id,
+      },
+    });
+  }
+
+  return updated;
+}
+
+export async function listCalls(params: {
+  contactId?: string | null;
+  applicationId?: string | null;
+}): Promise<CallLogRecord[]> {
+  return listCallLogs({
+    contactId: params.contactId ?? null,
+    applicationId: params.applicationId ?? null,
+  });
+}

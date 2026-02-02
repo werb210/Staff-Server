@@ -4,6 +4,7 @@ import adminRoutes from "./admin";
 import applicationsRoutes from "./applications";
 import authRoutes from "./auth";
 import calendarRoutes from "./calendar";
+import callsRoutes from "./calls";
 import clientRoutes from "./client";
 import communicationsRoutes from "./communications";
 import crmRoutes from "./crm";
@@ -46,6 +47,7 @@ export const API_ROUTE_MOUNTS: ApiRouteMount[] = [
   { path: "/auth", router: authRoutes },
   { path: "/applications", router: applicationsRoutes },
   { path: "/calendar", router: calendarRoutes },
+  { path: "/calls", router: callsRoutes },
   { path: "/client", router: clientRoutes },
   { path: "/communications", router: communicationsRoutes },
   { path: "/crm", router: crmRoutes },
@@ -82,6 +84,10 @@ export const ROUTES: ApiRoute[] = [
   { method: "POST", path: "/api/auth/otp/start", roles: ALL_ROLES },
   { method: "POST", path: "/api/auth/otp/verify", roles: ALL_ROLES },
   { method: "GET", path: "/api/auth/me", roles: ALL_ROLES },
+  { method: "POST", path: "/api/calls/start", roles: [ROLES.ADMIN, ROLES.STAFF] },
+  { method: "POST", path: "/api/calls/:id/status", roles: [ROLES.ADMIN, ROLES.STAFF] },
+  { method: "POST", path: "/api/calls/:id/end", roles: [ROLES.ADMIN, ROLES.STAFF] },
+  { method: "GET", path: "/api/calls", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "GET", path: "/api/applications", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "GET", path: "/api/crm", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "GET", path: "/api/crm/contacts", roles: [ROLES.ADMIN, ROLES.STAFF] },

@@ -31,6 +31,9 @@ beforeAll(async () => {
   await pool.query("drop table if exists users cascade;");
   await pool.query("drop table if exists pwa_subscriptions cascade;");
   await pool.query("drop table if exists pwa_notifications cascade;");
+  await pool.query("drop table if exists call_logs cascade;");
+  await pool.query("drop type if exists call_status_enum cascade;");
+  await pool.query("drop type if exists call_direction_enum cascade;");
   await pool.query(`
     create table if not exists users (
       id uuid primary key,
@@ -53,6 +56,11 @@ beforeAll(async () => {
       last_login_at timestamptz null,
       token_version integer not null default 0
     );
+  `);
+  await pool.query(`
+    alter table users
+      add constraint users_status_check
+      check (status in ('ACTIVE', 'INACTIVE'));
   `);
   await pool.query(`
     create table if not exists idempotency_keys (
@@ -102,6 +110,27 @@ beforeAll(async () => {
       success boolean not null,
       metadata jsonb null,
       created_at timestamptz not null default now()
+    );
+  `);
+  await pool.query(`
+    create type call_direction_enum as enum ('outbound', 'inbound');
+  `);
+  await pool.query(`
+    create type call_status_enum as enum ('initiated', 'ringing', 'connected', 'ended', 'failed');
+  `);
+  await pool.query(`
+    create table if not exists call_logs (
+      id uuid primary key,
+      phone_number text not null,
+      direction call_direction_enum not null,
+      status call_status_enum not null,
+      duration_seconds integer null,
+      staff_user_id uuid null references users(id) on delete set null,
+      crm_contact_id uuid null,
+      application_id uuid null,
+      created_at timestamptz not null default now(),
+      ended_at timestamptz null,
+      constraint call_logs_duration_check check (duration_seconds is null or duration_seconds >= 0)
     );
   `);
   await pool.query(`
