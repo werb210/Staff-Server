@@ -14,6 +14,7 @@ export async function startCall(params: {
   direction: "outbound" | "inbound";
   status?: CallStatus;
   staffUserId: string | null;
+  twilioCallSid?: string | null;
   crmContactId?: string | null;
   applicationId?: string | null;
   ip?: string;
@@ -25,6 +26,7 @@ export async function startCall(params: {
     direction: params.direction,
     status,
     staffUserId: params.staffUserId,
+    twilioCallSid: params.twilioCallSid ?? null,
     crmContactId: params.crmContactId ?? null,
     applicationId: params.applicationId ?? null,
   });
@@ -38,13 +40,14 @@ export async function startCall(params: {
     ip: params.ip,
     userAgent: params.userAgent,
     success: true,
-    metadata: {
-      phone_number: record.phone_number,
-      direction: record.direction,
-      status: record.status,
-      crm_contact_id: record.crm_contact_id,
-      application_id: record.application_id,
-    },
+      metadata: {
+        phone_number: record.phone_number,
+        twilio_call_sid: record.twilio_call_sid,
+        direction: record.direction,
+        status: record.status,
+        crm_contact_id: record.crm_contact_id,
+        application_id: record.application_id,
+      },
   });
 
   return record;
@@ -67,7 +70,10 @@ export async function updateCallStatus(params: {
     params.durationSeconds !== undefined &&
     params.durationSeconds !== existing.duration_seconds;
   const shouldEnd =
-    (params.status === "ended" || params.status === "failed") &&
+    (params.status === "ended" ||
+      params.status === "failed" ||
+      params.status === "completed" ||
+      params.status === "cancelled") &&
     existing.ended_at === null;
 
   if (!shouldUpdateStatus && !shouldUpdateDuration && !shouldEnd) {

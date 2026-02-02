@@ -12,13 +12,31 @@ const router = Router();
 const callStartSchema = z.object({
   phoneNumber: z.string().min(1),
   direction: z.enum(["outbound", "inbound"]),
-  status: z.enum(["initiated", "ringing", "connected", "ended", "failed"]).optional(),
+  status: z
+    .enum([
+      "initiated",
+      "ringing",
+      "connected",
+      "ended",
+      "failed",
+      "completed",
+      "cancelled",
+    ])
+    .optional(),
   crmContactId: z.string().uuid().optional(),
   applicationId: z.string().uuid().optional(),
 });
 
 const callStatusSchema = z.object({
-  status: z.enum(["initiated", "ringing", "connected", "ended", "failed"]),
+  status: z.enum([
+    "initiated",
+    "ringing",
+    "connected",
+    "ended",
+    "failed",
+    "completed",
+    "cancelled",
+  ]),
   durationSeconds: z.number().int().nonnegative().optional().nullable(),
 });
 

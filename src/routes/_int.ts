@@ -19,6 +19,14 @@ router.get("/build", (_req, res) => {
   res.status(200).json({ commitHash, buildTimestamp });
 });
 
+router.get("/version", (_req, res) => {
+  const { commitHash, buildTimestamp } = getBuildInfo();
+  res.status(200).json({
+    buildHash: commitHash,
+    deployTimestamp: buildTimestamp,
+  });
+});
+
 router.get("/routes", (req, res) => {
   const routes = listRouteInventory(req.app);
   res.status(200).json({ routes });
