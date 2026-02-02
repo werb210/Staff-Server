@@ -15,6 +15,10 @@ function getMissingEnvKeys(): string[] {
 }
 
 export function assertRequiredAuthEnv(): void {
+  const nodeEnv = process.env.NODE_ENV ?? "";
+  if (nodeEnv === "development" || nodeEnv === "test") {
+    return;
+  }
   const missing = getMissingEnvKeys();
   if (missing.length === 0) {
     return;

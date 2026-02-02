@@ -15,6 +15,8 @@ import {
   updateUserRoleById,
   storeRefreshToken,
   consumeRefreshToken,
+  findActiveRefreshTokenForUser,
+  findRefreshTokenByHash,
 } from "./auth.repo";
 import { AppError, forbiddenError } from "../../middleware/errors";
 import { recordAuditEvent } from "../audit/audit.service";
@@ -879,7 +881,7 @@ export async function verifyOtpCode(params: {
       await db.query(
         `
         INSERT INTO users (id, phone, email, role, status)
-        VALUES ($1, $2, $3, $4, 'active')
+        VALUES ($1, $2, $3, $4, 'ACTIVE')
         ON CONFLICT (id) DO UPDATE
         SET phone = COALESCE(users.phone, EXCLUDED.phone),
             email = COALESCE(users.email, EXCLUDED.email),
@@ -1047,6 +1049,7 @@ export async function refreshSession(params: {
     }
 > {
   const requestId = getRequestId() ?? "unknown";
+  const replayGraceMs = 2 * 60 * 1000;
   try {
     const refreshToken = params.refreshToken?.trim();
     if (!refreshToken) {
@@ -1065,6 +1068,81 @@ export async function refreshSession(params: {
       await dbClient.query("begin");
       const consumed = await consumeRefreshToken(tokenHash, db);
       if (!consumed || consumed.userId !== payload.userId) {
+        const replayRecord = await findRefreshTokenByHash(tokenHash, db);
+        const replayAgeMs = replayRecord?.revokedAt
+          ? Date.now() - replayRecord.revokedAt.getTime()
+          : null;
+        if (
+          replayRecord &&
+          replayRecord.userId === payload.userId &&
+          replayRecord.expiresAt.getTime() > Date.now() &&
+          replayAgeMs !== null &&
+          replayAgeMs <= replayGraceMs
+        ) {
+          const userRecord = await findAuthUserById(payload.userId, db);
+          if (!userRecord) {
+            await dbClient.query("commit");
+            return {
+              ok: false,
+              status: 401,
+              error: { code: "invalid_refresh_token", message: "Invalid refresh token." },
+            };
+          }
+
+          assertUserActive({ user: userRecord, requestId });
+
+          let role: Role;
+          try {
+            role = resolveAuthRole(userRecord.role);
+          } catch (err) {
+            await dbClient.query("commit");
+            throw err;
+          }
+
+          assertLenderBinding({ role, lenderId: userRecord.lenderId });
+
+          const tokenVersion = userRecord.tokenVersion ?? 0;
+          if (payload.tokenVersion !== tokenVersion) {
+            await dbClient.query("commit");
+            return {
+              ok: false,
+              status: 401,
+              error: { code: "invalid_refresh_token", message: "Invalid refresh token." },
+            };
+          }
+
+          const activeToken = await findActiveRefreshTokenForUser(userRecord.id, db);
+          if (!activeToken) {
+            await dbClient.query("commit");
+            return {
+              ok: false,
+              status: 401,
+              error: { code: "invalid_refresh_token", message: "Invalid refresh token." },
+            };
+          }
+
+          const token = issueAccessToken({
+            sub: userRecord.id,
+            role,
+            tokenVersion,
+            phone: userRecord.phoneNumber,
+            silo: resolveAuthSilo(userRecord.silo),
+            capabilities: getCapabilitiesForRole(role),
+          });
+
+          await dbClient.query("commit");
+          return {
+            ok: true,
+            token,
+            refreshToken: activeToken.token,
+            user: {
+              id: userRecord.id,
+              role,
+              email: userRecord.email,
+            },
+          };
+        }
+
         await dbClient.query("commit");
         return {
           ok: false,
