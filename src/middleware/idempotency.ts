@@ -45,7 +45,10 @@ function isAuthRoute(req: Request): boolean {
 }
 
 function isIdempotencyExempt(req: Request): boolean {
-  return req.path === "/client/submissions";
+  return (
+    req.path === "/client/submissions" ||
+    req.path === "/webhooks/twilio/voice"
+  );
 }
 
 function shouldBypass(error: unknown): boolean {

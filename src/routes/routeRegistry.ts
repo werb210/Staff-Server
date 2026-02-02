@@ -24,6 +24,7 @@ import usersRoutes from "./users";
 import portalRoutes from "./portal";
 import pwaRoutes from "./pwa";
 import voiceRoutes from "./voice";
+import webhooksRoutes from "./webhooks";
 
 export type ApiRoute = {
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -68,6 +69,7 @@ export const API_ROUTE_MOUNTS: ApiRouteMount[] = [
   { path: "/portal", router: portalRoutes },
   { path: "/pwa", router: pwaRoutes },
   { path: "/voice", router: voiceRoutes },
+  { path: "/webhooks", router: webhooksRoutes },
 ];
 
 export const PORTAL_ROUTE_REQUIREMENTS: Pick<ApiRoute, "method" | "path">[] = [
@@ -87,9 +89,15 @@ export const ROUTES: ApiRoute[] = [
   { method: "POST", path: "/api/auth/otp/verify", roles: ALL_ROLES },
   { method: "GET", path: "/api/auth/me", roles: ALL_ROLES },
   { method: "POST", path: "/api/voice/token", roles: [ROLES.ADMIN, ROLES.STAFF] },
+  { method: "POST", path: "/api/voice/call", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "POST", path: "/api/voice/call/start", roles: [ROLES.ADMIN, ROLES.STAFF] },
+  { method: "POST", path: "/api/voice/call/mute", roles: [ROLES.ADMIN, ROLES.STAFF] },
+  { method: "POST", path: "/api/voice/call/hold", roles: [ROLES.ADMIN, ROLES.STAFF] },
+  { method: "POST", path: "/api/voice/call/resume", roles: [ROLES.ADMIN, ROLES.STAFF] },
+  { method: "POST", path: "/api/voice/call/hangup", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "POST", path: "/api/voice/call/end", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "GET", path: "/api/voice/calls", roles: [ROLES.ADMIN, ROLES.STAFF] },
+  { method: "POST", path: "/api/webhooks/twilio/voice", roles: [] },
   { method: "POST", path: "/api/calls/start", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "POST", path: "/api/calls/:id/status", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "POST", path: "/api/calls/:id/end", roles: [ROLES.ADMIN, ROLES.STAFF] },

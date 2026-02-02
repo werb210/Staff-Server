@@ -58,15 +58,15 @@ const createCall = jest.fn(
   })
 );
 const updateCall = jest.fn(
-  async (_callSid: string | undefined, _params?: { status: string }) => ({
+  async (_callSid: string | undefined, _params?: { status?: string; twiml?: string }) => ({
     sid: _callSid ?? "CA123",
-    status: "completed",
+    status: _params?.status ?? "in-progress",
   })
 );
 
 const calls = Object.assign(
   (callSid?: string) => ({
-    update: (params: { status: string }) => updateCall(callSid, params),
+    update: (params: { status?: string; twiml?: string }) => updateCall(callSid, params),
   }),
   { create: createCall }
 );

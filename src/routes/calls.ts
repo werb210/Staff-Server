@@ -16,10 +16,14 @@ const callStartSchema = z.object({
     .enum([
       "initiated",
       "ringing",
+      "in_progress",
       "connected",
       "ended",
       "failed",
+      "no_answer",
+      "busy",
       "completed",
+      "canceled",
       "cancelled",
     ])
     .optional(),
@@ -31,10 +35,14 @@ const callStatusSchema = z.object({
   status: z.enum([
     "initiated",
     "ringing",
+    "in_progress",
     "connected",
     "ended",
     "failed",
+    "no_answer",
+    "busy",
     "completed",
+    "canceled",
     "cancelled",
   ]),
   durationSeconds: z.number().int().nonnegative().optional().nullable(),
@@ -89,6 +97,7 @@ router.post(
       id,
       status: parsed.data.status,
       durationSeconds: parsed.data.durationSeconds ?? undefined,
+      actorUserId: req.user?.userId ?? null,
       ip: req.ip,
       userAgent: req.get("user-agent"),
     });

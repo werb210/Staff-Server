@@ -3,7 +3,7 @@ import { buildAppWithApiRoutes } from "../app";
 import { pool } from "../db";
 import { createUserAccount } from "../modules/auth/auth.service";
 import { ROLES } from "../auth/roles";
-import { otpVerifyRequest } from "./helpers/otpAuth";
+import { otpVerifyRequest } from "../__tests__/helpers/otpAuth";
 
 const app = buildAppWithApiRoutes();
 
