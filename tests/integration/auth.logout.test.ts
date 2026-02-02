@@ -61,6 +61,7 @@ describe("auth logout", () => {
       idempotencyKey: `idem-auth-logout-${phone}`,
     });
     expect(login.status).toBe(200);
+    expect(login.body.refreshToken).toBeTruthy();
 
     const me = await request(app)
       .get("/api/auth/me")
@@ -72,6 +73,12 @@ describe("auth logout", () => {
       .set("Authorization", `Bearer ${login.body.accessToken}`);
     expect(logout.status).toBe(200);
     expect(logout.body.ok).toBe(true);
+
+    const refresh = await request(app)
+      .post("/api/auth/refresh")
+      .send({ refreshToken: login.body.refreshToken });
+    expect(refresh.status).toBe(401);
+    expect(refresh.body.error.code).toBe("invalid_refresh_token");
 
     const meAfterLogout = await request(app)
       .get("/api/auth/me")

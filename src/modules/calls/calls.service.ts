@@ -67,6 +67,8 @@ export async function updateCallStatus(params: {
   toNumber?: string | null;
   errorCode?: string | null;
   errorMessage?: string | null;
+  recordingSid?: string | null;
+  recordingDurationSeconds?: number | null;
   actorUserId?: string | null;
   ip?: string;
   userAgent?: string;
@@ -88,6 +90,11 @@ export async function updateCallStatus(params: {
     params.errorCode !== undefined && params.errorCode !== existing.error_code;
   const shouldUpdateErrorMessage =
     params.errorMessage !== undefined && params.errorMessage !== existing.error_message;
+  const shouldUpdateRecordingSid =
+    params.recordingSid !== undefined && params.recordingSid !== existing.recording_sid;
+  const shouldUpdateRecordingDuration =
+    params.recordingDurationSeconds !== undefined &&
+    params.recordingDurationSeconds !== existing.recording_duration_seconds;
   const shouldEnd =
     (params.status === "ended" ||
       params.status === "failed" ||
@@ -103,6 +110,8 @@ export async function updateCallStatus(params: {
     !shouldUpdateTo &&
     !shouldUpdateErrorCode &&
     !shouldUpdateErrorMessage &&
+    !shouldUpdateRecordingSid &&
+    !shouldUpdateRecordingDuration &&
     !shouldEnd
   ) {
     return existing;
@@ -123,6 +132,14 @@ export async function updateCallStatus(params: {
       params.errorCode !== undefined ? params.errorCode : existing.error_code,
     errorMessage:
       params.errorMessage !== undefined ? params.errorMessage : existing.error_message,
+    recordingSid:
+      params.recordingSid !== undefined
+        ? params.recordingSid
+        : existing.recording_sid,
+    recordingDurationSeconds:
+      params.recordingDurationSeconds !== undefined
+        ? params.recordingDurationSeconds
+        : existing.recording_duration_seconds,
   });
 
   if (!updated) {
@@ -135,7 +152,9 @@ export async function updateCallStatus(params: {
     shouldUpdateFrom ||
     shouldUpdateTo ||
     shouldUpdateErrorCode ||
-    shouldUpdateErrorMessage
+    shouldUpdateErrorMessage ||
+    shouldUpdateRecordingSid ||
+    shouldUpdateRecordingDuration
   ) {
     await recordAuditEvent({
       action: "call_status_updated",
@@ -158,9 +177,54 @@ export async function updateCallStatus(params: {
         application_id: updated.application_id,
         error_code: updated.error_code,
         error_message: updated.error_message,
+        recording_sid: updated.recording_sid,
+        recording_duration_seconds: updated.recording_duration_seconds,
       },
     });
   }
+
+  return updated;
+}
+
+export async function updateCallRecording(params: {
+  id: string;
+  recordingSid: string;
+  recordingDurationSeconds?: number | null;
+  actorUserId?: string | null;
+  ip?: string;
+  userAgent?: string;
+}): Promise<CallLogRecord> {
+  const existing = await findCallLogById(params.id);
+  if (!existing) {
+    throw new AppError("not_found", "Call not found.", 404);
+  }
+
+  const updated = await updateCallStatus({
+    id: params.id,
+    status: existing.status,
+    recordingSid: params.recordingSid,
+    recordingDurationSeconds: params.recordingDurationSeconds ?? undefined,
+    actorUserId: params.actorUserId,
+    ip: params.ip,
+    userAgent: params.userAgent,
+  });
+
+  await recordAuditEvent({
+    action: "call_recording_updated",
+    actorUserId: params.actorUserId ?? null,
+    targetUserId: null,
+    targetType: "call_log",
+    targetId: updated.id,
+    ip: params.ip,
+    userAgent: params.userAgent,
+    success: true,
+    metadata: {
+      phone_number: updated.phone_number,
+      twilio_call_sid: updated.twilio_call_sid,
+      recording_sid: updated.recording_sid,
+      recording_duration_seconds: updated.recording_duration_seconds,
+    },
+  });
 
   return updated;
 }

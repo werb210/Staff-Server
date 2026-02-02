@@ -16,7 +16,7 @@ import {
   verifyOtpResponseSchema,
 } from "../../validation/auth.validation";
 import { requireAuth, requireAuthorization } from "../../middleware/auth";
-import { incrementTokenVersion } from "./auth.repo";
+import { incrementTokenVersion, revokeRefreshTokensForUser } from "./auth.repo";
 import { ALL_ROLES } from "../../auth/roles";
 
 const router = Router();
@@ -245,19 +245,20 @@ router.post(
   requireAuth,
   requireAuthorization({ roles: ALL_ROLES }),
   async (req, res, next) => {
-  try {
-    const userId = req.user?.userId;
-    if (!userId) {
-      respondError(res, 401, "invalid_token", "Invalid or expired token.");
-      return;
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        respondError(res, 401, "invalid_token", "Invalid or expired token.");
+        return;
+      }
+
+      await revokeRefreshTokensForUser(userId);
+      await incrementTokenVersion(userId);
+
+      res.status(200).json({ ok: true });
+    } catch (err) {
+      next(err);
     }
-
-    await incrementTokenVersion(userId);
-
-    res.status(200).json({ ok: true });
-  } catch (err) {
-    next(err);
-  }
   }
 );
 

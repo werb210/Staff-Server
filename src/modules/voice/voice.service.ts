@@ -2,7 +2,7 @@ import AccessToken from "twilio/lib/jwt/AccessToken";
 import { AppError } from "../../middleware/errors";
 import { logError, logInfo, logWarn } from "../../observability/logger";
 import { normalizePhoneNumber } from "../auth/phone";
-import { startCall, updateCallStatus } from "../calls/calls.service";
+import { startCall, updateCallStatus, updateCallRecording } from "../calls/calls.service";
 import { findCallLogByTwilioSid } from "../calls/calls.repo";
 import { getTwilioClient } from "../../services/twilio";
 import { type CallStatus, type CallLogRecord } from "../calls/calls.repo";
@@ -248,6 +248,38 @@ export async function endVoiceCall(params: {
   return updated;
 }
 
+export async function updateVoiceCallStatus(params: {
+  callSid: string;
+  status?: CallStatus;
+  callStatus?: string | null;
+  durationSeconds?: number | null;
+  staffUserId: string | null;
+  ip?: string;
+  userAgent?: string;
+}): Promise<CallLogRecord> {
+  const callLog = await findCallLogByTwilioSid(params.callSid);
+  if (!callLog) {
+    throw new AppError("not_found", "Call not found.", 404);
+  }
+  assertCallOwnership(callLog, params.staffUserId);
+
+  const statusFromInput = params.status ?? mapTwilioStatus(params.callStatus);
+  if (!statusFromInput) {
+    throw new AppError("validation_error", "Unsupported call status.", 400);
+  }
+
+  const updated = await updateCallStatus({
+    id: callLog.id,
+    status: statusFromInput,
+    durationSeconds: params.durationSeconds ?? undefined,
+    actorUserId: params.staffUserId,
+    ip: params.ip,
+    userAgent: params.userAgent,
+  });
+
+  return updated;
+}
+
 export async function controlVoiceCall(params: {
   callSid: string;
   action: "mute" | "hold" | "resume" | "hangup";
@@ -328,6 +360,32 @@ export async function controlVoiceCall(params: {
       to_number: updated.to_number ?? updated.phone_number,
       from_number: updated.from_number,
     },
+  });
+
+  return updated;
+}
+
+export async function recordVoiceCallRecording(params: {
+  callSid: string;
+  recordingSid: string;
+  durationSeconds?: number | null;
+  staffUserId: string | null;
+  ip?: string;
+  userAgent?: string;
+}): Promise<CallLogRecord> {
+  const callLog = await findCallLogByTwilioSid(params.callSid);
+  if (!callLog) {
+    throw new AppError("not_found", "Call not found.", 404);
+  }
+  assertCallOwnership(callLog, params.staffUserId);
+
+  const updated = await updateCallRecording({
+    id: callLog.id,
+    recordingSid: params.recordingSid,
+    recordingDurationSeconds: params.durationSeconds ?? undefined,
+    actorUserId: params.staffUserId,
+    ip: params.ip,
+    userAgent: params.userAgent,
   });
 
   return updated;

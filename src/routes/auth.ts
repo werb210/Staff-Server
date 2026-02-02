@@ -8,6 +8,11 @@ import { ALL_ROLES } from "../auth/roles";
 
 const router = Router();
 
+router.use((_req, res, next) => {
+  res.set("Cache-Control", "no-store");
+  next();
+});
+
 /**
  * GET /api/auth/me
  * - Auth required
