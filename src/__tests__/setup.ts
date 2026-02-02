@@ -120,12 +120,14 @@ beforeAll(async () => {
     create type call_direction_enum as enum ('outbound', 'inbound');
   `);
   await pool.query(`
-    create type call_status_enum as enum ('initiated', 'ringing', 'connected', 'ended', 'failed', 'completed', 'cancelled');
+    create type call_status_enum as enum ('initiated', 'ringing', 'in_progress', 'connected', 'ended', 'failed', 'no_answer', 'busy', 'completed', 'canceled', 'cancelled');
   `);
   await pool.query(`
     create table if not exists call_logs (
       id uuid primary key,
       phone_number text not null,
+      from_number text null,
+      to_number text null,
       twilio_call_sid text null,
       direction call_direction_enum not null,
       status call_status_enum not null,
@@ -133,7 +135,10 @@ beforeAll(async () => {
       staff_user_id uuid null references users(id) on delete set null,
       crm_contact_id uuid null,
       application_id uuid null,
+      error_code text null,
+      error_message text null,
       created_at timestamptz not null default now(),
+      started_at timestamptz not null default now(),
       ended_at timestamptz null,
       constraint call_logs_duration_check check (duration_seconds is null or duration_seconds >= 0)
     );

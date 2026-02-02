@@ -52,7 +52,7 @@ export type TwilioMockState = {
     (params: { to: string; from: string; applicationSid: string }) => Promise<{ sid: string; status: string }>
   >;
   updateCall: jest.MockedFunction<
-    (callSid?: string, params?: { status: string }) => Promise<{ sid: string; status: string }>
+    (callSid?: string, params?: { status?: string; twiml?: string }) => Promise<{ sid: string; status: string }>
   >;
   twilioConstructor: TwilioConstructorMock;
   services: ServicesMock;

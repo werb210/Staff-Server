@@ -11,6 +11,8 @@ import {
 
 export async function startCall(params: {
   phoneNumber: string;
+  fromNumber?: string | null;
+  toNumber?: string | null;
   direction: "outbound" | "inbound";
   status?: CallStatus;
   staffUserId: string | null;
@@ -23,6 +25,8 @@ export async function startCall(params: {
   const status = params.status ?? "initiated";
   const record = await createCallLog({
     phoneNumber: params.phoneNumber,
+    fromNumber: params.fromNumber ?? null,
+    toNumber: params.toNumber ?? null,
     direction: params.direction,
     status,
     staffUserId: params.staffUserId,
@@ -40,14 +44,16 @@ export async function startCall(params: {
     ip: params.ip,
     userAgent: params.userAgent,
     success: true,
-      metadata: {
-        phone_number: record.phone_number,
-        twilio_call_sid: record.twilio_call_sid,
-        direction: record.direction,
-        status: record.status,
-        crm_contact_id: record.crm_contact_id,
-        application_id: record.application_id,
-      },
+    metadata: {
+      phone_number: record.phone_number,
+      from_number: record.from_number,
+      to_number: record.to_number,
+      twilio_call_sid: record.twilio_call_sid,
+      direction: record.direction,
+      status: record.status,
+      crm_contact_id: record.crm_contact_id,
+      application_id: record.application_id,
+    },
   });
 
   return record;
@@ -57,6 +63,11 @@ export async function updateCallStatus(params: {
   id: string;
   status: CallStatus;
   durationSeconds?: number | null;
+  fromNumber?: string | null;
+  toNumber?: string | null;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+  actorUserId?: string | null;
   ip?: string;
   userAgent?: string;
 }): Promise<CallLogRecord> {
@@ -69,14 +80,31 @@ export async function updateCallStatus(params: {
   const shouldUpdateDuration =
     params.durationSeconds !== undefined &&
     params.durationSeconds !== existing.duration_seconds;
+  const shouldUpdateFrom =
+    params.fromNumber !== undefined && params.fromNumber !== existing.from_number;
+  const shouldUpdateTo =
+    params.toNumber !== undefined && params.toNumber !== existing.to_number;
+  const shouldUpdateErrorCode =
+    params.errorCode !== undefined && params.errorCode !== existing.error_code;
+  const shouldUpdateErrorMessage =
+    params.errorMessage !== undefined && params.errorMessage !== existing.error_message;
   const shouldEnd =
     (params.status === "ended" ||
       params.status === "failed" ||
       params.status === "completed" ||
-      params.status === "cancelled") &&
+      params.status === "cancelled" ||
+      params.status === "canceled") &&
     existing.ended_at === null;
 
-  if (!shouldUpdateStatus && !shouldUpdateDuration && !shouldEnd) {
+  if (
+    !shouldUpdateStatus &&
+    !shouldUpdateDuration &&
+    !shouldUpdateFrom &&
+    !shouldUpdateTo &&
+    !shouldUpdateErrorCode &&
+    !shouldUpdateErrorMessage &&
+    !shouldEnd
+  ) {
     return existing;
   }
 
@@ -88,10 +116,50 @@ export async function updateCallStatus(params: {
         ? params.durationSeconds
         : existing.duration_seconds,
     endedAt: shouldEnd ? new Date() : existing.ended_at,
+    fromNumber:
+      params.fromNumber !== undefined ? params.fromNumber : existing.from_number,
+    toNumber: params.toNumber !== undefined ? params.toNumber : existing.to_number,
+    errorCode:
+      params.errorCode !== undefined ? params.errorCode : existing.error_code,
+    errorMessage:
+      params.errorMessage !== undefined ? params.errorMessage : existing.error_message,
   });
 
   if (!updated) {
     throw new AppError("not_found", "Call not found.", 404);
+  }
+
+  if (
+    shouldUpdateStatus ||
+    shouldUpdateDuration ||
+    shouldUpdateFrom ||
+    shouldUpdateTo ||
+    shouldUpdateErrorCode ||
+    shouldUpdateErrorMessage
+  ) {
+    await recordAuditEvent({
+      action: "call_status_updated",
+      actorUserId: params.actorUserId ?? null,
+      targetUserId: null,
+      targetType: "call_log",
+      targetId: updated.id,
+      ip: params.ip,
+      userAgent: params.userAgent,
+      success: true,
+      metadata: {
+        phone_number: updated.phone_number,
+        from_number: updated.from_number,
+        to_number: updated.to_number,
+        twilio_call_sid: updated.twilio_call_sid,
+        direction: updated.direction,
+        status: updated.status,
+        duration_seconds: updated.duration_seconds,
+        crm_contact_id: updated.crm_contact_id,
+        application_id: updated.application_id,
+        error_code: updated.error_code,
+        error_message: updated.error_message,
+      },
+    });
   }
 
   return updated;
@@ -114,6 +182,7 @@ export async function endCall(params: {
     id: params.id,
     status: "ended",
     durationSeconds: params.durationSeconds ?? existing.duration_seconds,
+    actorUserId: params.staffUserId,
     ip: params.ip,
     userAgent: params.userAgent,
   });
@@ -130,6 +199,8 @@ export async function endCall(params: {
       success: true,
       metadata: {
         phone_number: updated.phone_number,
+        from_number: updated.from_number,
+        to_number: updated.to_number,
         direction: updated.direction,
         status: updated.status,
         duration_seconds: updated.duration_seconds,

@@ -4,8 +4,8 @@ import { buildAppWithApiRoutes } from "../app";
 import { pool } from "../db";
 import { createUserAccount } from "../modules/auth/auth.service";
 import { ROLES } from "../auth/roles";
-import { otpVerifyRequest } from "./helpers/otpAuth";
-import { getTwilioMocks } from "./helpers/twilioMocks";
+import { otpVerifyRequest } from "../__tests__/helpers/otpAuth";
+import { getTwilioMocks } from "../__tests__/helpers/twilioMocks";
 
 const app = buildAppWithApiRoutes();
 
@@ -54,6 +54,7 @@ describe("voice endpoints", () => {
     expect(res.body.ok).toBe(true);
     expect(typeof res.body.token).toBe("string");
     expect(res.body.token.length).toBeGreaterThan(10);
+    expect(user.id).toBeTruthy();
   });
 
   it("blocks unauthorized voice access", async () => {

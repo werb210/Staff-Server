@@ -8,15 +8,21 @@ export type CallDirection = "outbound" | "inbound";
 export type CallStatus =
   | "initiated"
   | "ringing"
+  | "in_progress"
   | "connected"
   | "ended"
   | "failed"
+  | "no_answer"
+  | "busy"
   | "completed"
+  | "canceled"
   | "cancelled";
 
 export type CallLogRecord = {
   id: string;
   phone_number: string;
+  from_number: string | null;
+  to_number: string | null;
   twilio_call_sid: string | null;
   direction: CallDirection;
   status: CallStatus;
@@ -24,12 +30,17 @@ export type CallLogRecord = {
   staff_user_id: string | null;
   crm_contact_id: string | null;
   application_id: string | null;
+  error_code: string | null;
+  error_message: string | null;
   created_at: Date;
+  started_at: Date;
   ended_at: Date | null;
 };
 
 export async function createCallLog(params: {
   phoneNumber: string;
+  fromNumber?: string | null;
+  toNumber?: string | null;
   direction: CallDirection;
   status: CallStatus;
   staffUserId: string | null;
@@ -42,13 +53,17 @@ export async function createCallLog(params: {
   const id = randomUUID();
   const res = await runner.query<CallLogRecord>(
     `insert into call_logs
-     (id, phone_number, twilio_call_sid, direction, status, staff_user_id, crm_contact_id, application_id, created_at)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, now())
-     returning id, phone_number, twilio_call_sid, direction, status, duration_seconds, staff_user_id, crm_contact_id,
-               application_id, created_at, ended_at`,
+     (id, phone_number, from_number, to_number, twilio_call_sid, direction, status, staff_user_id, crm_contact_id,
+      application_id, created_at, started_at)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now(), now())
+     returning id, phone_number, from_number, to_number, twilio_call_sid, direction, status, duration_seconds,
+               staff_user_id, crm_contact_id, application_id, error_code, error_message, created_at, started_at,
+               ended_at`,
     [
       id,
       params.phoneNumber,
+      params.fromNumber ?? null,
+      params.toNumber ?? null,
       params.twilioCallSid ?? null,
       params.direction,
       params.status,
@@ -66,8 +81,9 @@ export async function findCallLogById(
 ): Promise<CallLogRecord | null> {
   const runner = client ?? pool;
   const res = await runner.query<CallLogRecord>(
-    `select id, phone_number, twilio_call_sid, direction, status, duration_seconds, staff_user_id, crm_contact_id,
-            application_id, created_at, ended_at
+    `select id, phone_number, from_number, to_number, twilio_call_sid, direction, status, duration_seconds,
+            staff_user_id, crm_contact_id, application_id, error_code, error_message, created_at, started_at,
+            ended_at
      from call_logs
      where id = $1
      limit 1`,
@@ -82,8 +98,9 @@ export async function findCallLogByTwilioSid(
 ): Promise<CallLogRecord | null> {
   const runner = client ?? pool;
   const res = await runner.query<CallLogRecord>(
-    `select id, phone_number, twilio_call_sid, direction, status, duration_seconds, staff_user_id, crm_contact_id,
-            application_id, created_at, ended_at
+    `select id, phone_number, from_number, to_number, twilio_call_sid, direction, status, duration_seconds,
+            staff_user_id, crm_contact_id, application_id, error_code, error_message, created_at, started_at,
+            ended_at
      from call_logs
      where twilio_call_sid = $1
      limit 1`,
@@ -110,8 +127,9 @@ export async function listCallLogs(params: {
   }
   const whereClause = filters.length > 0 ? `where ${filters.join(" and ")}` : "";
   const res = await runner.query<CallLogRecord>(
-    `select id, phone_number, twilio_call_sid, direction, status, duration_seconds, staff_user_id, crm_contact_id,
-            application_id, created_at, ended_at
+    `select id, phone_number, from_number, to_number, twilio_call_sid, direction, status, duration_seconds,
+            staff_user_id, crm_contact_id, application_id, error_code, error_message, created_at, started_at,
+            ended_at
      from call_logs
      ${whereClause}
      order by created_at desc`,
@@ -125,6 +143,10 @@ export async function updateCallLogStatus(params: {
   status: CallStatus;
   durationSeconds?: number | null;
   endedAt?: Date | null;
+  fromNumber?: string | null;
+  toNumber?: string | null;
+  errorCode?: string | null;
+  errorMessage?: string | null;
   client?: Queryable;
 }): Promise<CallLogRecord | null> {
   const runner = params.client ?? pool;
@@ -137,6 +159,18 @@ export async function updateCallLogStatus(params: {
   if (params.endedAt !== undefined) {
     updates.push({ name: "ended_at", value: params.endedAt });
   }
+  if (params.fromNumber !== undefined) {
+    updates.push({ name: "from_number", value: params.fromNumber });
+  }
+  if (params.toNumber !== undefined) {
+    updates.push({ name: "to_number", value: params.toNumber });
+  }
+  if (params.errorCode !== undefined) {
+    updates.push({ name: "error_code", value: params.errorCode });
+  }
+  if (params.errorMessage !== undefined) {
+    updates.push({ name: "error_message", value: params.errorMessage });
+  }
 
   const setClauses = updates.map(
     (entry, index) => `${entry.name} = $${index + 1}`
@@ -148,8 +182,9 @@ export async function updateCallLogStatus(params: {
     `update call_logs
      set ${setClauses.join(", ")}
      where id = $${values.length}
-     returning id, phone_number, twilio_call_sid, direction, status, duration_seconds, staff_user_id, crm_contact_id,
-               application_id, created_at, ended_at`,
+     returning id, phone_number, from_number, to_number, twilio_call_sid, direction, status, duration_seconds,
+               staff_user_id, crm_contact_id, application_id, error_code, error_message, created_at, started_at,
+               ended_at`,
     values
   );
   return res.rows[0] ?? null;

@@ -122,6 +122,10 @@ export function getPasswordMaxAgeDays(): number {
   return parsePositiveInt(process.env.PASSWORD_MAX_AGE_DAYS, 90);
 }
 
+export function getVoiceRestrictedNumbers(): string[] {
+  return parseCsv(process.env.VOICE_RESTRICTED_NUMBERS, []);
+}
+
 export function getDocumentAllowedMimeTypes(): string[] {
   return parseCsv(process.env.DOCUMENT_ALLOWED_MIME_TYPES, [
     "application/pdf",
