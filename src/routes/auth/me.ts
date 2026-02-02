@@ -16,6 +16,7 @@ function respondAuthError(
   message: string
 ): void {
   const requestId = getAuthRequestId(res);
+  res.set("Cache-Control", "no-store");
   res.status(status).json({
     ok: false,
     data: null,
@@ -36,6 +37,7 @@ function respondResponseValidationError(
     errors,
   });
 
+  res.set("Cache-Control", "no-store");
   res.status(500).json({
     ok: false,
     data: null,
@@ -112,6 +114,7 @@ export async function authMeHandler(
       return;
     }
 
+    res.set("Cache-Control", "no-store");
     res.status(200).json(responseBody);
   } catch (err) {
     logError("auth_me_failed", {

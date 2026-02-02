@@ -231,6 +231,21 @@ export async function transitionPipelineState(params: {
     success: true,
     client: params.client,
   });
+  await recordAuditEvent({
+    action: "pipeline_stage_changed",
+    actorUserId: params.actorUserId,
+    targetUserId: application.owner_user_id,
+    targetType: "application",
+    targetId: params.applicationId,
+    ip: params.ip,
+    userAgent: params.userAgent,
+    success: true,
+    metadata: {
+      from: application.pipeline_state,
+      to: params.nextState,
+    },
+    client: params.client,
+  });
 
   if (params.allowOverride) {
     await recordAuditEvent({

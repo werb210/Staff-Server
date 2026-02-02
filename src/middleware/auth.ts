@@ -6,7 +6,7 @@ import {
   type Capability,
 } from "../auth/capabilities";
 import { ALL_ROLES, ROLES, isRole, type Role } from "../auth/roles";
-import { verifyAccessTokenWithUser } from "../auth/jwt";
+import { AccessTokenVerificationError, verifyAccessTokenWithUser } from "../auth/jwt";
 import { DEFAULT_AUTH_SILO } from "../auth/silo";
 import { logInfo, logWarn } from "../observability/logger";
 import { type AuthUser as AuthUserRecord } from "../modules/auth/auth.repo";
@@ -66,32 +66,27 @@ type AuthResult = {
 async function getAuthenticatedUserFromToken(
   token: string
 ): Promise<AuthResult | null> {
-  try {
-    const { payload, user } = await verifyAccessTokenWithUser(token);
+  const { payload, user } = await verifyAccessTokenWithUser(token);
 
-    if (!isRole(payload.role)) {
-      return null;
-    }
-
-    const tokenSilo =
-      typeof payload.silo === "string" ? payload.silo.trim() : "";
-    const siloFromToken = tokenSilo.length > 0;
-    const resolvedSilo = siloFromToken ? tokenSilo : DEFAULT_AUTH_SILO;
-
-    return {
-      user: {
-        userId: payload.sub,
-        role: payload.role,
-        silo: resolvedSilo,
-        siloFromToken,
-        capabilities: getCapabilitiesForRole(payload.role),
-        phone: typeof payload.phone === "string" ? payload.phone : null,
-      },
-      userRecord: user,
-    };
-  } catch {
+  if (!isRole(payload.role)) {
     return null;
   }
+
+  const tokenSilo = typeof payload.silo === "string" ? payload.silo.trim() : "";
+  const siloFromToken = tokenSilo.length > 0;
+  const resolvedSilo = siloFromToken ? tokenSilo : DEFAULT_AUTH_SILO;
+
+  return {
+    user: {
+      userId: payload.sub,
+      role: payload.role,
+      silo: resolvedSilo,
+      siloFromToken,
+      capabilities: getCapabilitiesForRole(payload.role),
+      phone: typeof payload.phone === "string" ? payload.phone : null,
+    },
+    userRecord: user,
+  };
 }
 
 export async function requireAuth(
@@ -117,7 +112,21 @@ export async function requireAuth(
     return;
   }
 
-  const authResult = await getAuthenticatedUserFromToken(token);
+  let authResult: AuthResult | null = null;
+  try {
+    authResult = await getAuthenticatedUserFromToken(token);
+  } catch (err) {
+    if (err instanceof AccessTokenVerificationError) {
+      logWarn("auth_token_invalid");
+      res.status(401).json({ ok: false, error: "invalid_token" });
+      return;
+    }
+    logWarn("auth_user_lookup_failed", {
+      error: err instanceof Error ? err.message : "unknown_error",
+    });
+    res.status(503).json({ ok: false, error: "auth_unavailable" });
+    return;
+  }
   if (!authResult) {
     logWarn("auth_token_invalid");
     res.status(401).json({ ok: false, error: "invalid_token" });
@@ -177,8 +186,15 @@ export async function getAuthenticatedUserFromRequest(
 ): Promise<AuthUser | null> {
   const { token } = getAuthHeaderInfo(req);
   if (!token) return null;
-  const result = await getAuthenticatedUserFromToken(token);
-  return result?.user ?? null;
+  try {
+    const result = await getAuthenticatedUserFromToken(token);
+    return result?.user ?? null;
+  } catch (err) {
+    if (err instanceof AccessTokenVerificationError) {
+      return null;
+    }
+    return null;
+  }
 }
 
 type AuthorizationOptions = {

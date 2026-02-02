@@ -286,7 +286,10 @@ export async function storeRefreshToken(params: {
   const runner = params.client ?? pool;
   await runAuthQuery(
     runner,
-    `delete from auth_refresh_tokens where user_id = $1`,
+    `update auth_refresh_tokens
+     set revoked_at = now()
+     where user_id = $1
+       and revoked_at is null`,
     [params.userId]
   );
   await runAuthQuery(
@@ -316,6 +319,47 @@ export async function findValidRefreshToken(
        and expires_at > now()
      limit 1`,
     [tokenHash]
+  );
+  return res.rows[0] ?? null;
+}
+
+export async function findRefreshTokenByHash(
+  tokenHash: string,
+  client?: Queryable
+): Promise<RefreshTokenRecord | null> {
+  const runner = client ?? pool;
+  const res = await runAuthQuery<RefreshTokenRecord>(
+    runner,
+    `select id,
+            user_id as "userId",
+            token_hash as "tokenHash",
+            expires_at as "expiresAt",
+            revoked_at as "revokedAt",
+            created_at as "createdAt"
+     from auth_refresh_tokens
+     where token_hash = $1
+     limit 1`,
+    [tokenHash]
+  );
+  return res.rows[0] ?? null;
+}
+
+export async function findActiveRefreshTokenForUser(
+  userId: string,
+  client?: Queryable
+): Promise<{ token: string; expiresAt: Date } | null> {
+  const runner = client ?? pool;
+  const res = await runAuthQuery<{ token: string; expiresAt: Date }>(
+    runner,
+    `select token,
+            expires_at as "expiresAt"
+     from auth_refresh_tokens
+     where user_id = $1
+       and revoked_at is null
+       and expires_at > now()
+     order by created_at desc
+     limit 1`,
+    [userId]
   );
   return res.rows[0] ?? null;
 }
