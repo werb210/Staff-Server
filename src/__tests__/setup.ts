@@ -9,6 +9,10 @@ process.env.DB_READY_BASE_DELAY_MS = "1";
 process.env.TWILIO_ACCOUNT_SID = "ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
 process.env.TWILIO_AUTH_TOKEN = "test-auth-token-1234567890";
 process.env.TWILIO_VERIFY_SERVICE_SID = "VA00000000000000000000000000000000";
+process.env.TWILIO_API_KEY = "SKXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
+process.env.TWILIO_API_SECRET = "test-twilio-api-secret";
+process.env.TWILIO_VOICE_APP_SID = "AP00000000000000000000000000000000";
+process.env.TWILIO_VOICE_CALLER_ID = "+14155550000";
 process.env.JWT_SECRET = "test-access-secret";
 process.env.VAPID_PUBLIC_KEY =
   "BEfWI4_C2Dzb-Nwj0lrRCX3tjsD6SHII7rSHm2T-NsJUdP6KBpfPoAggWrkxCbxat6Vv8O-HBZzYnzHvTT8uh1Q";
@@ -116,12 +120,13 @@ beforeAll(async () => {
     create type call_direction_enum as enum ('outbound', 'inbound');
   `);
   await pool.query(`
-    create type call_status_enum as enum ('initiated', 'ringing', 'connected', 'ended', 'failed');
+    create type call_status_enum as enum ('initiated', 'ringing', 'connected', 'ended', 'failed', 'completed', 'cancelled');
   `);
   await pool.query(`
     create table if not exists call_logs (
       id uuid primary key,
       phone_number text not null,
+      twilio_call_sid text null,
       direction call_direction_enum not null,
       status call_status_enum not null,
       duration_seconds integer null,

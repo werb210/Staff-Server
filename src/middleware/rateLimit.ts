@@ -176,6 +176,21 @@ export function refreshRateLimit(
   );
 }
 
+export function voiceRateLimit(
+  maxAttempts = getGlobalRateLimitMaxConfig(),
+  windowMs = getGlobalRateLimitWindowMsConfig()
+): (req: Request, res: Response, next: NextFunction) => void {
+  return createRateLimiter(
+    (req) => {
+      const ip = req.ip || "unknown";
+      const userId = req.user?.userId ?? "anonymous";
+      return `voice:${ip}:${userId}`;
+    },
+    maxAttempts,
+    windowMs
+  );
+}
+
 export function passwordResetRateLimit(
   maxAttempts = getPasswordResetRateLimitMax(),
   windowMs = getPasswordResetRateLimitWindowMs()

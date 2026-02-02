@@ -23,6 +23,7 @@ import tasksRoutes from "./tasks";
 import usersRoutes from "./users";
 import portalRoutes from "./portal";
 import pwaRoutes from "./pwa";
+import voiceRoutes from "./voice";
 
 export type ApiRoute = {
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -66,6 +67,7 @@ export const API_ROUTE_MOUNTS: ApiRouteMount[] = [
   { path: "/users", router: usersRoutes },
   { path: "/portal", router: portalRoutes },
   { path: "/pwa", router: pwaRoutes },
+  { path: "/voice", router: voiceRoutes },
 ];
 
 export const PORTAL_ROUTE_REQUIREMENTS: Pick<ApiRoute, "method" | "path">[] = [
@@ -84,6 +86,10 @@ export const ROUTES: ApiRoute[] = [
   { method: "POST", path: "/api/auth/otp/start", roles: ALL_ROLES },
   { method: "POST", path: "/api/auth/otp/verify", roles: ALL_ROLES },
   { method: "GET", path: "/api/auth/me", roles: ALL_ROLES },
+  { method: "POST", path: "/api/voice/token", roles: [ROLES.ADMIN, ROLES.STAFF] },
+  { method: "POST", path: "/api/voice/call/start", roles: [ROLES.ADMIN, ROLES.STAFF] },
+  { method: "POST", path: "/api/voice/call/end", roles: [ROLES.ADMIN, ROLES.STAFF] },
+  { method: "GET", path: "/api/voice/calls", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "POST", path: "/api/calls/start", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "POST", path: "/api/calls/:id/status", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "POST", path: "/api/calls/:id/end", roles: [ROLES.ADMIN, ROLES.STAFF] },

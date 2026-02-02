@@ -48,6 +48,12 @@ type ServicesMock = jest.MockedFunction<
 export type TwilioMockState = {
   createVerification: VerificationCreateMock;
   createVerificationCheck: VerificationCheckCreateMock;
+  createCall: jest.MockedFunction<
+    (params: { to: string; from: string; applicationSid: string }) => Promise<{ sid: string; status: string }>
+  >;
+  updateCall: jest.MockedFunction<
+    (callSid?: string, params?: { status: string }) => Promise<{ sid: string; status: string }>
+  >;
   twilioConstructor: TwilioConstructorMock;
   services: ServicesMock;
   lastServiceSid: string | null;
