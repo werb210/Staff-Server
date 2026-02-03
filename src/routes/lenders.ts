@@ -1,34 +1,18 @@
 import { Router } from "express";
 import { pool } from "../db";
 import { listLenders } from "../repositories/lenders.repo";
+import { listLenderProducts } from "../repositories/lenderProducts.repo";
 import { requireAuth, requireCapability } from "../middleware/auth";
 import { CAPABILITIES } from "../auth/capabilities";
 import { safeHandler } from "../middleware/safeHandler";
 import { ROLES } from "../auth/roles";
+import { type LenderProductRecord } from "../db/schema/lenderProducts";
 import {
   createLender,
   getLenderByIdHandler,
   getLenderWithProducts,
   updateLender,
 } from "../controllers/lenders.controller";
-
-type LenderProductRow = {
-  id: string;
-  lender_id: string;
-  name: string | null;
-  category: string | null;
-  country: string | null;
-  rate_type: string | null;
-  interest_min: string | null;
-  interest_max: string | null;
-  term_min: number | null;
-  term_max: number | null;
-  term_unit: string | null;
-  active: boolean | null;
-  required_documents: unknown;
-  created_at: string | null;
-  updated_at: string | null;
-};
 
 type LenderRow = {
   id: string;
@@ -44,7 +28,7 @@ type LenderRow = {
   api_config?: unknown | null;
   submission_config?: unknown | null;
   website?: string | null;
-  products: LenderProductRow[] | null;
+  products: LenderProductRecord[] | null;
   silo?: string | null;
 };
 
@@ -90,31 +74,9 @@ router.get(
   requireCapability([CAPABILITIES.LENDERS_READ]),
   safeHandler(async (req, res) => {
     const lendersRows = await listLenders(pool);
-    const productsResult = await pool.query<LenderProductRow>(
-      `
-      SELECT
-        id,
-        lender_id,
-        name,
-        category,
-        country,
-        rate_type,
-        interest_min,
-        interest_max,
-        term_min,
-        term_max,
-        term_unit,
-        active,
-        required_documents,
-        created_at,
-        updated_at
-      FROM lender_products
-      ORDER BY created_at DESC
-      `
-    );
-
-    const productsByLender = new Map<string, LenderProductRow[]>();
-    productsResult.rows.forEach((product) => {
+    const products = await listLenderProducts();
+    const productsByLender = new Map<string, LenderProductRecord[]>();
+    products.forEach((product) => {
       const list = productsByLender.get(product.lender_id) ?? [];
       list.push(product);
       productsByLender.set(product.lender_id, list);

@@ -17,6 +17,7 @@ async function assertLenderProductColumnsExist(params: {
   route: string;
   columns: string[];
   client: Queryable;
+  allowMissing?: boolean;
 }): Promise<Set<string>> {
   try {
     const result = await params.client.query<{ column_name: string }>(
@@ -39,11 +40,14 @@ async function assertLenderProductColumnsExist(params: {
         table: LENDER_PRODUCTS_TABLE,
       });
     }
-    throw new AppError(
-      "db_schema_error",
-      `Missing columns on ${LENDER_PRODUCTS_TABLE}: ${missing.join(", ")}`,
-      500
-    );
+    if (!params.allowMissing) {
+      throw new AppError(
+        "db_schema_error",
+        `Missing columns on ${LENDER_PRODUCTS_TABLE}: ${missing.join(", ")}`,
+        500
+      );
+    }
+    return existing;
   } catch (err) {
     if (err instanceof AppError) {
       throw err;
@@ -186,27 +190,28 @@ export async function listLenderProducts(
 ): Promise<LenderProductRecord[]> {
   const runner = client ?? pool;
   try {
-  const existing = await assertLenderProductColumnsExist({
-    route: "/api/lender-products",
-    columns: [
-      "id",
-      "lender_id",
-      "name",
-      "active",
-      "category",
-      "country",
-      "rate_type",
-      "interest_min",
-      "interest_max",
-      "term_min",
-      "term_max",
-      "term_unit",
-      "required_documents",
-      "created_at",
-      "updated_at",
-    ],
-    client: runner,
-  });
+    const existing = await assertLenderProductColumnsExist({
+      route: "/api/lender-products",
+      columns: [
+        "id",
+        "lender_id",
+        "name",
+        "active",
+        "category",
+        "country",
+        "rate_type",
+        "interest_min",
+        "interest_max",
+        "term_min",
+        "term_max",
+        "term_unit",
+        "required_documents",
+        "created_at",
+        "updated_at",
+      ],
+      client: runner,
+      allowMissing: true,
+    });
     const selectColumns = buildSelectColumns(existing);
     const res = await runner.query<LenderProductRecord>(
       `select ${selectColumns}
@@ -252,6 +257,7 @@ export async function listLenderProductsByLenderId(
       "updated_at",
     ],
     client: runner,
+    allowMissing: true,
   });
   const selectColumns = buildSelectColumns(existing);
   const res = await runner.query<LenderProductRecord>(
