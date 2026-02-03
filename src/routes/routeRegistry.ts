@@ -24,6 +24,7 @@ import tasksRoutes from "./tasks";
 import usersRoutes from "./users";
 import portalRoutes from "./portal";
 import pwaRoutes from "./pwa";
+import referralsRoutes from "./referrals";
 import voiceRoutes from "./voice";
 import webhooksRoutes from "./webhooks";
 
@@ -70,6 +71,7 @@ export const API_ROUTE_MOUNTS: ApiRouteMount[] = [
   { path: "/users", router: usersRoutes },
   { path: "/portal", router: portalRoutes },
   { path: "/pwa", router: pwaRoutes },
+  { path: "/referrals", router: referralsRoutes },
   { path: "/voice", router: voiceRoutes },
   { path: "/webhooks", router: webhooksRoutes },
 ];
@@ -119,6 +121,7 @@ export const ROUTES: ApiRoute[] = [
   { method: "GET", path: "/api/settings", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "GET", path: "/api/staff/overview", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "GET", path: "/api/dashboard", roles: [ROLES.ADMIN, ROLES.STAFF] },
+  { method: "POST", path: "/api/referrals", roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.REFERRER] },
 ];
 
 export function registerApiRouteMounts(router: Router): void {

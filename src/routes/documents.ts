@@ -9,6 +9,8 @@ import {
   getLatestDocumentVersion,
 } from "../modules/applications/applications.repo";
 import { getDocumentMaxSizeBytes } from "../config";
+import { refreshOcrInsightsForApplication } from "../ocr/insights";
+import { logError } from "../observability/logger";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -62,6 +64,20 @@ router.post(
       },
       content: req.file.buffer.toString("base64"),
     });
+
+    try {
+      await refreshOcrInsightsForApplication({
+        applicationId,
+        actorUserId: null,
+        source: "document_upload",
+      });
+    } catch (error) {
+      logError("ocr_insights_refresh_failed", {
+        code: "ocr_insights_refresh_failed",
+        applicationId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
 
     res.status(201).json({
       documentId: document.id,

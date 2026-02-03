@@ -19,6 +19,7 @@ import {
 import { pool } from "../../db";
 import { type Role, ROLES } from "../../auth/roles";
 import { type PoolClient } from "pg";
+import { logError } from "../../observability/logger";
 import {
   PIPELINE_STATES,
   ApplicationStage,
@@ -29,6 +30,7 @@ import {
 import { getDocumentAllowedMimeTypes, getDocumentMaxSizeBytes } from "../../config";
 import { recordTransactionRollback } from "../../observability/transactionTelemetry";
 import { resolveRequirementsForApplication } from "../../services/lenderProductRequirementsService";
+import { refreshOcrInsightsForApplication } from "../../ocr/insights";
 import {
   getDocumentTypeAliases,
   normalizeRequiredDocumentKey,
@@ -676,6 +678,20 @@ export async function uploadDocument(params: {
     };
 
     await client.query("commit");
+
+    try {
+      await refreshOcrInsightsForApplication({
+        applicationId: params.applicationId,
+        actorUserId: params.actorUserId,
+        source: "document_upload",
+      });
+    } catch (error) {
+      logError("ocr_insights_refresh_failed", {
+        code: "ocr_insights_refresh_failed",
+        applicationId: params.applicationId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
 
     return { status: 201, value: response, idempotent: false };
   } catch (err) {

@@ -9,9 +9,12 @@ export type CompanyOwner = {
 export type CompanyRecord = {
   id: string;
   name: string | null;
+  website: string | null;
   email: string | null;
   phone: string | null;
+  status: string | null;
   ownerId: string | null;
+  referrerId: string | null;
   owner: CompanyOwner | null;
 };
 
@@ -28,9 +31,12 @@ function normalizeCompany(row: CompanyRepoRow): CompanyRecord {
   return {
     id: row.id,
     name: row.name ?? null,
+    website: row.website ?? null,
     email: row.email ?? null,
     phone: row.phone ?? null,
+    status: row.status ?? null,
     ownerId: row.owner_id ?? null,
+    referrerId: row.referrer_id ?? null,
     owner,
   };
 }

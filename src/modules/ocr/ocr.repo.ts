@@ -217,3 +217,27 @@ export async function findOcrResultByDocumentId(
   );
   return res.rows[0] ?? null;
 }
+
+export type OcrApplicationResultRow = {
+  document_id: string;
+  document_type: string;
+  extracted_json: unknown | null;
+};
+
+export async function listOcrResultsForApplication(
+  applicationId: string,
+  client?: Queryable
+): Promise<OcrApplicationResultRow[]> {
+  const runner = client ?? pool;
+  const res = await runner.query<OcrApplicationResultRow>(
+    `select d.id as document_id,
+            d.document_type,
+            r.extracted_json
+     from documents d
+     left join ocr_results r on r.document_id = d.id
+     where d.application_id = $1
+     order by d.created_at asc`,
+    [applicationId]
+  );
+  return res.rows ?? [];
+}
