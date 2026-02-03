@@ -43,11 +43,9 @@ describe("POST /api/auth/otp/start", () => {
     });
   });
 
-  it("fails fast when Twilio env vars are missing", () => {
+  it("does not crash startup when Twilio env vars are missing", () => {
     delete process.env.TWILIO_VERIFY_SERVICE_SID;
 
-    expect(() => buildTestApp()).toThrow(
-      "Missing required environment variables: TWILIO_VERIFY_SERVICE_SID"
-    );
+    expect(() => buildTestApp()).not.toThrow();
   });
 });

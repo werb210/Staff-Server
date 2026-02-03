@@ -149,6 +149,11 @@ beforeAll(async () => {
     );
   `);
   await pool.query(`
+    create unique index if not exists call_logs_twilio_call_sid_unique
+      on call_logs (twilio_call_sid)
+      where twilio_call_sid is not null;
+  `);
+  await pool.query(`
     create table if not exists lenders (
       id uuid primary key,
       name text not null,

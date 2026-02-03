@@ -14,9 +14,6 @@ const requiredRuntimeEnv = [
   "JWT_REFRESH_SECRET",
   "JWT_EXPIRES_IN",
   "JWT_REFRESH_EXPIRES_IN",
-  "TWILIO_ACCOUNT_SID",
-  "TWILIO_AUTH_TOKEN",
-  "TWILIO_VERIFY_SERVICE_SID",
 ] as const;
 
 type EnvConfig = {
@@ -146,6 +143,34 @@ export function assertEnv(): void {
     logError("missing_env", { keys: missing });
     throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
   }
+
+  const optionalServices = [
+    {
+      name: "twilio_verify",
+      keys: ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_VERIFY_SERVICE_SID"],
+    },
+    {
+      name: "twilio_voice",
+      keys: [
+        "TWILIO_ACCOUNT_SID",
+        "TWILIO_AUTH_TOKEN",
+        "TWILIO_API_KEY",
+        "TWILIO_API_SECRET",
+        "TWILIO_VOICE_APP_SID",
+        "TWILIO_VOICE_CALLER_ID",
+      ],
+    },
+  ];
+
+  optionalServices.forEach((service) => {
+    const missingKeys = service.keys.filter((key) => !getEnvValue(key));
+    if (missingKeys.length > 0) {
+      logWarn("optional_service_disabled", {
+        service: service.name,
+        missing: missingKeys,
+      });
+    }
+  });
 
   const allowlist = parseCsv(
     getEnvValue("CORS_ALLOWED_ORIGINS") ?? getEnvValue("CORS_ALLOWLIST"),

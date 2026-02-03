@@ -53,11 +53,17 @@ export async function createCallLog(params: {
 }): Promise<CallLogRecord> {
   const runner = params.client ?? pool;
   const id = randomUUID();
+  const hasTwilioSid = Boolean(params.twilioCallSid);
+  const conflictClause = hasTwilioSid
+    ? `on conflict (twilio_call_sid)
+       do update set phone_number = call_logs.phone_number`
+    : "";
   const res = await runner.query<CallLogRecord>(
     `insert into call_logs
      (id, phone_number, from_number, to_number, twilio_call_sid, direction, status, staff_user_id, crm_contact_id,
       application_id, created_at, started_at)
      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now(), now())
+     ${conflictClause}
      returning id, phone_number, from_number, to_number, twilio_call_sid, direction, status, duration_seconds,
                staff_user_id, crm_contact_id, application_id, error_code, error_message, recording_sid,
                recording_duration_seconds, created_at, started_at, ended_at`,

@@ -6,7 +6,7 @@ describe("twilio startup without configuration", () => {
     jest.resetModules();
   });
 
-  it("fails fast when Twilio env vars are missing", () => {
+  it("does not fail when Twilio env vars are missing", () => {
     process.env = { ...originalEnv };
     delete process.env.TWILIO_ACCOUNT_SID;
     delete process.env.TWILIO_AUTH_TOKEN;
@@ -18,8 +18,6 @@ describe("twilio startup without configuration", () => {
       jest.isolateModules(() => {
         require("../index");
       });
-    }).toThrow(
-      "Missing required environment variables: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_VERIFY_SERVICE_SID"
-    );
+    }).not.toThrow();
   });
 });

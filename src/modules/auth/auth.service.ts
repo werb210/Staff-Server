@@ -17,6 +17,7 @@ import {
   consumeRefreshToken,
   findActiveRefreshTokenForUser,
   findRefreshTokenByHash,
+  revokeRefreshToken,
 } from "./auth.repo";
 import { AppError, forbiddenError } from "../../middleware/errors";
 import { recordAuditEvent } from "../audit/audit.service";
@@ -63,6 +64,17 @@ type VerifyOtpFailure = {
   status: number;
   error: { code: string; message: string };
 };
+
+const refreshReplayGuard = new Map<string, NodeJS.Timeout>();
+
+function registerRefreshReplay(tokenHash: string, windowMs: number): boolean {
+  if (refreshReplayGuard.has(tokenHash)) {
+    return false;
+  }
+  const timeout = setTimeout(() => refreshReplayGuard.delete(tokenHash), windowMs);
+  refreshReplayGuard.set(tokenHash, timeout);
+  return true;
+}
 
 function assertE164(phone: unknown): string {
   const normalized = normalizePhoneNumber(phone);
@@ -1050,8 +1062,9 @@ export async function refreshSession(params: {
 > {
   const requestId = getRequestId() ?? "unknown";
   const replayGraceMs = 2 * 60 * 1000;
+  const rawRefreshToken = params.refreshToken?.trim();
   try {
-    const refreshToken = params.refreshToken?.trim();
+    const refreshToken = rawRefreshToken;
     if (!refreshToken) {
       return {
         ok: false,
@@ -1082,6 +1095,7 @@ export async function refreshSession(params: {
           const userRecord = await findAuthUserById(payload.userId, db);
           if (!userRecord) {
             await dbClient.query("commit");
+            await revokeRefreshToken(tokenHash);
             return {
               ok: false,
               status: 401,
@@ -1104,6 +1118,7 @@ export async function refreshSession(params: {
           const tokenVersion = userRecord.tokenVersion ?? 0;
           if (payload.tokenVersion !== tokenVersion) {
             await dbClient.query("commit");
+            await revokeRefreshToken(tokenHash);
             return {
               ok: false,
               status: 401,
@@ -1114,6 +1129,17 @@ export async function refreshSession(params: {
           const activeToken = await findActiveRefreshTokenForUser(userRecord.id, db);
           if (!activeToken) {
             await dbClient.query("commit");
+            await revokeRefreshToken(tokenHash);
+            return {
+              ok: false,
+              status: 401,
+              error: { code: "invalid_refresh_token", message: "Invalid refresh token." },
+            };
+          }
+
+          if (!registerRefreshReplay(tokenHash, replayGraceMs)) {
+            await dbClient.query("commit");
+            await revokeRefreshToken(tokenHash);
             return {
               ok: false,
               status: 401,
@@ -1144,6 +1170,7 @@ export async function refreshSession(params: {
         }
 
         await dbClient.query("commit");
+        await revokeRefreshToken(tokenHash);
         return {
           ok: false,
           status: 401,
@@ -1154,6 +1181,7 @@ export async function refreshSession(params: {
       const userRecord = await findAuthUserById(payload.userId, db);
       if (!userRecord) {
         await dbClient.query("commit");
+        await revokeRefreshToken(tokenHash);
         return {
           ok: false,
           status: 401,
@@ -1176,6 +1204,7 @@ export async function refreshSession(params: {
       const tokenVersion = userRecord.tokenVersion ?? 0;
       if (payload.tokenVersion !== tokenVersion) {
         await dbClient.query("commit");
+        await revokeRefreshToken(tokenHash);
         return {
           ok: false,
           status: 401,
@@ -1237,6 +1266,16 @@ export async function refreshSession(params: {
         status: err.status,
         error: { code: err.code, message: err.message },
       };
+    }
+    if (rawRefreshToken) {
+      try {
+        await revokeRefreshToken(hashRefreshToken(rawRefreshToken));
+      } catch (revokeError) {
+        logWarn("refresh_token_revoke_failed", {
+          requestId,
+          error: revokeError instanceof Error ? revokeError.message : "unknown_error",
+        });
+      }
     }
     logWarn("refresh_failed", {
       requestId,

@@ -10,14 +10,69 @@ import { getVoiceRestrictedNumbers } from "../../config";
 import { recordAuditEvent } from "../audit/audit.service";
 
 const VOICE_TOKEN_TTL_SECONDS = 15 * 60;
-const DEFAULT_HOLD_TWIML = "<Response><Say>One moment.</Say><Pause length=\"3600\"/></Response>";
+const DEFAULT_HOLD_TWIML =
+  "<Response><Say>One moment.</Say><Pause length=\"3600\"/></Response>";
+
+const VOICE_ENV_KEYS = [
+  "TWILIO_ACCOUNT_SID",
+  "TWILIO_AUTH_TOKEN",
+  "TWILIO_API_KEY",
+  "TWILIO_API_SECRET",
+  "TWILIO_VOICE_APP_SID",
+  "TWILIO_VOICE_CALLER_ID",
+] as const;
+
+const TERMINAL_STATUSES: CallStatus[] = [
+  "completed",
+  "failed",
+  "canceled",
+  "cancelled",
+  "busy",
+  "no_answer",
+  "ended",
+];
+
+const NORMALIZED_LIFECYCLE_STATUSES: CallStatus[] = [
+  "initiated",
+  "ringing",
+  "in_progress",
+  "completed",
+  "failed",
+];
+
+export function getVoiceAvailability(): { enabled: boolean; missing: string[] } {
+  const missing = VOICE_ENV_KEYS.filter((key) => {
+    const value = process.env[key];
+    return !value || !value.trim();
+  });
+  return { enabled: missing.length === 0, missing };
+}
 
 function requireVoiceEnv(name: string): string {
   const value = process.env[name];
   if (!value || !value.trim()) {
-    throw new AppError("twilio_misconfigured", "Twilio voice is not configured.", 500);
+    const error = new AppError(
+      "voice_disabled",
+      "Voice service is not configured.",
+      503
+    );
+    (error as { details?: unknown }).details = { missing: [name] };
+    throw error;
   }
   return value.trim();
+}
+
+function assertVoiceEnabled(): void {
+  const availability = getVoiceAvailability();
+  if (!availability.enabled) {
+    const error = new AppError(
+      "voice_disabled",
+      "Voice service is not configured.",
+      503
+    );
+    (error as { details?: unknown }).details = { missing: availability.missing };
+    throw error;
+  }
 }
 
 function getVoiceConfig(): {
@@ -88,6 +143,22 @@ function assertCallOwnership(call: CallLogRecord, staffUserId: string | null): v
   }
 }
 
+function normalizeLifecycleStatus(status: CallStatus): CallStatus {
+  switch (status) {
+    case "connected":
+      return "in_progress";
+    case "ended":
+      return "completed";
+    case "busy":
+    case "no_answer":
+    case "canceled":
+    case "cancelled":
+      return "failed";
+    default:
+      return status;
+  }
+}
+
 function mapTwilioStatus(status: string | null | undefined): CallStatus | null {
   if (!status) return null;
   switch (status) {
@@ -102,19 +173,17 @@ function mapTwilioStatus(status: string | null | undefined): CallStatus | null {
     case "completed":
       return "completed";
     case "failed":
-      return "failed";
     case "busy":
-      return "busy";
     case "no-answer":
-      return "no_answer";
     case "canceled":
-      return "canceled";
+      return "failed";
     default:
       return null;
   }
 }
 
 export function issueVoiceToken(params: { userId: string }): string {
+  assertVoiceEnabled();
   const { accountSid, apiKey, apiSecret, applicationSid } = getVoiceConfig();
 
   const token = new AccessToken(accountSid, apiKey, apiSecret, {
@@ -136,9 +205,12 @@ export async function startVoiceCall(params: {
   staffUserId: string | null;
   crmContactId?: string | null;
   applicationId?: string | null;
+  callSid?: string | null;
+  createTwilioCall?: boolean;
   ip?: string;
   userAgent?: string;
 }): Promise<{ callSid: string; call: CallLogRecord }> {
+  assertVoiceEnabled();
   assertAllowedDestination(params.phoneNumber);
   const normalizedPhone = normalizePhoneNumber(params.phoneNumber);
   if (!normalizedPhone) {
@@ -148,38 +220,45 @@ export async function startVoiceCall(params: {
   const { callerId, applicationSid } = getVoiceConfig();
   const statusCallbackUrl = getVoiceStatusCallbackUrl();
 
-  let callSid: string;
-  try {
-    const client = getTwilioClient();
-    const call = await client.calls.create({
-      to: normalizedPhone,
-      from: callerId,
-      applicationSid,
-      statusCallback: statusCallbackUrl ?? undefined,
-      statusCallbackEvent: statusCallbackUrl
-        ? [
-            "initiated",
-            "ringing",
-            "answered",
-            "completed",
-            "busy",
-            "failed",
-            "no-answer",
-            "canceled",
-          ]
-        : undefined,
-      statusCallbackMethod: statusCallbackUrl ? "POST" : undefined,
-    });
-    callSid = call.sid;
-  } catch (error) {
-    const details = normalizeTwilioError(error);
-    logError("voice_call_start_failed", {
-      error: details.message,
-      code: details.code,
-      phoneNumber: normalizedPhone,
-      staffUserId: params.staffUserId,
-    });
-    throw new AppError("twilio_error", "Unable to start call.", 502);
+  const shouldCreateTwilioCall = params.createTwilioCall ?? !params.callSid;
+  let callSid = params.callSid ?? "";
+  if (shouldCreateTwilioCall) {
+    try {
+      const client = getTwilioClient();
+      const call = await client.calls.create({
+        to: normalizedPhone,
+        from: callerId,
+        applicationSid,
+        statusCallback: statusCallbackUrl ?? undefined,
+        statusCallbackEvent: statusCallbackUrl
+          ? [
+              "initiated",
+              "ringing",
+              "answered",
+              "completed",
+              "busy",
+              "failed",
+              "no-answer",
+              "canceled",
+            ]
+          : undefined,
+        statusCallbackMethod: statusCallbackUrl ? "POST" : undefined,
+      });
+      callSid = call.sid;
+    } catch (error) {
+      const details = normalizeTwilioError(error);
+      logError("voice_call_start_failed", {
+        error: details.message,
+        code: details.code,
+        phoneNumber: normalizedPhone,
+        staffUserId: params.staffUserId,
+      });
+      throw new AppError("twilio_error", "Unable to start call.", 502);
+    }
+  }
+
+  if (!callSid) {
+    throw new AppError("validation_error", "Call SID is required.", 400);
   }
 
   const call = await startCall({
@@ -207,6 +286,7 @@ export async function endVoiceCall(params: {
   ip?: string;
   userAgent?: string;
 }): Promise<CallLogRecord> {
+  assertVoiceEnabled();
   const finalStatus: CallStatus = params.status ?? "completed";
 
   const callLog = await findCallLogByTwilioSid(params.callSid);
@@ -215,18 +295,22 @@ export async function endVoiceCall(params: {
   }
   assertCallOwnership(callLog, params.staffUserId);
 
-  try {
-    const client = getTwilioClient();
-    await client.calls(params.callSid).update({ status: "completed" });
-  } catch (error) {
-    const details = normalizeTwilioError(error);
-    logError("voice_call_end_failed", {
-      error: details.message,
-      code: details.code,
-      callSid: params.callSid,
-      staffUserId: params.staffUserId,
-    });
-    throw new AppError("twilio_error", "Unable to end call.", 502);
+  const isTerminal = TERMINAL_STATUSES.includes(callLog.status);
+  let twilioError: AppError | null = null;
+  if (!isTerminal) {
+    try {
+      const client = getTwilioClient();
+      await client.calls(params.callSid).update({ status: "completed" });
+    } catch (error) {
+      const details = normalizeTwilioError(error);
+      logError("voice_call_end_failed", {
+        error: details.message,
+        code: details.code,
+        callSid: params.callSid,
+        staffUserId: params.staffUserId,
+      });
+      twilioError = new AppError("twilio_error", "Unable to end call.", 502);
+    }
   }
 
   const endedAt = new Date();
@@ -238,12 +322,16 @@ export async function endVoiceCall(params: {
 
   const updated = await updateCallStatus({
     id: callLog.id,
-    status: finalStatus,
+    status: normalizeLifecycleStatus(twilioError ? "failed" : finalStatus),
     durationSeconds,
     actorUserId: params.staffUserId,
     ip: params.ip,
     userAgent: params.userAgent,
   });
+
+  if (twilioError) {
+    throw twilioError;
+  }
 
   return updated;
 }
@@ -257,6 +345,7 @@ export async function updateVoiceCallStatus(params: {
   ip?: string;
   userAgent?: string;
 }): Promise<CallLogRecord> {
+  assertVoiceEnabled();
   const callLog = await findCallLogByTwilioSid(params.callSid);
   if (!callLog) {
     throw new AppError("not_found", "Call not found.", 404);
@@ -267,10 +356,14 @@ export async function updateVoiceCallStatus(params: {
   if (!statusFromInput) {
     throw new AppError("validation_error", "Unsupported call status.", 400);
   }
+  const normalizedStatus = normalizeLifecycleStatus(statusFromInput);
+  if (!NORMALIZED_LIFECYCLE_STATUSES.includes(normalizedStatus)) {
+    throw new AppError("validation_error", "Unsupported call status.", 400);
+  }
 
   const updated = await updateCallStatus({
     id: callLog.id,
-    status: statusFromInput,
+    status: normalizedStatus,
     durationSeconds: params.durationSeconds ?? undefined,
     actorUserId: params.staffUserId,
     ip: params.ip,
@@ -280,6 +373,19 @@ export async function updateVoiceCallStatus(params: {
   return updated;
 }
 
+export async function getVoiceCallStatus(params: {
+  callSid: string;
+  staffUserId: string | null;
+}): Promise<CallLogRecord> {
+  assertVoiceEnabled();
+  const callLog = await findCallLogByTwilioSid(params.callSid);
+  if (!callLog) {
+    throw new AppError("not_found", "Call not found.", 404);
+  }
+  assertCallOwnership(callLog, params.staffUserId);
+  return callLog;
+}
+
 export async function controlVoiceCall(params: {
   callSid: string;
   action: "mute" | "hold" | "resume" | "hangup";
@@ -287,21 +393,13 @@ export async function controlVoiceCall(params: {
   ip?: string;
   userAgent?: string;
 }): Promise<CallLogRecord> {
+  assertVoiceEnabled();
   const callLog = await findCallLogByTwilioSid(params.callSid);
   if (!callLog) {
     throw new AppError("not_found", "Call not found.", 404);
   }
   assertCallOwnership(callLog, params.staffUserId);
-  const terminalStatuses: CallStatus[] = [
-    "ended",
-    "failed",
-    "completed",
-    "cancelled",
-    "canceled",
-    "busy",
-    "no_answer",
-  ];
-  if (terminalStatuses.includes(callLog.status) && params.action !== "hangup") {
+  if (TERMINAL_STATUSES.includes(callLog.status) && params.action !== "hangup") {
     throw new AppError("call_inactive", "Call is no longer active.", 409);
   }
 
@@ -315,6 +413,7 @@ export async function controlVoiceCall(params: {
           ? `<Response><Dial><Number>${toNumber}</Number></Dial></Response>`
           : null;
 
+  let twilioError: AppError | null = null;
   try {
     const client = getTwilioClient();
     if (params.action === "hangup") {
@@ -331,7 +430,7 @@ export async function controlVoiceCall(params: {
       staffUserId: params.staffUserId,
       action: params.action,
     });
-    throw new AppError("twilio_error", "Unable to update call.", 502);
+    twilioError = new AppError("twilio_error", "Unable to update call.", 502);
   }
 
   const nextStatus: CallStatus =
@@ -339,7 +438,7 @@ export async function controlVoiceCall(params: {
 
   const updated = await updateCallStatus({
     id: callLog.id,
-    status: nextStatus,
+    status: normalizeLifecycleStatus(nextStatus),
     actorUserId: params.staffUserId,
     ip: params.ip,
     userAgent: params.userAgent,
@@ -362,6 +461,10 @@ export async function controlVoiceCall(params: {
     },
   });
 
+  if (twilioError) {
+    throw twilioError;
+  }
+
   return updated;
 }
 
@@ -373,6 +476,7 @@ export async function recordVoiceCallRecording(params: {
   ip?: string;
   userAgent?: string;
 }): Promise<CallLogRecord> {
+  assertVoiceEnabled();
   const callLog = await findCallLogByTwilioSid(params.callSid);
   if (!callLog) {
     throw new AppError("not_found", "Call not found.", 404);
@@ -426,7 +530,7 @@ export async function handleVoiceStatusWebhook(params: {
 
   const updated = await updateCallStatus({
     id: callLog.id,
-    status: mappedStatus,
+    status: normalizeLifecycleStatus(mappedStatus),
     durationSeconds: sanitizedDuration,
     fromNumber: params.from ?? undefined,
     toNumber: params.to ?? undefined,

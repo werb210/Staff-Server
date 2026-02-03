@@ -13,6 +13,8 @@ import {
   updateVoiceCallStatus,
   recordVoiceCallRecording,
   controlVoiceCall,
+  getVoiceAvailability,
+  getVoiceCallStatus,
 } from "../modules/voice/voice.service";
 import { listCalls } from "../modules/calls/calls.service";
 
@@ -27,6 +29,7 @@ const callStartSchema = z
     phoneNumber: z.string().min(1).optional(),
     contactId: z.string().uuid().optional(),
     applicationId: z.string().uuid().optional(),
+    callSid: z.string().min(1).optional(),
   })
   .refine((data) => Boolean(data.toPhone ?? data.phoneNumber), {
     message: "toPhone is required.",
@@ -75,9 +78,7 @@ const callStatusSchema = z
     durationSeconds: z.number().int().nonnegative().optional().nullable(),
     callDuration: z.string().min(1).optional(),
   })
-  .refine((data) => Boolean(data.status ?? data.callStatus), {
-    message: "status is required.",
-  });
+  .strict();
 
 const callRecordingSchema = z.object({
   callSid: z.string().min(1),
@@ -128,6 +129,19 @@ function resolveStaffUserId(params: {
   throw new AppError("forbidden", "You do not have access to this staff user.", 403);
 }
 
+function assertVoiceEnabled(): void {
+  const availability = getVoiceAvailability();
+  if (!availability.enabled) {
+    const error = new AppError(
+      "voice_disabled",
+      "Voice service is not configured.",
+      503
+    );
+    (error as { details?: unknown }).details = { missing: availability.missing };
+    throw error;
+  }
+}
+
 router.post(
   "/token",
   requireAuth,
@@ -137,6 +151,7 @@ router.post(
   }),
   voiceRateLimit(),
   safeHandler(async (req, res) => {
+    assertVoiceEnabled();
     const parsed = voiceTokenSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       throw new AppError("validation_error", "Invalid token request.", 400);
@@ -161,6 +176,7 @@ router.post(
   }),
   voiceRateLimit(),
   safeHandler(async (req, res) => {
+    assertVoiceEnabled();
     const parsed = callCreateSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       throw new AppError("validation_error", "Invalid call payload.", 400);
@@ -197,6 +213,7 @@ router.post(
   }),
   voiceRateLimit(),
   safeHandler(async (req, res) => {
+    assertVoiceEnabled();
     const parsed = callStartSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       throw new AppError("validation_error", "Invalid call payload.", 400);
@@ -212,6 +229,8 @@ router.post(
       staffUserId,
       crmContactId: parsed.data.contactId ?? null,
       applicationId: parsed.data.applicationId ?? null,
+      callSid: parsed.data.callSid ?? null,
+      createTwilioCall: !parsed.data.callSid,
       ip: req.ip,
       userAgent: req.get("user-agent"),
     });
@@ -233,6 +252,7 @@ router.post(
   }),
   voiceRateLimit(),
   safeHandler(async (req, res) => {
+    assertVoiceEnabled();
     const parsed = callControlSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       throw new AppError("validation_error", "Invalid call control payload.", 400);
@@ -259,6 +279,7 @@ router.post(
   }),
   voiceRateLimit(),
   safeHandler(async (req, res) => {
+    assertVoiceEnabled();
     const parsed = callControlSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       throw new AppError("validation_error", "Invalid call control payload.", 400);
@@ -285,6 +306,7 @@ router.post(
   }),
   voiceRateLimit(),
   safeHandler(async (req, res) => {
+    assertVoiceEnabled();
     const parsed = callControlSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       throw new AppError("validation_error", "Invalid call control payload.", 400);
@@ -311,6 +333,7 @@ router.post(
   }),
   voiceRateLimit(),
   safeHandler(async (req, res) => {
+    assertVoiceEnabled();
     const parsed = callControlSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       throw new AppError("validation_error", "Invalid call control payload.", 400);
@@ -337,6 +360,7 @@ router.post(
   }),
   voiceRateLimit(),
   safeHandler(async (req, res) => {
+    assertVoiceEnabled();
     const parsed = callEndSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       throw new AppError("validation_error", "Invalid call end payload.", 400);
@@ -364,9 +388,19 @@ router.post(
   }),
   voiceRateLimit(),
   safeHandler(async (req, res) => {
+    assertVoiceEnabled();
     const parsed = callStatusSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       throw new AppError("validation_error", "Invalid call status payload.", 400);
+    }
+
+    if (!parsed.data.status && !parsed.data.callStatus) {
+      const current = await getVoiceCallStatus({
+        callSid: parsed.data.callSid,
+        staffUserId: req.user?.userId ?? null,
+      });
+      res.status(200).json({ ok: true, call: current });
+      return;
     }
 
     const durationSeconds =
@@ -399,6 +433,7 @@ router.post(
   }),
   voiceRateLimit(),
   safeHandler(async (req, res) => {
+    assertVoiceEnabled();
     const parsed = callRecordingSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       throw new AppError("validation_error", "Invalid call recording payload.", 400);
@@ -435,6 +470,7 @@ router.get(
   }),
   voiceRateLimit(),
   safeHandler(async (req, res) => {
+    assertVoiceEnabled();
     const contextInput =
       typeof req.query.context === "string" ? req.query.context : undefined;
     const parsedContext = contextSchema.safeParse(contextInput);
