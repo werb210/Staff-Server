@@ -8,7 +8,10 @@ const isCi = process.env.CI === "true" || process.env.CI === "1";
 function requireBaseUrl(): string | null {
   const baseUrl = process.env.BASE_URL;
   if (!baseUrl) {
-    if (isCi || isCodespaces) {
+    if (isCodespaces) {
+      return null;
+    }
+    if (isCi) {
       throw new Error("BASE_URL is required for runtime health checks.");
     }
     return null;

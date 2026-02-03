@@ -581,7 +581,7 @@ async function transmitSubmission(params: {
   await createSubmissionEvent({
     applicationId: params.applicationId,
     lenderId: params.lenderId,
-    method: params.submissionMethod,
+    method: submissionMethod,
     status: "submitted",
     internalError: null,
     timestamp: new Date(),
