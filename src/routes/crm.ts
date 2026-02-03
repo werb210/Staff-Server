@@ -3,6 +3,7 @@ import { requireAuth, requireCapability } from "../middleware/auth";
 import { CAPABILITIES } from "../auth/capabilities";
 import { safeHandler } from "../middleware/safeHandler";
 import { respondOk } from "../utils/respondOk";
+import { handleListCrmTimeline } from "../modules/crm/timeline.controller";
 
 const router = Router();
 
@@ -49,5 +50,7 @@ router.get("/contacts", safeHandler((req, res) => {
     }
   );
 }));
+
+router.get("/timeline", safeHandler(handleListCrmTimeline));
 
 export default router;
