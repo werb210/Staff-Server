@@ -13,10 +13,13 @@ export type ContactCompany = {
 
 export type ContactRecord = {
   id: string;
+  name: string | null;
   email: string | null;
   phone: string | null;
+  status: string | null;
   companyId: string | null;
   ownerId: string | null;
+  referrerId: string | null;
   company: ContactCompany | null;
   owner: ContactOwner | null;
 };
@@ -41,10 +44,13 @@ function normalizeContact(row: ContactRepoRow): ContactRecord {
 
   return {
     id: row.id,
+    name: row.name ?? null,
     email: row.email ?? null,
     phone: row.phone ?? null,
+    status: row.status ?? null,
     companyId: row.company_id ?? null,
     ownerId: row.owner_id ?? null,
+    referrerId: row.referrer_id ?? null,
     company,
     owner,
   };

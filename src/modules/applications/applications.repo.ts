@@ -28,6 +28,14 @@ export type ApplicationRecord = {
   updated_at: Date;
 };
 
+export type ApplicationOcrSnapshot = {
+  id: string;
+  ocr_missing_fields: unknown | null;
+  ocr_conflicting_fields: unknown | null;
+  ocr_has_missing_fields: boolean | null;
+  ocr_has_conflicts: boolean | null;
+};
+
 export type DocumentRecord = {
   id: string;
   application_id: string;
@@ -192,6 +200,54 @@ export async function updateApplicationStatus(params: {
      set status = $1, updated_at = now()
      where id = $2`,
     [params.status, params.applicationId]
+  );
+}
+
+export async function findApplicationOcrSnapshot(
+  applicationId: string,
+  client?: Queryable
+): Promise<ApplicationOcrSnapshot | null> {
+  const runner = client ?? pool;
+  const res = await runner.query<ApplicationOcrSnapshot>(
+    `select id,
+            ocr_missing_fields,
+            ocr_conflicting_fields,
+            ocr_has_missing_fields,
+            ocr_has_conflicts
+     from applications
+     where id = $1
+     limit 1`,
+    [applicationId]
+  );
+  return res.rows[0] ?? null;
+}
+
+export async function updateApplicationOcrInsights(params: {
+  applicationId: string;
+  missingFields: string[];
+  conflictingFields: string[];
+  normalizedValues: Record<string, string>;
+  client?: Queryable;
+}): Promise<void> {
+  const runner = params.client ?? pool;
+  await runner.query(
+    `update applications
+     set ocr_missing_fields = $2::jsonb,
+         ocr_conflicting_fields = $3::jsonb,
+         ocr_normalized_values = $4::jsonb,
+         ocr_has_missing_fields = $5,
+         ocr_has_conflicts = $6,
+         ocr_insights_updated_at = now(),
+         updated_at = now()
+     where id = $1`,
+    [
+      params.applicationId,
+      JSON.stringify(params.missingFields),
+      JSON.stringify(params.conflictingFields),
+      JSON.stringify(params.normalizedValues),
+      params.missingFields.length > 0,
+      params.conflictingFields.length > 0,
+    ]
   );
 }
 

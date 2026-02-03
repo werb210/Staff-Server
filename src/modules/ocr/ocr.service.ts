@@ -19,6 +19,7 @@ import { createOpenAiOcrProvider, type OcrProvider } from "./ocr.provider";
 import { createOcrStorage, OcrStorageValidationError, type OcrStorage } from "./ocr.storage";
 import { type OcrJobRecord } from "./ocr.types";
 import { logError } from "../../observability/logger";
+import { refreshOcrInsightsForApplication } from "../../ocr/insights";
 
 const OCR_RETRY_BASE_MS = 1000;
 const OCR_RETRY_MAX_MS = 15 * 60 * 1000;
@@ -135,6 +136,19 @@ export async function processOcrJob(
       extractedJson: result.json,
       meta: result.meta,
     });
+    try {
+      await refreshOcrInsightsForApplication({
+        applicationId: job.application_id,
+        actorUserId: null,
+        source: "ocr_update",
+      });
+    } catch (insightError) {
+      logError("ocr_insights_refresh_failed", {
+        code: "ocr_insights_refresh_failed",
+        applicationId: job.application_id,
+        error: insightError instanceof Error ? insightError.message : "unknown_error",
+      });
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown_error";
     if (error instanceof OcrStorageValidationError) {
