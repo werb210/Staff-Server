@@ -1,8 +1,7 @@
 export const LENDER_SUBMISSION_METHODS = [
-  "EMAIL",
-  "API",
-  "GOOGLE_SHEETS",
-  "MANUAL",
+  "email",
+  "api",
+  "google_sheet",
 ] as const;
 
 export const LENDER_COUNTRIES = ["CA", "US", "BOTH"] as const;

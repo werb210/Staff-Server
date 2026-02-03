@@ -160,7 +160,7 @@ describe("lender submissions", () => {
       .send({ name: "Lender Application", productType: "standard" });
 
     const applicationId = appRes.body.application.id;
-    const { lenderId, lenderProductId } = await seedLenderProduct("API");
+    const { lenderId, lenderProductId } = await seedLenderProduct("api");
     await pool.query(
       "update applications set lender_id = $1, lender_product_id = $2 where id = $3",
       [lenderId, lenderProductId, applicationId]
@@ -227,7 +227,7 @@ describe("lender submissions", () => {
       .get(`/api/lender/submissions/${submission1.body.submission.id}`)
       .set("Authorization", `Bearer ${login.body.accessToken}`);
     expect(status.status).toBe(200);
-    expect(status.body.submission.status).toBe("sent");
+    expect(status.body.submission.status).toBe("submitted");
 
     const audit = await pool.query(
       `select event_action as action
@@ -263,7 +263,7 @@ describe("lender submissions", () => {
       .send({ name: "Blocked Application", productType: "standard" });
 
     const applicationId = appRes.body.application.id;
-    const { lenderId, lenderProductId } = await seedLenderProduct("API");
+    const { lenderId, lenderProductId } = await seedLenderProduct("api");
     await pool.query(
       "update applications set lender_id = $1, lender_product_id = $2 where id = $3",
       [lenderId, lenderProductId, applicationId]
@@ -296,7 +296,7 @@ describe("lender submissions", () => {
     });
 
     const applicationId = await createApplicationWithDocuments(login.body.accessToken);
-    const { lenderId, lenderProductId } = await seedLenderProduct("EMAIL", "submissions@lender.com");
+    const { lenderId, lenderProductId } = await seedLenderProduct("email", "submissions@lender.com");
     await pool.query(
       "update applications set lender_id = $1, lender_product_id = $2 where id = $3",
       [lenderId, lenderProductId, applicationId]
@@ -310,7 +310,7 @@ describe("lender submissions", () => {
       .send({ applicationId, lenderId, lenderProductId });
 
     expect(submission.status).toBe(201);
-    expect(submission.body.submission.status).toBe("sent");
+    expect(submission.body.submission.status).toBe("submitted");
 
     const stored = await pool.query<{ payload: { attachmentBundle?: unknown[] } }>(
       "select payload from lender_submissions where id = $1",
@@ -344,7 +344,7 @@ describe("lender submissions", () => {
     });
 
     const applicationId = await createApplicationWithDocuments(login.body.accessToken);
-    const { lenderId, lenderProductId } = await seedLenderProduct("API");
+    const { lenderId, lenderProductId } = await seedLenderProduct("api");
     await pool.query(
       "update applications set lender_id = $1, lender_product_id = $2 where id = $3",
       [lenderId, lenderProductId, applicationId]
@@ -386,7 +386,7 @@ describe("lender submissions", () => {
     const lenderProductId = randomUUID();
     await pool.query(
       `insert into lenders (id, name, country, submission_method, active, status, created_at, updated_at)
-       values ($1, $2, $3, 'EMAIL', true, 'ACTIVE', now(), now())`,
+       values ($1, $2, $3, 'email', true, 'ACTIVE', now(), now())`,
       [lenderId, "Missing Config Lender", "US"]
     );
     await pool.query(
@@ -446,7 +446,7 @@ describe("lender submissions", () => {
       .send({ name: "Retry Application", productType: "standard" });
 
     const applicationId = appRes.body.application.id;
-    const { lenderId, lenderProductId } = await seedLenderProduct("API");
+    const { lenderId, lenderProductId } = await seedLenderProduct("api");
     await pool.query(
       "update applications set lender_id = $1, lender_product_id = $2, metadata = $3 where id = $4",
       [lenderId, lenderProductId, { forceFailure: true }, applicationId]
@@ -511,6 +511,6 @@ describe("lender submissions", () => {
       .set("Authorization", `Bearer ${login.body.accessToken}`)
       .set("x-request-id", requestId);
     expect(retry.status).toBe(200);
-    expect(retry.body.retry.status).toBe("sent");
+    expect(retry.body.retry.status).toBe("submitted");
   });
 });

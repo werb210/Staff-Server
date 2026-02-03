@@ -49,7 +49,7 @@ describe("lenders CRUD", () => {
       {
         name: "Smoke Test Lender",
         country: "CA",
-        submissionMethod: "EMAIL",
+        submissionMethod: "email",
         submissionEmail: "submissions@smoke-lender.com",
       },
       authHeader(accessToken)

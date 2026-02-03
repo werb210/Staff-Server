@@ -79,7 +79,7 @@ describe("lender list endpoints", () => {
     const lenderId = randomUUID();
     await pool.query(
       `insert into lenders (id, name, country, submission_email, submission_method, status, active, created_at, updated_at)
-       values ($1, $2, $3, $4, 'EMAIL', $5, $6, now(), now())`,
+       values ($1, $2, $3, $4, 'email', $5, $6, now(), now())`,
       [
         lenderId,
         "List Lender",
@@ -138,7 +138,7 @@ describe("lender list endpoints", () => {
         name: "Persistent Lender",
         country: "US",
         active: true,
-        submissionMethod: "EMAIL",
+        submissionMethod: "email",
         submissionEmail: "submissions@persistent-lender.com",
         contact: {
           name: "Pat Smith",
@@ -159,7 +159,7 @@ describe("lender list endpoints", () => {
         name: "Persistent Lender Updated",
         country: "CA",
         active: false,
-        submissionMethod: "API",
+        submissionMethod: "api",
         apiConfig: { endpoint: "https://api.lender.test" },
         submissionEmail: "submissions@persistent-lender.ca",
         contact: {
@@ -189,7 +189,7 @@ describe("lender list endpoints", () => {
       contact_phone: "15557654321",
       website: "https://persistent-lender.ca",
       api_config: { endpoint: "https://api.lender.test" },
-      submission_method: "API",
+      submission_method: "api",
       submission_email: "submissions@persistent-lender.ca",
     });
   });

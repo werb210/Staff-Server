@@ -2,13 +2,12 @@ import { randomUUID } from "crypto";
 import { pool } from "../../src/db";
 import { createUserAccount } from "../../src/modules/auth/auth.service";
 import { ROLES } from "../../src/auth/roles";
-import { SubmissionRouter } from "../../src/modules/lenderSubmissions/SubmissionRouter";
 import { submitApplication } from "../../src/modules/lender/lender.service";
 
 const submitMock = jest.fn();
 
-jest.mock("../../src/modules/lenderSubmissions/SubmissionRouter", () => ({
-  SubmissionRouter: jest.fn().mockImplementation(() => ({
+jest.mock("../../src/modules/submissions/adapters/GoogleSheetSubmissionAdapter", () => ({
+  GoogleSheetSubmissionAdapter: jest.fn().mockImplementation(() => ({
     submit: submitMock,
   })),
 }));
@@ -19,22 +18,20 @@ const nextPhone = (): string => `+1415555${String(phoneCounter++).padStart(4, "0
 async function seedLenderProduct(): Promise<{ lenderId: string; lenderProductId: string }> {
   const lenderId = randomUUID();
   const lenderProductId = randomUUID();
-  const mapping = {
-    "Application ID": "application.id",
-    "Applicant First Name": "application.metadata.applicant.firstName",
-  };
   await pool.query(
-    `insert into lenders (id, name, country, submission_method, submission_email, google_sheet_id, google_sheet_tab, google_sheet_mapping, active, status, created_at, updated_at)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, true, 'ACTIVE', now(), now())`,
+    `insert into lenders (id, name, country, submission_method, submission_email, submission_config, active, status, created_at, updated_at)
+     values ($1, $2, $3, $4, $5, $6, true, 'ACTIVE', now(), now())`,
     [
       lenderId,
       "Merchant Growth",
       "US",
-      "GOOGLE_SHEETS",
+      "google_sheet",
       null,
-      "sheet-123",
-      "Sheet1",
-      mapping,
+      {
+        spreadsheetId: "sheet-123",
+        sheetName: "Sheet1",
+        columnMapVersion: "v1",
+      },
     ]
   );
   await pool.query(
@@ -64,6 +61,7 @@ async function seedLenderProduct(): Promise<{ lenderId: string; lenderProductId:
 
 async function resetDb(): Promise<void> {
   const tables = [
+    "submission_events",
     "client_submissions",
     "lender_submission_retries",
     "lender_submissions",
@@ -153,88 +151,132 @@ beforeAll(async () => {
   process.env.NODE_ENV = "test";
   await pool.query(`
     create table if not exists applications (
-      id uuid primary key,
-      owner_user_id uuid null references users(id) on delete set null,
-      name text not null,
-      metadata jsonb null,
-      product_type text not null,
-      pipeline_state text not null,
-      status text not null default 'RECEIVED',
-      lender_id uuid null,
-      lender_product_id uuid null,
-      requested_amount integer null,
-      source text null,
-      created_at timestamptz not null default now(),
-      updated_at timestamptz not null default now()
+      id uuid,
+      owner_user_id uuid,
+      name text,
+      metadata jsonb,
+      product_type text,
+      pipeline_state text,
+      status text,
+      lender_id uuid,
+      lender_product_id uuid,
+      requested_amount integer,
+      source text,
+      created_at timestamptz,
+      updated_at timestamptz
+    );
+  `);
+  await pool.query(`
+    create table if not exists lenders (
+      id uuid,
+      name text,
+      active boolean,
+      status text,
+      country text,
+      submission_method text,
+      submission_email text,
+      submission_config jsonb,
+      created_at timestamptz,
+      updated_at timestamptz
+    );
+  `);
+  await pool.query(`
+    create table if not exists lender_products (
+      id uuid,
+      lender_id uuid,
+      name text,
+      category text,
+      country text,
+      rate_type text,
+      interest_min text,
+      interest_max text,
+      term_min integer,
+      term_max integer,
+      term_unit text,
+      active boolean,
+      required_documents jsonb,
+      created_at timestamptz,
+      updated_at timestamptz
     );
   `);
   await pool.query(`
     create table if not exists documents (
-      id uuid primary key,
-      application_id uuid not null references applications(id) on delete cascade,
-      owner_user_id uuid null,
-      title text not null,
-      document_type text not null,
-      status text not null default 'uploaded',
-      created_at timestamptz not null default now()
+      id uuid,
+      application_id uuid,
+      owner_user_id uuid,
+      title text,
+      document_type text,
+      status text,
+      created_at timestamptz
     );
   `);
   await pool.query(`
     create table if not exists document_versions (
-      id uuid primary key,
-      document_id uuid not null references documents(id) on delete cascade,
-      version integer not null,
-      metadata jsonb null,
-      content text not null,
-      created_at timestamptz not null default now()
+      id uuid,
+      document_id uuid,
+      version integer,
+      metadata jsonb,
+      content text,
+      created_at timestamptz
     );
   `);
   await pool.query(`
     create table if not exists document_version_reviews (
-      id uuid primary key,
-      document_version_id uuid not null references document_versions(id) on delete cascade,
-      status text not null,
-      reviewed_by_user_id uuid null,
-      reviewed_at timestamptz not null default now()
+      id uuid,
+      document_version_id uuid,
+      status text,
+      reviewed_by_user_id uuid,
+      reviewed_at timestamptz
     );
   `);
   await pool.query(`
     create table if not exists lender_submissions (
-      id uuid primary key,
-      application_id uuid not null references applications(id) on delete cascade,
-      status text not null,
-      idempotency_key text null,
-      lender_id uuid not null references lenders(id) on delete cascade,
-      submission_method text null,
-      submitted_at timestamptz null,
-      payload jsonb null,
-      payload_hash text null,
-      lender_response jsonb null,
-      response_received_at timestamptz null,
-      failure_reason text null,
-      external_reference text null,
-      created_at timestamptz not null default now(),
-      updated_at timestamptz not null default now()
+      id uuid,
+      application_id uuid,
+      status text,
+      idempotency_key text,
+      lender_id uuid,
+      submission_method text,
+      submitted_at timestamptz,
+      payload jsonb,
+      payload_hash text,
+      lender_response jsonb,
+      response_received_at timestamptz,
+      failure_reason text,
+      external_reference text,
+      created_at timestamptz,
+      updated_at timestamptz
     );
   `);
   await pool.query(`
     create table if not exists lender_submission_retries (
-      id uuid primary key,
-      submission_id uuid not null references lender_submissions(id) on delete cascade,
-      status text not null,
-      attempt_count integer not null default 0,
-      next_attempt_at timestamptz null,
-      last_error text null,
-      created_at timestamptz not null default now(),
-      updated_at timestamptz not null default now(),
-      canceled_at timestamptz null
+      id uuid,
+      submission_id uuid,
+      status text,
+      attempt_count integer,
+      next_attempt_at timestamptz,
+      last_error text,
+      created_at timestamptz,
+      updated_at timestamptz,
+      canceled_at timestamptz
+    );
+  `);
+  await pool.query(`
+    create table if not exists submission_events (
+      id uuid,
+      application_id uuid,
+      lender_id uuid,
+      method text,
+      status text,
+      internal_error text,
+      created_at timestamptz
     );
   `);
   await pool.query(`
     create table if not exists ops_kill_switches (
-      key text primary key,
-      enabled boolean not null default false,
-      updated_at timestamptz not null default now()
+      key text,
+      enabled boolean,
+      updated_at timestamptz
     );
   `);
 });
@@ -244,7 +286,7 @@ beforeEach(async () => {
   phoneCounter = 1400;
   submitMock.mockResolvedValue({
     success: true,
-    response: { status: "appended", receivedAt: new Date().toISOString() },
+    response: { status: "appended", receivedAt: new Date().toISOString(), externalReference: "2" },
     failureReason: null,
     retryable: false,
   });
@@ -254,8 +296,8 @@ afterAll(async () => {
   await pool.end();
 });
 
-describe("google sheets submission routing", () => {
-  it("routes submissions to the Google Sheets adapter", async () => {
+describe("google sheet submission routing", () => {
+  it("routes submissions to the Google Sheet adapter", async () => {
     const staffPhone = nextPhone();
     const staffUser = await createUserAccount({
       email: "lender@apps.com",
@@ -279,9 +321,14 @@ describe("google sheets submission routing", () => {
     });
 
     expect(submission.statusCode).toBe(201);
-    expect(submission.value.status).toBe("sent");
+    expect(submission.value.status).toBe("submitted");
     expect(submitMock).toHaveBeenCalledTimes(1);
-    expect(SubmissionRouter).toHaveBeenCalledTimes(1);
+
+    const { rows } = await pool.query(
+      "select status from submission_events where application_id = $1 order by created_at asc",
+      [applicationId]
+    );
+    expect(rows.map((row) => row.status)).toEqual(["pending", "submitted"]);
   });
 
   it("blocks duplicate submissions for the same application", async () => {

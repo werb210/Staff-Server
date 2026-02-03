@@ -68,7 +68,7 @@ describe("lender products integration", () => {
         name: "Inactive Lender",
         country: "US",
         active: false,
-        submissionMethod: "EMAIL",
+        submissionMethod: "email",
         submissionEmail: "submissions@inactive-lender.com",
       });
 
@@ -92,7 +92,7 @@ describe("lender products integration", () => {
         name: "Active Lender",
         country: "US",
         active: true,
-        submissionMethod: "EMAIL",
+        submissionMethod: "email",
         submissionEmail: "submissions@active-lender.com",
       });
 
@@ -119,7 +119,7 @@ describe("lender products integration", () => {
       .send({
         name: "Variable Lender",
         country: "US",
-        submissionMethod: "EMAIL",
+        submissionMethod: "email",
         submissionEmail: "submissions@variable-lender.com",
       });
 
@@ -163,7 +163,7 @@ describe("lender products integration", () => {
       .send({
         name: "Country Lender",
         country: "US",
-        submissionMethod: "EMAIL",
+        submissionMethod: "email",
         submissionEmail: "submissions@country-lender.com",
       });
 

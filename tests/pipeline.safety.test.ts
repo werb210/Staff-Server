@@ -127,7 +127,7 @@ async function resetDb(): Promise<void> {
 
 async function seedRequirements(): Promise<void> {
   await pool.query(
-    `insert into lenders (id, name, country, submission_method, active, status, created_at, updated_at)\n     values ('00000000-0000-0000-0000-00000000d001', 'Pipeline Lender', 'US', 'API', true, 'ACTIVE', now(), now())\n     on conflict (id) do nothing`
+    `insert into lenders (id, name, country, submission_method, active, status, created_at, updated_at)\n     values ('00000000-0000-0000-0000-00000000d001', 'Pipeline Lender', 'US', 'api', true, 'ACTIVE', now(), now())\n     on conflict (id) do nothing`
   );
   await pool.query(
     `insert into lender_products\n     (id, lender_id, name, category, country, rate_type, interest_min, interest_max, term_min, term_max, term_unit, active, required_documents, created_at, updated_at)\n     values (\n       '00000000-0000-0000-0000-00000000d002',\n       '00000000-0000-0000-0000-00000000d001',\n       'Pipeline LOC',\n       'LOC',\n       'US',\n       'FIXED',\n       '8.5',\n       '12.5',\n       6,\n       24,\n       'MONTHS',\n       true,\n       '[{\"type\":\"bank_statement\",\"months\":6},{\"type\":\"id_document\",\"required\":true}]'::jsonb,\n       now(),\n       now()\n     )\n     on conflict (id) do nothing`

@@ -1,4 +1,4 @@
-import { GoogleSheetsAdapter } from "../src/modules/lenderSubmissions/googleSheets.adapter";
+import { GoogleSheetSubmissionAdapter } from "../src/modules/submissions/adapters/GoogleSheetSubmissionAdapter";
 
 const sheetsInstance = {
   spreadsheets: {
@@ -31,24 +31,6 @@ const payload = {
         email: "jane@example.com",
         phone: "+15555550123",
       },
-      business: {
-        legalName: "Sample Biz",
-        taxId: "12-3456789",
-        entityType: "LLC",
-        address: {
-          line1: "123 Main",
-          city: "Austin",
-          state: "TX",
-          postalCode: "78701",
-          country: "US",
-        },
-      },
-      financials: {
-        term: "12",
-        annualRevenue: 120000,
-        monthlyRevenue: 10000,
-        bankingSummary: "Stable",
-      },
     },
     productType: "standard",
     lenderId: "lender-1",
@@ -60,18 +42,12 @@ const payload = {
 };
 
 const config = {
-  sheetId: "sheet-123",
-  sheetTab: "Sheet1",
-  mapping: {
-    "Application ID": "application.id",
-    "Submitted At": "submittedAt",
-    "Applicant First Name": "application.metadata.applicant.firstName",
-    "Applicant Last Name": "application.metadata.applicant.lastName",
-    "Annual Revenue": "application.metadata.financials.annualRevenue",
-  },
+  spreadsheetId: "sheet-123",
+  sheetName: "Sheet1",
+  columnMapVersion: "v1",
 };
 
-describe("google sheets adapter", () => {
+describe("google sheet submission adapter", () => {
   beforeAll(() => {
     process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL = "service@example.com";
     process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY = "test-key";
@@ -94,7 +70,8 @@ describe("google sheets adapter", () => {
               "Submitted At",
               "Applicant First Name",
               "Applicant Last Name",
-              "Annual Revenue",
+              "Requested Amount",
+              "Product Type",
             ],
           ],
         },
@@ -103,31 +80,31 @@ describe("google sheets adapter", () => {
         data: { values: [["Application ID"], ["other-app"]] },
       });
     sheetsInstance.spreadsheets.values.append.mockResolvedValue({
-      data: { updates: { updatedRange: "Sheet1!A2:E2" } },
+      data: { updates: { updatedRange: "Sheet1!A2:F2" } },
     });
 
-    const adapter = new GoogleSheetsAdapter({ payload, config });
-    const result = await adapter.submit(payload.application.id);
+    const adapter = new GoogleSheetSubmissionAdapter({ payload, config });
+    const result = await adapter.submit(payload);
 
     expect(result.success).toBe(true);
     expect(result.response.status).toBe("appended");
-    expect(result.response.externalReference).toBe("Sheet1!A2:E2");
+    expect(result.response.externalReference).toBe("2");
     expect(sheetsInstance.spreadsheets.values.append).toHaveBeenCalledTimes(1);
   });
 
-  it("fails when mapping is missing", async () => {
+  it("fails when columnMapVersion is missing", async () => {
     sheetsInstance.spreadsheets.get.mockResolvedValue({
       data: { sheets: [{ properties: { title: "Sheet1" } }] },
     });
 
-    const adapter = new GoogleSheetsAdapter({
+    const adapter = new GoogleSheetSubmissionAdapter({
       payload,
-      config: { sheetId: "sheet-123", sheetTab: "Sheet1", mapping: {} },
+      config: { spreadsheetId: "sheet-123", sheetName: "Sheet1", columnMapVersion: "" },
     });
-    const result = await adapter.submit(payload.application.id);
+    const result = await adapter.submit(payload);
 
     expect(result.success).toBe(false);
-    expect(result.response.detail).toBe("Google Sheet mapping is required.");
+    expect(result.response.detail).toBe("Google Sheet columnMapVersion is invalid.");
   });
 
   it("skips append when the application already exists", async () => {
@@ -143,7 +120,8 @@ describe("google sheets adapter", () => {
               "Submitted At",
               "Applicant First Name",
               "Applicant Last Name",
-              "Annual Revenue",
+              "Requested Amount",
+              "Product Type",
             ],
           ],
         },
@@ -152,19 +130,20 @@ describe("google sheets adapter", () => {
         data: { values: [["Application ID"], ["app-123"]] },
       });
 
-    const adapter = new GoogleSheetsAdapter({ payload, config });
-    const result = await adapter.submit(payload.application.id);
+    const adapter = new GoogleSheetSubmissionAdapter({ payload, config });
+    const result = await adapter.submit(payload);
 
     expect(result.success).toBe(true);
     expect(result.response.status).toBe("duplicate");
+    expect(result.response.externalReference).toBe("2");
     expect(sheetsInstance.spreadsheets.values.append).not.toHaveBeenCalled();
   });
 
   it("handles permission errors from the Google API", async () => {
     sheetsInstance.spreadsheets.get.mockRejectedValue({ response: { status: 403 } });
 
-    const adapter = new GoogleSheetsAdapter({ payload, config });
-    const result = await adapter.submit(payload.application.id);
+    const adapter = new GoogleSheetSubmissionAdapter({ payload, config });
+    const result = await adapter.submit(payload);
 
     expect(result.success).toBe(false);
     expect(result.retryable).toBe(false);

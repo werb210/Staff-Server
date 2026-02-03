@@ -87,7 +87,7 @@ describe("lender product requirements", () => {
       .send({
         name: "Seeded Lender",
         country: "US",
-        submissionMethod: "EMAIL",
+        submissionMethod: "email",
         submissionEmail: "submissions@seeded-lender.com",
       });
 
@@ -127,7 +127,7 @@ describe("lender product requirements", () => {
       .send({
         name: "Requirements Lender",
         country: "US",
-        submissionMethod: "EMAIL",
+        submissionMethod: "email",
         submissionEmail: "submissions@requirements-lender.com",
       });
 
@@ -167,7 +167,7 @@ describe("lender product requirements", () => {
       .send({
         name: "Required Lender",
         country: "US",
-        submissionMethod: "EMAIL",
+        submissionMethod: "email",
         submissionEmail: "submissions@required-lender.com",
       });
 
@@ -217,7 +217,7 @@ describe("lender product requirements", () => {
       .send({
         name: "Conditional Lender",
         country: "US",
-        submissionMethod: "EMAIL",
+        submissionMethod: "email",
         submissionEmail: "submissions@conditional-lender.com",
       });
 
@@ -277,7 +277,7 @@ describe("lender product requirements", () => {
       .send({
         name: "Inactive Lender",
         country: "US",
-        submissionMethod: "EMAIL",
+        submissionMethod: "email",
         submissionEmail: "submissions@inactive-lender.com",
       });
 
@@ -314,7 +314,7 @@ describe("lender product requirements", () => {
       .send({
         name: "Aggregation Lender",
         country: "US",
-        submissionMethod: "EMAIL",
+        submissionMethod: "email",
         submissionEmail: "submissions@aggregation-lender.com",
       });
 

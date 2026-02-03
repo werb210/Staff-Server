@@ -39,7 +39,7 @@ describe("lenders smoke", () => {
       {
         name,
         country: "US",
-        submissionMethod: "API",
+        submissionMethod: "api",
         apiConfig: { endpoint: "https://api.smoke.test" },
       },
       headers

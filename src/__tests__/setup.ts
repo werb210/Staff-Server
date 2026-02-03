@@ -160,7 +160,7 @@ beforeAll(async () => {
       active boolean not null default true,
       status text not null default 'ACTIVE',
       country text not null,
-      submission_method text not null default 'EMAIL',
+      submission_method text not null default 'email',
       submission_email text null,
       api_config jsonb null,
       submission_config jsonb null,
@@ -175,6 +175,20 @@ beforeAll(async () => {
       updated_at timestamp not null default now()
     );
   `);
+
+  await pool.query(`
+    create table if not exists submission_events (
+      id uuid primary key,
+      application_id uuid not null,
+      lender_id uuid not null references lenders(id) on delete cascade,
+      method text not null,
+      status text not null,
+      internal_error text null,
+      created_at timestamptz not null default now()
+    );
+  `);
+
+
   await pool.query(`
     create table if not exists lender_products (
       id uuid primary key,
@@ -233,7 +247,7 @@ beforeAll(async () => {
 
   await pool.query(
     `insert into lenders (id, name, country, submission_method, created_at, updated_at)
-     values ('00000000-0000-0000-0000-00000000a001', 'Test Lender', 'US', 'API', now(), now())
+     values ('00000000-0000-0000-0000-00000000a001', 'Test Lender', 'US', 'api', now(), now())
      on conflict (id) do nothing`
   );
   await pool.query(

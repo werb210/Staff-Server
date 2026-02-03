@@ -1,9 +1,9 @@
-import { SubmissionRouter } from "../src/modules/lenderSubmissions/SubmissionRouter";
+import { SubmissionRouter } from "../src/modules/submissions/SubmissionRouter";
 
 const submitMock = jest.fn();
 
-jest.mock("../src/modules/lenderSubmissions/googleSheets.adapter", () => ({
-  GoogleSheetsAdapter: jest.fn().mockImplementation(() => ({
+jest.mock("../src/modules/submissions/adapters/GoogleSheetSubmissionAdapter", () => ({
+  GoogleSheetSubmissionAdapter: jest.fn().mockImplementation(() => ({
     submit: submitMock,
   })),
 }));
@@ -34,23 +34,26 @@ describe("SubmissionRouter", () => {
     });
   });
 
-  it("selects the Google Sheets adapter for google_sheet methods", async () => {
+  it("selects the Google Sheet adapter for google_sheet methods", async () => {
     const router = new SubmissionRouter({
-      method: "google_sheet",
+      profile: {
+        lenderId: "lender-1",
+        lenderName: "Test Lender",
+        submissionMethod: "google_sheet",
+        submissionEmail: null,
+        submissionConfig: {
+          spreadsheetId: "sheet-1",
+          sheetName: "Sheet1",
+          columnMapVersion: "v1",
+        },
+      },
       payload,
       attempt: 0,
-      lenderId: "lender-1",
-      submissionEmail: null,
-      submissionConfig: {
-        sheetId: "sheet-1",
-        sheetTab: "Sheet1",
-        mapping: { "Application ID": "application.id" },
-      },
     });
 
-    const result = await router.submit(payload.application.id);
+    const result = await router.submit();
 
     expect(result.success).toBe(true);
-    expect(submitMock).toHaveBeenCalledWith(payload.application.id);
+    expect(submitMock).toHaveBeenCalledWith(payload);
   });
 });

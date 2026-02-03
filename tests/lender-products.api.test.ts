@@ -44,7 +44,7 @@ async function createLender(token: string) {
     .send({
       name: "Test Lender",
       country: "US",
-      submissionMethod: "EMAIL",
+      submissionMethod: "email",
       submissionEmail: "submissions@test-lender.com",
     });
 
