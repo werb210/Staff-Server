@@ -115,11 +115,17 @@ export async function submitGoogleSheetsApplication(
       range: idRange,
     });
 
+    const sheetRows = (idValuesResponse.data.values ?? []) as Array<
+      Record<string, string | number | null>
+    >;
     const existingIds = new Set(
-      (idValuesResponse.data.values ?? [])
-        .map((row) => row?.[0])
-        .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
-        .filter((value) => value !== params.sheetMap.applicationIdHeader)
+      sheetRows
+        .map((row: Record<string, string | number | null>) => row?.[0] ?? null)
+        .filter(
+          (value: string | number | null): value is string =>
+            typeof value === "string" && value.trim().length > 0
+        )
+        .filter((value: string) => value !== params.sheetMap.applicationIdHeader)
     );
 
     if (existingIds.has(params.payload.application.id)) {
