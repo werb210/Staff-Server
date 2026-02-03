@@ -19,25 +19,22 @@ const nextPhone = (): string => `+1415555${String(phoneCounter++).padStart(4, "0
 async function seedLenderProduct(): Promise<{ lenderId: string; lenderProductId: string }> {
   const lenderId = randomUUID();
   const lenderProductId = randomUUID();
-  const submissionConfig = {
-    sheetId: "sheet-123",
-    sheetTab: "Sheet1",
-    applicationIdHeader: "Application ID",
-    columns: [
-      { header: "Application ID", path: "application.id" },
-      { header: "Applicant First Name", path: "application.metadata.applicant.firstName" },
-    ],
+  const mapping = {
+    "Application ID": "application.id",
+    "Applicant First Name": "application.metadata.applicant.firstName",
   };
   await pool.query(
-    `insert into lenders (id, name, country, submission_method, submission_email, submission_config, active, status, created_at, updated_at)
-     values ($1, $2, $3, $4, $5, $6, true, 'ACTIVE', now(), now())`,
+    `insert into lenders (id, name, country, submission_method, submission_email, google_sheet_id, google_sheet_tab, google_sheet_mapping, active, status, created_at, updated_at)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, true, 'ACTIVE', now(), now())`,
     [
       lenderId,
       "Merchant Growth",
       "US",
       "GOOGLE_SHEETS",
       null,
-      submissionConfig,
+      "sheet-123",
+      "Sheet1",
+      mapping,
     ]
   );
   await pool.query(
@@ -285,5 +282,41 @@ describe("google sheets submission routing", () => {
     expect(submission.value.status).toBe("sent");
     expect(submitMock).toHaveBeenCalledTimes(1);
     expect(SubmissionRouter).toHaveBeenCalledTimes(1);
+  });
+
+  it("blocks duplicate submissions for the same application", async () => {
+    const staffPhone = nextPhone();
+    const staffUser = await createUserAccount({
+      email: "lender2@apps.com",
+      phoneNumber: staffPhone,
+      role: ROLES.STAFF,
+    });
+
+    const { lenderId, lenderProductId } = await seedLenderProduct();
+    const applicationId = await seedApplicationWithDocuments({
+      lenderId,
+      lenderProductId,
+      ownerUserId: staffUser.id,
+    });
+
+    const first = await submitApplication({
+      applicationId,
+      idempotencyKey: null,
+      lenderId,
+      lenderProductId,
+      actorUserId: staffUser.id,
+    });
+    const second = await submitApplication({
+      applicationId,
+      idempotencyKey: null,
+      lenderId,
+      lenderProductId,
+      actorUserId: staffUser.id,
+    });
+
+    expect(first.statusCode).toBe(201);
+    expect(second.statusCode).toBe(200);
+    expect(second.idempotent).toBe(true);
+    expect(submitMock).toHaveBeenCalledTimes(1);
   });
 });

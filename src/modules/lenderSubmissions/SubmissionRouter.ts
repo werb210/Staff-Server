@@ -3,7 +3,7 @@ import {
   GoogleSheetsAdapter,
   type GoogleSheetsPayload,
   type GoogleSheetsSubmissionConfig,
-} from "./adapters/GoogleSheetsAdapter";
+} from "./googleSheets.adapter";
 import { EmailAdapter } from "./adapters/EmailAdapter";
 import { ApiAdapter } from "./adapters/ApiAdapter";
 
@@ -25,18 +25,18 @@ function asGoogleSheetsConfig(
     return null;
   }
   const sheetId = typeof config.sheetId === "string" ? config.sheetId.trim() : "";
-  const applicationIdHeader =
-    typeof config.applicationIdHeader === "string" ? config.applicationIdHeader.trim() : "";
   const sheetTab = typeof config.sheetTab === "string" ? config.sheetTab.trim() : null;
-  const columns = Array.isArray(config.columns) ? config.columns : [];
-  if (!sheetId || !applicationIdHeader || columns.length === 0) {
+  const mapping =
+    config.mapping && typeof config.mapping === "object"
+      ? (config.mapping as GoogleSheetsSubmissionConfig["mapping"])
+      : null;
+  if (!sheetId || !mapping || Object.keys(mapping).length === 0) {
     return null;
   }
   return {
     sheetId,
     sheetTab,
-    applicationIdHeader,
-    columns: columns as GoogleSheetsSubmissionConfig["columns"],
+    mapping,
   };
 }
 

@@ -164,6 +164,9 @@ beforeAll(async () => {
       submission_email text null,
       api_config jsonb null,
       submission_config jsonb null,
+      google_sheet_id text null,
+      google_sheet_tab text null,
+      google_sheet_mapping jsonb null,
       primary_contact_name text null,
       primary_contact_email text null,
       primary_contact_phone text null,
@@ -229,10 +232,31 @@ beforeAll(async () => {
   `);
 
   await pool.query(
-    `insert into lenders (id, name, country, submission_method, created_at, updated_at)\n     values ('00000000-0000-0000-0000-00000000a001', 'Test Lender', 'US', 'API', now(), now())\n     on conflict (id) do nothing`
+    `insert into lenders (id, name, country, submission_method, created_at, updated_at)
+     values ('00000000-0000-0000-0000-00000000a001', 'Test Lender', 'US', 'API', now(), now())
+     on conflict (id) do nothing`
   );
   await pool.query(
-    `insert into lender_products\n     (id, lender_id, name, category, country, rate_type, interest_min, interest_max, term_min, term_max, term_unit, active, required_documents, created_at, updated_at)\n     values (\n       '00000000-0000-0000-0000-00000000b001',\n       '00000000-0000-0000-0000-00000000a001',\n       'Standard LOC',\n       'LOC',\n       'US',\n       'FIXED',\n       '8.5',\n       '12.5',\n       6,\n       24,\n       'MONTHS',\n       true,\n       '[{\"type\":\"bank_statement\",\"months\":6},{\"type\":\"id_document\",\"required\":true}]'::jsonb,\n       now(),\n       now()\n     )\n     on conflict (id) do nothing`
+    `insert into lender_products
+     (id, lender_id, name, category, country, rate_type, interest_min, interest_max, term_min, term_max, term_unit, active, required_documents, created_at, updated_at)
+     values (
+       '00000000-0000-0000-0000-00000000b001',
+       '00000000-0000-0000-0000-00000000a001',
+       'Standard LOC',
+       'LOC',
+       'US',
+       'FIXED',
+       '8.5',
+       '12.5',
+       6,
+       24,
+       'MONTHS',
+       true,
+       '[{"type":"bank_statement","months":6},{"type":"id_document","required":true}]'::jsonb,
+       now(),
+       now()
+     )
+     on conflict (id) do nothing`
   );
 });
 

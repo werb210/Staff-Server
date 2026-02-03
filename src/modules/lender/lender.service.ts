@@ -143,8 +143,11 @@ async function getLenderSubmissionConfig(params: {
     name: string | null;
     submission_config: Record<string, unknown> | null;
     api_config: Record<string, unknown> | null;
+    google_sheet_id: string | null;
+    google_sheet_tab: string | null;
+    google_sheet_mapping: Record<string, unknown> | null;
   }>(
-    `select submission_method, submission_email, name, submission_config, api_config
+    `select submission_method, submission_email, name, submission_config, api_config, google_sheet_id, google_sheet_tab, google_sheet_mapping
      from lenders
      where id = $1
      limit 1`,
@@ -169,11 +172,35 @@ async function getLenderSubmissionConfig(params: {
       400
     );
   }
+  const row = res.rows[0];
+  if (method === "google_sheet") {
+    const sheetId = row.google_sheet_id ?? null;
+    const sheetTab = row.google_sheet_tab ?? null;
+    const mapping = row.google_sheet_mapping ?? null;
+    if (!sheetId || !mapping || typeof mapping !== "object") {
+      throw new AppError(
+        "missing_google_sheet_config",
+        "Google Sheet submission configuration is incomplete.",
+        400
+      );
+    }
+    return {
+      method,
+      submissionEmail,
+      lenderName: row.name ?? "",
+      submissionConfig: {
+        sheetId,
+        sheetTab,
+        mapping,
+      },
+    };
+  }
+
   return {
     method,
     submissionEmail,
-    lenderName: res.rows[0].name ?? "",
-    submissionConfig: res.rows[0].submission_config ?? res.rows[0].api_config ?? null,
+    lenderName: row.name ?? "",
+    submissionConfig: row.submission_config ?? row.api_config ?? null,
   };
 }
 

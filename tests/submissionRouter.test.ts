@@ -2,7 +2,7 @@ import { SubmissionRouter } from "../src/modules/lenderSubmissions/SubmissionRou
 
 const submitMock = jest.fn();
 
-jest.mock("../src/modules/lenderSubmissions/adapters/GoogleSheetsAdapter", () => ({
+jest.mock("../src/modules/lenderSubmissions/googleSheets.adapter", () => ({
   GoogleSheetsAdapter: jest.fn().mockImplementation(() => ({
     submit: submitMock,
   })),
@@ -43,8 +43,8 @@ describe("SubmissionRouter", () => {
       submissionEmail: null,
       submissionConfig: {
         sheetId: "sheet-1",
-        applicationIdHeader: "Application ID",
-        columns: [{ header: "Application ID", path: "application.id" }],
+        sheetTab: "Sheet1",
+        mapping: { "Application ID": "application.id" },
       },
     });
 

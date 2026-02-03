@@ -26,6 +26,9 @@ export type LenderRecord = {
   submission_email: string | null;
   api_config: Record<string, unknown> | null;
   submission_config: Record<string, unknown> | null;
+  google_sheet_id: string | null;
+  google_sheet_tab: string | null;
+  google_sheet_mapping: Record<string, unknown> | null;
   primary_contact_name: string | null;
   primary_contact_email: string | null;
   primary_contact_phone: string | null;
