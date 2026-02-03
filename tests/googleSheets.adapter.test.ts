@@ -1,4 +1,4 @@
-import { GoogleSheetsAdapter } from "../src/modules/lenderSubmissions/adapters/GoogleSheetsAdapter";
+import { GoogleSheetsAdapter } from "../src/modules/lenderSubmissions/googleSheets.adapter";
 
 const sheetsInstance = {
   spreadsheets: {
@@ -62,22 +62,19 @@ const payload = {
 const config = {
   sheetId: "sheet-123",
   sheetTab: "Sheet1",
-  applicationIdHeader: "Application ID",
-  columns: [
-    { header: "Application ID", path: "application.id" },
-    { header: "Submitted At", path: "submittedAt" },
-    { header: "Applicant First Name", path: "application.metadata.applicant.firstName" },
-    { header: "Applicant Last Name", path: "application.metadata.applicant.lastName" },
-    { header: "Annual Revenue", path: "application.metadata.financials.annualRevenue" },
-  ],
+  mapping: {
+    "Application ID": "application.id",
+    "Submitted At": "submittedAt",
+    "Applicant First Name": "application.metadata.applicant.firstName",
+    "Applicant Last Name": "application.metadata.applicant.lastName",
+    "Annual Revenue": "application.metadata.financials.annualRevenue",
+  },
 };
 
 describe("google sheets adapter", () => {
   beforeAll(() => {
-    process.env.GOOGLE_SERVICE_ACCOUNT_JSON = JSON.stringify({
-      client_email: "service@example.com",
-      private_key: "key",
-    });
+    process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL = "service@example.com";
+    process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY = "test-key";
   });
 
   beforeEach(() => {
@@ -88,9 +85,23 @@ describe("google sheets adapter", () => {
     sheetsInstance.spreadsheets.get.mockResolvedValue({
       data: { sheets: [{ properties: { title: "Sheet1" } }] },
     });
-    sheetsInstance.spreadsheets.values.get.mockResolvedValue({
-      data: { values: [["Application ID"], ["other-app"]] },
-    });
+    sheetsInstance.spreadsheets.values.get
+      .mockResolvedValueOnce({
+        data: {
+          values: [
+            [
+              "Application ID",
+              "Submitted At",
+              "Applicant First Name",
+              "Applicant Last Name",
+              "Annual Revenue",
+            ],
+          ],
+        },
+      })
+      .mockResolvedValueOnce({
+        data: { values: [["Application ID"], ["other-app"]] },
+      });
     sheetsInstance.spreadsheets.values.append.mockResolvedValue({
       data: { updates: { updatedRange: "Sheet1!A2:E2" } },
     });
@@ -104,13 +115,42 @@ describe("google sheets adapter", () => {
     expect(sheetsInstance.spreadsheets.values.append).toHaveBeenCalledTimes(1);
   });
 
+  it("fails when mapping is missing", async () => {
+    sheetsInstance.spreadsheets.get.mockResolvedValue({
+      data: { sheets: [{ properties: { title: "Sheet1" } }] },
+    });
+
+    const adapter = new GoogleSheetsAdapter({
+      payload,
+      config: { sheetId: "sheet-123", sheetTab: "Sheet1", mapping: {} },
+    });
+    const result = await adapter.submit(payload.application.id);
+
+    expect(result.success).toBe(false);
+    expect(result.response.detail).toBe("Google Sheet mapping is required.");
+  });
+
   it("skips append when the application already exists", async () => {
     sheetsInstance.spreadsheets.get.mockResolvedValue({
       data: { sheets: [{ properties: { title: "Sheet1" } }] },
     });
-    sheetsInstance.spreadsheets.values.get.mockResolvedValue({
-      data: { values: [["Application ID"], ["app-123"]] },
-    });
+    sheetsInstance.spreadsheets.values.get
+      .mockResolvedValueOnce({
+        data: {
+          values: [
+            [
+              "Application ID",
+              "Submitted At",
+              "Applicant First Name",
+              "Applicant Last Name",
+              "Annual Revenue",
+            ],
+          ],
+        },
+      })
+      .mockResolvedValueOnce({
+        data: { values: [["Application ID"], ["app-123"]] },
+      });
 
     const adapter = new GoogleSheetsAdapter({ payload, config });
     const result = await adapter.submit(payload.application.id);
@@ -120,16 +160,13 @@ describe("google sheets adapter", () => {
     expect(sheetsInstance.spreadsheets.values.append).not.toHaveBeenCalled();
   });
 
-  it("flags retryable errors from the Google API", async () => {
-    sheetsInstance.spreadsheets.get.mockResolvedValue({
-      data: { sheets: [{ properties: { title: "Sheet1" } }] },
-    });
-    sheetsInstance.spreadsheets.values.get.mockRejectedValue({ response: { status: 503 } });
+  it("handles permission errors from the Google API", async () => {
+    sheetsInstance.spreadsheets.get.mockRejectedValue({ response: { status: 403 } });
 
     const adapter = new GoogleSheetsAdapter({ payload, config });
     const result = await adapter.submit(payload.application.id);
 
     expect(result.success).toBe(false);
-    expect(result.retryable).toBe(true);
+    expect(result.retryable).toBe(false);
   });
 });

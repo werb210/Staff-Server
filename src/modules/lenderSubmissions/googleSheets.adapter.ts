@@ -1,9 +1,9 @@
 import { google } from "googleapis";
-import { logError, logInfo } from "../../../observability/logger";
+import { logError, logInfo } from "../../observability/logger";
 import {
   type SubmissionAdapter,
   type SubmissionResult,
-} from "../SubmissionAdapter";
+} from "./SubmissionAdapter";
 
 export type GoogleSheetsPayload = {
   application: {
@@ -28,30 +28,26 @@ export type GoogleSheetsPayload = {
   submittedAt: string;
 };
 
-export type GoogleSheetsColumnConfig = {
-  header: string;
-  path?: string | string[];
-  static?: string | number | null;
-  format?: "string" | "number";
-};
+export type GoogleSheetsMapping = Record<string, string>;
 
 export type GoogleSheetsSubmissionConfig = {
   sheetId: string;
   sheetTab?: string | null;
-  applicationIdHeader: string;
-  columns: GoogleSheetsColumnConfig[];
+  mapping: GoogleSheetsMapping;
 };
 
-function assertServiceAccountEnv(): Record<string, unknown> {
-  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON?.trim();
-  if (!raw) {
-    throw new Error("Missing Google service account JSON configuration.");
+const APPLICATION_ID_PATH = "application.id";
+
+function assertServiceAccountEnv(): { client_email: string; private_key: string } {
+  const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL?.trim();
+  const privateKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?.trim();
+  if (!clientEmail || !privateKey) {
+    throw new Error("Missing Google service account credentials.");
   }
-  try {
-    return JSON.parse(raw) as Record<string, unknown>;
-  } catch (error) {
-    throw new Error("Invalid Google service account JSON configuration.");
-  }
+  return {
+    client_email: clientEmail,
+    private_key: privateKey.replace(/\\n/g, "\n"),
+  };
 }
 
 function columnIndexToLetter(index: number): string {
@@ -67,8 +63,19 @@ function columnIndexToLetter(index: number): string {
 
 function resolveSheetTitle(response: {
   data?: { sheets?: Array<{ properties?: { title?: string | null } | null } | null> };
-}): string {
-  const title = response.data?.sheets?.[0]?.properties?.title ?? null;
+},
+requestedTab?: string | null): string {
+  const sheets = response.data?.sheets ?? [];
+  if (requestedTab) {
+    const match = sheets.find(
+      (sheet) => sheet?.properties?.title?.trim() === requestedTab.trim()
+    );
+    if (!match?.properties?.title) {
+      throw new Error("Unable to access requested Google Sheet tab.");
+    }
+    return match.properties.title;
+  }
+  const title = sheets[0]?.properties?.title ?? null;
   if (!title) {
     throw new Error("Unable to resolve Google Sheet tab name.");
   }
@@ -108,46 +115,18 @@ function getPathValue(source: unknown, path: string): unknown {
   }, source);
 }
 
-function resolveColumnValue(payload: GoogleSheetsPayload, column: GoogleSheetsColumnConfig):
-  | string
-  | number
-  | null {
-  if (column.static !== undefined) {
-    return column.static;
+function resolveMappedValue(payload: GoogleSheetsPayload, path: string): string | number | null {
+  const resolved = getPathValue(payload, path);
+  if (resolved === null || resolved === undefined) {
+    return null;
   }
-  const paths = Array.isArray(column.path)
-    ? column.path
-    : column.path
-      ? [column.path]
-      : [];
-  let resolved: unknown = null;
-  for (const path of paths) {
-    const value = getPathValue(payload, path);
-    if (value === null || value === undefined) {
-      continue;
-    }
-    if (typeof value === "string" && value.trim().length === 0) {
-      continue;
-    }
-    resolved = value;
-    break;
-  }
-
-  if (column.format === "number") {
-    if (typeof resolved === "number" && Number.isFinite(resolved)) {
-      return resolved;
-    }
-    const parsed = typeof resolved === "string" ? Number(resolved) : NaN;
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-
   if (typeof resolved === "number" && Number.isFinite(resolved)) {
     return resolved;
   }
   if (typeof resolved === "string") {
     return resolved;
   }
-  return resolved === null || resolved === undefined ? null : String(resolved);
+  return String(resolved);
 }
 
 function normalizeCellValue(value: string | number | null): string | number {
@@ -155,6 +134,21 @@ function normalizeCellValue(value: string | number | null): string | number {
     return "";
   }
   return value;
+}
+
+function normalizeMapping(mapping: unknown): GoogleSheetsMapping {
+  if (!mapping || typeof mapping !== "object") {
+    return {};
+  }
+  return Object.entries(mapping as Record<string, unknown>).reduce<GoogleSheetsMapping>(
+    (acc, [header, path]) => {
+      if (typeof header === "string" && typeof path === "string" && header.trim()) {
+        acc[header.trim()] = path.trim();
+      }
+      return acc;
+    },
+    {}
+  );
 }
 
 export class GoogleSheetsAdapter implements SubmissionAdapter {
@@ -184,27 +178,44 @@ export class GoogleSheetsAdapter implements SubmissionAdapter {
       if (!this.config.sheetId || !this.config.sheetId.trim()) {
         throw new Error("Google Sheet ID is required.");
       }
-      if (!this.config.applicationIdHeader || !this.config.applicationIdHeader.trim()) {
-        throw new Error("Application ID header is required.");
-      }
-      if (!Array.isArray(this.config.columns) || this.config.columns.length === 0) {
-        throw new Error("Sheet column mapping is required.");
+
+      const mapping = normalizeMapping(this.config.mapping);
+      const mappingHeaders = Object.keys(mapping);
+      if (mappingHeaders.length === 0) {
+        throw new Error("Google Sheet mapping is required.");
       }
 
-      const sheetTitle =
-        this.config.sheetTab && this.config.sheetTab.trim().length > 0
-          ? this.config.sheetTab.trim()
-          : resolveSheetTitle(
-              await sheets.spreadsheets.get({
-                spreadsheetId: this.config.sheetId,
-              })
-            );
+      const sheetMeta = await sheets.spreadsheets.get({
+        spreadsheetId: this.config.sheetId,
+      });
+      const sheetTitle = resolveSheetTitle(sheetMeta, this.config.sheetTab ?? null);
 
-      const applicationIdIndex = this.config.columns.findIndex(
-        (column) => column.header === this.config.applicationIdHeader
+      const headerResponse = await sheets.spreadsheets.values.get({
+        spreadsheetId: this.config.sheetId,
+        range: `${sheetTitle}!1:1`,
+      });
+      const headerRow = (headerResponse.data.values?.[0] ?? []) as string[];
+      if (headerRow.length === 0) {
+        throw new Error("Google Sheet header row is missing.");
+      }
+
+      const missingHeaders = mappingHeaders.filter(
+        (header) => !headerRow.includes(header)
       );
+      if (missingHeaders.length > 0) {
+        throw new Error("Google Sheet mapping does not match sheet headers.");
+      }
+
+      const applicationIdHeader = mappingHeaders.find(
+        (header) => mapping[header] === APPLICATION_ID_PATH
+      );
+      if (!applicationIdHeader) {
+        throw new Error("Application ID mapping is required.");
+      }
+
+      const applicationIdIndex = headerRow.indexOf(applicationIdHeader);
       if (applicationIdIndex === -1) {
-        throw new Error("Application ID column is missing from sheet map.");
+        throw new Error("Application ID column is missing from sheet.");
       }
 
       const idColumnLetter = columnIndexToLetter(applicationIdIndex);
@@ -214,14 +225,16 @@ export class GoogleSheetsAdapter implements SubmissionAdapter {
         range: idRange,
       });
 
-      const idRows: Array<unknown[]> = (idValuesResponse.data.values ?? []) as Array<unknown[]>;
+      const idRows: Array<unknown[]> = (idValuesResponse.data.values ?? []) as Array<
+        unknown[]
+      >;
       const existingIds = new Set(
         idRows
           .map((row: unknown[]) => (Array.isArray(row) ? row[0] : null))
           .filter((value: unknown): value is string =>
             typeof value === "string" && value.trim().length > 0
           )
-          .filter((value: string) => value !== this.config.applicationIdHeader)
+          .filter((value: string) => value !== applicationIdHeader)
       );
 
       if (existingIds.has(this.payload.application.id)) {
@@ -242,10 +255,15 @@ export class GoogleSheetsAdapter implements SubmissionAdapter {
         };
       }
 
-      const row = this.config.columns.map((column) =>
-        normalizeCellValue(resolveColumnValue(this.payload, column))
-      );
-      const endColumnLetter = columnIndexToLetter(this.config.columns.length - 1);
+      const row = headerRow.map((header) => {
+        const path = mapping[header];
+        if (!path) {
+          return "";
+        }
+        return normalizeCellValue(resolveMappedValue(this.payload, path));
+      });
+
+      const endColumnLetter = columnIndexToLetter(headerRow.length - 1);
       const appendRange = `${sheetTitle}!A:${endColumnLetter}`;
 
       const appendResponse = await sheets.spreadsheets.values.append({
