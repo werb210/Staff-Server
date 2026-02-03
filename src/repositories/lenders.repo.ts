@@ -15,6 +15,7 @@ export interface CreateLenderInput {
   primary_contact_phone?: string | null;
   submission_email?: string | null;
   api_config?: Record<string, unknown> | null;
+  submission_config?: Record<string, unknown> | null;
   website?: string | null;
 }
 
@@ -97,6 +98,7 @@ function buildSelectColumns(existing: Set<string>): string {
     { name: "website", fallback: "null::text" },
     { name: "submission_email", fallback: "null::text" },
     { name: "api_config", fallback: "null::jsonb" },
+    { name: "submission_config", fallback: "null::jsonb" },
     { name: "created_at", fallback: "now()" },
     { name: "updated_at", fallback: "now()" },
   ];
@@ -122,6 +124,7 @@ export const LIST_LENDERS_SQL = `
     submission_email,
     website,
     api_config,
+    submission_config,
     active,
     created_at
   FROM lenders
@@ -152,6 +155,7 @@ export async function getLenderById(id: string) {
       "submission_method",
       "submission_email",
       "api_config",
+      "submission_config",
       "primary_contact_name",
       "primary_contact_email",
       "primary_contact_phone",
@@ -190,6 +194,7 @@ export async function createLender(
     primary_contact_phone,
     submission_email,
     api_config,
+    submission_config,
     website,
   } = input;
   const existingColumns = await getLenderColumns();
@@ -244,6 +249,12 @@ export async function createLender(
     name: "api_config",
     value: api_config ?? null,
   });
+  if (existingColumns.has("submission_config")) {
+    columns.push({
+      name: "submission_config",
+      value: submission_config ?? null,
+    });
+  }
   if (includeActive) {
     columns.push({ name: "active", value: activeValue });
   }
@@ -321,6 +332,7 @@ export async function updateLender(
     primary_contact_phone?: string | null;
     submission_email?: string | null;
     api_config?: Record<string, unknown> | null;
+    submission_config?: Record<string, unknown> | null;
     website?: string | null;
     active?: boolean;
   }
@@ -381,6 +393,12 @@ export async function updateLender(
   }
   if (params.api_config !== undefined && existingColumns.has("api_config")) {
     updates.push({ name: "api_config", value: params.api_config });
+  }
+  if (
+    params.submission_config !== undefined &&
+    existingColumns.has("submission_config")
+  ) {
+    updates.push({ name: "submission_config", value: params.submission_config });
   }
   if (params.website !== undefined && existingColumns.has("website")) {
     updates.push({ name: "website", value: params.website });

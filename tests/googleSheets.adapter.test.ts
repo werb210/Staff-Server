@@ -1,5 +1,5 @@
-import { submitGoogleSheetsApplication } from "../src/lenders/adapters/googleSheets.adapter";
-import { MERCHANT_GROWTH_SHEET_MAP } from "../src/lenders/config/merchantGrowth.sheetMap";
+import { GoogleSheetsAdapter } from "../src/modules/lenderSubmissions/adapters/GoogleSheetsAdapter";
+
 const sheetsInstance = {
   spreadsheets: {
     get: jest.fn(),
@@ -13,7 +13,7 @@ const sheetsInstance = {
 jest.mock("googleapis", () => ({
   google: {
     auth: {
-      OAuth2: jest.fn().mockImplementation(() => ({ setCredentials: jest.fn() })),
+      GoogleAuth: jest.fn().mockImplementation(() => ({})),
     },
     sheets: jest.fn(() => sheetsInstance),
   },
@@ -59,12 +59,25 @@ const payload = {
   submittedAt: "2024-01-02T00:00:00.000Z",
 };
 
+const config = {
+  sheetId: "sheet-123",
+  sheetTab: "Sheet1",
+  applicationIdHeader: "Application ID",
+  columns: [
+    { header: "Application ID", path: "application.id" },
+    { header: "Submitted At", path: "submittedAt" },
+    { header: "Applicant First Name", path: "application.metadata.applicant.firstName" },
+    { header: "Applicant Last Name", path: "application.metadata.applicant.lastName" },
+    { header: "Annual Revenue", path: "application.metadata.financials.annualRevenue" },
+  ],
+};
+
 describe("google sheets adapter", () => {
   beforeAll(() => {
-    process.env.GOOGLE_CLIENT_ID = "test-client-id";
-    process.env.GOOGLE_CLIENT_SECRET = "test-client-secret";
-    process.env.GOOGLE_REDIRECT_URI = "https://example.com/oauth";
-    process.env.GOOGLE_SHEETS_REFRESH_TOKEN = "test-refresh-token";
+    process.env.GOOGLE_SERVICE_ACCOUNT_JSON = JSON.stringify({
+      client_email: "service@example.com",
+      private_key: "key",
+    });
   });
 
   beforeEach(() => {
@@ -78,16 +91,16 @@ describe("google sheets adapter", () => {
     sheetsInstance.spreadsheets.values.get.mockResolvedValue({
       data: { values: [["Application ID"], ["other-app"]] },
     });
-    sheetsInstance.spreadsheets.values.append.mockResolvedValue({});
-
-    const result = await submitGoogleSheetsApplication({
-      payload,
-      sheetId: "sheet-123",
-      sheetMap: MERCHANT_GROWTH_SHEET_MAP,
+    sheetsInstance.spreadsheets.values.append.mockResolvedValue({
+      data: { updates: { updatedRange: "Sheet1!A2:E2" } },
     });
+
+    const adapter = new GoogleSheetsAdapter({ payload, config });
+    const result = await adapter.submit(payload.application.id);
 
     expect(result.success).toBe(true);
     expect(result.response.status).toBe("appended");
+    expect(result.response.externalReference).toBe("Sheet1!A2:E2");
     expect(sheetsInstance.spreadsheets.values.append).toHaveBeenCalledTimes(1);
   });
 
@@ -99,11 +112,8 @@ describe("google sheets adapter", () => {
       data: { values: [["Application ID"], ["app-123"]] },
     });
 
-    const result = await submitGoogleSheetsApplication({
-      payload,
-      sheetId: "sheet-123",
-      sheetMap: MERCHANT_GROWTH_SHEET_MAP,
-    });
+    const adapter = new GoogleSheetsAdapter({ payload, config });
+    const result = await adapter.submit(payload.application.id);
 
     expect(result.success).toBe(true);
     expect(result.response.status).toBe("duplicate");
@@ -116,11 +126,8 @@ describe("google sheets adapter", () => {
     });
     sheetsInstance.spreadsheets.values.get.mockRejectedValue({ response: { status: 503 } });
 
-    const result = await submitGoogleSheetsApplication({
-      payload,
-      sheetId: "sheet-123",
-      sheetMap: MERCHANT_GROWTH_SHEET_MAP,
-    });
+    const adapter = new GoogleSheetsAdapter({ payload, config });
+    const result = await adapter.submit(payload.application.id);
 
     expect(result.success).toBe(false);
     expect(result.retryable).toBe(true);

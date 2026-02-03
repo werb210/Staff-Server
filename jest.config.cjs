@@ -15,6 +15,7 @@ module.exports = {
   clearMocks: true,
   moduleNameMapper: {
     "^twilio$": "<rootDir>/tests/__mocks__/twilio.ts",
+    "^googleapis$": "<rootDir>/tests/__mocks__/googleapis.ts",
   },
   maxWorkers: "50%",
   setupFilesAfterEnv: ["<rootDir>/src/__tests__/setup.ts"],

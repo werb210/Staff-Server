@@ -2,11 +2,15 @@ import { randomUUID } from "crypto";
 import { pool } from "../../src/db";
 import { createUserAccount } from "../../src/modules/auth/auth.service";
 import { ROLES } from "../../src/auth/roles";
-import { submitGoogleSheetsApplication } from "../../src/lenders/adapters/googleSheets.adapter";
+import { SubmissionRouter } from "../../src/modules/lenderSubmissions/SubmissionRouter";
 import { submitApplication } from "../../src/modules/lender/lender.service";
 
-jest.mock("../../src/lenders/adapters/googleSheets.adapter", () => ({
-  submitGoogleSheetsApplication: jest.fn(),
+const submitMock = jest.fn();
+
+jest.mock("../../src/modules/lenderSubmissions/SubmissionRouter", () => ({
+  SubmissionRouter: jest.fn().mockImplementation(() => ({
+    submit: submitMock,
+  })),
 }));
 
 let phoneCounter = 1400;
@@ -15,8 +19,17 @@ const nextPhone = (): string => `+1415555${String(phoneCounter++).padStart(4, "0
 async function seedLenderProduct(): Promise<{ lenderId: string; lenderProductId: string }> {
   const lenderId = randomUUID();
   const lenderProductId = randomUUID();
+  const submissionConfig = {
+    sheetId: "sheet-123",
+    sheetTab: "Sheet1",
+    applicationIdHeader: "Application ID",
+    columns: [
+      { header: "Application ID", path: "application.id" },
+      { header: "Applicant First Name", path: "application.metadata.applicant.firstName" },
+    ],
+  };
   await pool.query(
-    `insert into lenders (id, name, country, submission_method, submission_email, api_config, active, status, created_at, updated_at)
+    `insert into lenders (id, name, country, submission_method, submission_email, submission_config, active, status, created_at, updated_at)
      values ($1, $2, $3, $4, $5, $6, true, 'ACTIVE', now(), now())`,
     [
       lenderId,
@@ -24,7 +37,7 @@ async function seedLenderProduct(): Promise<{ lenderId: string; lenderProductId:
       "US",
       "GOOGLE_SHEETS",
       null,
-      { sheetId: "sheet-123", sheetTab: "Sheet1" },
+      submissionConfig,
     ]
   );
   await pool.query(
@@ -149,6 +162,7 @@ beforeAll(async () => {
       metadata jsonb null,
       product_type text not null,
       pipeline_state text not null,
+      status text not null default 'RECEIVED',
       lender_id uuid null,
       lender_product_id uuid null,
       requested_amount integer null,
@@ -194,12 +208,14 @@ beforeAll(async () => {
       status text not null,
       idempotency_key text null,
       lender_id uuid not null references lenders(id) on delete cascade,
+      submission_method text null,
       submitted_at timestamptz null,
       payload jsonb null,
       payload_hash text null,
       lender_response jsonb null,
       response_received_at timestamptz null,
       failure_reason text null,
+      external_reference text null,
       created_at timestamptz not null default now(),
       updated_at timestamptz not null default now()
     );
@@ -229,7 +245,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   await resetDb();
   phoneCounter = 1400;
-  (submitGoogleSheetsApplication as jest.Mock).mockResolvedValue({
+  submitMock.mockResolvedValue({
     success: true,
     response: { status: "appended", receivedAt: new Date().toISOString() },
     failureReason: null,
@@ -267,6 +283,7 @@ describe("google sheets submission routing", () => {
 
     expect(submission.statusCode).toBe(201);
     expect(submission.value.status).toBe("sent");
-    expect(submitGoogleSheetsApplication).toHaveBeenCalledTimes(1);
+    expect(submitMock).toHaveBeenCalledTimes(1);
+    expect(SubmissionRouter).toHaveBeenCalledTimes(1);
   });
 });

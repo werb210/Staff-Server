@@ -10,6 +10,7 @@ const requiredColumns: RequiredColumn[] = [
   { table: "lenders", column: "id" },
   { table: "lenders", column: "country" },
   { table: "lenders", column: "submission_method" },
+  { table: "lenders", column: "submission_config" },
   { table: "lender_products", column: "lender_id" },
   { table: "lender_products", column: "required_documents" },
   { table: "lender_product_requirements", column: "id" },

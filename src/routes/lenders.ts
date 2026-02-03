@@ -42,6 +42,7 @@ type LenderRow = {
   submission_method: string | null;
   submission_email?: string | null;
   api_config?: unknown | null;
+  submission_config?: unknown | null;
   website?: string | null;
   products: LenderProductRow[] | null;
   silo?: string | null;
@@ -122,19 +123,20 @@ router.get(
     const normalized = lendersRows.map((l: LenderRow) => {
       const resolved = resolveLenderStatus(l);
       return {
-      id: l.id,
-      name: l.name ?? "—",
-      status: resolved.status,
-      active: resolved.active,
-      country: l.country ?? null,
-      primary_contact_name: l.primary_contact_name ?? null,
-      primary_contact_email: l.primary_contact_email ?? null,
-      primary_contact_phone: l.primary_contact_phone ?? null,
-      submission_method: l.submission_method ?? null,
-      submission_email: l.submission_email ?? null,
-      api_config: l.api_config ?? null,
-      website: l.website ?? null,
-      products: productsByLender.get(l.id) ?? [],
+        id: l.id,
+        name: l.name ?? "—",
+        status: resolved.status,
+        active: resolved.active,
+        country: l.country ?? null,
+        primary_contact_name: l.primary_contact_name ?? null,
+        primary_contact_email: l.primary_contact_email ?? null,
+        primary_contact_phone: l.primary_contact_phone ?? null,
+        submission_method: l.submission_method ?? null,
+        submission_email: l.submission_email ?? null,
+        api_config: l.api_config ?? null,
+        submission_config: l.submission_config ?? null,
+        website: l.website ?? null,
+        products: productsByLender.get(l.id) ?? [],
       };
     });
     const normalizedById = new Map(normalized.map((l) => [l.id, l]));
@@ -175,6 +177,7 @@ router.get(
         submission_method,
         submission_email,
         api_config,
+        submission_config,
         primary_contact_name,
         primary_contact_email,
         primary_contact_phone,
