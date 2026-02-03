@@ -35,7 +35,12 @@ import { isKillSwitchEnabled } from "../ops/ops.service";
 import { logInfo, logWarn } from "../../observability/logger";
 import { recordTransactionRollback } from "../../observability/transactionTelemetry";
 import { isTestEnvironment } from "../../dbRuntime";
-import { SubmissionRouter, resolveSubmissionProfile } from "../submissions/SubmissionRouter";
+import {
+  type SubmissionMethod,
+  SubmissionRouter,
+  normalizeSubmissionMethod,
+  resolveSubmissionProfile,
+} from "../submissions/SubmissionRouter";
 
 function createAdvisoryLockKey(value: string): [number, number] {
   const hash = createHash("sha256").update(value).digest();
@@ -209,6 +214,23 @@ async function sendToLender(params: {
   }
 }
 
+async function resolveSubmissionMethod(params: {
+  lenderId: string;
+  client: Pick<PoolClient, "query">;
+}): Promise<SubmissionMethod> {
+  const res = await params.client.query<{ submission_method: string | null }>(
+    `select submission_method
+     from lenders
+     where id = $1
+     limit 1`,
+    [params.lenderId]
+  );
+  if (res.rows.length === 0) {
+    throw new AppError("not_found", "Lender not found.", 404);
+  }
+  return normalizeSubmissionMethod(res.rows[0].submission_method) ?? "email";
+}
+
 async function buildSubmissionPacket(params: {
   applicationId: string;
   submittedAt: Date;
@@ -367,8 +389,6 @@ async function recordSubmissionFailure(params: {
 async function transmitSubmission(params: {
   applicationId: string;
   lenderId: string;
-  submissionMethod: string;
-  profile: Awaited<ReturnType<typeof resolveSubmissionProfile>>;
   lenderProductId: string;
   idempotencyKey: string | null;
   actorUserId: string;
@@ -407,6 +427,10 @@ async function transmitSubmission(params: {
     );
   }
 
+  const submissionMethod = await resolveSubmissionMethod({
+    lenderId: params.lenderId,
+    client: params.client,
+  });
   const submittedAt = new Date();
   const { packet, missingDocumentTypes } = await buildSubmissionPacket({
     applicationId: params.applicationId,
@@ -431,7 +455,7 @@ async function transmitSubmission(params: {
     });
     throw err;
   }
-  if (params.submissionMethod === "email") {
+  if (submissionMethod === "email") {
     payload = {
       ...payload,
       attachmentBundle: buildAttachmentBundle(packet),
@@ -444,7 +468,7 @@ async function transmitSubmission(params: {
     idempotencyKey: params.idempotencyKey,
     status: "pending",
     lenderId: params.lenderId,
-    submissionMethod: params.submissionMethod,
+    submissionMethod,
     submittedAt,
     payload,
     payloadHash,
@@ -463,7 +487,7 @@ async function transmitSubmission(params: {
   await createSubmissionEvent({
     applicationId: params.applicationId,
     lenderId: params.lenderId,
-    method: params.submissionMethod,
+    method: submissionMethod,
     status: "pending",
     internalError: null,
     timestamp: new Date(),
@@ -483,7 +507,7 @@ async function transmitSubmission(params: {
         receivedAt: new Date().toISOString(),
       },
       retryable: true,
-      method: params.submissionMethod,
+      method: submissionMethod,
       actorUserId: params.actorUserId,
       ip: params.ip,
       userAgent: params.userAgent,
@@ -503,8 +527,9 @@ async function transmitSubmission(params: {
     };
   }
 
+  const profile = await resolveSubmissionProfile(params.lenderId, params.client);
   const response = await sendToLender({
-    profile: params.profile,
+    profile,
     payload,
     attempt: params.attempt,
   });
@@ -518,7 +543,7 @@ async function transmitSubmission(params: {
       failureReason: response.failureReason ?? "lender_error",
       response: response.response,
       retryable: response.retryable,
-      method: params.submissionMethod,
+      method: submissionMethod,
       actorUserId: params.actorUserId,
       ip: params.ip,
       userAgent: params.userAgent,
@@ -835,13 +860,9 @@ export async function submitApplication(params: {
       client,
     });
 
-    const submissionProfile = await resolveSubmissionProfile(params.lenderId, client);
-
     const result = await transmitSubmission({
       applicationId: params.applicationId,
       lenderId: params.lenderId,
-      submissionMethod: submissionProfile.submissionMethod,
-      profile: submissionProfile,
       lenderProductId: params.lenderProductId,
       idempotencyKey: params.idempotencyKey,
       actorUserId: params.actorUserId,

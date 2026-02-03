@@ -141,7 +141,6 @@ describe("POST /api/lenders", () => {
               submission_email: "submissions@lender.com",
               api_config: null,
               submission_config: null,
-              submission_config: null,
               website: "https://lender.com",
               created_at: new Date(),
               updated_at: new Date(),
