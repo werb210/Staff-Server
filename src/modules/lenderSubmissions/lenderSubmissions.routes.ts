@@ -21,10 +21,23 @@ router.post(
     if (!applicationId) {
       throw new AppError("missing_fields", "applicationId is required.", 400);
     }
+    const { skipRequiredDocuments } = req.body ?? {};
+    if (
+      skipRequiredDocuments !== undefined &&
+      skipRequiredDocuments !== null &&
+      typeof skipRequiredDocuments !== "boolean"
+    ) {
+      throw new AppError(
+        "validation_error",
+        "skipRequiredDocuments must be a boolean.",
+        400
+      );
+    }
     const submission = await submitLenderSubmission({
       applicationId,
       idempotencyKey: req.get("idempotency-key") ?? null,
       actorUserId: req.user.userId,
+      skipRequiredDocuments: Boolean(skipRequiredDocuments),
       ip: req.ip,
       userAgent: req.get("user-agent"),
     });
