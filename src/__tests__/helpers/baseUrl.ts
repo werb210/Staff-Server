@@ -24,10 +24,6 @@ export function resolveBaseUrl(server?: Server): string {
     return baseUrl;
   }
 
-  if (isCodespaces) {
-    return baseUrl ?? "http://localhost:3000";
-  }
-
   if (!server) {
     throw new Error("BASE_URL was not configured for runtime health checks.");
   }

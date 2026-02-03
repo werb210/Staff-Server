@@ -6,6 +6,7 @@ export async function submitLenderSubmission(params: {
   applicationId: string;
   idempotencyKey: string | null;
   actorUserId: string;
+  skipRequiredDocuments?: boolean;
   ip?: string;
   userAgent?: string;
 }): Promise<{ statusCode: number; value: { id: string; status: string; failureReason?: string | null } }> {
@@ -26,6 +27,7 @@ export async function submitLenderSubmission(params: {
     lenderId: application.lender_id,
     lenderProductId: application.lender_product_id,
     actorUserId: params.actorUserId,
+    skipRequiredDocuments: params.skipRequiredDocuments,
     ip: params.ip,
     userAgent: params.userAgent,
   });

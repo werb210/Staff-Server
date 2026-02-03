@@ -395,6 +395,7 @@ async function transmitSubmission(params: {
   ip?: string;
   userAgent?: string;
   attempt: number;
+  skipRequiredDocuments?: boolean;
   client: Pick<PoolClient, "query">;
 }): Promise<IdempotentResult<{ id: string; status: string; failureReason?: string | null }>> {
   const application = await findApplicationById(params.applicationId, params.client);
@@ -437,6 +438,65 @@ async function transmitSubmission(params: {
     submittedAt,
     client: params.client,
   });
+
+  if (!params.skipRequiredDocuments && missingDocumentTypes.length > 0) {
+    const submission = await createSubmission({
+      applicationId: params.applicationId,
+      idempotencyKey: params.idempotencyKey,
+      status: "pending",
+      lenderId: params.lenderId,
+      submissionMethod,
+      submittedAt,
+      payload: packet,
+      payloadHash: hashPayload(packet),
+      lenderResponse: null,
+      responseReceivedAt: null,
+      failureReason: null,
+      externalReference: null,
+      client: params.client,
+    });
+
+    await createSubmissionEvent({
+      applicationId: params.applicationId,
+      lenderId: params.lenderId,
+      method: submissionMethod,
+      status: "pending",
+      internalError: null,
+      timestamp: new Date(),
+      client: params.client,
+    });
+
+    await recordSubmissionFailure({
+      submissionId: submission.id,
+      applicationId: params.applicationId,
+      lenderId: params.lenderId,
+      ownerUserId: application.owner_user_id,
+      failureReason: "missing_documents",
+      response: {
+        status: "missing_documents",
+        detail: `Missing: ${missingDocumentTypes.join(", ")}`,
+        receivedAt: new Date().toISOString(),
+      },
+      retryable: true,
+      method: submissionMethod,
+      actorUserId: params.actorUserId,
+      ip: params.ip,
+      userAgent: params.userAgent,
+      client: params.client,
+    });
+    logWarn("lender_submission_failed", {
+      submissionId: submission.id,
+      applicationId: params.applicationId,
+      lenderId: params.lenderId,
+      reason: "missing_documents",
+    });
+
+    return {
+      statusCode: 400,
+      value: { id: submission.id, status: "failed", failureReason: "missing_documents" },
+      idempotent: false,
+    };
+  }
 
   let payload: SubmissionPacket & Record<string, unknown>;
   try {
@@ -493,39 +553,6 @@ async function transmitSubmission(params: {
     timestamp: new Date(),
     client: params.client,
   });
-
-  if (missingDocumentTypes.length > 0) {
-    await recordSubmissionFailure({
-      submissionId: submission.id,
-      applicationId: params.applicationId,
-      lenderId: params.lenderId,
-      ownerUserId: application.owner_user_id,
-      failureReason: "missing_documents",
-      response: {
-        status: "missing_documents",
-        detail: `Missing: ${missingDocumentTypes.join(", ")}`,
-        receivedAt: new Date().toISOString(),
-      },
-      retryable: true,
-      method: submissionMethod,
-      actorUserId: params.actorUserId,
-      ip: params.ip,
-      userAgent: params.userAgent,
-      client: params.client,
-    });
-    logWarn("lender_submission_failed", {
-      submissionId: submission.id,
-      applicationId: params.applicationId,
-      lenderId: params.lenderId,
-      reason: "missing_documents",
-    });
-
-    return {
-      statusCode: 400,
-      value: { id: submission.id, status: "failed", failureReason: "missing_documents" },
-      idempotent: false,
-    };
-  }
 
   const profile = await resolveSubmissionProfile(params.lenderId, params.client);
   const response = await sendToLender({
@@ -779,6 +806,7 @@ export async function submitApplication(params: {
   lenderId: string;
   lenderProductId: string;
   actorUserId: string;
+  skipRequiredDocuments?: boolean;
   ip?: string;
   userAgent?: string;
 }): Promise<IdempotentResult<{ id: string; status: string; failureReason?: string | null }>> {
@@ -869,6 +897,7 @@ export async function submitApplication(params: {
       ip: params.ip,
       userAgent: params.userAgent,
       attempt: 0,
+      skipRequiredDocuments: params.skipRequiredDocuments,
       client,
     });
 
