@@ -157,6 +157,14 @@ export function getReportingHourlyIntervalMs(): number {
   return parsePositiveInt(process.env.REPORTING_HOURLY_INTERVAL_MS, 60 * 60 * 1000);
 }
 
+export function getFollowUpJobsEnabled(): boolean {
+  return parseBoolean(process.env.FOLLOWUP_JOBS_ENABLED, !isTestEnv());
+}
+
+export function getFollowUpJobsIntervalMs(): number {
+  return parsePositiveInt(process.env.FOLLOWUP_JOBS_INTERVAL_MS, 5 * 60 * 1000);
+}
+
 export function getOpsKillSwitchReplay(): boolean {
   return parseBoolean(process.env.OPS_KILL_SWITCH_REPLAY, false);
 }

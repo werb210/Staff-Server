@@ -10,6 +10,7 @@ import { markReady } from "../startupState";
 import { getTwilioClient, getVerifyServiceSid } from "../services/twilio";
 import { seedRequirementsForAllProducts } from "../services/lenderProductRequirementsService";
 import { initializePushService } from "../services/pushService";
+import { startFollowUpJobs } from "../modules/followup/followup.scheduler";
 
 let processHandlersInstalled = false;
 let server: ReturnType<ReturnType<typeof buildApp>["listen"]> | null = null;
@@ -91,6 +92,8 @@ export async function startServer() {
 
   // Global 404 handler (after all routes)
   app.use(notFoundHandler);
+
+  startFollowUpJobs();
 
   const port = resolvePort();
   server = await new Promise((resolve) => {
