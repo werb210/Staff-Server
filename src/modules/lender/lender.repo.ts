@@ -35,6 +35,16 @@ export type LenderSubmissionRetryRecord = {
   canceled_at: Date | null;
 };
 
+export type SubmissionEventRecord = {
+  id: string;
+  application_id: string;
+  lender_id: string;
+  method: string;
+  status: string;
+  internal_error: string | null;
+  created_at: Date;
+};
+
 export async function findSubmissionByIdempotencyKey(
   key: string,
   client?: Queryable
@@ -276,4 +286,32 @@ export async function findSubmissionRetryState(
     [submissionId]
   );
   return res.rows[0] ?? null;
+}
+
+export async function createSubmissionEvent(params: {
+  applicationId: string;
+  lenderId: string;
+  method: string;
+  status: string;
+  timestamp: Date;
+  internalError: string | null;
+  client?: Queryable;
+}): Promise<SubmissionEventRecord> {
+  const runner = params.client ?? pool;
+  const res = await runner.query<SubmissionEventRecord>(
+    `insert into submission_events
+     (id, application_id, lender_id, method, status, internal_error, created_at)
+     values ($1, $2, $3, $4, $5, $6, $7)
+     returning id, application_id, lender_id, method, status, internal_error, created_at`,
+    [
+      randomUUID(),
+      params.applicationId,
+      params.lenderId,
+      params.method,
+      params.status,
+      params.internalError,
+      params.timestamp,
+    ]
+  );
+  return res.rows[0];
 }

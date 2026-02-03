@@ -209,7 +209,7 @@ describe("submission pipeline end-to-end", () => {
       const submission = await submitToLender(token, applicationId);
 
       expect(submission.status).toBe(201);
-      expect(submission.body.submission.status).toBe("sent");
+      expect(submission.body.submission.status).toBe("submitted");
 
       const finalState = await pool.query<{ pipeline_state: string }>(
         "select pipeline_state from applications where id = $1",
@@ -438,7 +438,7 @@ describe("submission pipeline end-to-end", () => {
 
     submissions.forEach(({ submission }) => {
       expect(submission.status).toBe(201);
-      expect(submission.body.submission.status).toBe("sent");
+      expect(submission.body.submission.status).toBe("submitted");
     });
 
     const retryCount = await pool.query<{ count: number }>(

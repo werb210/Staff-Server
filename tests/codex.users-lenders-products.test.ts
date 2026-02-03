@@ -63,8 +63,8 @@ async function seedScenario() {
   const lenderBId = randomUUID();
   await pool.query(
     `insert into lenders (id, name, country, submission_method, active, status, created_at, updated_at)
-     values ($1, $2, $3, 'EMAIL', true, 'ACTIVE', now(), now()),
-            ($4, $5, $6, 'EMAIL', true, 'ACTIVE', now(), now())`,
+     values ($1, $2, $3, 'email', true, 'ACTIVE', now(), now()),
+            ($4, $5, $6, 'email', true, 'ACTIVE', now(), now())`,
     [lenderAId, "Lender A", "US", lenderBId, "Lender B", "CA"]
   );
 
@@ -172,7 +172,7 @@ describe("codex users/lenders/lender products access", () => {
       .send({
         name: "New Lender",
         country: "US",
-        submissionMethod: "EMAIL",
+        submissionMethod: "email",
         submissionEmail: "submissions@new-lender.com",
       });
     expect(createLender.status).toBe(201);

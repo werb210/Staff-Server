@@ -323,7 +323,7 @@ async function executeReplayAction(
     const lender = await createLender(pool, {
       name: parsed.name.trim(),
       country: parsed.country.trim(),
-      submission_method: parsed.submissionMethod?.trim() ?? "EMAIL",
+      submission_method: parsed.submissionMethod?.trim().toLowerCase() ?? "email",
       active: parsed.active,
       website: parsed.website ?? null,
       submission_email: parsed.submissionEmail ?? null,

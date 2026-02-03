@@ -416,11 +416,11 @@ export async function createLender(
 
     const normalizedSubmissionMethod =
       typeof submissionMethod === "string"
-        ? submissionMethod.trim().toUpperCase()
+        ? submissionMethod.trim().toLowerCase()
         : null;
     const resolvedSubmissionMethod =
-      normalizedSubmissionMethod === "GOOGLE_SHEET"
-        ? "GOOGLE_SHEETS"
+      normalizedSubmissionMethod === "google_sheets"
+        ? "google_sheet"
         : normalizedSubmissionMethod;
     if (
       resolvedSubmissionMethod &&
@@ -432,7 +432,7 @@ export async function createLender(
         400
       );
     }
-    if (resolvedSubmissionMethod === "EMAIL") {
+    if (resolvedSubmissionMethod === "email") {
       const normalizedSubmissionEmail =
         typeof submissionEmail === "string" ? submissionEmail.trim() : "";
       if (!normalizedSubmissionEmail) {
@@ -449,7 +449,7 @@ export async function createLender(
         : apiConfig && typeof apiConfig === "object"
           ? (apiConfig as JsonObject)
           : null;
-    if (resolvedSubmissionMethod === "API") {
+    if (resolvedSubmissionMethod === "api") {
       if (!resolvedSubmissionConfig) {
         throw new AppError(
           "validation_error",
@@ -458,36 +458,28 @@ export async function createLender(
         );
       }
     }
-    if (resolvedSubmissionMethod === "GOOGLE_SHEETS") {
+    if (resolvedSubmissionMethod === "google_sheet") {
       if (!resolvedSubmissionConfig) {
         throw new AppError(
           "validation_error",
-          "submissionConfig is required for GOOGLE_SHEETS submissions.",
+          "submissionConfig is required for google_sheet submissions.",
           400
         );
       }
-      const sheetId = (resolvedSubmissionConfig as { sheetId?: unknown }).sheetId;
-      if (typeof sheetId !== "string" || sheetId.trim().length === 0) {
+      const spreadsheetId = (resolvedSubmissionConfig as { spreadsheetId?: unknown }).spreadsheetId;
+      if (typeof spreadsheetId !== "string" || spreadsheetId.trim().length === 0) {
         throw new AppError(
           "validation_error",
-          "submissionConfig.sheetId is required for GOOGLE_SHEETS submissions.",
+          "submissionConfig.spreadsheetId is required for google_sheet submissions.",
           400
         );
       }
-      const applicationIdHeader = (resolvedSubmissionConfig as { applicationIdHeader?: unknown })
-        .applicationIdHeader;
-      if (typeof applicationIdHeader !== "string" || applicationIdHeader.trim().length === 0) {
+      const columnMapVersion = (resolvedSubmissionConfig as { columnMapVersion?: unknown })
+        .columnMapVersion;
+      if (typeof columnMapVersion !== "string" || columnMapVersion.trim().length === 0) {
         throw new AppError(
           "validation_error",
-          "submissionConfig.applicationIdHeader is required for GOOGLE_SHEETS submissions.",
-          400
-        );
-      }
-      const columns = (resolvedSubmissionConfig as { columns?: unknown }).columns;
-      if (!Array.isArray(columns) || columns.length === 0) {
-        throw new AppError(
-          "validation_error",
-          "submissionConfig.columns is required for GOOGLE_SHEETS submissions.",
+          "submissionConfig.columnMapVersion is required for google_sheet submissions.",
           400
         );
       }
@@ -499,7 +491,7 @@ export async function createLender(
     const lender = await repo.createLender(pool, {
       name: name.trim(),
       country: normalizedCountry,
-      submission_method: resolvedSubmissionMethod ?? "EMAIL",
+      submission_method: resolvedSubmissionMethod ?? "email",
       active: typeof active === "boolean" ? active : undefined,
       status: resolvedStatus,
       email: typeof email === "string" ? email.trim() : null,
@@ -610,11 +602,11 @@ export async function updateLender(
     }
     const normalizedSubmissionMethod =
       typeof submissionMethod === "string"
-        ? submissionMethod.trim().toUpperCase()
+        ? submissionMethod.trim().toLowerCase()
         : undefined;
     const resolvedSubmissionMethod =
-      normalizedSubmissionMethod === "GOOGLE_SHEET"
-        ? "GOOGLE_SHEETS"
+      normalizedSubmissionMethod === "google_sheets"
+        ? "google_sheet"
         : normalizedSubmissionMethod;
     if (
       resolvedSubmissionMethod &&
@@ -626,7 +618,7 @@ export async function updateLender(
         400
       );
     }
-    if (resolvedSubmissionMethod === "EMAIL") {
+    if (resolvedSubmissionMethod === "email") {
       const normalizedSubmissionEmail =
         typeof submissionEmail === "string" ? submissionEmail.trim() : "";
       if (!normalizedSubmissionEmail) {
@@ -643,7 +635,7 @@ export async function updateLender(
         : apiConfig && typeof apiConfig === "object"
           ? (apiConfig as JsonObject)
           : undefined;
-    if (resolvedSubmissionMethod === "API") {
+    if (resolvedSubmissionMethod === "api") {
       if (!resolvedSubmissionConfig) {
         throw new AppError(
           "validation_error",
@@ -652,36 +644,28 @@ export async function updateLender(
         );
       }
     }
-    if (resolvedSubmissionMethod === "GOOGLE_SHEETS") {
+    if (resolvedSubmissionMethod === "google_sheet") {
       if (!resolvedSubmissionConfig) {
         throw new AppError(
           "validation_error",
-          "submissionConfig is required for GOOGLE_SHEETS submissions.",
+          "submissionConfig is required for google_sheet submissions.",
           400
         );
       }
-      const sheetId = (resolvedSubmissionConfig as { sheetId?: unknown }).sheetId;
-      if (typeof sheetId !== "string" || sheetId.trim().length === 0) {
+      const spreadsheetId = (resolvedSubmissionConfig as { spreadsheetId?: unknown }).spreadsheetId;
+      if (typeof spreadsheetId !== "string" || spreadsheetId.trim().length === 0) {
         throw new AppError(
           "validation_error",
-          "submissionConfig.sheetId is required for GOOGLE_SHEETS submissions.",
+          "submissionConfig.spreadsheetId is required for google_sheet submissions.",
           400
         );
       }
-      const applicationIdHeader = (resolvedSubmissionConfig as { applicationIdHeader?: unknown })
-        .applicationIdHeader;
-      if (typeof applicationIdHeader !== "string" || applicationIdHeader.trim().length === 0) {
+      const columnMapVersion = (resolvedSubmissionConfig as { columnMapVersion?: unknown })
+        .columnMapVersion;
+      if (typeof columnMapVersion !== "string" || columnMapVersion.trim().length === 0) {
         throw new AppError(
           "validation_error",
-          "submissionConfig.applicationIdHeader is required for GOOGLE_SHEETS submissions.",
-          400
-        );
-      }
-      const columns = (resolvedSubmissionConfig as { columns?: unknown }).columns;
-      if (!Array.isArray(columns) || columns.length === 0) {
-        throw new AppError(
-          "validation_error",
-          "submissionConfig.columns is required for GOOGLE_SHEETS submissions.",
+          "submissionConfig.columnMapVersion is required for google_sheet submissions.",
           400
         );
       }

@@ -64,7 +64,7 @@ async function createLender(token: string) {
     .send({
       name: "Contract Lender",
       country: "US",
-      submissionMethod: "API",
+      submissionMethod: "api",
       apiConfig: { endpoint: "https://api.contracts.test" },
     });
 

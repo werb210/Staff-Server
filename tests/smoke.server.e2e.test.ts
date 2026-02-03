@@ -95,7 +95,7 @@ describe("server smoke test", () => {
       .send({
         name: "Smoke Lender",
         country: "US",
-        submissionMethod: "API",
+        submissionMethod: "api",
         apiConfig: { endpoint: "https://api.smoke-server.test" },
       });
     expect(lenderCreate.status).toBe(201);

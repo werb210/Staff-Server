@@ -35,7 +35,7 @@ describe("lender products smoke", () => {
       {
         name: lenderName,
         country: "US",
-        submissionMethod: "API",
+        submissionMethod: "api",
         apiConfig: { endpoint: "https://api.lender.test" },
       },
       headers

@@ -85,7 +85,7 @@ describe("lender products", () => {
       .send({
         name: "Docs Lender",
         country: "US",
-        submissionMethod: "EMAIL",
+        submissionMethod: "email",
         submissionEmail: "submissions@docs-lender.com",
       });
 
@@ -168,7 +168,7 @@ describe("lender products", () => {
         name: "Inactive Lender",
         country: "US",
         active: false,
-        submissionMethod: "EMAIL",
+        submissionMethod: "email",
         submissionEmail: "submissions@inactive-lender.com",
       });
 
@@ -192,7 +192,7 @@ describe("lender products", () => {
         name: "Active Lender",
         country: "US",
         active: true,
-        submissionMethod: "EMAIL",
+        submissionMethod: "email",
         submissionEmail: "submissions@active-lender.com",
       });
 
@@ -219,7 +219,7 @@ describe("lender products", () => {
       .send({
         name: "Variable Lender",
         country: "US",
-        submissionMethod: "EMAIL",
+        submissionMethod: "email",
         submissionEmail: "submissions@variable-lender.com",
       });
 
@@ -259,8 +259,8 @@ describe("lender products", () => {
     const otherLenderId = randomUUID();
     await pool.query(
       `insert into lenders (id, name, country, submission_method, active, status, created_at, updated_at)
-       values ($1, $2, $3, 'EMAIL', true, 'ACTIVE', now(), now()),
-              ($4, $5, $6, 'EMAIL', true, 'ACTIVE', now(), now())`,
+       values ($1, $2, $3, 'email', true, 'ACTIVE', now(), now()),
+              ($4, $5, $6, 'email', true, 'ACTIVE', now(), now())`,
       [
         lenderId,
         "Lender Owner",

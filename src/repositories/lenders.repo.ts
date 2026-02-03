@@ -88,7 +88,7 @@ function buildSelectColumns(existing: Set<string>): string {
     { name: "id" },
     { name: "name" },
     { name: "country" },
-    { name: "submission_method", fallback: "'EMAIL'::text" },
+    { name: "submission_method", fallback: "'email'::text" },
     { name: "active", fallback: "true" },
     { name: "status", fallback: "'ACTIVE'::text" },
     { name: "email", fallback: "null::text" },

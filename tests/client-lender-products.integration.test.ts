@@ -63,7 +63,7 @@ describe("client lender products flow", () => {
       .send({
         name: "Client Lender",
         country: "US",
-        submissionMethod: "EMAIL",
+        submissionMethod: "email",
         submissionEmail: "submissions@client-lender.com",
       });
 

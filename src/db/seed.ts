@@ -104,7 +104,7 @@ export async function seedBaselineLenders(): Promise<void> {
   await pool.query(
     `insert into lenders
      (id, name, active, status, submission_method, website, country, created_at, updated_at)
-     values ($1, $2, true, 'ACTIVE', 'EMAIL', $3, $4, now(), now())`,
+     values ($1, $2, true, 'ACTIVE', 'email', $3, $4, now(), now())`,
     [
       SEEDED_LENDER_ID,
       "Atlas Capital",
