@@ -11,12 +11,14 @@ export type LenderSubmissionRecord = {
   status: string;
   idempotency_key: string | null;
   lender_id: string;
+  submission_method: string | null;
   submitted_at: Date | null;
   payload: unknown | null;
   payload_hash: string | null;
   lender_response: unknown | null;
   response_received_at: Date | null;
   failure_reason: string | null;
+  external_reference: string | null;
   created_at: Date;
   updated_at: Date;
 };
@@ -39,8 +41,8 @@ export async function findSubmissionByIdempotencyKey(
 ): Promise<LenderSubmissionRecord | null> {
   const runner = client ?? pool;
   const res = await runner.query<LenderSubmissionRecord>(
-    `select id, application_id, status, idempotency_key, lender_id, submitted_at, payload, payload_hash,
-            lender_response, response_received_at, failure_reason, created_at, updated_at
+    `select id, application_id, status, idempotency_key, lender_id, submission_method, submitted_at, payload, payload_hash,
+            lender_response, response_received_at, failure_reason, external_reference, created_at, updated_at
      from lender_submissions
      where idempotency_key = $1
      limit 1`,
@@ -54,34 +56,38 @@ export async function createSubmission(params: {
   status: string;
   idempotencyKey: string | null;
   lenderId: string;
+  submissionMethod: string | null;
   submittedAt: Date;
   payload: unknown;
   payloadHash: string;
   lenderResponse: unknown | null;
   responseReceivedAt: Date | null;
   failureReason: string | null;
+  externalReference: string | null;
   client?: Queryable;
 }): Promise<LenderSubmissionRecord> {
   const runner = params.client ?? pool;
   const res = await runner.query<LenderSubmissionRecord>(
     `insert into lender_submissions
-     (id, application_id, status, idempotency_key, lender_id, submitted_at, payload, payload_hash,
-      lender_response, response_received_at, failure_reason, created_at, updated_at)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, now(), now())
-     returning id, application_id, status, idempotency_key, lender_id, submitted_at, payload, payload_hash,
-               lender_response, response_received_at, failure_reason, created_at, updated_at`,
+     (id, application_id, status, idempotency_key, lender_id, submission_method, submitted_at, payload, payload_hash,
+      lender_response, response_received_at, failure_reason, external_reference, created_at, updated_at)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now(), now())
+     returning id, application_id, status, idempotency_key, lender_id, submission_method, submitted_at, payload, payload_hash,
+               lender_response, response_received_at, failure_reason, external_reference, created_at, updated_at`,
     [
       randomUUID(),
       params.applicationId,
       params.status,
       params.idempotencyKey,
       params.lenderId,
+      params.submissionMethod,
       params.submittedAt,
       params.payload,
       params.payloadHash,
       params.lenderResponse,
       params.responseReceivedAt,
       params.failureReason,
+      params.externalReference,
     ]
   );
   return res.rows[0];
@@ -93,8 +99,8 @@ export async function findSubmissionById(
 ): Promise<LenderSubmissionRecord | null> {
   const runner = client ?? pool;
   const res = await runner.query<LenderSubmissionRecord>(
-    `select id, application_id, status, idempotency_key, lender_id, submitted_at, payload, payload_hash,
-            lender_response, response_received_at, failure_reason, created_at, updated_at
+    `select id, application_id, status, idempotency_key, lender_id, submission_method, submitted_at, payload, payload_hash,
+            lender_response, response_received_at, failure_reason, external_reference, created_at, updated_at
      from lender_submissions
      where id = $1
      limit 1`,
@@ -109,8 +115,8 @@ export async function findSubmissionByApplicationAndLender(
 ): Promise<LenderSubmissionRecord | null> {
   const runner = client ?? pool;
   const res = await runner.query<LenderSubmissionRecord>(
-    `select id, application_id, status, idempotency_key, lender_id, submitted_at, payload, payload_hash,
-            lender_response, response_received_at, failure_reason, created_at, updated_at
+    `select id, application_id, status, idempotency_key, lender_id, submission_method, submitted_at, payload, payload_hash,
+            lender_response, response_received_at, failure_reason, external_reference, created_at, updated_at
      from lender_submissions
      where application_id = $1
        and lender_id = $2
@@ -126,8 +132,8 @@ export async function findLatestSubmissionByApplicationId(
 ): Promise<LenderSubmissionRecord | null> {
   const runner = client ?? pool;
   const res = await runner.query<LenderSubmissionRecord>(
-    `select id, application_id, status, idempotency_key, lender_id, submitted_at, payload, payload_hash,
-            lender_response, response_received_at, failure_reason, created_at, updated_at
+    `select id, application_id, status, idempotency_key, lender_id, submission_method, submitted_at, payload, payload_hash,
+            lender_response, response_received_at, failure_reason, external_reference, created_at, updated_at
      from lender_submissions
      where application_id = $1
      order by created_at desc
@@ -143,6 +149,7 @@ export async function updateSubmissionStatus(params: {
   lenderResponse: unknown | null;
   responseReceivedAt: Date | null;
   failureReason: string | null;
+  externalReference: string | null;
   client?: Queryable;
 }): Promise<void> {
   const runner = params.client ?? pool;
@@ -152,13 +159,15 @@ export async function updateSubmissionStatus(params: {
          lender_response = $2,
          response_received_at = $3,
          failure_reason = $4,
+         external_reference = $5,
          updated_at = now()
-     where id = $5`,
+     where id = $6`,
     [
       params.status,
       params.lenderResponse,
       params.responseReceivedAt,
       params.failureReason,
+      params.externalReference,
       params.submissionId,
     ]
   );

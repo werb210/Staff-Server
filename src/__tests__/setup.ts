@@ -163,6 +163,7 @@ beforeAll(async () => {
       submission_method text not null default 'EMAIL',
       submission_email text null,
       api_config jsonb null,
+      submission_config jsonb null,
       primary_contact_name text null,
       primary_contact_email text null,
       primary_contact_phone text null,

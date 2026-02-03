@@ -1,4 +1,9 @@
-export const LENDER_SUBMISSION_METHODS = ["EMAIL", "API", "GOOGLE_SHEETS"] as const;
+export const LENDER_SUBMISSION_METHODS = [
+  "EMAIL",
+  "API",
+  "GOOGLE_SHEETS",
+  "MANUAL",
+] as const;
 
 export const LENDER_COUNTRIES = ["CA", "US", "BOTH"] as const;
 
@@ -20,6 +25,7 @@ export type LenderRecord = {
   submission_method: LenderSubmissionMethod;
   submission_email: string | null;
   api_config: Record<string, unknown> | null;
+  submission_config: Record<string, unknown> | null;
   primary_contact_name: string | null;
   primary_contact_email: string | null;
   primary_contact_phone: string | null;

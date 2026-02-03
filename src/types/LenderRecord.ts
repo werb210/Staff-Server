@@ -6,6 +6,7 @@ export type LenderRecord = {
   country: string;
   status: string;
   api_config: Record<string, unknown> | null;
+  submission_config: Record<string, unknown> | null;
   primary_contact_name: string | null;
   primary_contact_email: string | null;
   primary_contact_phone: string | null;

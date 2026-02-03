@@ -70,12 +70,14 @@ async function ensurePipelineSchema(): Promise<void> {
       status text not null,
       idempotency_key text null,
       lender_id text not null default 'default',
+      submission_method text null,
       submitted_at timestamp null,
       payload jsonb null,
       payload_hash text null,
       lender_response jsonb null,
       response_received_at timestamp null,
       failure_reason text null,
+      external_reference text null,
       created_at timestamp not null,
       updated_at timestamp not null
     );

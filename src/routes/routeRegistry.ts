@@ -12,6 +12,7 @@ import dashboardRoutes from "./dashboard";
 import documentsRoutes from "./documents";
 import internalRoutes from "./_int";
 import lenderRoutes from "./lender";
+import lenderSubmissionsRoutes from "./lenderSubmissions";
 import lenderProductsRoutes from "./lenderProducts";
 import lendersRoutes from "./lenders";
 import marketingRoutes from "./marketing";
@@ -56,6 +57,7 @@ export const API_ROUTE_MOUNTS: ApiRouteMount[] = [
   { path: "/dashboard", router: dashboardRoutes },
   { path: "/documents", router: documentsRoutes },
   { path: "/lender", router: lenderRoutes },
+  { path: "/lender-submissions", router: lenderSubmissionsRoutes },
   { path: "/lender-products", router: lenderProductsRoutes },
   { path: "/lenders", router: lendersRoutes },
   { path: "/admin", router: adminRoutes },

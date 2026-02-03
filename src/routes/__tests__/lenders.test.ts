@@ -50,6 +50,7 @@ const lenderColumns = [
   "website",
   "submission_email",
   "api_config",
+  "submission_config",
   "created_at",
   "updated_at",
 ].map((column_name) => ({ column_name }));
@@ -139,6 +140,8 @@ describe("POST /api/lenders", () => {
               submission_method: "EMAIL",
               submission_email: "submissions@lender.com",
               api_config: null,
+              submission_config: null,
+              submission_config: null,
               website: "https://lender.com",
               created_at: new Date(),
               updated_at: new Date(),
@@ -209,6 +212,7 @@ describe("GET /api/lenders/:id", () => {
               submission_method: "EMAIL",
               submission_email: "submissions@example.com",
               api_config: null,
+              submission_config: null,
               website: "https://lender.example",
             },
           ],
@@ -248,6 +252,7 @@ describe("GET /api/lenders/:id", () => {
       submission_method: "EMAIL",
       submission_email: "submissions@example.com",
       api_config: null,
+      submission_config: null,
       created_at: null,
       updated_at: null,
     });
