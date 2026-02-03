@@ -66,6 +66,45 @@ describe("voice endpoints", () => {
     expect(res.status).toBe(401);
   });
 
+  it("returns 503 when voice is disabled", async () => {
+    const phone = nextPhone();
+    await createUserAccount({ phoneNumber: phone, role: ROLES.STAFF });
+    const login = await otpVerifyRequest(app, { phone });
+
+    const originalEnv = {
+      TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID,
+      TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN,
+      TWILIO_API_KEY: process.env.TWILIO_API_KEY,
+      TWILIO_API_SECRET: process.env.TWILIO_API_SECRET,
+      TWILIO_VOICE_APP_SID: process.env.TWILIO_VOICE_APP_SID,
+      TWILIO_VOICE_CALLER_ID: process.env.TWILIO_VOICE_CALLER_ID,
+    };
+
+    try {
+      delete process.env.TWILIO_ACCOUNT_SID;
+      delete process.env.TWILIO_AUTH_TOKEN;
+      delete process.env.TWILIO_API_KEY;
+      delete process.env.TWILIO_API_SECRET;
+      delete process.env.TWILIO_VOICE_APP_SID;
+      delete process.env.TWILIO_VOICE_CALLER_ID;
+
+      const res = await request(app)
+        .post("/api/voice/token")
+        .set("Authorization", `Bearer ${login.body.accessToken}`)
+        .send({});
+
+      expect(res.status).toBe(503);
+      expect(res.body.error ?? res.body.code).toBe("voice_disabled");
+    } finally {
+      process.env.TWILIO_ACCOUNT_SID = originalEnv.TWILIO_ACCOUNT_SID;
+      process.env.TWILIO_AUTH_TOKEN = originalEnv.TWILIO_AUTH_TOKEN;
+      process.env.TWILIO_API_KEY = originalEnv.TWILIO_API_KEY;
+      process.env.TWILIO_API_SECRET = originalEnv.TWILIO_API_SECRET;
+      process.env.TWILIO_VOICE_APP_SID = originalEnv.TWILIO_VOICE_APP_SID;
+      process.env.TWILIO_VOICE_CALLER_ID = originalEnv.TWILIO_VOICE_CALLER_ID;
+    }
+  });
+
   it("starts and ends a voice call", async () => {
     const phone = nextPhone();
     await createUserAccount({ phoneNumber: phone, role: ROLES.STAFF });
@@ -112,6 +151,77 @@ describe("voice endpoints", () => {
     expect(end.status).toBe(200);
     expect(end.body.call.status).toBe("completed");
     expect(end.body.call.duration_seconds).toBe(12);
+  });
+
+  it("creates calls idempotently for slide-in dialer", async () => {
+    const phone = nextPhone();
+    await createUserAccount({ phoneNumber: phone, role: ROLES.STAFF });
+    const login = await otpVerifyRequest(app, { phone });
+
+    const first = await request(app)
+      .post("/api/voice/call/start")
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .send({ toPhone: "+14155553333", callSid: "CA-IDEM-1" });
+
+    const second = await request(app)
+      .post("/api/voice/call/start")
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .send({ toPhone: "+14155553333", callSid: "CA-IDEM-1" });
+
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(201);
+
+    const rows = await pool.query(
+      "select count(*)::int as count from call_logs where twilio_call_sid = $1",
+      ["CA-IDEM-1"]
+    );
+    expect(rows.rows[0].count).toBe(1);
+  });
+
+  it("normalizes call lifecycle statuses", async () => {
+    const phone = nextPhone();
+    await createUserAccount({ phoneNumber: phone, role: ROLES.STAFF });
+    const login = await otpVerifyRequest(app, { phone });
+
+    await request(app)
+      .post("/api/voice/call")
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .send({ to: "+14155551234" });
+
+    const connected = await request(app)
+      .post("/api/voice/call/status")
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .send({ callSid: "CA-VOICE-1", status: "connected" });
+
+    expect(connected.status).toBe(200);
+    expect(connected.body.call.status).toBe("in_progress");
+
+    const busy = await request(app)
+      .post("/api/voice/call/status")
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .send({ callSid: "CA-VOICE-1", status: "busy" });
+
+    expect(busy.status).toBe(200);
+    expect(busy.body.call.status).toBe("failed");
+  });
+
+  it("polls call status idempotently", async () => {
+    const phone = nextPhone();
+    await createUserAccount({ phoneNumber: phone, role: ROLES.STAFF });
+    const login = await otpVerifyRequest(app, { phone });
+
+    await request(app)
+      .post("/api/voice/call")
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .send({ to: "+14155551234" });
+
+    const poll = await request(app)
+      .post("/api/voice/call/status")
+      .set("Authorization", `Bearer ${login.body.accessToken}`)
+      .send({ callSid: "CA-VOICE-1" });
+
+    expect(poll.status).toBe(200);
+    expect(poll.body.call.twilio_call_sid).toBe("CA-VOICE-1");
   });
 
   it("prevents staff from controlling another user's call", async () => {

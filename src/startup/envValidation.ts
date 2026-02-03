@@ -1,10 +1,26 @@
-import { logError } from "../observability/logger";
+import { logError, logWarn } from "../observability/logger";
 
 const REQUIRED_AUTH_ENV = [
-  "TWILIO_ACCOUNT_SID",
-  "TWILIO_AUTH_TOKEN",
-  "TWILIO_VERIFY_SERVICE_SID",
   "JWT_SECRET",
+  "JWT_REFRESH_SECRET",
+] as const;
+
+const OPTIONAL_SERVICE_ENV = [
+  {
+    name: "twilio_verify",
+    keys: ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_VERIFY_SERVICE_SID"],
+  },
+  {
+    name: "twilio_voice",
+    keys: [
+      "TWILIO_ACCOUNT_SID",
+      "TWILIO_AUTH_TOKEN",
+      "TWILIO_API_KEY",
+      "TWILIO_API_SECRET",
+      "TWILIO_VOICE_APP_SID",
+      "TWILIO_VOICE_CALLER_ID",
+    ],
+  },
 ] as const;
 
 function getMissingEnvKeys(): string[] {
@@ -21,6 +37,18 @@ export function assertRequiredAuthEnv(): void {
   }
   const missing = getMissingEnvKeys();
   if (missing.length === 0) {
+    OPTIONAL_SERVICE_ENV.forEach((service) => {
+      const missingKeys = service.keys.filter((key) => {
+        const value = process.env[key];
+        return !value || value.trim().length === 0;
+      });
+      if (missingKeys.length > 0) {
+        logWarn("optional_service_disabled", {
+          service: service.name,
+          missing: missingKeys,
+        });
+      }
+    });
     return;
   }
 
