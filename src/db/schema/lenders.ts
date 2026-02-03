@@ -1,4 +1,4 @@
-export const LENDER_SUBMISSION_METHODS = ["EMAIL", "API"] as const;
+export const LENDER_SUBMISSION_METHODS = ["EMAIL", "API", "GOOGLE_SHEETS"] as const;
 
 export const LENDER_COUNTRIES = ["CA", "US", "BOTH"] as const;
 

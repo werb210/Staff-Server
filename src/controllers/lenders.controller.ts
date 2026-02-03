@@ -445,6 +445,23 @@ export async function createLender(
         );
       }
     }
+    if (normalizedSubmissionMethod === "GOOGLE_SHEETS") {
+      if (apiConfig === undefined || apiConfig === null || typeof apiConfig !== "object") {
+        throw new AppError(
+          "validation_error",
+          "apiConfig is required for GOOGLE_SHEETS submissions.",
+          400
+        );
+      }
+      const sheetId = (apiConfig as { sheetId?: unknown }).sheetId;
+      if (typeof sheetId !== "string" || sheetId.trim().length === 0) {
+        throw new AppError(
+          "validation_error",
+          "apiConfig.sheetId is required for GOOGLE_SHEETS submissions.",
+          400
+        );
+      }
+    }
 
     const normalizedSubmissionEmail =
       typeof submissionEmail === "string" ? submissionEmail.trim() : null;
@@ -589,6 +606,23 @@ export async function updateLender(
         throw new AppError(
           "validation_error",
           "apiConfig is required for API submissions.",
+          400
+        );
+      }
+    }
+    if (normalizedSubmissionMethod === "GOOGLE_SHEETS") {
+      if (apiConfig === undefined || apiConfig === null || typeof apiConfig !== "object") {
+        throw new AppError(
+          "validation_error",
+          "apiConfig is required for GOOGLE_SHEETS submissions.",
+          400
+        );
+      }
+      const sheetId = (apiConfig as { sheetId?: unknown }).sheetId;
+      if (typeof sheetId !== "string" || sheetId.trim().length === 0) {
+        throw new AppError(
+          "validation_error",
+          "apiConfig.sheetId is required for GOOGLE_SHEETS submissions.",
           400
         );
       }

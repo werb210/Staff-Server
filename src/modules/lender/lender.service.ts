@@ -33,6 +33,13 @@ import { isKillSwitchEnabled } from "../ops/ops.service";
 import { logInfo, logWarn } from "../../observability/logger";
 import { recordTransactionRollback } from "../../observability/transactionTelemetry";
 import { isTestEnvironment } from "../../dbRuntime";
+import {
+  MERCHANT_GROWTH_LENDER_NAME,
+  MERCHANT_GROWTH_SHEET_MAP,
+  type GoogleSheetsPayload,
+  type GoogleSheetsSheetMap,
+} from "../../lenders/config/merchantGrowth.sheetMap";
+import { submitGoogleSheetsApplication } from "../../lenders/adapters/googleSheets.adapter";
 
 function createAdvisoryLockKey(value: string): [number, number] {
   const hash = createHash("sha256").update(value).digest();
@@ -54,6 +61,7 @@ type SubmissionPacket = {
     productType: string;
     lenderId: string | null;
     lenderProductId: string | null;
+    requestedAmount: number | null;
   };
   documents: Array<{
     documentId: string;
@@ -80,12 +88,14 @@ type LenderTransmissionOutcome = {
   retryable: boolean;
 };
 
-const SUPPORTED_SUBMISSION_METHODS = ["api", "email"] as const;
+const SUPPORTED_SUBMISSION_METHODS = ["api", "email", "google_sheets"] as const;
 type SubmissionMethod = (typeof SUPPORTED_SUBMISSION_METHODS)[number];
 
 type LenderSubmissionConfig = {
   method: SubmissionMethod;
   submissionEmail: string | null;
+  lenderName: string;
+  apiConfig: Record<string, unknown> | null;
 };
 
 function hashPayload(payload: unknown): string {
@@ -128,8 +138,10 @@ async function getLenderSubmissionConfig(params: {
   const res = await params.client.query<{
     submission_method: string | null;
     submission_email: string | null;
+    name: string | null;
+    api_config: Record<string, unknown> | null;
   }>(
-    `select submission_method, submission_email
+    `select submission_method, submission_email, name, api_config
      from lenders
      where id = $1
      limit 1`,
@@ -154,7 +166,12 @@ async function getLenderSubmissionConfig(params: {
       400
     );
   }
-  return { method, submissionEmail };
+  return {
+    method,
+    submissionEmail,
+    lenderName: res.rows[0].name ?? "",
+    apiConfig: res.rows[0].api_config ?? null,
+  };
 }
 
 async function assertLenderProduct(params: {
@@ -240,12 +257,63 @@ async function sendSubmissionEmail(params: {
   };
 }
 
+const GOOGLE_SHEETS_LENDER_MAP = new Map<string, GoogleSheetsSheetMap>([
+  [MERCHANT_GROWTH_LENDER_NAME.toLowerCase(), MERCHANT_GROWTH_SHEET_MAP],
+]);
+
+function resolveGoogleSheetsConfig(
+  lenderName: string,
+  apiConfig: Record<string, unknown> | null
+): { sheetMap: GoogleSheetsSheetMap; sheetId: string; sheetTab?: string | null } | null {
+  const normalizedName = lenderName.trim().toLowerCase();
+  const sheetMap = GOOGLE_SHEETS_LENDER_MAP.get(normalizedName);
+  if (!sheetMap) {
+    return null;
+  }
+  const sheetId =
+    apiConfig && typeof apiConfig.sheetId === "string" ? apiConfig.sheetId.trim() : "";
+  if (!sheetId) {
+    return null;
+  }
+  const sheetTab =
+    apiConfig && typeof apiConfig.sheetTab === "string" ? apiConfig.sheetTab.trim() : null;
+  return { sheetMap, sheetId, sheetTab };
+}
+
 async function sendToLender(params: {
   lenderId: string;
+  lenderName: string;
+  submissionMethod: SubmissionMethod;
+  apiConfig: Record<string, unknown> | null;
   payload: Record<string, unknown>;
   attempt: number;
 }): Promise<LenderTransmissionOutcome> {
   const now = new Date().toISOString();
+  if (params.submissionMethod === "google_sheets") {
+    const config = resolveGoogleSheetsConfig(params.lenderName, params.apiConfig);
+    if (!config) {
+      logWarn("google_sheets_submission_disabled", {
+        lenderId: params.lenderId,
+        lenderName: params.lenderName,
+      });
+      return {
+        success: false,
+        response: {
+          status: "disabled",
+          detail: "Google Sheets submission is not enabled for this lender.",
+          receivedAt: now,
+        },
+        failureReason: "google_sheets_disabled",
+        retryable: false,
+      };
+    }
+    return submitGoogleSheetsApplication({
+      payload: params.payload as GoogleSheetsPayload,
+      sheetId: config.sheetId,
+      sheetTab: config.sheetTab,
+      sheetMap: config.sheetMap,
+    });
+  }
   if (params.lenderId === "timeout" && params.attempt === 0) {
     return {
       success: false,
@@ -344,6 +412,7 @@ async function buildSubmissionPacket(params: {
         productType: application.product_type,
         lenderId: application.lender_id,
         lenderProductId: application.lender_product_id,
+        requestedAmount: application.requested_amount ?? null,
       },
       documents: documents.map((doc) => ({
         documentId: doc.document_id,
@@ -436,8 +505,10 @@ async function recordSubmissionFailure(params: {
 async function transmitSubmission(params: {
   applicationId: string;
   lenderId: string;
+  lenderName: string;
   submissionMethod: SubmissionMethod;
   submissionEmail: string | null;
+  apiConfig: Record<string, unknown> | null;
   lenderProductId: string;
   idempotencyKey: string | null;
   actorUserId: string;
@@ -566,6 +637,9 @@ async function transmitSubmission(params: {
         })
       : await sendToLender({
           lenderId: params.lenderId,
+          lenderName: params.lenderName,
+          submissionMethod: params.submissionMethod,
+          apiConfig: params.apiConfig,
           payload,
           attempt: params.attempt,
         });
@@ -674,8 +748,10 @@ async function retryExistingSubmission(params: {
   submissionId: string;
   applicationId: string;
   lenderId: string;
+  lenderName: string;
   submissionMethod: SubmissionMethod;
   submissionEmail: string | null;
+  apiConfig: Record<string, unknown> | null;
   payload: Record<string, unknown>;
   actorUserId: string;
   ip?: string;
@@ -696,6 +772,9 @@ async function retryExistingSubmission(params: {
         })
       : await sendToLender({
           lenderId: params.lenderId,
+          lenderName: params.lenderName,
+          submissionMethod: params.submissionMethod,
+          apiConfig: params.apiConfig,
           payload: params.payload,
           attempt: params.attempt,
         });
@@ -873,8 +952,10 @@ export async function submitApplication(params: {
     const result = await transmitSubmission({
       applicationId: params.applicationId,
       lenderId: params.lenderId,
+      lenderName: submissionConfig.lenderName,
       submissionMethod: submissionConfig.method,
       submissionEmail: submissionConfig.submissionEmail,
+      apiConfig: submissionConfig.apiConfig,
       lenderProductId: params.lenderProductId,
       idempotencyKey: params.idempotencyKey,
       actorUserId: params.actorUserId,
@@ -995,8 +1076,10 @@ export async function retrySubmission(params: {
       submissionId: submission.id,
       applicationId: submission.application_id,
       lenderId: submission.lender_id,
+      lenderName: submissionConfig.lenderName,
       submissionMethod: submissionConfig.method,
       submissionEmail: submissionConfig.submissionEmail,
+      apiConfig: submissionConfig.apiConfig,
       payload: submission.payload as Record<string, unknown>,
       actorUserId: params.actorUserId,
       ip: params.ip,
