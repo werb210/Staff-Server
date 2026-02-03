@@ -24,7 +24,7 @@ export type SubmissionProfile = {
 
 type Queryable = Pick<PoolClient, "query">;
 
-function normalizeSubmissionMethod(value: unknown): SubmissionMethod | null {
+export function normalizeSubmissionMethod(value: unknown): SubmissionMethod | null {
   if (typeof value !== "string") {
     return null;
   }

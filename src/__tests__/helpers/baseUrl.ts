@@ -25,7 +25,7 @@ export function resolveBaseUrl(server?: Server): string {
   }
 
   if (isCodespaces) {
-    throw new Error("BASE_URL is required for Codespaces runtime health checks.");
+    return baseUrl ?? "http://localhost:3000";
   }
 
   if (!server) {
