@@ -11,6 +11,7 @@ import {
   createOcrJob,
   findOcrJobByDocumentId,
   findOcrResultByDocumentId,
+  insertDocumentOcrFields,
   markOcrJobFailure,
   markOcrJobSuccess,
   resetOcrJob,
@@ -18,11 +19,17 @@ import {
 import { createOpenAiOcrProvider, type OcrProvider } from "./ocr.provider";
 import { createOcrStorage, OcrStorageValidationError, type OcrStorage } from "./ocr.storage";
 import { type OcrJobRecord } from "./ocr.types";
-import { logError } from "../../observability/logger";
-import { refreshOcrInsightsForApplication } from "../../ocr/insights";
+import { logError, logInfo } from "../../observability/logger";
+import { getOcrFieldRegistry, type OcrFieldDefinition } from "../../ocr/ocrFieldRegistry";
+import {
+  analyzeOcrForApplication,
+  isNumericOcrField,
+} from "../applications/ocr/ocrAnalysis.service";
+import { notifyOcrWarnings } from "../notifications/ocrNotifications.service";
 
 const OCR_RETRY_BASE_MS = 1000;
 const OCR_RETRY_MAX_MS = 15 * 60 * 1000;
+const OCR_FUZZY_THRESHOLD = 0.85;
 
 function resolveProvider(): OcrProvider {
   const provider = getOcrProvider();
@@ -53,6 +60,189 @@ function computeNextAttempt(attemptCount: number, maxAttempts: number): Date | n
   }
   const delay = Math.min(OCR_RETRY_BASE_MS * 2 ** attemptCount, OCR_RETRY_MAX_MS);
   return new Date(Date.now() + delay);
+}
+
+function normalizeText(text: string): string {
+  return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+}
+
+function normalizeMatchText(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function jaroWinkler(a: string, b: string): number {
+  if (a === b) {
+    return 1;
+  }
+  const aLen = a.length;
+  const bLen = b.length;
+  if (aLen === 0 || bLen === 0) {
+    return 0;
+  }
+  const matchDistance = Math.floor(Math.max(aLen, bLen) / 2) - 1;
+  const aMatches = new Array(aLen).fill(false);
+  const bMatches = new Array(bLen).fill(false);
+  let matches = 0;
+
+  for (let i = 0; i < aLen; i += 1) {
+    const start = Math.max(0, i - matchDistance);
+    const end = Math.min(i + matchDistance + 1, bLen);
+    for (let j = start; j < end; j += 1) {
+      if (bMatches[j]) continue;
+      if (a[i] !== b[j]) continue;
+      aMatches[i] = true;
+      bMatches[j] = true;
+      matches += 1;
+      break;
+    }
+  }
+
+  if (matches === 0) {
+    return 0;
+  }
+
+  let t = 0;
+  let k = 0;
+  for (let i = 0; i < aLen; i += 1) {
+    if (!aMatches[i]) continue;
+    while (!bMatches[k]) {
+      k += 1;
+    }
+    if (a[i] !== b[k]) {
+      t += 1;
+    }
+    k += 1;
+  }
+
+  const transpositions = t / 2;
+  const jaro =
+    (matches / aLen + matches / bLen + (matches - transpositions) / matches) / 3;
+
+  let prefix = 0;
+  for (let i = 0; i < Math.min(4, aLen, bLen); i += 1) {
+    if (a[i] === b[i]) {
+      prefix += 1;
+    } else {
+      break;
+    }
+  }
+
+  return jaro + prefix * 0.1 * (1 - jaro);
+}
+
+function extractValueFromLine(line: string, label: string): string | null {
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const regex = new RegExp(`${escaped}\\s*[:\-]?\\s*(.+)$`, "i");
+  const match = line.match(regex);
+  if (match && match[1]) {
+    const value = match[1].trim();
+    return value.length > 0 ? value : null;
+  }
+  const parts = line.split(/[:\-]/);
+  if (parts.length > 1) {
+    const value = parts.slice(1).join(":").trim();
+    return value.length > 0 ? value : null;
+  }
+  const tokens = line.trim().split(/\s+/);
+  if (tokens.length > 1) {
+    return tokens.slice(1).join(" ");
+  }
+  return null;
+}
+
+function parseNumericValue(value: string): string {
+  const normalized = value
+    .replace(/\(([^)]+)\)/g, "-$1")
+    .replace(/[^0-9.-]/g, "")
+    .replace(/(\..*)\./g, "$1");
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed)) {
+    return value.trim();
+  }
+  return parsed.toString();
+}
+
+function extractFieldsFromText(text: string, registry: OcrFieldDefinition[]): Array<{
+  fieldKey: string;
+  value: string;
+  confidence: number;
+  page: number | null;
+}> {
+  const normalizedText = normalizeText(text);
+  const lines = normalizedText
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  const results: Array<{
+    fieldKey: string;
+    value: string;
+    confidence: number;
+    page: number | null;
+  }> = [];
+
+  registry.forEach((field) => {
+    const labelNormalized = normalizeMatchText(field.label);
+    let matchedLine: string | null = null;
+    let matchedConfidence = 0;
+
+    lines.forEach((line) => {
+      const normalizedLine = normalizeMatchText(line);
+      if (!normalizedLine) {
+        return;
+      }
+
+      if (normalizedLine.includes(labelNormalized)) {
+        matchedLine = line;
+        matchedConfidence = 1;
+        return;
+      }
+
+      const candidate = normalizedLine.split(/[:\-]/)[0].trim();
+      const similarity = jaroWinkler(labelNormalized, candidate || normalizedLine);
+      if (similarity >= OCR_FUZZY_THRESHOLD) {
+        if (!matchedLine || similarity > matchedConfidence) {
+          matchedLine = line;
+          matchedConfidence = similarity;
+        }
+      }
+    });
+
+    if (!matchedLine) {
+      return;
+    }
+
+    const value = extractValueFromLine(matchedLine, field.label);
+    if (!value) {
+      return;
+    }
+
+    const normalizedValue = isNumericOcrField(field.key)
+      ? parseNumericValue(value)
+      : value.trim();
+
+    results.push({
+      fieldKey: field.key,
+      value: normalizedValue,
+      confidence: matchedConfidence,
+      page: null,
+    });
+  });
+
+  return results;
+}
+
+export function extractOcrFields(text: string): Array<{
+  fieldKey: string;
+  value: string;
+  confidence: number;
+  page: number | null;
+}> {
+  return extractFieldsFromText(text, getOcrFieldRegistry());
 }
 
 export async function enqueueOcrForDocument(documentId: string): Promise<OcrJobRecord> {
@@ -115,6 +305,12 @@ export async function processOcrJob(
     ? job.max_attempts
     : getOcrMaxAttempts();
 
+  logInfo("ocr_job_started", {
+    jobId: job.id,
+    documentId: job.document_id,
+    applicationId: job.application_id,
+  });
+
   try {
     const document = await findDocumentById(job.document_id);
     if (!document) {
@@ -136,11 +332,30 @@ export async function processOcrJob(
       extractedJson: result.json,
       meta: result.meta,
     });
+
+    const extractedFields = extractOcrFields(result.text);
+
     try {
-      await refreshOcrInsightsForApplication({
+      await insertDocumentOcrFields({
+        documentId: job.document_id,
         applicationId: job.application_id,
-        actorUserId: null,
-        source: "ocr_update",
+        fields: extractedFields,
+      });
+    } catch (insertError) {
+      logError("ocr_field_insert_failed", {
+        code: "ocr_field_insert_failed",
+        documentId: job.document_id,
+        applicationId: job.application_id,
+        error: insertError instanceof Error ? insertError.message : "unknown_error",
+      });
+    }
+
+    try {
+      const summary = await analyzeOcrForApplication(job.application_id);
+      await notifyOcrWarnings({
+        applicationId: job.application_id,
+        missingFields: summary.missingFields,
+        conflictingFields: summary.conflictingFields,
       });
     } catch (insightError) {
       logError("ocr_insights_refresh_failed", {
@@ -149,6 +364,12 @@ export async function processOcrJob(
         error: insightError instanceof Error ? insightError.message : "unknown_error",
       });
     }
+
+    logInfo("ocr_job_succeeded", {
+      jobId: job.id,
+      documentId: job.document_id,
+      applicationId: job.application_id,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown_error";
     if (error instanceof OcrStorageValidationError) {
@@ -186,6 +407,13 @@ export async function processOcrJob(
       lastError: message,
       nextAttemptAt,
       maxAttempts,
+    });
+    logError("ocr_job_failed", {
+      code: "ocr_job_failed",
+      jobId: job.id,
+      documentId: job.document_id,
+      applicationId: job.application_id,
+      error: message,
     });
   }
 }

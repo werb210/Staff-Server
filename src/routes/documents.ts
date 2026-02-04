@@ -9,7 +9,7 @@ import {
   getLatestDocumentVersion,
 } from "../modules/applications/applications.repo";
 import { getDocumentMaxSizeBytes } from "../config";
-import { refreshOcrInsightsForApplication } from "../ocr/insights";
+import { enqueueOcrForDocument } from "../modules/ocr/ocr.service";
 import { logError } from "../observability/logger";
 
 const upload = multer({
@@ -66,15 +66,12 @@ router.post(
     });
 
     try {
-      await refreshOcrInsightsForApplication({
-        applicationId,
-        actorUserId: null,
-        source: "document_upload",
-      });
+      await enqueueOcrForDocument(document.id);
     } catch (error) {
-      logError("ocr_insights_refresh_failed", {
-        code: "ocr_insights_refresh_failed",
+      logError("ocr_enqueue_failed", {
+        code: "ocr_enqueue_failed",
         applicationId,
+        documentId: document.id,
         error: error instanceof Error ? error.message : String(error),
       });
     }

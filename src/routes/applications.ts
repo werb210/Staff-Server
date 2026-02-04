@@ -11,6 +11,8 @@ import {
   type ApplicationRecord,
 } from "../modules/applications/applications.repo";
 import { ApplicationStage } from "../modules/applications/pipelineState";
+import { type ApplicationResponse } from "../modules/applications/application.dto";
+import { getOcrInsightsForApplication } from "../modules/applications/ocr/ocrAnalysis.service";
 import { safeHandler } from "../middleware/safeHandler";
 import { logError } from "../observability/logger";
 
@@ -24,18 +26,11 @@ type ApplicationPayload = {
   match?: unknown;
 };
 
-type ApplicationResponse = {
-  id: string;
-  ownerUserId: string | null;
-  name: string;
-  metadata: unknown | null;
-  productType: string;
-  pipelineState: string;
-  lenderId: string | null;
-  lenderProductId: string | null;
-  requestedAmount: number | null;
-  createdAt: Date;
-  updatedAt: Date;
+const EMPTY_OCR_INSIGHTS: ApplicationResponse["ocrInsights"] = {
+  fields: {},
+  missingFields: [],
+  conflictingFields: [],
+  warnings: [],
 };
 
 const router = Router();
@@ -57,10 +52,20 @@ function normalizePipelineStage(stage: string | null): string {
   return stage ?? DEFAULT_PIPELINE_STAGE;
 }
 
-function toApplicationResponse(
+async function toApplicationResponse(
   record: ApplicationRecord
-): ApplicationResponse {
+): Promise<ApplicationResponse> {
   assertApplicationRecord(record);
+  let ocrInsights = EMPTY_OCR_INSIGHTS;
+  try {
+    ocrInsights = await getOcrInsightsForApplication(record.id);
+  } catch (error) {
+    logError("ocr_insights_fetch_failed", {
+      code: "ocr_insights_fetch_failed",
+      applicationId: record.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 
   return {
     id: record.id,
@@ -74,6 +79,7 @@ function toApplicationResponse(
     requestedAmount: record.requested_amount ?? null,
     createdAt: record.created_at,
     updatedAt: record.updated_at,
+    ocrInsights,
   };
 }
 
@@ -115,9 +121,8 @@ router.get(
         return;
       }
 
-      res.status(200).json({
-        items: applications.map(toApplicationResponse),
-      });
+      const items = await Promise.all(applications.map((record) => toApplicationResponse(record)));
+      res.status(200).json({ items });
     } catch (err) {
       logError("applications_list_failed", {
         error:
@@ -230,7 +235,7 @@ router.get(
         });
         return;
       }
-      res.status(200).json({ application: toApplicationResponse(record) });
+      res.status(200).json({ application: await toApplicationResponse(record) });
     } catch (err) {
       logError("application_fetch_failed", {
         error:

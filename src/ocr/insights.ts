@@ -122,13 +122,13 @@ export function buildOcrInsights(results: OcrDocumentResult[]): OcrInsights {
   results.forEach((result) => {
     const fieldsForDoc = getOcrFieldsForDocumentType(result.documentType);
     fieldsForDoc.forEach((field) => {
-      const extracted = extractFieldValue(result.extractedJson, field.name);
+      const extracted = extractFieldValue(result.extractedJson, field.key);
       if (!extracted) {
         return;
       }
-      const existing = valuesByField.get(field.name) ?? [];
+      const existing = valuesByField.get(field.key) ?? [];
       existing.push(extracted);
-      valuesByField.set(field.name, existing);
+      valuesByField.set(field.key, existing);
     });
   });
 
@@ -137,20 +137,20 @@ export function buildOcrInsights(results: OcrDocumentResult[]): OcrInsights {
   const normalizedValues: Record<string, string> = {};
 
   registry.forEach((field) => {
-    const values = valuesByField.get(field.name) ?? [];
+    const values = valuesByField.get(field.key) ?? [];
     const uniqueValues = toSortedUnique(values);
 
     if (field.required && uniqueValues.length === 0) {
-      missingFields.push(field.name);
+      missingFields.push(field.key);
     }
 
     if (uniqueValues.length > 1) {
-      conflictingFields.push(field.name);
+      conflictingFields.push(field.key);
     }
 
     const normalized = resolveNormalizedValue(uniqueValues);
     if (normalized) {
-      normalizedValues[field.name] = normalized;
+      normalizedValues[field.key] = normalized;
     }
   });
 
