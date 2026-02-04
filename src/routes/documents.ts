@@ -5,7 +5,9 @@ import { safeHandler } from "../middleware/safeHandler";
 import {
   createDocument,
   createDocumentVersion,
+  findActiveDocumentVersion,
   findApplicationById,
+  findDocumentById,
   getLatestDocumentVersion,
 } from "../modules/applications/applications.repo";
 import { getDocumentMaxSizeBytes } from "../config";
@@ -84,6 +86,43 @@ router.post(
       size: req.file.size,
       storageKey,
       createdAt: document.created_at,
+    });
+  })
+);
+
+router.get(
+  "/:id/presign",
+  safeHandler(async (req, res) => {
+    const documentId = typeof req.params.id === "string" ? req.params.id.trim() : "";
+    if (!documentId) {
+      throw new AppError("validation_error", "documentId is required.", 400);
+    }
+    const document = await findDocumentById(documentId);
+    if (!document) {
+      throw new AppError("not_found", "Document not found.", 404);
+    }
+    const version = await findActiveDocumentVersion({ documentId: document.id });
+    if (!version) {
+      throw new AppError("not_found", "Document version not found.", 404);
+    }
+    const metadata =
+      version.metadata && typeof version.metadata === "object"
+        ? (version.metadata as {
+            fileName?: string;
+            mimeType?: string;
+            size?: number;
+            storageKey?: string;
+          })
+        : {};
+    const storageKey = metadata.storageKey ?? null;
+    res.status(200).json({
+      documentId: document.id,
+      version: version.version,
+      filename: metadata.fileName ?? document.title,
+      mimeType: metadata.mimeType ?? null,
+      size: metadata.size ?? null,
+      storageKey,
+      url: storageKey ? `/api/documents/${document.id}/download?key=${storageKey}` : null,
     });
   })
 );

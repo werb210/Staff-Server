@@ -123,7 +123,10 @@ describe("token lifecycle stability", () => {
     const first = await otpVerifyRequest(app, { phone });
     expect(first.status).toBe(200);
 
-    const twilioError: any = new Error("not found");
+    const twilioError = new Error("not found") as Error & {
+      code?: number;
+      status?: number;
+    };
     twilioError.code = 20404;
     twilioError.status = 404;
     twilioMocks.createVerificationCheck.mockRejectedValueOnce(twilioError);

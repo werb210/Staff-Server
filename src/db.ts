@@ -37,7 +37,40 @@ let PoolImpl: typeof Pool = Pool;
 
 if (isTestEnv) {
   const { newDb } = require("pg-mem") as typeof import("pg-mem");
-  const memoryDb = newDb({ autoCreateForeignKeyIndices: true });
+  const memoryDb = newDb({
+    autoCreateForeignKeyIndices: true,
+    noAstCoverageCheck: true,
+  });
+  memoryDb.public.registerFunction({
+    name: "md5",
+    args: ["text"],
+    returns: "text",
+    implementation: (value: string) =>
+      require("crypto").createHash("md5").update(value).digest("hex"),
+  });
+  memoryDb.public.registerFunction({
+    name: "regexp_replace",
+    args: ["text", "text", "text", "text"],
+    returns: "text",
+    implementation: (
+      value: string,
+      pattern: string,
+      replacement: string,
+      flags: string
+    ) => {
+      if (value === null || value === undefined) {
+        return null;
+      }
+      const regex = new RegExp(pattern, flags);
+      return value.replace(regex, replacement);
+    },
+  });
+  memoryDb.public.registerFunction({
+    name: "gen_random_uuid",
+    args: [],
+    returns: "uuid",
+    implementation: () => require("crypto").randomUUID(),
+  });
   const adapter = memoryDb.adapters.createPg();
   PoolImpl = adapter.Pool as typeof Pool;
   poolConfig = {};

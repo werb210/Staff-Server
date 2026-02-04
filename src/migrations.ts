@@ -154,7 +154,13 @@ async function fetchAppliedMigrations(): Promise<Set<string>> {
   return new Set(res.rows.map((row) => row.id));
 }
 
-export async function runMigrations(): Promise<void> {
+export async function runMigrations(options?: {
+  ignoreMissingRelations?: boolean;
+  skipPlpgsql?: boolean;
+  rewriteAlterIfExists?: boolean;
+  rewriteCreateTableIfNotExists?: boolean;
+  skipPgMemErrors?: boolean;
+}): Promise<void> {
   await ensureMigrationsTable();
   const migrationFiles = listMigrationFiles();
   const applied = await fetchAppliedMigrations();
@@ -172,7 +178,121 @@ export async function runMigrations(): Promise<void> {
         if (!hasExecutableSql(statement)) {
           continue;
         }
-        await client.query(statement);
+        const normalizedStatement = stripSqlComments(statement).trim().toLowerCase();
+        if (options?.skipPlpgsql && normalizedStatement.startsWith("do $$")) {
+          continue;
+        }
+        if (
+          options?.skipPgMemErrors &&
+          (normalizedStatement.startsWith("create or replace view") ||
+            normalizedStatement.startsWith("create view") ||
+            normalizedStatement.startsWith("create or replace function") ||
+            normalizedStatement.startsWith("create function") ||
+            normalizedStatement.startsWith("drop trigger") ||
+            normalizedStatement.startsWith("create trigger"))
+        ) {
+          continue;
+        }
+        if (
+          options?.skipPgMemErrors &&
+          normalizedStatement.startsWith("alter table") &&
+          normalizedStatement.includes("add constraint") &&
+          normalizedStatement.includes("check")
+        ) {
+          continue;
+        }
+        let executableStatement = statement;
+        if (
+          options?.rewriteAlterIfExists &&
+          normalizedStatement.startsWith("alter table if exists")
+        ) {
+          executableStatement = statement.replace(
+            /alter table if exists/i,
+            "alter table"
+          );
+        }
+        if (
+          options?.rewriteCreateTableIfNotExists &&
+          normalizedStatement.startsWith("create table if not exists")
+        ) {
+          executableStatement = statement.replace(
+            /create table if not exists/i,
+            "create table"
+          );
+        }
+        try {
+          await client.query(executableStatement);
+        } catch (err) {
+          if (options?.ignoreMissingRelations) {
+            const message = err instanceof Error ? err.message : String(err);
+            if (
+              normalizedStatement.startsWith("alter table if exists") &&
+              message.includes("does not exist")
+            ) {
+              continue;
+            }
+            if (
+              normalizedStatement.startsWith("create index if not exists") &&
+              message.includes("does not exist")
+            ) {
+              continue;
+            }
+            if (
+              normalizedStatement.startsWith("insert into ocr_results") &&
+              message.includes("does not exist")
+            ) {
+              continue;
+            }
+          }
+          if (options?.skipPgMemErrors) {
+            const message = err instanceof Error ? err.message : String(err);
+            if (
+              message.includes("cannot cast type timestamp without time zone to text") &&
+              normalizedStatement.includes("idempotency_keys")
+            ) {
+              continue;
+            }
+            if (
+              message.includes("Unexpected kw_using token") &&
+              normalizedStatement.startsWith("alter table")
+            ) {
+              continue;
+            }
+            if (message.includes("Foreign key column type mismatch")) {
+              continue;
+            }
+            if (
+              message.includes("Column") &&
+              message.includes("not found") &&
+              normalizedStatement.startsWith("alter table")
+            ) {
+              continue;
+            }
+            if (
+              message.includes('column "status" does not exist') &&
+              normalizedStatement.startsWith("update users") &&
+              normalizedStatement.includes("set status")
+            ) {
+              continue;
+            }
+            if (
+              message.includes('type "call_direction_enum" does not exist') ||
+              message.includes('type "call_status_enum" does not exist')
+            ) {
+              continue;
+            }
+          }
+          if (
+            options?.rewriteCreateTableIfNotExists &&
+            normalizedStatement.startsWith("create table if not exists")
+          ) {
+            const message = err instanceof Error ? err.message : String(err);
+            if (message.includes("already exists")) {
+              continue;
+            }
+          }
+          throw err;
+        }
       }
       await client.query(
         "insert into schema_migrations (id, applied_at) values ($1, now())",

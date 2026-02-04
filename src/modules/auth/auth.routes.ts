@@ -1,6 +1,7 @@
 import { Router, type NextFunction, type Request, type Response } from "express";
 import { AppError } from "../../middleware/errors";
 import {
+  loginRateLimit,
   otpRateLimit,
   refreshRateLimit,
   resetOtpRateLimit,
@@ -161,7 +162,11 @@ router.post("/otp/start", otpRateLimit(), handleOtpStart);
 /**
  * POST /api/auth/otp/verify
  */
-router.post("/otp/verify", otpRateLimit(), async (req, res, next) => {
+async function handleOtpVerify(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
   try {
     const route = "/api/auth/otp/verify";
     const requestId = getAuthRequestId(res);
@@ -235,7 +240,14 @@ router.post("/otp/verify", otpRateLimit(), async (req, res, next) => {
 
     next(err);
   }
-});
+}
+
+router.post("/otp/verify", otpRateLimit(), handleOtpVerify);
+
+/**
+ * POST /api/auth/login
+ */
+router.post("/login", loginRateLimit(), handleOtpVerify);
 
 /**
  * POST /api/auth/logout

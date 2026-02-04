@@ -1,36 +1,14 @@
 // src/server/index.ts
 
-import { assertCorsConfig, buildApp, registerApiRoutes } from "../app";
-import { assertEnv } from "../config";
-import { warmUpDatabase } from "../db";
-import { assertRequiredSchema } from "../db/schemaAssert";
+import type { Express } from "express";
+import type { Server } from "http";
 import { logError, logWarn } from "../observability/logger";
-import { notFoundHandler } from "../middleware/errors";
 import { markReady } from "../startupState";
-import { getTwilioClient, getVerifyServiceSid } from "../services/twilio";
-import { seedRequirementsForAllProducts } from "../services/lenderProductRequirementsService";
-import { initializePushService } from "../services/pushService";
-import { startFollowUpJobs } from "../modules/followup/followup.scheduler";
+import { createServer } from "./createServer";
 
 let processHandlersInstalled = false;
-let server: ReturnType<ReturnType<typeof buildApp>["listen"]> | null = null;
-
-// IMPORTANT:
-// buildApp() creates the base app; register API routes explicitly here.
-export const app = buildApp();
-
-// Ensure Express is aware it may be behind a proxy (Azure/App Service)
-app.set("trust proxy", true);
-
-const isProd = process.env.NODE_ENV === "production";
-if (isProd && !process.env.BASE_URL) {
-  throw new Error("BASE_URL must be set in production.");
-}
-
-if (process.env.NODE_ENV === "test") {
-  registerApiRoutes(app);
-  app.use(notFoundHandler);
-}
+let server: Server | null = null;
+let app: Express | null = null;
 
 function installProcessHandlers(): void {
   if (processHandlersInstalled) return;
@@ -61,50 +39,23 @@ function resolvePort(): number {
 
 export async function startServer() {
   installProcessHandlers();
-  assertEnv();
-  initializePushService();
-  getTwilioClient();
-  getVerifyServiceSid();
-
-  await warmUpDatabase();
-  try {
-    await assertRequiredSchema();
-  } catch (err: any) {
-    logError("fatal_schema_mismatch", { message: err?.message ?? String(err) });
-    process.exit(1);
+  const isProd = process.env.NODE_ENV === "production";
+  if (isProd && !process.env.BASE_URL) {
+    throw new Error("BASE_URL must be set in production.");
   }
-  await seedRequirementsForAllProducts();
-  console.log(
-    "schema_assert: OK (users.lender_id, lenders.id, lenders.country, lenders.submission_method, lender_products.lender_id, lender_products.required_documents, lender_product_requirements.id, lender_product_requirements.lender_product_id, lender_product_requirements.document_type, lender_product_requirements.created_at)"
-  );
-  try {
-    assertCorsConfig();
-  } catch (err: any) {
-    logError("fatal_cors_assert", { message: err?.message ?? String(err) });
-    process.exit(1);
-  }
-  console.log(
-    "cors_assert: OK (portal origins allowed, _int blocked from browsers)"
-  );
-
-  // Register all API routes using the unified registry
-  registerApiRoutes(app);
-
-  // Global 404 handler (after all routes)
-  app.use(notFoundHandler);
-
-  startFollowUpJobs();
+  app = await createServer();
 
   const port = resolvePort();
   server = await new Promise((resolve) => {
+    if (!app) {
+      throw new Error("Server failed to initialize.");
+    }
     const listener = app.listen(port, "0.0.0.0", () => {
-      if (typeof app.set === "function") {
+      if (typeof app?.set === "function") {
         app.set("port", port);
         app.set("server", listener);
       }
-      if (process.env.NODE_ENV !== "test") {
-        console.log(`API server listening on ${port}`);
-      }
+      console.log(`API server listening on ${port}`);
       resolve(listener);
     });
   });

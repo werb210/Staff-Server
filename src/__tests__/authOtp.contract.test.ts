@@ -183,7 +183,10 @@ describe("auth otp contract", () => {
     const first = await otpVerifyRequest(app, { phone });
     expect(first.status).toBe(200);
 
-    const twilioError: any = new Error("not found");
+    const twilioError = new Error("not found") as Error & {
+      code?: number;
+      status?: number;
+    };
     twilioError.code = 20404;
     twilioError.status = 404;
     twilioMocks.createVerificationCheck.mockRejectedValueOnce(twilioError);
@@ -254,7 +257,10 @@ describe("auth otp contract", () => {
     });
 
     const twilioMocks = getTwilioMocks();
-    const twilioError: any = new Error("Max check attempts reached.");
+    const twilioError = new Error("Max check attempts reached.") as Error & {
+      code?: number;
+      status?: number;
+    };
     twilioError.code = 60202;
     twilioError.status = 429;
     twilioMocks.createVerificationCheck.mockRejectedValueOnce(twilioError);
