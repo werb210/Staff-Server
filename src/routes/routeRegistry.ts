@@ -110,6 +110,7 @@ export const ROUTES: ApiRoute[] = [
   { method: "POST", path: "/api/calls/:id/end", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "GET", path: "/api/calls", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "GET", path: "/api/applications", roles: [ROLES.ADMIN, ROLES.STAFF] },
+  { method: "GET", path: "/api/applications/:id/ocr-insights", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "GET", path: "/api/crm", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "GET", path: "/api/crm/contacts", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "GET", path: "/api/communications", roles: [ROLES.ADMIN, ROLES.STAFF] },

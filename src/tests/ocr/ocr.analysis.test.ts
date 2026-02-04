@@ -51,18 +51,20 @@ describe("OCR analysis", () => {
     await insertDocumentOcrFields({
       documentId: documentA,
       applicationId: application.id,
+      documentType: "financial_statement",
       fields: [
-        { fieldKey: "business_name", value: "Acme Inc", confidence: 0.98, page: 1 },
-        { fieldKey: "total_revenue", value: "1000", confidence: 0.9, page: 1 },
-        { fieldKey: "total_revenue", value: "1005", confidence: 0.88, page: 2 },
+        { fieldKey: "business_name", value: "Acme Inc", confidence: 0.98 },
+        { fieldKey: "total_revenue", value: "1000", confidence: 0.9 },
+        { fieldKey: "total_revenue", value: "1005", confidence: 0.88 },
       ],
     });
 
     await insertDocumentOcrFields({
       documentId: documentB,
       applicationId: application.id,
+      documentType: "tax_return",
       fields: [
-        { fieldKey: "total_revenue", value: "1300", confidence: 0.82, page: 1 },
+        { fieldKey: "total_revenue", value: "1300", confidence: 0.82 },
       ],
     });
 

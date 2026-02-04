@@ -42,6 +42,8 @@ const EMPTY_OCR_INSIGHTS: ApplicationResponse["ocrInsights"] = {
   missingFields: [],
   conflictingFields: [],
   warnings: [],
+  groupedByDocumentType: {},
+  groupedByFieldCategory: {},
 };
 
 export type DocumentUploadResponse = {

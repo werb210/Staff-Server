@@ -17,6 +17,17 @@ export type OcrJobRecord = {
 
 export type OcrResultRecord = {
   id: string;
+  application_id: string;
+  document_id: string;
+  field_key: string;
+  value: string;
+  confidence: number;
+  source_document_type: string | null;
+  created_at: Date;
+};
+
+export type OcrDocumentResultRecord = {
+  id: string;
   document_id: string;
   provider: string;
   model: string;
@@ -25,15 +36,4 @@ export type OcrResultRecord = {
   meta: unknown | null;
   created_at: Date;
   updated_at: Date;
-};
-
-export type DocumentOcrFieldRecord = {
-  id: string;
-  document_id: string;
-  application_id: string;
-  field_key: string;
-  value: string;
-  confidence: number;
-  page: number | null;
-  created_at: Date;
 };

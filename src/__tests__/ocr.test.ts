@@ -50,6 +50,7 @@ describe("ocr jobs", () => {
 
   beforeEach(async () => {
     await pool.query("delete from ocr_results");
+    await pool.query("delete from ocr_document_results");
     await pool.query("delete from ocr_jobs");
     await pool.query("delete from document_version_reviews");
     await pool.query("delete from document_versions");

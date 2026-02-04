@@ -31,6 +31,8 @@ const EMPTY_OCR_INSIGHTS: ApplicationResponse["ocrInsights"] = {
   missingFields: [],
   conflictingFields: [],
   warnings: [],
+  groupedByDocumentType: {},
+  groupedByFieldCategory: {},
 };
 
 const router = Router();
@@ -132,6 +134,23 @@ router.get(
       });
       res.status(200).json({ items: [] });
     }
+  })
+);
+
+/**
+ * GET /api/applications/:id/ocr-insights
+ */
+router.get(
+  "/:id/ocr-insights",
+  requireAuth,
+  requireCapability([CAPABILITIES.APPLICATION_READ]),
+  safeHandler(async (req, res) => {
+    const application = await findApplicationById(req.params.id);
+    if (!application) {
+      throw new AppError("not_found", "Application not found.", 404);
+    }
+    const ocrInsights = await getOcrInsightsForApplication(application.id);
+    res.status(200).json({ ocrInsights });
   })
 );
 

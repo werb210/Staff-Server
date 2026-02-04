@@ -80,10 +80,11 @@ describe("application OCR insights integration", () => {
     await insertDocumentOcrFields({
       documentId: document.id,
       applicationId: application.id,
+      documentType: "financial_statement",
       fields: [
-        { fieldKey: "business_name", value: "Acme Inc", confidence: 0.96, page: 1 },
-        { fieldKey: "tax_id", value: "12-3456789", confidence: 0.91, page: 1 },
-        { fieldKey: "owner_name", value: "Jane Doe", confidence: 0.92, page: 1 },
+        { fieldKey: "business_name", value: "Acme Inc", confidence: 0.96 },
+        { fieldKey: "tax_id", value: "12-3456789", confidence: 0.91 },
+        { fieldKey: "owner_name", value: "Jane Doe", confidence: 0.92 },
       ],
     });
 
@@ -99,5 +100,51 @@ describe("application OCR insights integration", () => {
     expect(item.ocrInsights.fields.business_name.value).toBe("acme inc");
     expect(item.ocrInsights.missingFields).toEqual([]);
     expect(item.ocrInsights.conflictingFields).toEqual([]);
+    expect(item.ocrInsights.groupedByDocumentType.financial_statement).toBeDefined();
+    expect(item.ocrInsights.groupedByFieldCategory.general).toBeDefined();
+    expect(item.ocrInsights.groupedByFieldCategory.taxes).toBeDefined();
+  });
+
+  it("returns grouped OCR insights for an application", async () => {
+    const token = await loginAdmin();
+
+    const application = await createApplication({
+      ownerUserId: null,
+      name: "OCR Grouping",
+      metadata: null,
+      productType: "standard",
+    });
+
+    const document = await createDocument({
+      applicationId: application.id,
+      ownerUserId: null,
+      title: "Contracts",
+      documentType: "contracts",
+    });
+
+    await createDocumentVersion({
+      documentId: document.id,
+      version: 1,
+      metadata: { fileName: "contracts.pdf", mimeType: "application/pdf", size: 100 },
+      content: Buffer.from("pdf-data").toString("base64"),
+    });
+
+    await insertDocumentOcrFields({
+      documentId: document.id,
+      applicationId: application.id,
+      documentType: "contracts",
+      fields: [
+        { fieldKey: "contract_term", value: "12 months", confidence: 0.9 },
+      ],
+    });
+
+    const response = await request(app)
+      .get(`/api/applications/${application.id}/ocr-insights`)
+      .set("Authorization", `Bearer ${token}`)
+      .set("x-request-id", requestId);
+
+    expect(response.status).toBe(200);
+    expect(response.body.ocrInsights.groupedByDocumentType.contracts).toBeDefined();
+    expect(response.body.ocrInsights.groupedByFieldCategory.contracts).toBeDefined();
   });
 });

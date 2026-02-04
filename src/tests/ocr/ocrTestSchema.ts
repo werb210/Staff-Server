@@ -70,7 +70,7 @@ export async function ensureOcrTestSchema(): Promise<void> {
       on ocr_jobs (document_id);
   `);
   await pool.query(`
-    create table if not exists ocr_results (
+    create table if not exists ocr_document_results (
       id text primary key,
       document_id text not null references documents(id) on delete cascade,
       provider text not null,
@@ -84,18 +84,18 @@ export async function ensureOcrTestSchema(): Promise<void> {
     );
   `);
   await pool.query(`
-    create unique index if not exists ocr_results_document_id_unique
-      on ocr_results (document_id);
+    create unique index if not exists ocr_document_results_document_id_unique
+      on ocr_document_results (document_id);
   `);
   await pool.query(`
-    create table if not exists document_ocr_fields (
+    create table if not exists ocr_results (
       id text primary key,
-      document_id text not null references documents(id) on delete cascade,
       application_id text not null references applications(id) on delete cascade,
+      document_id text not null references documents(id) on delete cascade,
       field_key text not null,
       value text not null,
       confidence numeric not null,
-      page integer null,
+      source_document_type text null,
       created_at timestamptz not null default now()
     );
   `);
@@ -115,8 +115,8 @@ export async function ensureOcrTestSchema(): Promise<void> {
 }
 
 export async function resetOcrTestSchema(): Promise<void> {
-  await pool.query("delete from document_ocr_fields");
   await pool.query("delete from ocr_results");
+  await pool.query("delete from ocr_document_results");
   await pool.query("delete from ocr_jobs");
   await pool.query("delete from notifications");
   await pool.query("delete from document_version_reviews");

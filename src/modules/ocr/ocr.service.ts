@@ -20,10 +20,10 @@ import { createOpenAiOcrProvider, type OcrProvider } from "./ocr.provider";
 import { createOcrStorage, OcrStorageValidationError, type OcrStorage } from "./ocr.storage";
 import { type OcrJobRecord } from "./ocr.types";
 import { logError, logInfo } from "../../observability/logger";
-import { getOcrFieldRegistry, type OcrFieldDefinition } from "../../ocr/ocrFieldRegistry";
+import { getOcrFieldRegistry, type OcrFieldDefinition } from "./ocrFieldRegistry";
 import {
-  analyzeOcrForApplication,
   isNumericOcrField,
+  refreshOcrInsightsForApplication,
 } from "../applications/ocr/ocrAnalysis.service";
 import { notifyOcrWarnings } from "../notifications/ocrNotifications.service";
 
@@ -186,47 +186,64 @@ function extractFieldsFromText(text: string, registry: OcrFieldDefinition[]): Ar
   }> = [];
 
   registry.forEach((field) => {
-    const labelNormalized = normalizeMatchText(field.label);
+    const candidateLabels = Array.from(
+      new Set([field.display_label, ...(field.aliases ?? [])])
+    ).filter((label) => typeof label === "string" && label.trim().length > 0);
+    if (candidateLabels.length === 0) {
+      return;
+    }
     let matchedLine: string | null = null;
     let matchedConfidence = 0;
+    let matchedLabel: string | null = null;
 
-    lines.forEach((line) => {
-      const normalizedLine = normalizeMatchText(line);
-      if (!normalizedLine) {
+    candidateLabels.forEach((label) => {
+      const labelNormalized = normalizeMatchText(label);
+      if (!labelNormalized) {
         return;
       }
 
-      if (normalizedLine.includes(labelNormalized)) {
-        matchedLine = line;
-        matchedConfidence = 1;
-        return;
-      }
-
-      const candidate = normalizedLine.split(/[:\-]/)[0].trim();
-      const similarity = jaroWinkler(labelNormalized, candidate || normalizedLine);
-      if (similarity >= OCR_FUZZY_THRESHOLD) {
-        if (!matchedLine || similarity > matchedConfidence) {
-          matchedLine = line;
-          matchedConfidence = similarity;
+      lines.forEach((line) => {
+        const normalizedLine = normalizeMatchText(line);
+        if (!normalizedLine) {
+          return;
         }
-      }
+
+        if (normalizedLine.includes(labelNormalized)) {
+          if (1 >= matchedConfidence) {
+            matchedLine = line;
+            matchedConfidence = 1;
+            matchedLabel = label;
+          }
+          return;
+        }
+
+        const candidate = normalizedLine.split(/[:\\-]/)[0].trim();
+        const similarity = jaroWinkler(labelNormalized, candidate || normalizedLine);
+        if (similarity >= OCR_FUZZY_THRESHOLD) {
+          if (!matchedLine || similarity > matchedConfidence) {
+            matchedLine = line;
+            matchedConfidence = similarity;
+            matchedLabel = label;
+          }
+        }
+      });
     });
 
-    if (!matchedLine) {
+    if (!matchedLine || !matchedLabel) {
       return;
     }
 
-    const value = extractValueFromLine(matchedLine, field.label);
+    const value = extractValueFromLine(matchedLine, matchedLabel);
     if (!value) {
       return;
     }
 
-    const normalizedValue = isNumericOcrField(field.key)
+    const normalizedValue = isNumericOcrField(field.field_key)
       ? parseNumericValue(value)
       : value.trim();
 
     results.push({
-      fieldKey: field.key,
+      fieldKey: field.field_key,
       value: normalizedValue,
       confidence: matchedConfidence,
       page: null,
@@ -339,6 +356,7 @@ export async function processOcrJob(
       await insertDocumentOcrFields({
         documentId: job.document_id,
         applicationId: job.application_id,
+        documentType: document.document_type ?? null,
         fields: extractedFields,
       });
     } catch (insertError) {
@@ -351,7 +369,7 @@ export async function processOcrJob(
     }
 
     try {
-      const summary = await analyzeOcrForApplication(job.application_id);
+      const summary = await refreshOcrInsightsForApplication(job.application_id);
       await notifyOcrWarnings({
         applicationId: job.application_id,
         missingFields: summary.missingFields,
