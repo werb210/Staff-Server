@@ -26,3 +26,14 @@ export type OcrResultRecord = {
   created_at: Date;
   updated_at: Date;
 };
+
+export type DocumentOcrFieldRecord = {
+  id: string;
+  document_id: string;
+  application_id: string;
+  field_key: string;
+  value: string;
+  confidence: number;
+  page: number | null;
+  created_at: Date;
+};

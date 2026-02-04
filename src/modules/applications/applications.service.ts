@@ -30,24 +30,18 @@ import {
 import { getDocumentAllowedMimeTypes, getDocumentMaxSizeBytes } from "../../config";
 import { recordTransactionRollback } from "../../observability/transactionTelemetry";
 import { resolveRequirementsForApplication } from "../../services/lenderProductRequirementsService";
-import { refreshOcrInsightsForApplication } from "../../ocr/insights";
+import { enqueueOcrForDocument } from "../ocr/ocr.service";
 import {
   getDocumentTypeAliases,
   normalizeRequiredDocumentKey,
 } from "../../db/schema/requiredDocuments";
+import { type ApplicationResponse } from "./application.dto";
 
-export type ApplicationResponse = {
-  id: string;
-  ownerUserId: string | null;
-  name: string;
-  metadata: unknown | null;
-  productType: string;
-  pipelineState: string;
-  lenderId: string | null;
-  lenderProductId: string | null;
-  requestedAmount: number | null;
-  createdAt: Date;
-  updatedAt: Date;
+const EMPTY_OCR_INSIGHTS: ApplicationResponse["ocrInsights"] = {
+  fields: {},
+  missingFields: [],
+  conflictingFields: [],
+  warnings: [],
 };
 
 export type DocumentUploadResponse = {
@@ -389,6 +383,7 @@ export async function createApplicationForUser(params: {
       requestedAmount: updated.requested_amount ?? null,
       createdAt: updated.created_at,
       updatedAt: updated.updated_at,
+      ocrInsights: EMPTY_OCR_INSIGHTS,
     };
 
     await client.query("commit");
@@ -680,15 +675,12 @@ export async function uploadDocument(params: {
     await client.query("commit");
 
     try {
-      await refreshOcrInsightsForApplication({
-        applicationId: params.applicationId,
-        actorUserId: params.actorUserId,
-        source: "document_upload",
-      });
+      await enqueueOcrForDocument(documentId);
     } catch (error) {
-      logError("ocr_insights_refresh_failed", {
-        code: "ocr_insights_refresh_failed",
+      logError("ocr_enqueue_failed", {
+        code: "ocr_enqueue_failed",
         applicationId: params.applicationId,
+        documentId,
         error: error instanceof Error ? error.message : String(error),
       });
     }
