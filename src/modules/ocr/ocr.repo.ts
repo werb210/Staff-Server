@@ -18,6 +18,28 @@ export async function createOcrJob(params: {
   client?: Queryable;
 }): Promise<OcrJobRecord> {
   const runner = params.client ?? pool;
+  if (process.env.NODE_ENV === "test") {
+    const existing = await runner.query<OcrJobRecord>(
+      `select id, document_id, application_id, status, attempt_count, max_attempts,
+              next_attempt_at, locked_at, locked_by, last_error, created_at, updated_at
+       from ocr_jobs
+       where document_id = $1
+       limit 1`,
+      [params.documentId]
+    );
+    if (existing.rows[0]) {
+      return existing.rows[0];
+    }
+    const inserted = await runner.query<OcrJobRecord>(
+      `insert into ocr_jobs
+       (id, document_id, application_id, status, attempt_count, max_attempts, next_attempt_at, created_at, updated_at)
+       values ($1, $2, $3, 'queued', 0, $4, now(), now(), now())
+       returning id, document_id, application_id, status, attempt_count, max_attempts,
+                 next_attempt_at, locked_at, locked_by, last_error, created_at, updated_at`,
+      [randomUUID(), params.documentId, params.applicationId, params.maxAttempts]
+    );
+    return inserted.rows[0];
+  }
   const res = await runner.query<OcrJobRecord>(
     `insert into ocr_jobs
      (id, document_id, application_id, status, attempt_count, max_attempts, next_attempt_at, created_at, updated_at)

@@ -67,7 +67,10 @@ describe("POST /api/auth/otp/start", () => {
 
   it("returns 500 when Twilio auth invalid", async () => {
     const twilioMocks = getTwilioMocks();
-    const error: any = new Error("Authentication failed");
+    const error = new Error("Authentication failed") as Error & {
+      code?: number;
+      status?: number;
+    };
     error.code = 20003;
     error.status = 401;
     twilioMocks.createVerification.mockRejectedValueOnce(error);
