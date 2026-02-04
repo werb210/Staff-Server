@@ -2,11 +2,13 @@ import {
   getOcrFieldDefinitionByKey,
   getOcrFieldRegistry,
   type OcrFieldDefinition,
-} from "../../../ocr/ocrFieldRegistry";
+} from "../../ocr/ocrFieldRegistry";
 import { listOcrFieldsForApplication } from "../../ocr/ocr.repo";
+import { updateApplicationOcrInsights } from "../applications.repo";
 
 export type OcrFieldSource = {
   documentId: string;
+  documentType: string | null;
   page: number | null;
 };
 
@@ -28,16 +30,18 @@ export type OcrInsightsResponse = {
   missingFields: string[];
   conflictingFields: string[];
   warnings: string[];
+  groupedByDocumentType: Record<string, Record<string, OcrInsightField>>;
+  groupedByFieldCategory: Record<string, Record<string, OcrInsightField>>;
 };
 
-const NUMERIC_CATEGORIES = new Set([
-  "balance_sheet",
-  "income_statement",
-  "cash_flow",
-  "ar",
-  "ap",
-  "inventory",
-  "equipment",
+const NUMERIC_FIELDS = new Set([
+  "total_revenue",
+  "net_income",
+  "cash_on_hand",
+  "accounts_receivable",
+  "accounts_payable",
+  "inventory_value",
+  "equipment_value",
 ]);
 
 const NUMERIC_RELATIVE_TOLERANCE = 0.01;
@@ -71,7 +75,7 @@ function isNumericField(field: OcrFieldDefinition | undefined): boolean {
   if (!field) {
     return false;
   }
-  return NUMERIC_CATEGORIES.has(field.category);
+  return NUMERIC_FIELDS.has(field.field_key);
 }
 
 function toSortedUnique(values: string[]): string[] {
@@ -102,12 +106,10 @@ export function analyzeOcrFields(params: {
   const warnings: string[] = [];
 
   registry.forEach((field) => {
-    const values = valuesByField.get(field.key) ?? [];
+    const values = valuesByField.get(field.field_key) ?? [];
     if (field.required && values.length === 0) {
-      missingFields.push(field.key);
-      if (field.warnIfMissing) {
-        warnings.push(`Missing ${field.label}`);
-      }
+      missingFields.push(field.field_key);
+      warnings.push(`Missing ${field.display_label}`);
       return;
     }
 
@@ -125,18 +127,14 @@ export function analyzeOcrFields(params: {
           }
         });
         if (uniqueGroups.length > 1) {
-          conflictingFields.push(field.key);
-          if (field.warnIfConflicting) {
-            warnings.push(`Conflicting ${field.label}`);
-          }
+          conflictingFields.push(field.field_key);
+          warnings.push(`Conflicting ${field.display_label}`);
         }
       } else {
         const unique = toSortedUnique(values);
         if (unique.length > 1) {
-          conflictingFields.push(field.key);
-          if (field.warnIfConflicting) {
-            warnings.push(`Conflicting ${field.label}`);
-          }
+          conflictingFields.push(field.field_key);
+          warnings.push(`Conflicting ${field.display_label}`);
         }
       }
     }
@@ -163,6 +161,13 @@ export async function analyzeOcrForApplication(
   });
 }
 
+function getFieldCategories(field: OcrFieldDefinition): string[] {
+  if (field.applies_to === "all") {
+    return ["general"];
+  }
+  return field.applies_to.length > 0 ? field.applies_to : ["general"];
+}
+
 export async function getOcrInsightsForApplication(
   applicationId: string
 ): Promise<OcrInsightsResponse> {
@@ -172,12 +177,14 @@ export async function getOcrInsightsForApplication(
   });
 
   const fields: Record<string, OcrInsightField> = {};
+  const groupedByDocumentType: Record<string, Record<string, OcrInsightField>> = {};
 
   rows.forEach((row) => {
     const existing = fields[row.field_key];
     const source: OcrFieldSource = {
       documentId: row.document_id,
-      page: row.page,
+      documentType: row.source_document_type ?? null,
+      page: null,
     };
     if (!existing) {
       fields[row.field_key] = {
@@ -185,23 +192,58 @@ export async function getOcrInsightsForApplication(
         confidence: row.confidence,
         sources: [source],
       };
-      return;
+    } else {
+      existing.sources.push(source);
+      if (row.confidence > existing.confidence) {
+        existing.value = row.value;
+        existing.confidence = row.confidence;
+      }
     }
-    existing.sources.push(source);
-    if (row.confidence > existing.confidence) {
-      existing.value = row.value;
-      existing.confidence = row.confidence;
+
+    const docType = row.source_document_type ?? "unknown";
+    if (!groupedByDocumentType[docType]) {
+      groupedByDocumentType[docType] = {};
+    }
+    const documentGroup = groupedByDocumentType[docType];
+    const documentExisting = documentGroup[row.field_key];
+    if (!documentExisting || row.confidence > documentExisting.confidence) {
+      documentGroup[row.field_key] = {
+        value: row.value,
+        confidence: row.confidence,
+        sources: [source],
+      };
     }
   });
 
-  getOcrFieldRegistry().forEach((field) => {
-    if (!fields[field.key]) {
+  const groupedByFieldCategory: Record<string, Record<string, OcrInsightField>> = {};
+  const registry = getOcrFieldRegistry();
+  const registryByKey = new Map(registry.map((field) => [field.field_key, field]));
+
+  Object.entries(fields).forEach(([fieldKey, insight]) => {
+    const field = registryByKey.get(fieldKey);
+    if (!field) {
       return;
     }
-    const normalizedValue = normalizeTextValue(fields[field.key].value);
+    const normalizedValue = normalizeTextValue(insight.value);
     if (normalizedValue) {
-      fields[field.key].value = normalizedValue;
+      insight.value = normalizedValue;
     }
+    const categories = getFieldCategories(field);
+    categories.forEach((category) => {
+      if (!groupedByFieldCategory[category]) {
+        groupedByFieldCategory[category] = {};
+      }
+      groupedByFieldCategory[category][fieldKey] = insight;
+    });
+  });
+
+  Object.values(groupedByDocumentType).forEach((documentGroup) => {
+    Object.values(documentGroup).forEach((insight) => {
+      const normalizedValue = normalizeTextValue(insight.value);
+      if (normalizedValue) {
+        insight.value = normalizedValue;
+      }
+    });
   });
 
   return {
@@ -209,9 +251,31 @@ export async function getOcrInsightsForApplication(
     missingFields: summary.missingFields,
     conflictingFields: summary.conflictingFields,
     warnings: summary.warnings,
+    groupedByDocumentType,
+    groupedByFieldCategory,
   };
 }
 
 export function isNumericOcrField(fieldKey: string): boolean {
   return isNumericField(getOcrFieldDefinitionByKey(fieldKey));
+}
+
+export async function refreshOcrInsightsForApplication(
+  applicationId: string
+): Promise<OcrInsightsResponse> {
+  const insights = await getOcrInsightsForApplication(applicationId);
+  const normalizedValues: Record<string, string> = {};
+  Object.entries(insights.fields).forEach(([key, field]) => {
+    const normalized = normalizeTextValue(field.value);
+    if (normalized) {
+      normalizedValues[key] = normalized;
+    }
+  });
+  await updateApplicationOcrInsights({
+    applicationId,
+    missingFields: insights.missingFields,
+    conflictingFields: insights.conflictingFields,
+    normalizedValues,
+  });
+  return insights;
 }

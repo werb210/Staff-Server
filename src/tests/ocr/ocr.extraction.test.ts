@@ -144,7 +144,7 @@ describe("OCR extraction pipeline", () => {
       await processOcrJob(job, { provider: mockProvider, storage: mockStorage });
     }
 
-    const registryKeys = new Set(getOcrFieldRegistry().map((field) => field.key));
+    const registryKeys = new Set(getOcrFieldRegistry().map((field) => field.field_key));
     const extractedKeys = extractOcrFields(
       "Business Name: Acme Inc\nTotal Revenue: $1,200\nUnknown Field: nope"
     ).map((field) => field.fieldKey);

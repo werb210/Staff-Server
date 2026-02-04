@@ -3,7 +3,7 @@ import { pool } from "../../db";
 import { type PoolClient } from "pg";
 import { getOcrLockTimeoutMinutes } from "../../config";
 import {
-  type DocumentOcrFieldRecord,
+  type OcrDocumentResultRecord,
   type OcrJobRecord,
   type OcrJobStatus,
   type OcrResultRecord,
@@ -95,7 +95,7 @@ export async function markOcrJobSuccess(params: {
   await runner.query("begin");
   try {
     await runner.query(
-      `insert into ocr_results
+      `insert into ocr_document_results
        (id, document_id, provider, model, extracted_text, extracted_json, meta, created_at, updated_at)
        values ($1, $2, $3, $4, $5, $6, $7, now(), now())
        on conflict (document_id) do nothing`,
@@ -205,11 +205,11 @@ export async function findOcrJobByDocumentId(
 export async function findOcrResultByDocumentId(
   documentId: string,
   client?: Queryable
-): Promise<OcrResultRecord | null> {
+): Promise<OcrDocumentResultRecord | null> {
   const runner = client ?? pool;
-  const res = await runner.query<OcrResultRecord>(
+  const res = await runner.query<OcrDocumentResultRecord>(
     `select id, document_id, provider, model, extracted_text, extracted_json, meta, created_at, updated_at
-     from ocr_results
+     from ocr_document_results
      where document_id = $1
      order by created_at desc
      limit 1`,
@@ -221,14 +221,14 @@ export async function findOcrResultByDocumentId(
 export async function insertDocumentOcrFields(params: {
   documentId: string;
   applicationId: string;
+  documentType: string | null;
   fields: Array<{
     fieldKey: string;
     value: string;
     confidence: number;
-    page: number | null;
   }>;
   client?: Queryable;
-}): Promise<DocumentOcrFieldRecord[]> {
+}): Promise<OcrResultRecord[]> {
   const runner = params.client ?? pool;
   if (params.fields.length === 0) {
     return [];
@@ -242,19 +242,19 @@ export async function insertDocumentOcrFields(params: {
     );
     values.push(
       randomUUID(),
-      params.documentId,
       params.applicationId,
+      params.documentId,
       field.fieldKey,
       field.value,
       field.confidence,
-      field.page
+      params.documentType
     );
   });
-  const result = await runner.query<DocumentOcrFieldRecord>(
-    `insert into document_ocr_fields
-     (id, document_id, application_id, field_key, value, confidence, page, created_at)
+  const result = await runner.query<OcrResultRecord>(
+    `insert into ocr_results
+     (id, application_id, document_id, field_key, value, confidence, source_document_type, created_at)
      values ${placeholders.join(", ")}
-     returning id, document_id, application_id, field_key, value, confidence, page, created_at`,
+     returning id, application_id, document_id, field_key, value, confidence, source_document_type, created_at`,
     values
   );
   return result.rows;
@@ -276,7 +276,7 @@ export async function listOcrResultsForApplication(
             d.document_type,
             r.extracted_json
      from documents d
-     left join ocr_results r on r.document_id = d.id
+     left join ocr_document_results r on r.document_id = d.id
      where d.application_id = $1
      order by d.created_at asc`,
     [applicationId]
@@ -290,7 +290,7 @@ export type OcrFieldApplicationRow = {
   field_key: string;
   value: string;
   confidence: number;
-  page: number | null;
+  source_document_type: string | null;
   created_at: Date;
 };
 
@@ -305,9 +305,9 @@ export async function listOcrFieldsForApplication(
             field_key,
             value,
             confidence,
-            page,
+            source_document_type,
             created_at
-     from document_ocr_fields
+     from ocr_results
      where application_id = $1
      order by created_at asc`,
     [applicationId]

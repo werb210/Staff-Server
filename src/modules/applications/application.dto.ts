@@ -1,5 +1,6 @@
 export type OcrInsightFieldSource = {
   documentId: string;
+  documentType: string | null;
   page: number | null;
 };
 
@@ -14,6 +15,8 @@ export type OcrInsightsResponse = {
   missingFields: string[];
   conflictingFields: string[];
   warnings: string[];
+  groupedByDocumentType: Record<string, Record<string, OcrInsightField>>;
+  groupedByFieldCategory: Record<string, Record<string, OcrInsightField>>;
 };
 
 export type ApplicationResponse = {
