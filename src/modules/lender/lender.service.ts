@@ -358,7 +358,7 @@ async function recordSubmissionFailure(params: {
 
   const nextState = params.retryable
     ? ApplicationStage.DOCUMENTS_REQUIRED
-    : ApplicationStage.DECLINED;
+    : ApplicationStage.REJECTED;
   const current = await findApplicationById(params.applicationId, params.client);
   if (current && isPipelineState(current.pipeline_state) && current.pipeline_state !== nextState) {
     await transitionPipelineState({
@@ -366,7 +366,7 @@ async function recordSubmissionFailure(params: {
       nextState,
       actorUserId: params.actorUserId,
       actorRole: null,
-      allowOverride: false,
+      trigger: "submission_failed",
       ip: params.ip,
       userAgent: params.userAgent,
       client: params.client,
@@ -621,7 +621,7 @@ async function transmitSubmission(params: {
       nextState: ApplicationStage.IN_REVIEW,
       actorUserId: params.actorUserId,
       actorRole: null,
-      allowOverride: false,
+      trigger: "submission_review_started",
       ip: params.ip,
       userAgent: params.userAgent,
       client: params.client,
@@ -637,7 +637,7 @@ async function transmitSubmission(params: {
       nextState: ApplicationStage.STARTUP,
       actorUserId: params.actorUserId,
       actorRole: null,
-      allowOverride: false,
+      trigger: "submission_prepared",
       ip: params.ip,
       userAgent: params.userAgent,
       client: params.client,
@@ -649,7 +649,7 @@ async function transmitSubmission(params: {
     nextState: ApplicationStage.OFF_TO_LENDER,
     actorUserId: params.actorUserId,
     actorRole: null,
-    allowOverride: false,
+    trigger: "submission_sent",
     ip: params.ip,
     userAgent: params.userAgent,
     client: params.client,
@@ -753,7 +753,7 @@ async function retryExistingSubmission(params: {
       nextState: ApplicationStage.IN_REVIEW,
       actorUserId: params.actorUserId,
       actorRole: null,
-      allowOverride: false,
+      trigger: "submission_review_started",
       ip: params.ip,
       userAgent: params.userAgent,
       client: params.client,
@@ -769,7 +769,7 @@ async function retryExistingSubmission(params: {
       nextState: ApplicationStage.STARTUP,
       actorUserId: params.actorUserId,
       actorRole: null,
-      allowOverride: false,
+      trigger: "submission_prepared",
       ip: params.ip,
       userAgent: params.userAgent,
       client: params.client,
@@ -781,7 +781,7 @@ async function retryExistingSubmission(params: {
     nextState: ApplicationStage.OFF_TO_LENDER,
     actorUserId: params.actorUserId,
     actorRole: null,
-    allowOverride: false,
+    trigger: "submission_sent",
     ip: params.ip,
     userAgent: params.userAgent,
     client: params.client,

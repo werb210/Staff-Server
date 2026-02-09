@@ -20,10 +20,14 @@ export type ApplicationRecord = {
   name: string;
   metadata: unknown | null;
   product_type: string;
+  product_category: string | null;
   pipeline_state: string;
+  current_stage: string | null;
   lender_id: string | null;
   lender_product_id: string | null;
   requested_amount: number | null;
+  first_opened_at: Date | null;
+  startup_flag: boolean | null;
   created_at: Date;
   updated_at: Date;
 };
@@ -63,12 +67,38 @@ export type DocumentVersionReviewRecord = {
   reviewed_at: Date;
 };
 
+export type ApplicationStageEventRecord = {
+  id: string;
+  application_id: string;
+  from_stage: string | null;
+  to_stage: string;
+  trigger: string;
+  triggered_by: string;
+  created_at: Date;
+};
+
+export type ApplicationRequiredDocumentRecord = {
+  id: string;
+  application_id: string;
+  document_category: string;
+  status: string;
+  created_at: Date;
+};
+
+function resolveInitialPipelineState(productCategory: string): ApplicationStage {
+  return productCategory.trim().toLowerCase() === "startup"
+    ? ApplicationStage.STARTUP
+    : ApplicationStage.RECEIVED;
+}
+
 export async function createApplication(params: {
   ownerUserId: string | null;
   name: string;
   metadata: unknown | null;
   productType: string;
-  pipelineState?: string;
+  productCategory?: string | null;
+  trigger?: string;
+  triggeredBy?: string | null;
   lenderId?: string | null;
   lenderProductId?: string | null;
   requestedAmount?: number | null;
@@ -76,25 +106,29 @@ export async function createApplication(params: {
   client?: Queryable;
 }): Promise<ApplicationRecord> {
   const runner = params.client ?? pool;
-  const pipelineState = params.pipelineState ?? ApplicationStage.RECEIVED;
+  const productCategory = params.productCategory ?? params.productType;
+  const pipelineState = resolveInitialPipelineState(productCategory);
+  const startupFlag = pipelineState === ApplicationStage.STARTUP;
   let res;
   try {
     res = await runner.query<ApplicationRecord>(
       `insert into applications
-       (id, owner_user_id, name, metadata, product_type, pipeline_state, lender_id, lender_product_id, requested_amount, source, created_at, updated_at)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now(), now())
-       returning id, owner_user_id, name, metadata, product_type, pipeline_state, lender_id, lender_product_id, requested_amount, created_at, updated_at`,
+       (id, owner_user_id, name, metadata, product_type, product_category, pipeline_state, current_stage, lender_id, lender_product_id, requested_amount, source, startup_flag, created_at, updated_at)
+       values ($1, $2, $3, $4, $5, $6, $7, $7, $8, $9, $10, $11, $12, now(), now())
+       returning id, owner_user_id, name, metadata, product_type, product_category, pipeline_state, current_stage, lender_id, lender_product_id, requested_amount, first_opened_at, startup_flag, created_at, updated_at`,
       [
         randomUUID(),
         params.ownerUserId,
         params.name,
         params.metadata,
         params.productType,
+        productCategory,
         pipelineState,
         params.lenderId ?? null,
         params.lenderProductId ?? null,
         params.requestedAmount ?? null,
         params.source ?? null,
+        startupFlag,
       ]
     );
   } catch (err) {
@@ -108,7 +142,16 @@ export async function createApplication(params: {
     }
     throw err;
   }
-  return res.rows[0];
+  const record = res.rows[0];
+  await createApplicationStageEvent({
+    applicationId: record.id,
+    fromStage: null,
+    toStage: pipelineState,
+    trigger: params.trigger ?? "application_created",
+    triggeredBy: params.triggeredBy ?? "system",
+    client: runner,
+  });
+  return record;
 }
 
 export async function listApplications(params?: {
@@ -129,7 +172,7 @@ export async function listApplications(params?: {
     values.push(stage);
   }
   const res = await runner.query<ApplicationRecord>(
-    `select id, owner_user_id, name, metadata, product_type, pipeline_state, lender_id, lender_product_id, requested_amount, created_at, updated_at
+    `select id, owner_user_id, name, metadata, product_type, product_category, pipeline_state, current_stage, lender_id, lender_product_id, requested_amount, first_opened_at, startup_flag, created_at, updated_at
      from applications
      ${stageClause}
      order by created_at desc
@@ -180,7 +223,7 @@ export async function findApplicationById(
 ): Promise<ApplicationRecord | null> {
   const runner = client ?? pool;
   const res = await runner.query<ApplicationRecord>(
-    `select id, owner_user_id, name, metadata, product_type, pipeline_state, status, lender_id, lender_product_id, requested_amount, created_at, updated_at
+    `select id, owner_user_id, name, metadata, product_type, product_category, pipeline_state, current_stage, status, lender_id, lender_product_id, requested_amount, first_opened_at, startup_flag, created_at, updated_at
      from applications
      where id = $1
      limit 1`,
@@ -260,7 +303,9 @@ export async function updateApplicationPipelineState(params: {
   try {
     await runner.query(
       `update applications
-       set pipeline_state = $1, updated_at = now()
+       set pipeline_state = $1,
+           current_stage = $1,
+           updated_at = now()
        where id = $2`,
       [params.pipelineState, params.applicationId]
     );
@@ -275,6 +320,118 @@ export async function updateApplicationPipelineState(params: {
     }
     throw err;
   }
+}
+
+export async function updateApplicationFirstOpenedAt(params: {
+  applicationId: string;
+  client?: Queryable;
+}): Promise<boolean> {
+  const runner = params.client ?? pool;
+  const res = await runner.query(
+    `update applications
+     set first_opened_at = now(),
+         updated_at = now()
+     where id = $1
+       and first_opened_at is null`,
+    [params.applicationId]
+  );
+  return (res.rowCount ?? 0) > 0;
+}
+
+export async function createApplicationStageEvent(params: {
+  applicationId: string;
+  fromStage: string | null;
+  toStage: string;
+  trigger: string;
+  triggeredBy: string;
+  client?: Queryable;
+}): Promise<ApplicationStageEventRecord> {
+  const runner = params.client ?? pool;
+  const res = await runner.query<ApplicationStageEventRecord>(
+    `insert into application_stage_events
+     (id, application_id, from_stage, to_stage, trigger, triggered_by, created_at)
+     values ($1, $2, $3, $4, $5, $6, now())
+     returning id, application_id, from_stage, to_stage, trigger, triggered_by, created_at`,
+    [
+      randomUUID(),
+      params.applicationId,
+      params.fromStage,
+      params.toStage,
+      params.trigger,
+      params.triggeredBy,
+    ]
+  );
+  return res.rows[0];
+}
+
+export async function listApplicationStageEvents(params: {
+  applicationId: string;
+  client?: Queryable;
+}): Promise<ApplicationStageEventRecord[]> {
+  const runner = params.client ?? pool;
+  const res = await runner.query<ApplicationStageEventRecord>(
+    `select id, application_id, from_stage, to_stage, trigger, triggered_by, created_at
+     from application_stage_events
+     where application_id = $1
+     order by created_at asc`,
+    [params.applicationId]
+  );
+  return Array.isArray(res.rows) ? res.rows : [];
+}
+
+export async function upsertApplicationRequiredDocument(params: {
+  applicationId: string;
+  documentCategory: string;
+  status: string;
+  client?: Queryable;
+}): Promise<ApplicationRequiredDocumentRecord> {
+  const runner = params.client ?? pool;
+  const res = await runner.query<ApplicationRequiredDocumentRecord>(
+    `insert into application_required_documents
+     (id, application_id, document_category, status, created_at)
+     values ($1, $2, $3, $4, now())
+     on conflict (application_id, document_category) do update
+     set status = excluded.status
+     returning id, application_id, document_category, status, created_at`,
+    [
+      randomUUID(),
+      params.applicationId,
+      params.documentCategory,
+      params.status,
+    ]
+  );
+  return res.rows[0];
+}
+
+export async function findApplicationRequiredDocumentById(params: {
+  documentId: string;
+  client?: Queryable;
+}): Promise<ApplicationRequiredDocumentRecord | null> {
+  const runner = params.client ?? pool;
+  const res = await runner.query<ApplicationRequiredDocumentRecord>(
+    `select id, application_id, document_category, status, created_at
+     from application_required_documents
+     where id = $1
+     limit 1`,
+    [params.documentId]
+  );
+  return res.rows[0] ?? null;
+}
+
+export async function updateApplicationRequiredDocumentStatusById(params: {
+  documentId: string;
+  status: string;
+  client?: Queryable;
+}): Promise<ApplicationRequiredDocumentRecord | null> {
+  const runner = params.client ?? pool;
+  const res = await runner.query<ApplicationRequiredDocumentRecord>(
+    `update application_required_documents
+     set status = $1
+     where id = $2
+     returning id, application_id, document_category, status, created_at`,
+    [params.status, params.documentId]
+  );
+  return res.rows[0] ?? null;
 }
 
 export async function createDocument(params: {

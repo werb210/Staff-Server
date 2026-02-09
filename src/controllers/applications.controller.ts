@@ -7,11 +7,12 @@ export async function listApplicationStages(
 ): Promise<void> {
   res.status(200).json([
     ApplicationStage.RECEIVED,
-    ApplicationStage.DOCUMENTS_REQUIRED,
     ApplicationStage.IN_REVIEW,
+    ApplicationStage.DOCUMENTS_REQUIRED,
     ApplicationStage.STARTUP,
-    "SENT_TO_LENDER",
+    ApplicationStage.OFF_TO_LENDER,
+    ApplicationStage.OFFER,
     ApplicationStage.ACCEPTED,
-    ApplicationStage.DECLINED,
+    ApplicationStage.REJECTED,
   ]);
 }

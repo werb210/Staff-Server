@@ -2,6 +2,9 @@ import { Router } from "express";
 import multer from "multer";
 import { AppError } from "../middleware/errors";
 import { safeHandler } from "../middleware/safeHandler";
+import { requireAuth, requireCapability } from "../middleware/auth";
+import { CAPABILITIES } from "../auth/capabilities";
+import { isRole } from "../auth/roles";
 import {
   createDocument,
   createDocumentVersion,
@@ -9,10 +12,14 @@ import {
   findApplicationById,
   findDocumentById,
   getLatestDocumentVersion,
+  findApplicationRequiredDocumentById,
+  updateApplicationRequiredDocumentStatusById,
 } from "../modules/applications/applications.repo";
 import { getDocumentMaxSizeBytes } from "../config";
 import { enqueueOcrForDocument } from "../modules/ocr/ocr.service";
 import { logError } from "../observability/logger";
+import { ApplicationStage } from "../modules/applications/pipelineState";
+import { transitionPipelineState } from "../modules/applications/applications.service";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -124,6 +131,68 @@ router.get(
       storageKey,
       url: storageKey ? `/api/documents/${document.id}/download?key=${storageKey}` : null,
     });
+  })
+);
+
+router.post(
+  "/:id/accept",
+  requireAuth,
+  requireCapability([CAPABILITIES.DOCUMENT_REVIEW]),
+  safeHandler(async (req, res) => {
+    if (!req.user) {
+      throw new AppError("missing_token", "Authorization token is required.", 401);
+    }
+    if (!isRole(req.user.role)) {
+      throw new AppError("forbidden", "Not authorized.", 403);
+    }
+    const documentId = req.params.id;
+    const document = await findApplicationRequiredDocumentById({ documentId });
+    if (!document) {
+      throw new AppError("not_found", "Document not found.", 404);
+    }
+    await updateApplicationRequiredDocumentStatusById({
+      documentId,
+      status: "accepted",
+    });
+    res.status(200).json({ ok: true });
+  })
+);
+
+router.post(
+  "/:id/reject",
+  requireAuth,
+  requireCapability([CAPABILITIES.DOCUMENT_REVIEW]),
+  safeHandler(async (req, res) => {
+    if (!req.user) {
+      throw new AppError("missing_token", "Authorization token is required.", 401);
+    }
+    if (!isRole(req.user.role)) {
+      throw new AppError("forbidden", "Not authorized.", 403);
+    }
+    const documentId = req.params.id;
+    const document = await findApplicationRequiredDocumentById({ documentId });
+    if (!document) {
+      throw new AppError("not_found", "Document not found.", 404);
+    }
+    const updated = await updateApplicationRequiredDocumentStatusById({
+      documentId,
+      status: "rejected",
+    });
+    if (updated?.application_id) {
+      const application = await findApplicationById(updated.application_id);
+      if (application?.pipeline_state !== ApplicationStage.DOCUMENTS_REQUIRED) {
+        await transitionPipelineState({
+          applicationId: updated.application_id,
+          nextState: ApplicationStage.DOCUMENTS_REQUIRED,
+          actorUserId: req.user.userId,
+          actorRole: req.user.role,
+          trigger: "document_rejected",
+          ip: req.ip,
+          userAgent: req.get("user-agent"),
+        });
+      }
+    }
+    res.status(200).json({ ok: true });
   })
 );
 

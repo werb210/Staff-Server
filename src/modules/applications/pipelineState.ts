@@ -1,16 +1,24 @@
 export enum ApplicationStage {
   RECEIVED = "RECEIVED",
-  DOCUMENTS_REQUIRED = "DOCUMENTS_REQUIRED",
   IN_REVIEW = "IN_REVIEW",
+  DOCUMENTS_REQUIRED = "DOCUMENTS_REQUIRED",
   STARTUP = "STARTUP",
   OFF_TO_LENDER = "OFF_TO_LENDER",
+  OFFER = "OFFER",
   ACCEPTED = "ACCEPTED",
-  DECLINED = "DECLINED",
+  REJECTED = "REJECTED",
 }
 
-export const PIPELINE_STATES = Object.values(
-  ApplicationStage
-) as ApplicationStage[];
+export const PIPELINE_STATES: ApplicationStage[] = [
+  ApplicationStage.RECEIVED,
+  ApplicationStage.IN_REVIEW,
+  ApplicationStage.DOCUMENTS_REQUIRED,
+  ApplicationStage.STARTUP,
+  ApplicationStage.OFF_TO_LENDER,
+  ApplicationStage.OFFER,
+  ApplicationStage.ACCEPTED,
+  ApplicationStage.REJECTED,
+];
 
 export type PipelineState = ApplicationStage;
 
@@ -19,25 +27,32 @@ export function isPipelineState(value: string): value is PipelineState {
 }
 
 export const LEGAL_TRANSITIONS: Record<PipelineState, readonly PipelineState[]> = {
-  [ApplicationStage.RECEIVED]: [ApplicationStage.DOCUMENTS_REQUIRED],
-  [ApplicationStage.DOCUMENTS_REQUIRED]: [ApplicationStage.IN_REVIEW],
-  [ApplicationStage.IN_REVIEW]: [
-    ApplicationStage.STARTUP,
+  [ApplicationStage.RECEIVED]: [
+    ApplicationStage.IN_REVIEW,
     ApplicationStage.DOCUMENTS_REQUIRED,
-    ApplicationStage.DECLINED,
   ],
+  [ApplicationStage.IN_REVIEW]: [
+    ApplicationStage.DOCUMENTS_REQUIRED,
+    ApplicationStage.OFF_TO_LENDER,
+  ],
+  [ApplicationStage.DOCUMENTS_REQUIRED]: [ApplicationStage.OFF_TO_LENDER],
   [ApplicationStage.STARTUP]: [
     ApplicationStage.OFF_TO_LENDER,
     ApplicationStage.DOCUMENTS_REQUIRED,
-    ApplicationStage.DECLINED,
   ],
   [ApplicationStage.OFF_TO_LENDER]: [
+    ApplicationStage.OFFER,
     ApplicationStage.ACCEPTED,
-    ApplicationStage.DECLINED,
+    ApplicationStage.REJECTED,
+    ApplicationStage.DOCUMENTS_REQUIRED,
+  ],
+  [ApplicationStage.OFFER]: [
+    ApplicationStage.ACCEPTED,
+    ApplicationStage.REJECTED,
     ApplicationStage.DOCUMENTS_REQUIRED,
   ],
   [ApplicationStage.ACCEPTED]: [],
-  [ApplicationStage.DECLINED]: [],
+  [ApplicationStage.REJECTED]: [],
 };
 
 export function canTransition(
