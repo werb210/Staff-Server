@@ -1,0 +1,215 @@
+{
+  "version": "v1",
+  "pipelineStages": [
+    "RECEIVED",
+    "IN_REVIEW",
+    "DOCUMENTS_REQUIRED",
+    "STARTUP",
+    "OFF_TO_LENDER",
+    "OFFER",
+    "ACCEPTED",
+    "REJECTED"
+  ],
+  "legalTransitions": {
+    "RECEIVED": [
+      "IN_REVIEW",
+      "DOCUMENTS_REQUIRED"
+    ],
+    "IN_REVIEW": [
+      "DOCUMENTS_REQUIRED",
+      "OFF_TO_LENDER"
+    ],
+    "DOCUMENTS_REQUIRED": [
+      "OFF_TO_LENDER"
+    ],
+    "STARTUP": [
+      "OFF_TO_LENDER",
+      "DOCUMENTS_REQUIRED"
+    ],
+    "OFF_TO_LENDER": [
+      "OFFER",
+      "ACCEPTED",
+      "REJECTED",
+      "DOCUMENTS_REQUIRED"
+    ],
+    "OFFER": [
+      "ACCEPTED",
+      "REJECTED",
+      "DOCUMENTS_REQUIRED"
+    ],
+    "ACCEPTED": [],
+    "REJECTED": []
+  },
+  "processingStages": [
+    "pending",
+    "ocr_processing",
+    "ocr_complete",
+    "banking_processing",
+    "banking_complete",
+    "documents_incomplete",
+    "documents_complete",
+    "credit_summary_processing",
+    "credit_summary_complete",
+    "ready_for_lender"
+  ],
+  "processingStageFlags": {
+    "pending": {
+      "ocrCompleted": false,
+      "bankingCompleted": false,
+      "documentsCompleted": false,
+      "creditSummaryCompleted": false
+    },
+    "ocr_processing": {
+      "ocrCompleted": false,
+      "bankingCompleted": false,
+      "documentsCompleted": false,
+      "creditSummaryCompleted": false
+    },
+    "ocr_complete": {
+      "ocrCompleted": true,
+      "bankingCompleted": false,
+      "documentsCompleted": false,
+      "creditSummaryCompleted": false
+    },
+    "banking_processing": {
+      "ocrCompleted": true,
+      "bankingCompleted": false,
+      "documentsCompleted": false,
+      "creditSummaryCompleted": false
+    },
+    "banking_complete": {
+      "ocrCompleted": true,
+      "bankingCompleted": true,
+      "documentsCompleted": false,
+      "creditSummaryCompleted": false
+    },
+    "documents_incomplete": {
+      "ocrCompleted": true,
+      "bankingCompleted": true,
+      "documentsCompleted": false,
+      "creditSummaryCompleted": false
+    },
+    "documents_complete": {
+      "ocrCompleted": true,
+      "bankingCompleted": true,
+      "documentsCompleted": true,
+      "creditSummaryCompleted": false
+    },
+    "credit_summary_processing": {
+      "ocrCompleted": true,
+      "bankingCompleted": true,
+      "documentsCompleted": true,
+      "creditSummaryCompleted": false
+    },
+    "credit_summary_complete": {
+      "ocrCompleted": true,
+      "bankingCompleted": true,
+      "documentsCompleted": true,
+      "creditSummaryCompleted": true
+    },
+    "ready_for_lender": {
+      "ocrCompleted": true,
+      "bankingCompleted": true,
+      "documentsCompleted": true,
+      "creditSummaryCompleted": true
+    }
+  },
+  "flow": [
+    {
+      "step": "start",
+      "entryPoints": [
+        "POST /api/client/submissions",
+        "POST /api/applications"
+      ],
+      "pipelineState": {
+        "default": "RECEIVED",
+        "startup": "STARTUP"
+      },
+      "blockingGuards": [
+        "productCategory=startup => pipeline_state STARTUP",
+        "pipeline_state must be valid enum",
+        "requirements_missing can move RECEIVED -> DOCUMENTS_REQUIRED"
+      ]
+    },
+    {
+      "step": "otp_verification",
+      "entryPoints": [
+        "POST /api/auth/otp/start",
+        "POST /api/auth/otp/verify"
+      ],
+      "blockingGuards": [
+        "invalid phone/otp payload",
+        "user disabled or locked",
+        "otp code expired or invalid"
+      ]
+    },
+    {
+      "step": "product_selection",
+      "entryPoints": [
+        "client submission payload",
+        "application lender/product updates"
+      ],
+      "blockingGuards": [
+        "selectedLenderProductId must match selected_lender_product_id",
+        "lender product must belong to lender",
+        "requirements resolved from product/category"
+      ]
+    },
+    {
+      "step": "document_upload",
+      "entryPoints": [
+        "POST /api/applications/:id/documents"
+      ],
+      "blockingGuards": [
+        "document type must be allowed by requirements",
+        "mime type allowed + size under max",
+        "accepted document versions are immutable"
+      ]
+    },
+    {
+      "step": "document_accept_reject",
+      "entryPoints": [
+        "POST /api/applications/:id/documents/:documentId/versions/:versionId/accept",
+        "POST /api/applications/:id/documents/:documentId/versions/:versionId/reject"
+      ],
+      "blockingGuards": [
+        "staff role required",
+        "pipeline_state must be DOCUMENTS_REQUIRED or RECEIVED",
+        "document version must be unreviewed",
+        "rejection enforces DOCUMENTS_REQUIRED"
+      ]
+    },
+    {
+      "step": "ocr_completion",
+      "entryPoints": [
+        "document processing jobs"
+      ],
+      "blockingGuards": [
+        "pending OCR jobs block completion",
+        "pending banking jobs block downstream stages"
+      ]
+    },
+    {
+      "step": "credit_summary_completion",
+      "entryPoints": [
+        "markCreditSummaryCompleted"
+      ],
+      "blockingGuards": [
+        "documents must be accepted before ready_for_lender",
+        "credit_summary_completed_at required"
+      ]
+    },
+    {
+      "step": "send_to_lender",
+      "entryPoints": [
+        "POST /api/lender/submissions"
+      ],
+      "blockingGuards": [
+        "ops kill switch blocks lender transmission",
+        "pipeline_state must be IN_REVIEW or DOCUMENTS_REQUIRED",
+        "lender + product must match application",
+        "missing required documents blocks unless skipRequiredDocuments"
+      ]
+    }
+  ]
+}

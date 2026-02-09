@@ -1,0 +1,49 @@
+{
+  "version": "v1",
+  "routes": {
+    "client": [
+      {
+        "method": "GET",
+        "path": "/api/client/lender-products",
+        "classification": "read"
+      },
+      {
+        "method": "GET",
+        "path": "/api/client/lender-products/:id/requirements",
+        "classification": "read"
+      },
+      {
+        "method": "GET",
+        "path": "/api/client/lender-products/requirements",
+        "classification": "read"
+      },
+      {
+        "method": "GET",
+        "path": "/api/client/lenders",
+        "classification": "read"
+      },
+      {
+        "method": "POST",
+        "path": "/api/client/submissions",
+        "classification": "write"
+      }
+    ],
+    "portal": [
+      {
+        "method": "GET",
+        "path": "/api/portal/applications",
+        "classification": "read"
+      },
+      {
+        "method": "GET",
+        "path": "/api/portal/applications/:id",
+        "classification": "read"
+      },
+      {
+        "method": "GET",
+        "path": "/api/portal/applications/stages",
+        "classification": "read"
+      }
+    ]
+  }
+}
