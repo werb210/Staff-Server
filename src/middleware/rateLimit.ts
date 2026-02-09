@@ -18,7 +18,7 @@ import {
   getAdminRateLimitWindowMs,
   getGlobalRateLimitMaxConfig,
   getGlobalRateLimitWindowMsConfig,
-  isTestEnvironment,
+  getRateLimitEnabled,
   getPwaPushRateLimitMax,
   getPwaPushRateLimitWindowMs,
 } from "../config";
@@ -40,7 +40,7 @@ function createRateLimiter(
   windowMs = 60_000
 ): (req: Request, res: Response, next: NextFunction) => void {
   return (req: Request, _res: Response, next: NextFunction): void => {
-    if (isTestEnvironment()) {
+    if (!getRateLimitEnabled()) {
       next();
       return;
     }
@@ -213,6 +213,45 @@ export function resetLoginRateLimit(): void {
   attemptsByKey.clear();
 }
 
+function isStaffRequest(req: Request): boolean {
+  const role = req.user?.role;
+  return role === "ADMIN" || role === "STAFF";
+}
+
+export function clientReadRateLimit(
+  maxAttempts = 60,
+  windowMs = 60_000
+): (req: Request, res: Response, next: NextFunction) => void {
+  return (req, res, next): void => {
+    if (isStaffRequest(req) || req.method !== "GET") {
+      next();
+      return;
+    }
+    return createRateLimiter(
+      (request) => {
+        const ip = request.ip || "unknown";
+        return `client_read:${ip}`;
+      },
+      maxAttempts,
+      windowMs
+    )(req, res, next);
+  };
+}
+
+export function clientDocumentsRateLimit(
+  maxAttempts = 10,
+  windowMs = 60_000
+): (req: Request, res: Response, next: NextFunction) => void {
+  return createRateLimiter(
+    (req) => {
+      const ip = req.ip || "unknown";
+      return `client_documents:${ip}`;
+    },
+    maxAttempts,
+    windowMs
+  );
+}
+
 export function pushSendRateLimit(
   maxAttempts = getPwaPushRateLimitMax(),
   windowMs = getPwaPushRateLimitWindowMs()
@@ -252,9 +291,7 @@ export function clientSubmissionRateLimit(
   return createRateLimiter(
     (req) => {
       const ip = req.ip || "unknown";
-      const submissionKey =
-        typeof req.body?.submissionKey === "string" ? req.body.submissionKey : "unknown";
-      return `client_submission:${ip}:${submissionKey}`;
+      return `client_submission:${ip}`;
     },
     maxAttempts,
     windowMs
@@ -307,4 +344,24 @@ export function globalRateLimit(
     maxAttempts,
     windowMs
   );
+}
+
+export function portalRateLimit(
+  maxAttempts = 300,
+  windowMs = 60_000
+): (req: Request, res: Response, next: NextFunction) => void {
+  return (req, res, next): void => {
+    if (isStaffRequest(req)) {
+      next();
+      return;
+    }
+    return createRateLimiter(
+      (request) => {
+        const ip = request.ip || "unknown";
+        return `portal:${ip}`;
+      },
+      maxAttempts,
+      windowMs
+    )(req, res, next);
+  };
 }

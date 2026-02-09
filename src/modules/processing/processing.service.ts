@@ -3,8 +3,17 @@ import { AppError } from "../../middleware/errors";
 import { getDocumentTypeAliases } from "../../db/schema/requiredDocuments";
 import { advanceProcessingStage } from "../applications/processingStage.service";
 import type { PoolClient } from "pg";
+import { getCircuitBreaker } from "../../utils/circuitBreaker";
 
 const BANK_STATEMENT_CATEGORY = "bank_statements_6_months";
+const OCR_BREAKER = getCircuitBreaker("ocr_job_creation", {
+  failureThreshold: 3,
+  cooldownMs: 60_000,
+});
+const BANKING_BREAKER = getCircuitBreaker("banking_job_creation", {
+  failureThreshold: 3,
+  cooldownMs: 60_000,
+});
 
 type Queryable = Pick<PoolClient, "query">;
 
@@ -15,6 +24,9 @@ type DocumentProcessingJobRecord = {
   status: string;
   created_at: Date;
   completed_at: Date | null;
+  retry_count?: number;
+  last_retry_at?: Date | null;
+  max_retries?: number;
 };
 
 type BankingAnalysisJobRecord = {
@@ -23,6 +35,9 @@ type BankingAnalysisJobRecord = {
   status: string;
   created_at: Date;
   completed_at: Date | null;
+  retry_count?: number;
+  last_retry_at?: Date | null;
+  max_retries?: number;
 };
 
 
@@ -61,6 +76,9 @@ export async function createDocumentProcessingJob(
   applicationId: string,
   documentId: string
 ): Promise<DocumentProcessingJobRecord> {
+  if (!OCR_BREAKER.canRequest()) {
+    throw new AppError("circuit_open", "OCR circuit breaker is open.", 503);
+  }
   const client = await pool.connect();
   try {
     await client.query("begin");
@@ -89,8 +107,10 @@ export async function createDocumentProcessingJob(
     if (!insertedRecord) {
       throw new AppError("data_error", "OCR job not created.", 500);
     }
+    OCR_BREAKER.recordSuccess();
     return insertedRecord;
   } catch (err) {
+    OCR_BREAKER.recordFailure();
     await client.query("rollback");
     throw err;
   } finally {
@@ -185,6 +205,9 @@ export async function markDocumentProcessingFailed(
 export async function createBankingAnalysisJob(
   applicationId: string
 ): Promise<BankingAnalysisJobRecord | null> {
+  if (!BANKING_BREAKER.canRequest()) {
+    throw new AppError("circuit_open", "Banking circuit breaker is open.", 503);
+  }
   const client = await pool.connect();
   try {
     await client.query("begin");
@@ -198,6 +221,7 @@ export async function createBankingAnalysisJob(
     const existingRecord = existing.rows[0];
     if (existingRecord) {
       await client.query("commit");
+      BANKING_BREAKER.recordSuccess();
       return existingRecord;
     }
     const aliases = getDocumentTypeAliases(BANK_STATEMENT_CATEGORY);
@@ -212,6 +236,7 @@ export async function createBankingAnalysisJob(
     const count = countRes.rows[0]?.count ?? 0;
     if (count < 6) {
       await client.query("commit");
+      BANKING_BREAKER.recordSuccess();
       return null;
     }
     const inserted = await client.query<BankingAnalysisJobRecord>(
@@ -227,8 +252,10 @@ export async function createBankingAnalysisJob(
     if (!insertedRecord) {
       throw new AppError("data_error", "Banking analysis job not created.", 500);
     }
+    BANKING_BREAKER.recordSuccess();
     return insertedRecord;
   } catch (err) {
+    BANKING_BREAKER.recordFailure();
     await client.query("rollback");
     throw err;
   } finally {

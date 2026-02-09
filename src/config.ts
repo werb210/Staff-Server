@@ -302,7 +302,7 @@ export function getDocumentUploadRateLimitWindowMs(): number {
 }
 
 export function getClientSubmissionRateLimitMax(): number {
-  return parsePositiveInt(process.env.CLIENT_SUBMISSION_RATE_LIMIT_MAX, 10);
+  return parsePositiveInt(process.env.CLIENT_SUBMISSION_RATE_LIMIT_MAX, 5);
 }
 
 export function getClientSubmissionRateLimitWindowMs(): number {
@@ -335,6 +335,10 @@ export function getGlobalRateLimitWindowMsConfig(): number {
 
 export function getGlobalRateLimitMaxConfig(): number {
   return getGlobalRateLimitMax();
+}
+
+export function getRateLimitEnabled(): boolean {
+  return parseBoolean(process.env.RATE_LIMIT_ENABLED, !isTestEnv());
 }
 
 export function getAppInsightsConnectionStringConfig(): string {
