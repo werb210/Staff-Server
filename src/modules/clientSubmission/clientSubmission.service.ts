@@ -307,8 +307,10 @@ export async function submitClientApplication(params: {
         })),
       },
       productType: submission.productType,
+      productCategory: submission.productType,
       lenderProductId,
-      pipelineState: ApplicationStage.DOCUMENTS_REQUIRED,
+      trigger: "client_submission_created",
+      triggeredBy: "system",
       client,
     });
 

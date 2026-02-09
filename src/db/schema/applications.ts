@@ -4,7 +4,9 @@ export type ApplicationRecord = {
   name: string;
   metadata: unknown | null;
   product_type: string;
+  product_category: string | null;
   pipeline_state: string;
+  current_stage: string | null;
   status: string;
   lender_id: string | null;
   lender_product_id: string | null;
@@ -13,6 +15,8 @@ export type ApplicationRecord = {
   submission_key: string | null;
   external_id: string | null;
   client_submission_id: string | null;
+  first_opened_at: Date | null;
+  startup_flag: boolean | null;
   created_at: Date;
   updated_at: Date;
 };

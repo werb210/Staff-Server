@@ -125,7 +125,7 @@ export async function computeDailyMetricsForDate(params: {
        (select count(*)::int from applications where created_at >= $1 and created_at < $2) as applications_created,
        (select count(*)::int from applications where pipeline_state = 'OFF_TO_LENDER' and updated_at >= $1 and updated_at < $2) as applications_submitted,
        (select count(*)::int from applications where pipeline_state = 'ACCEPTED' and updated_at >= $1 and updated_at < $2) as applications_approved,
-       (select count(*)::int from applications where pipeline_state = 'DECLINED' and updated_at >= $1 and updated_at < $2) as applications_declined,
+       (select count(*)::int from applications where pipeline_state = 'REJECTED' and updated_at >= $1 and updated_at < $2) as applications_declined,
        (select count(*)::int from applications where pipeline_state = 'ACCEPTED' and updated_at >= $1 and updated_at < $2) as applications_funded,
        (select count(*)::int from document_versions where created_at >= $1 and created_at < $2) as documents_uploaded,
        (select count(*)::int from document_version_reviews where status = 'accepted' and reviewed_at >= $1 and reviewed_at < $2) as documents_approved,

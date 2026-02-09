@@ -208,7 +208,6 @@ router.post(
       const created = await createApplication({
         ownerUserId,
         name: payload.business?.legalName ?? "New application",
-        pipelineState: ApplicationStage.RECEIVED,
         metadata: {
           source: payload.source ?? null,
           country: payload.country ?? null,
@@ -219,6 +218,9 @@ router.post(
           match: payload.match ?? null,
         },
         productType: payload.productCategory ?? "standard",
+        productCategory: payload.productCategory ?? null,
+        trigger: "application_created",
+        triggeredBy: req.user?.userId ?? "system",
       });
 
       res.status(201).json({

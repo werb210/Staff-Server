@@ -2,6 +2,7 @@ import { AppError } from "../../middleware/errors";
 import { recordAuditEvent } from "../audit/audit.service";
 import {
   createApplication,
+  createApplicationStageEvent,
   createDocument,
   createDocumentVersion,
   createDocumentVersionReview,
@@ -14,7 +15,9 @@ import {
   findLatestDocumentVersionStatus,
   getLatestDocumentVersion,
   listDocumentsWithLatestVersion,
+  updateApplicationFirstOpenedAt,
   updateApplicationPipelineState,
+  upsertApplicationRequiredDocument,
 } from "./applications.repo";
 import { pool } from "../../db";
 import { type Role, ROLES } from "../../auth/roles";
@@ -164,7 +167,7 @@ export async function transitionPipelineState(params: {
   nextState: PipelineState;
   actorUserId: string | null;
   actorRole: Role | null;
-  allowOverride: boolean;
+  trigger: string;
   ip?: string;
   userAgent?: string;
   client?: Queryable;
@@ -220,6 +223,14 @@ export async function transitionPipelineState(params: {
     pipelineState: params.nextState,
     client: params.client,
   });
+  await createApplicationStageEvent({
+    applicationId: params.applicationId,
+    fromStage: application.pipeline_state,
+    toStage: params.nextState,
+    trigger: params.trigger,
+    triggeredBy: params.actorUserId ?? "system",
+    client: params.client,
+  });
   await recordAuditEvent({
     action: "pipeline_state_changed",
     actorUserId: params.actorUserId,
@@ -244,18 +255,6 @@ export async function transitionPipelineState(params: {
     },
     client: params.client,
   });
-
-  if (params.allowOverride) {
-    await recordAuditEvent({
-      action: "admin_override",
-      actorUserId: params.actorUserId,
-      targetUserId: application.owner_user_id,
-      ip: params.ip,
-      userAgent: params.userAgent,
-      success: true,
-      client: params.client,
-    });
-  }
 }
 
 async function evaluateRequirements(params: {
@@ -315,7 +314,7 @@ async function evaluateRequirements(params: {
       nextState: ApplicationStage.DOCUMENTS_REQUIRED,
       actorUserId: params.actorUserId,
       actorRole: params.actorRole,
-      allowOverride: false,
+      trigger: "requirements_missing",
       ip: params.ip,
       userAgent: params.userAgent,
       client: params.client,
@@ -347,6 +346,8 @@ export async function createApplicationForUser(params: {
       name: params.name,
       metadata: params.metadata,
       productType: params.productType ?? "standard",
+      trigger: "application_created",
+      triggeredBy: params.actorUserId ?? "system",
       client,
     });
     await recordAuditEvent({
@@ -392,6 +393,57 @@ export async function createApplicationForUser(params: {
     return { status: 201, value: response, idempotent: false };
   } catch (err) {
     recordTransactionRollback(err);
+    await client.query("rollback");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export async function openApplicationForStaff(params: {
+  applicationId: string;
+  actorUserId: string;
+  actorRole: Role;
+  ip?: string;
+  userAgent?: string;
+}): Promise<void> {
+  if (![ROLES.ADMIN, ROLES.STAFF].includes(params.actorRole)) {
+    throw new AppError("forbidden", "Not authorized.", 403);
+  }
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const application = await findApplicationById(params.applicationId, client);
+    if (!application) {
+      throw new AppError("not_found", "Application not found.", 404);
+    }
+    if (!canAccessApplication(params.actorRole, application.owner_user_id, params.actorUserId)) {
+      throw new AppError("forbidden", "Not authorized.", 403);
+    }
+    if (!isPipelineState(application.pipeline_state)) {
+      throw new AppError("invalid_state", "Pipeline state is invalid.", 400);
+    }
+
+    const didOpen = await updateApplicationFirstOpenedAt({
+      applicationId: params.applicationId,
+      client,
+    });
+
+    if (didOpen && application.pipeline_state === ApplicationStage.RECEIVED) {
+      await transitionPipelineState({
+        applicationId: params.applicationId,
+        nextState: ApplicationStage.IN_REVIEW,
+        actorUserId: params.actorUserId,
+        actorRole: params.actorRole,
+        trigger: "first_opened",
+        ip: params.ip,
+        userAgent: params.userAgent,
+        client,
+      });
+    }
+
+    await client.query("commit");
+  } catch (err) {
     await client.query("rollback");
     throw err;
   } finally {
@@ -493,7 +545,7 @@ export async function removeDocument(params: {
         nextState: ApplicationStage.DOCUMENTS_REQUIRED,
         actorUserId: params.actorUserId,
         actorRole: params.actorRole,
-        allowOverride: false,
+        trigger: "requirements_missing",
         ip: params.ip,
         userAgent: params.userAgent,
         client,
@@ -667,6 +719,12 @@ export async function uploadDocument(params: {
       success: true,
       client,
     });
+    await upsertApplicationRequiredDocument({
+      applicationId: params.applicationId,
+      documentCategory: params.documentType ?? params.title,
+      status: "uploaded",
+      client,
+    });
 
     const response: DocumentUploadResponse = {
       documentId,
@@ -706,37 +764,15 @@ export async function changePipelineState(params: {
   nextState: string;
   actorUserId: string;
   actorRole: Role;
-  allowOverride: boolean;
   ip?: string;
   userAgent?: string;
 }): Promise<void> {
-  const normalizedState = params.nextState.trim().toUpperCase();
-  const resolvedState =
-    normalizedState === "START_UP" ? ApplicationStage.STARTUP : normalizedState;
-  if (!isPipelineState(resolvedState)) {
-    throw new AppError("invalid_state", "Pipeline state is invalid.", 400);
-  }
-
-  const client = await pool.connect();
-  try {
-    await client.query("begin");
-    await transitionPipelineState({
-      applicationId: params.applicationId,
-      nextState: resolvedState,
-      actorUserId: params.actorUserId,
-      actorRole: params.actorRole,
-      allowOverride: params.allowOverride,
-      ip: params.ip,
-      userAgent: params.userAgent,
-      client,
-    });
-    await client.query("commit");
-  } catch (err) {
-    await client.query("rollback");
-    throw err;
-  } finally {
-    client.release();
-  }
+  void params;
+  throw new AppError(
+    "forbidden",
+    "Manual pipeline stage changes are not permitted.",
+    403
+  );
 }
 
 export async function acceptDocumentVersion(params: {
@@ -808,31 +844,12 @@ export async function acceptDocumentVersion(params: {
       success: true,
       client,
     });
-
-    const evaluation = await evaluateRequirements({
+    await upsertApplicationRequiredDocument({
       applicationId: params.applicationId,
-      actorUserId: params.actorUserId,
-      actorRole: params.actorRole,
-      ip: params.ip,
-      userAgent: params.userAgent,
+      documentCategory: document.document_type,
+      status: "accepted",
       client,
     });
-
-    if (
-      !evaluation.missingRequired &&
-      application.pipeline_state === ApplicationStage.DOCUMENTS_REQUIRED
-    ) {
-      await transitionPipelineState({
-        applicationId: params.applicationId,
-        nextState: ApplicationStage.IN_REVIEW,
-        actorUserId: params.actorUserId,
-        actorRole: params.actorRole,
-        allowOverride: false,
-        ip: params.ip,
-        userAgent: params.userAgent,
-        client,
-      });
-    }
 
     await client.query("commit");
   } catch (err) {
@@ -912,23 +929,20 @@ export async function rejectDocumentVersion(params: {
       success: true,
       client,
     });
-
-    await evaluateRequirements({
+    await upsertApplicationRequiredDocument({
       applicationId: params.applicationId,
-      actorUserId: params.actorUserId,
-      actorRole: params.actorRole,
-      ip: params.ip,
-      userAgent: params.userAgent,
+      documentCategory: document.document_type,
+      status: "rejected",
       client,
     });
 
-    if (application.pipeline_state === ApplicationStage.RECEIVED) {
+    if (application.pipeline_state !== ApplicationStage.DOCUMENTS_REQUIRED) {
       await transitionPipelineState({
         applicationId: params.applicationId,
         nextState: ApplicationStage.DOCUMENTS_REQUIRED,
         actorUserId: params.actorUserId,
         actorRole: params.actorRole,
-        allowOverride: false,
+        trigger: "document_rejected",
         ip: params.ip,
         userAgent: params.userAgent,
         client,

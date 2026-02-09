@@ -25,6 +25,7 @@ import usersRoutes from "./users";
 import portalRoutes from "./portal";
 import pwaRoutes from "./pwa";
 import referralsRoutes from "./referrals";
+import pipelineRoutes from "./pipeline";
 import voiceRoutes from "./voice";
 import webhooksRoutes from "./webhooks";
 
@@ -72,6 +73,7 @@ export const API_ROUTE_MOUNTS: ApiRouteMount[] = [
   { path: "/portal", router: portalRoutes },
   { path: "/pwa", router: pwaRoutes },
   { path: "/referrals", router: referralsRoutes },
+  { path: "/pipeline", router: pipelineRoutes },
   { path: "/voice", router: voiceRoutes },
   { path: "/webhooks", router: webhooksRoutes },
 ];
@@ -111,6 +113,9 @@ export const ROUTES: ApiRoute[] = [
   { method: "GET", path: "/api/calls", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "GET", path: "/api/applications", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "GET", path: "/api/applications/:id/ocr-insights", roles: [ROLES.ADMIN, ROLES.STAFF] },
+  { method: "POST", path: "/api/applications/:id/open", roles: [ROLES.ADMIN, ROLES.STAFF] },
+  { method: "GET", path: "/api/pipeline", roles: [ROLES.ADMIN, ROLES.STAFF] },
+  { method: "GET", path: "/api/pipeline/stages", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "GET", path: "/api/crm", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "GET", path: "/api/crm/contacts", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "GET", path: "/api/communications", roles: [ROLES.ADMIN, ROLES.STAFF] },

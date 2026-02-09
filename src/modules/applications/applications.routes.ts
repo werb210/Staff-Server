@@ -4,6 +4,7 @@ import {
   changePipelineState,
   createApplicationForUser,
   listDocumentsForApplication,
+  openApplicationForStaff,
   acceptDocumentVersion,
   rejectDocumentVersion,
   removeDocument,
@@ -76,6 +77,29 @@ router.get(
       actorRole: role,
     });
     res.status(200).json({ documents });
+  })
+);
+
+router.post(
+  "/:id/open",
+  requireAuth,
+  requireCapability([CAPABILITIES.APPLICATION_READ]),
+  safeHandler(async (req, res) => {
+    if (!req.user) {
+      throw new AppError("missing_token", "Authorization token is required.", 401);
+    }
+    const role = req.user.role;
+    if (!role || !isRole(role)) {
+      throw forbiddenError();
+    }
+    await openApplicationForStaff({
+      applicationId: req.params.id,
+      actorUserId: req.user.userId,
+      actorRole: role,
+      ip: req.ip,
+      userAgent: req.get("user-agent"),
+    });
+    res.status(200).json({ ok: true });
   })
 );
 
@@ -159,13 +183,9 @@ router.post(
       if (!req.user) {
         throw new AppError("missing_token", "Authorization token is required.", 401);
       }
-      const { state, override } = req.body ?? {};
+      const { state } = req.body ?? {};
       if (!state || typeof state !== "string") {
         throw new AppError("missing_fields", "state is required.", 400);
-      }
-      const capabilities = req.user.capabilities ?? [];
-      if (override && !capabilities.includes(CAPABILITIES.PIPELINE_OVERRIDE)) {
-        throw new AppError("forbidden", "Override not permitted.", 403);
       }
       const role = req.user.role;
       if (!role || !isRole(role)) {
@@ -176,7 +196,6 @@ router.post(
         nextState: state,
         actorUserId: req.user.userId,
         actorRole: role,
-        allowOverride: Boolean(override),
         ip: req.ip,
         userAgent: req.get("user-agent"),
       });
