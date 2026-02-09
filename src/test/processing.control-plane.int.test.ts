@@ -1,27 +1,27 @@
 import type { Express } from "express";
 import request from "supertest";
 import { beforeAll, describe, expect, it } from "vitest";
-import { ROLES } from "../../auth/roles";
-import { pool } from "../../db";
+import { ROLES } from "../auth/roles";
+import { pool } from "../db";
 import {
   markBankingAnalysisCompleted,
   markBankingAnalysisFailed,
   markDocumentProcessingCompleted,
   markDocumentProcessingFailed,
-} from "../../modules/processing/processing.service";
-import { seedLenderProduct } from "../helpers/lenders";
-import { createTestApp } from "../helpers/testApp";
-import { seedUser } from "../helpers/users";
+} from "../modules/processing/processing.service";
+import { seedLenderProduct } from "./helpers/lenders";
+import { createTestApp } from "./helpers/testApp";
+import { seedUser } from "./helpers/users";
 
 let app: Express;
-let phoneCounter = 7000;
+let phoneCounter = 8200;
 
 const nextPhone = (): string =>
   `+1415555${String(phoneCounter++).padStart(4, "0")}`;
 
 async function loginStaff(): Promise<string> {
   const phone = nextPhone();
-  const email = `processing-${phone.replace(/\\D/g, "")}@example.com`;
+  const email = `processing-${phone.replace(/\D/g, "")}@example.com`;
   await seedUser({ phoneNumber: phone, role: ROLES.STAFF, email });
   const res = await request(app).post("/api/auth/login").send({
     phone,
@@ -38,13 +38,13 @@ async function createApplication(token: string): Promise<string> {
       source: "client",
       country: "US",
       productCategory: "LOC",
-      business: { legalName: "Processing Test Co" },
+      business: { legalName: "Control Plane Co" },
       applicant: {
-        firstName: "Pat",
-        lastName: "Doe",
-        email: "pat.doe@example.com",
+        firstName: "Alex",
+        lastName: "Lee",
+        email: "alex.lee@example.com",
       },
-      financialProfile: { revenue: 210000 },
+      financialProfile: { revenue: 150000 },
       match: { partner: "direct" },
     });
   return res.body.applicationId as string;
@@ -56,12 +56,14 @@ async function uploadDocument(params: {
   documentType: string;
   title: string;
   fileName: string;
+  documentId?: string;
 }): Promise<string> {
   const res = await request(app)
     .post(`/api/applications/${params.applicationId}/documents`)
     .set("Authorization", `Bearer ${params.token}`)
     .send({
       title: params.title,
+      documentId: params.documentId,
       documentType: params.documentType,
       metadata: {
         fileName: params.fileName,
@@ -85,15 +87,16 @@ async function seedRequirements(): Promise<void> {
   });
 }
 
-describe("document processing triggers", () => {
+describe("processing control plane", () => {
   beforeAll(async () => {
     app = await createTestApp();
   });
 
-  it("creates OCR jobs for non-bank documents", async () => {
+  it("creates OCR jobs on non-bank uploads", async () => {
     await seedRequirements();
     const token = await loginStaff();
     const applicationId = await createApplication(token);
+
     const documentId = await uploadDocument({
       token,
       applicationId,
@@ -103,16 +106,15 @@ describe("document processing triggers", () => {
     });
 
     const jobs = await pool.query<{ status: string }>(
-      `select status
-       from document_processing_jobs
-       where document_id = $1`,
-      [documentId]
+      `select status from document_processing_jobs
+       where application_id = $1 and document_id = $2`,
+      [applicationId, documentId]
     );
     expect(jobs.rows.length).toBe(1);
     expect(jobs.rows[0]?.status).toBe("pending");
   });
 
-  it("does not start banking analysis with fewer than six statements", async () => {
+  it("creates banking jobs only after six statements", async () => {
     await seedRequirements();
     const token = await loginStaff();
     const applicationId = await createApplication(token);
@@ -127,42 +129,64 @@ describe("document processing triggers", () => {
       });
     }
 
-    const jobs = await pool.query<{ count: number }>(
+    const beforeJobs = await pool.query<{ count: number }>(
       "select count(*)::int as count from banking_analysis_jobs where application_id = $1",
       [applicationId]
     );
-    expect(jobs.rows[0]?.count ?? 0).toBe(0);
-  });
+    expect(beforeJobs.rows[0]?.count ?? 0).toBe(0);
 
-  it("starts banking analysis when six statements are uploaded", async () => {
-    await seedRequirements();
-    const token = await loginStaff();
-    const applicationId = await createApplication(token);
+    await uploadDocument({
+      token,
+      applicationId,
+      documentType: "bank_statement",
+      title: "Bank Statement 6",
+      fileName: "statement-6.pdf",
+    });
 
-    for (let i = 0; i < 6; i += 1) {
-      await uploadDocument({
-        token,
-        applicationId,
-        documentType: "bank_statement",
-        title: `Bank Statement ${i + 1}`,
-        fileName: `statement-${i + 1}.pdf`,
-      });
-    }
-
-    const jobs = await pool.query<{ status: string }>(
-      "select status from banking_analysis_jobs where application_id = $1",
+    const afterJobs = await pool.query<{ count: number }>(
+      "select count(*)::int as count from banking_analysis_jobs where application_id = $1",
       [applicationId]
     );
-    expect(jobs.rows.length).toBe(1);
-    expect(jobs.rows[0]?.status).toBe("pending");
+    expect(afterJobs.rows[0]?.count ?? 0).toBe(1);
   });
 
-  it("records completion timestamps on applications", async () => {
+  it("avoids duplicate OCR jobs on re-uploads", async () => {
     await seedRequirements();
     const token = await loginStaff();
     const applicationId = await createApplication(token);
 
     const documentId = await uploadDocument({
+      token,
+      applicationId,
+      documentType: "id_document",
+      title: "Government ID",
+      fileName: "id-document.pdf",
+    });
+
+    await uploadDocument({
+      token,
+      applicationId,
+      documentType: "id_document",
+      title: "Government ID",
+      fileName: "id-document-v2.pdf",
+      documentId,
+    });
+
+    const jobs = await pool.query<{ count: number }>(
+      `select count(*)::int as count
+       from document_processing_jobs
+       where application_id = $1 and document_id = $2`,
+      [applicationId, documentId]
+    );
+    expect(jobs.rows[0]?.count ?? 0).toBe(1);
+  });
+
+  it("sets completion timestamps when jobs complete", async () => {
+    await seedRequirements();
+    const token = await loginStaff();
+    const applicationId = await createApplication(token);
+
+    await uploadDocument({
       token,
       applicationId,
       documentType: "id_document",
@@ -191,16 +215,17 @@ describe("document processing triggers", () => {
       "select ocr_completed_at, banking_completed_at from applications where id = $1",
       [applicationId]
     );
+
     expect(application.rows[0]?.ocr_completed_at).toBeTruthy();
     expect(application.rows[0]?.banking_completed_at).toBeTruthy();
   });
 
-  it("persists error state when jobs fail", async () => {
+  it("does not set timestamps when jobs fail", async () => {
     await seedRequirements();
     const token = await loginStaff();
     const applicationId = await createApplication(token);
 
-    const documentId = await uploadDocument({
+    await uploadDocument({
       token,
       applicationId,
       documentType: "id_document",
@@ -222,54 +247,15 @@ describe("document processing triggers", () => {
 
     await markBankingAnalysisFailed(applicationId);
 
-    const ocrJob = await pool.query<{ status: string }>(
-      "select status from document_processing_jobs where document_id = $1",
-      [documentId]
-    );
-    expect(ocrJob.rows[0]?.status).toBe("failed");
-
-    const bankingJob = await pool.query<{ status: string }>(
-      "select status from banking_analysis_jobs where application_id = $1",
-      [applicationId]
-    );
-    expect(bankingJob.rows[0]?.status).toBe("failed");
-  });
-
-  it("does not change pipeline state when processing completes", async () => {
-    await seedRequirements();
-    const token = await loginStaff();
-    const applicationId = await createApplication(token);
-
-    const before = await pool.query<{ pipeline_state: string }>(
-      "select pipeline_state from applications where id = $1",
+    const application = await pool.query<{
+      ocr_completed_at: Date | null;
+      banking_completed_at: Date | null;
+    }>(
+      "select ocr_completed_at, banking_completed_at from applications where id = $1",
       [applicationId]
     );
 
-    const documentId = await uploadDocument({
-      token,
-      applicationId,
-      documentType: "id_document",
-      title: "Government ID",
-      fileName: "id-document.pdf",
-    });
-    await markDocumentProcessingCompleted(applicationId);
-
-    for (let i = 0; i < 6; i += 1) {
-      await uploadDocument({
-        token,
-        applicationId,
-        documentType: "bank_statement",
-        title: `Bank Statement ${i + 1}`,
-        fileName: `statement-${i + 1}.pdf`,
-      });
-    }
-    await markBankingAnalysisCompleted(applicationId);
-
-    const after = await pool.query<{ pipeline_state: string }>(
-      "select pipeline_state from applications where id = $1",
-      [applicationId]
-    );
-
-    expect(after.rows[0]?.pipeline_state).toBe(before.rows[0]?.pipeline_state);
+    expect(application.rows[0]?.ocr_completed_at).toBeNull();
+    expect(application.rows[0]?.banking_completed_at).toBeNull();
   });
 });

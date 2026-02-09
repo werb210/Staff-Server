@@ -11,7 +11,7 @@ import crmRoutes from "./crm";
 import dashboardRoutes from "./dashboard";
 import documentsRoutes from "./documents";
 import internalRoutes from "./_int";
-import internalProcessingRoutes from "./internalProcessing";
+import internalProcessingRoutes from "./internal/processing";
 import lenderRoutes from "./lender";
 import lenderSubmissionsRoutes from "./lenderSubmissions";
 import lenderProductsRoutes from "./lenderProducts";
@@ -50,7 +50,7 @@ const ALL_ROLES: Role[] = [
 
 export const API_ROUTE_MOUNTS: ApiRouteMount[] = [
   { path: "/_int", router: internalRoutes },
-  { path: "/internal", router: internalProcessingRoutes },
+  { path: "/internal/processing", router: internalProcessingRoutes },
   { path: "/auth", router: authRoutes },
   { path: "/applications", router: applicationsRoutes },
   { path: "/calendar", router: calendarRoutes },

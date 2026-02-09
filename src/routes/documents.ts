@@ -16,8 +16,6 @@ import {
   updateDocumentUploadDetails,
 } from "../modules/applications/applications.repo";
 import { getDocumentMaxSizeBytes } from "../config";
-import { enqueueOcrForDocument } from "../modules/ocr/ocr.service";
-import { logError } from "../observability/logger";
 import {
   acceptDocument,
   rejectDocument,
@@ -25,9 +23,11 @@ import {
 import { resolveRequirementsForApplication } from "../services/lenderProductRequirementsService";
 import { normalizeRequiredDocumentKey } from "../db/schema/requiredDocuments";
 import {
-  handleDocumentUploadProcessing,
-  shouldEnqueueOcrForCategory,
-} from "../modules/documentProcessing/documentProcessing.service";
+  createBankingAnalysisJob,
+  createDocumentProcessingJob,
+} from "../modules/processing/processing.service";
+
+const BANK_STATEMENT_CATEGORY = "bank_statements_6_months";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -118,23 +118,10 @@ router.post(
       status: "uploaded",
     });
 
-    await handleDocumentUploadProcessing({
-      applicationId,
-      documentId: document.id,
-      documentCategory: normalizedCategory,
-    });
-
-    if (shouldEnqueueOcrForCategory(normalizedCategory)) {
-      try {
-        await enqueueOcrForDocument(document.id);
-      } catch (error) {
-        logError("ocr_enqueue_failed", {
-          code: "ocr_enqueue_failed",
-          applicationId,
-          documentId: document.id,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
+    if (normalizedCategory === BANK_STATEMENT_CATEGORY) {
+      await createBankingAnalysisJob(applicationId);
+    } else {
+      await createDocumentProcessingJob(applicationId, document.id);
     }
 
     res.status(201).json({
