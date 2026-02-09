@@ -42,7 +42,7 @@ import { resolveRequirementsForApplication } from "../../services/lenderProductR
 import {
   normalizeRequiredDocumentKey,
 } from "../../db/schema/requiredDocuments";
-import { type ApplicationResponse } from "./application.dto";
+import { type ApplicationResponse, type ProcessingStatusResponse } from "./application.dto";
 import {
   createBankingAnalysisJob,
   createDocumentProcessingJob,
@@ -135,12 +135,34 @@ function resolveApplicationCountry(metadata: unknown): string | null {
     : null;
 }
 
+function toIsoString(value: Date | null | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+  return value.toISOString();
+}
+
+function normalizeDocumentStatus(status: string): DocumentStatus {
+  return DOCUMENT_STATUS_VALUES.has(status as DocumentStatus)
+    ? (status as DocumentStatus)
+    : "missing";
+}
+
 const DEFAULT_PIPELINE_STAGE = ApplicationStage.RECEIVED;
 const STAFF_REVIEW_ROLES: ReadonlySet<Role> = new Set([
   ROLES.ADMIN,
   ROLES.STAFF,
   ROLES.OPS,
 ]);
+
+const DOCUMENT_STATUS_VALUES = new Set([
+  "missing",
+  "uploaded",
+  "accepted",
+  "rejected",
+] as const);
+
+type DocumentStatus = "missing" | "uploaded" | "accepted" | "rejected";
 
 function normalizePipelineStage(stage: string | null): string {
   return stage ?? DEFAULT_PIPELINE_STAGE;
@@ -655,6 +677,81 @@ export async function listDocumentsForApplication(params: {
   return Array.from(grouped.values()).sort((a, b) =>
     a.documentCategory.localeCompare(b.documentCategory)
   );
+}
+
+export async function getProcessingStatus(
+  applicationId: string
+): Promise<ProcessingStatusResponse> {
+  const application = await findApplicationById(applicationId);
+  if (!application) {
+    throw new AppError("not_found", "Application not found.", 404);
+  }
+
+  const { requirements } = await resolveRequirementsForApplication({
+    lenderProductId: application.lender_product_id ?? null,
+    productType: application.product_type,
+    requestedAmount: application.requested_amount ?? null,
+    country: resolveApplicationCountry(application.metadata),
+  });
+
+  const requiredDocuments = new Set<string>();
+  for (const requirement of requirements) {
+    if (requirement.required === false) {
+      continue;
+    }
+    const normalized = normalizeRequiredDocumentKey(requirement.documentType);
+    if (normalized) {
+      requiredDocuments.add(normalized);
+    }
+  }
+
+  const requiredEntries = await listApplicationRequiredDocuments({ applicationId });
+  const requiredMap: ProcessingStatusResponse["status"]["documents"]["required"] = {};
+
+  for (const key of requiredDocuments) {
+    requiredMap[key] = { status: "missing", updatedAt: null };
+  }
+
+  for (const entry of requiredEntries) {
+    if (!entry.is_required) {
+      continue;
+    }
+    const normalized = normalizeRequiredDocumentKey(entry.document_category);
+    if (!normalized) {
+      continue;
+    }
+    requiredDocuments.add(normalized);
+    requiredMap[normalized] = {
+      status: normalizeDocumentStatus(entry.status),
+      updatedAt: toIsoString(entry.created_at),
+    };
+  }
+
+  const allAccepted = Object.values(requiredMap).every(
+    (document) => document.status === "accepted"
+  );
+
+  return {
+    applicationId: application.id,
+    status: {
+      ocr: {
+        completed: Boolean(application.ocr_completed_at),
+        completedAt: toIsoString(application.ocr_completed_at),
+      },
+      banking: {
+        completed: Boolean(application.banking_completed_at),
+        completedAt: toIsoString(application.banking_completed_at),
+      },
+      documents: {
+        required: requiredMap,
+        allAccepted,
+      },
+      creditSummary: {
+        completed: Boolean(application.credit_summary_completed_at),
+        completedAt: toIsoString(application.credit_summary_completed_at),
+      },
+    },
+  };
 }
 
 export async function removeDocument(params: {

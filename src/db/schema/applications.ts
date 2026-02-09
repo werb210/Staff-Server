@@ -18,6 +18,7 @@ export type ApplicationRecord = {
   first_opened_at: Date | null;
   ocr_completed_at: Date | null;
   banking_completed_at: Date | null;
+  credit_summary_completed_at: Date | null;
   startup_flag: boolean | null;
   created_at: Date;
   updated_at: Date;

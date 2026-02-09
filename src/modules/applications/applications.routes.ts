@@ -10,6 +10,7 @@ import {
   removeDocument,
   uploadDocument,
 } from "./applications.service";
+import { getApplicationProcessingStatus } from "./applications.controller";
 import { requireAuth, requireCapability } from "../../middleware/auth";
 import { CAPABILITIES } from "../../auth/capabilities";
 import { isRole } from "../../auth/roles";
@@ -69,6 +70,13 @@ router.post(
       throw err;
     }
   })
+);
+
+router.get(
+  "/:id/processing-status",
+  requireAuth,
+  requireCapability([CAPABILITIES.APPLICATION_READ]),
+  safeHandler(getApplicationProcessingStatus)
 );
 
 router.get(
