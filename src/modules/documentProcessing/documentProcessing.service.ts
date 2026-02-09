@@ -1,0 +1,203 @@
+import { pool } from "../../db";
+import { AppError } from "../../middleware/errors";
+import {
+  getDocumentTypeAliases,
+  normalizeRequiredDocumentKey,
+} from "../../db/schema/requiredDocuments";
+import type { PoolClient } from "pg";
+import type {
+  BankingAnalysisJobRecord,
+  DocumentProcessingJobRecord,
+} from "./documentProcessing.types";
+import {
+  createBankingAnalysisJob,
+  createDocumentProcessingJob,
+  listBankStatementDocuments,
+  updateBankingAnalysisJob,
+  updateDocumentProcessingJob,
+} from "./documentProcessing.repo";
+
+const BANK_STATEMENT_CATEGORY = "bank_statements_6_months";
+
+type Queryable = Pick<PoolClient, "query">;
+
+function isBankStatementCategory(category: string): boolean {
+  const normalized = normalizeRequiredDocumentKey(category) ?? category;
+  return normalized === BANK_STATEMENT_CATEGORY;
+}
+
+export async function handleDocumentUploadProcessing(params: {
+  applicationId: string;
+  documentId: string;
+  documentCategory: string;
+  client?: Queryable;
+}): Promise<{
+  ocrJob: DocumentProcessingJobRecord | null;
+  bankingJob: BankingAnalysisJobRecord | null;
+}> {
+  const normalizedCategory =
+    normalizeRequiredDocumentKey(params.documentCategory) ?? params.documentCategory;
+  if (!isBankStatementCategory(normalizedCategory)) {
+    const ocrJob = await createDocumentProcessingJob({
+      documentId: params.documentId,
+      jobType: "ocr",
+      status: "pending",
+      client: params.client,
+    });
+    return { ocrJob, bankingJob: null };
+  }
+
+  const aliases = getDocumentTypeAliases(BANK_STATEMENT_CATEGORY);
+  const bankDocs = await listBankStatementDocuments({
+    applicationId: params.applicationId,
+    documentTypes: aliases,
+    client: params.client,
+  });
+  if (bankDocs.length < 6) {
+    return { ocrJob: null, bankingJob: null };
+  }
+  const allUploaded = bankDocs.every((doc) => doc.status === "uploaded");
+  if (!allUploaded) {
+    return { ocrJob: null, bankingJob: null };
+  }
+  const bankingJob = await createBankingAnalysisJob({
+    applicationId: params.applicationId,
+    status: "pending",
+    client: params.client,
+  });
+  return { ocrJob: null, bankingJob };
+}
+
+export async function markOcrCompleted(
+  documentId: string
+): Promise<DocumentProcessingJobRecord> {
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const job = await updateDocumentProcessingJob({
+      documentId,
+      jobType: "ocr",
+      status: "completed",
+      completedAt: new Date(),
+      errorMessage: null,
+      client,
+    });
+    if (!job) {
+      throw new AppError("not_found", "OCR job not found.", 404);
+    }
+    const appRes = await client.query(
+      `update applications
+       set ocr_completed_at = now(),
+           updated_at = now()
+       where id = (select application_id from documents where id = $1)
+       returning id`,
+      [documentId]
+    );
+    if (appRes.rows.length === 0) {
+      throw new AppError("not_found", "Application not found.", 404);
+    }
+    await client.query("commit");
+    return job;
+  } catch (err) {
+    await client.query("rollback");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export async function markOcrFailed(params: {
+  documentId: string;
+  errorMessage: string;
+}): Promise<DocumentProcessingJobRecord> {
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const job = await updateDocumentProcessingJob({
+      documentId: params.documentId,
+      jobType: "ocr",
+      status: "failed",
+      completedAt: new Date(),
+      errorMessage: params.errorMessage,
+      client,
+    });
+    if (!job) {
+      throw new AppError("not_found", "OCR job not found.", 404);
+    }
+    await client.query("commit");
+    return job;
+  } catch (err) {
+    await client.query("rollback");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export async function markBankingCompleted(params: {
+  applicationId: string;
+  monthsDetected: number;
+}): Promise<BankingAnalysisJobRecord> {
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const job = await updateBankingAnalysisJob({
+      applicationId: params.applicationId,
+      status: "completed",
+      monthsDetected: params.monthsDetected,
+      completedAt: new Date(),
+      errorMessage: null,
+      client,
+    });
+    if (!job) {
+      throw new AppError("not_found", "Banking analysis job not found.", 404);
+    }
+    await client.query(
+      `update applications
+       set banking_completed_at = now(),
+           updated_at = now()
+       where id = $1`,
+      [params.applicationId]
+    );
+    await client.query("commit");
+    return job;
+  } catch (err) {
+    await client.query("rollback");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export async function markBankingFailed(params: {
+  applicationId: string;
+  errorMessage: string;
+}): Promise<BankingAnalysisJobRecord> {
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const job = await updateBankingAnalysisJob({
+      applicationId: params.applicationId,
+      status: "failed",
+      monthsDetected: null,
+      completedAt: new Date(),
+      errorMessage: params.errorMessage,
+      client,
+    });
+    if (!job) {
+      throw new AppError("not_found", "Banking analysis job not found.", 404);
+    }
+    await client.query("commit");
+    return job;
+  } catch (err) {
+    await client.query("rollback");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export function shouldEnqueueOcrForCategory(category: string): boolean {
+  const normalized = normalizeRequiredDocumentKey(category) ?? category;
+  return !isBankStatementCategory(normalized);
+}
