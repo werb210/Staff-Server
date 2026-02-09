@@ -11,6 +11,10 @@ export async function ensureApplicationSubmissionState(params: {
   userAgent?: string;
   client: Pick<PoolClient, "query">;
 }): Promise<void> {
+  const requestMetadata = {
+    ...(params.ip ? { ip: params.ip } : {}),
+    ...(params.userAgent ? { userAgent: params.userAgent } : {}),
+  };
   const application = await findApplicationById(params.applicationId, params.client);
   if (!application) {
     throw new AppError("not_found", "Application not found.", 404);
@@ -32,8 +36,7 @@ export async function ensureApplicationSubmissionState(params: {
     actorUserId: params.actorUserId,
     actorRole: null,
     trigger: "submission_started",
-    ip: params.ip,
-    userAgent: params.userAgent,
+    ...requestMetadata,
     client: params.client,
   });
 
@@ -43,8 +46,7 @@ export async function ensureApplicationSubmissionState(params: {
     actorUserId: params.actorUserId,
     actorRole: null,
     trigger: "submission_sent",
-    ip: params.ip,
-    userAgent: params.userAgent,
+    ...requestMetadata,
     client: params.client,
   });
 }

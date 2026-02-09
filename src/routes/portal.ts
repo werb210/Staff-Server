@@ -76,7 +76,16 @@ router.get(
     if (!ensureReady(res)) {
       return;
     }
-    const record = await findApplicationById(req.params.id);
+    const applicationId = req.params.id;
+    if (!applicationId) {
+      res.status(400).json({
+        code: "validation_error",
+        message: "Application id is required.",
+        requestId: res.locals.requestId ?? "unknown",
+      });
+      return;
+    }
+    const record = await findApplicationById(applicationId);
     if (!record) {
       res.status(404).json({
         code: "not_found",

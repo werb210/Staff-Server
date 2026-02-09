@@ -106,7 +106,11 @@ export async function createLenderProductRequirement(params: {
       params.maxAmount ?? null,
     ]
   );
-  return res.rows[0];
+  const record = res.rows[0];
+  if (!record) {
+    throw new Error("Failed to create lender product requirement.");
+  }
+  return record;
 }
 
 export async function updateLenderProductRequirement(params: {

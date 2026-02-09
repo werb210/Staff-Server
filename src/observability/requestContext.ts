@@ -35,15 +35,18 @@ const resolveRequestId = (req: Request): string => {
 
 const buildStore = (input: RequestContextInput): RequestContextStore => {
   const path = input.path ?? "unknown";
-  return {
+  const store: RequestContextStore = {
     requestId: input.requestId,
     method: input.method ?? "UNKNOWN",
     path,
     startTime: input.startTime ?? Date.now(),
     sqlTraceEnabled: input.sqlTraceEnabled ?? isSqlTracePath(path),
     dbProcessIds: input.dbProcessIds ?? new Set<number>(),
-    idempotencyKeyHash: input.idempotencyKeyHash,
   };
+  if (input.idempotencyKeyHash !== undefined) {
+    store.idempotencyKeyHash = input.idempotencyKeyHash;
+  }
+  return store;
 };
 
 export function getRequestContext(): RequestContextStore | undefined {

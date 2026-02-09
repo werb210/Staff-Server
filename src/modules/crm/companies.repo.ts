@@ -71,11 +71,8 @@ export async function findCompanyById(params: {
     [params.companyId]
   );
 
-  if (result.rows.length === 0) {
-    return null;
-  }
-
-  return result.rows[0];
+  const record = result.rows[0];
+  return record ?? null;
 }
 
 export async function createCompany(params: {
@@ -110,5 +107,9 @@ export async function createCompany(params: {
     ]
   );
 
-  return result.rows[0];
+  const record = result.rows[0];
+  if (!record) {
+    throw new Error("Failed to create company.");
+  }
+  return record;
 }

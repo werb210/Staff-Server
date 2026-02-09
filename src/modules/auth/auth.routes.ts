@@ -188,15 +188,17 @@ async function handleOtpVerify(
       email?: string | null;
     };
 
-    const result = await verifyOtpCode({
+    const userAgent = req.get("user-agent");
+    const verifyPayload = {
       phone,
       code,
-      email,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
+      ...(email !== undefined ? { email } : {}),
+      ...(req.ip ? { ip: req.ip } : {}),
+      ...(userAgent ? { userAgent } : {}),
       route,
       method: req.method,
-    });
+    };
+    const result = await verifyOtpCode(verifyPayload);
 
     if (!result.ok) {
       respondError(res, result.status, result.error.code, result.error.message);
@@ -279,13 +281,16 @@ router.post(
  */
 router.post("/refresh", refreshRateLimit(), async (req, res, next) => {
   try {
-    const { refreshToken } = req.body ?? {};
-
-    const result = await refreshSession({
+    const refreshToken =
+      typeof req.body?.refreshToken === "string" ? req.body.refreshToken : "";
+    const userAgent = req.get("user-agent");
+    const refreshPayload = {
       refreshToken,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
-    });
+      ...(req.ip ? { ip: req.ip } : {}),
+      ...(userAgent ? { userAgent } : {}),
+    };
+
+    const result = await refreshSession(refreshPayload);
 
     if (!result.ok) {
       respondError(

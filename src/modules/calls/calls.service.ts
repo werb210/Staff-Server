@@ -41,8 +41,8 @@ export async function startCall(params: {
     targetUserId: null,
     targetType: "call_log",
     targetId: record.id,
-    ip: params.ip,
-    userAgent: params.userAgent,
+    ip: params.ip ?? null,
+    userAgent: params.userAgent ?? null,
     success: true,
     metadata: {
       phone_number: record.phone_number,
@@ -162,8 +162,8 @@ export async function updateCallStatus(params: {
       targetUserId: null,
       targetType: "call_log",
       targetId: updated.id,
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ip: params.ip ?? null,
+      userAgent: params.userAgent ?? null,
       success: true,
       metadata: {
         phone_number: updated.phone_number,
@@ -199,15 +199,18 @@ export async function updateCallRecording(params: {
     throw new AppError("not_found", "Call not found.", 404);
   }
 
-  const updated = await updateCallStatus({
+  const updatePayload = {
     id: params.id,
     status: existing.status,
     recordingSid: params.recordingSid,
-    recordingDurationSeconds: params.recordingDurationSeconds ?? undefined,
-    actorUserId: params.actorUserId,
-    ip: params.ip,
-    userAgent: params.userAgent,
-  });
+    ...(params.recordingDurationSeconds !== undefined
+      ? { recordingDurationSeconds: params.recordingDurationSeconds }
+      : {}),
+    ...(params.actorUserId !== undefined ? { actorUserId: params.actorUserId } : {}),
+    ...(params.ip ? { ip: params.ip } : {}),
+    ...(params.userAgent ? { userAgent: params.userAgent } : {}),
+  };
+  const updated = await updateCallStatus(updatePayload);
 
   await recordAuditEvent({
     action: "call_recording_updated",
@@ -215,8 +218,8 @@ export async function updateCallRecording(params: {
     targetUserId: null,
     targetType: "call_log",
     targetId: updated.id,
-    ip: params.ip,
-    userAgent: params.userAgent,
+    ip: params.ip ?? null,
+    userAgent: params.userAgent ?? null,
     success: true,
     metadata: {
       phone_number: updated.phone_number,
@@ -242,14 +245,15 @@ export async function endCall(params: {
   }
 
   const shouldEnd = existing.status !== "ended";
-  const updated = await updateCallStatus({
+  const endPayload = {
     id: params.id,
-    status: "ended",
+    status: "ended" as const,
     durationSeconds: params.durationSeconds ?? existing.duration_seconds,
     actorUserId: params.staffUserId,
-    ip: params.ip,
-    userAgent: params.userAgent,
-  });
+    ...(params.ip ? { ip: params.ip } : {}),
+    ...(params.userAgent ? { userAgent: params.userAgent } : {}),
+  };
+  const updated = await updateCallStatus(endPayload);
 
   if (shouldEnd) {
     await recordAuditEvent({
@@ -258,8 +262,8 @@ export async function endCall(params: {
       targetUserId: null,
       targetType: "call_log",
       targetId: updated.id,
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ip: params.ip ?? null,
+      userAgent: params.userAgent ?? null,
       success: true,
       metadata: {
         phone_number: updated.phone_number,

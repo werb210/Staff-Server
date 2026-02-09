@@ -271,8 +271,8 @@ export async function submitClientApplication(params: {
         targetUserId: null,
         targetType: "application",
         targetId: existing.application_id,
-        ip: params.ip,
-        userAgent: params.userAgent,
+        ip: params.ip ?? null,
+        userAgent: params.userAgent ?? null,
         success: true,
         client,
       });
@@ -336,8 +336,8 @@ export async function submitClientApplication(params: {
         targetUserId: ownerUserId,
         targetType: "document",
         targetId: document.id,
-        ip: params.ip,
-        userAgent: params.userAgent,
+        ip: params.ip ?? null,
+        userAgent: params.userAgent ?? null,
         success: true,
         client,
       });
@@ -356,8 +356,8 @@ export async function submitClientApplication(params: {
       targetUserId: ownerUserId,
       targetType: "application",
       targetId: application.id,
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ip: params.ip ?? null,
+      userAgent: params.userAgent ?? null,
       success: true,
       client,
     });
@@ -379,8 +379,8 @@ export async function submitClientApplication(params: {
       action: "client_submission_failed",
       actorUserId: null,
       targetUserId: null,
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ip: params.ip ?? null,
+      userAgent: params.userAgent ?? null,
       success: false,
     });
     logWarn("client_submission_failed", {

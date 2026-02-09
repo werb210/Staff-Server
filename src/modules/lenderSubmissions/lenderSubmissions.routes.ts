@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { requireAuth, requireCapability } from "../../middleware/auth";
 import { CAPABILITIES } from "../../auth/capabilities";
 import { AppError } from "../../middleware/errors";
@@ -7,6 +7,18 @@ import { lenderSubmissionRateLimit } from "../../middleware/rateLimit";
 import { submitLenderSubmission } from "./lenderSubmissions.service";
 
 const router = Router();
+
+function buildRequestMetadata(req: Request): { ip?: string; userAgent?: string } {
+  const metadata: { ip?: string; userAgent?: string } = {};
+  if (req.ip) {
+    metadata.ip = req.ip;
+  }
+  const userAgent = req.get("user-agent");
+  if (userAgent) {
+    metadata.userAgent = userAgent;
+  }
+  return metadata;
+}
 
 router.post(
   "/:applicationId/submit",
@@ -38,8 +50,7 @@ router.post(
       idempotencyKey: req.get("idempotency-key") ?? null,
       actorUserId: req.user.userId,
       skipRequiredDocuments: Boolean(skipRequiredDocuments),
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
+      ...buildRequestMetadata(req),
     });
     res.status(submission.statusCode).json({ submission: submission.value });
   })

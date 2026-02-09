@@ -21,16 +21,19 @@ export async function submitLenderSubmission(params: {
     throw new AppError("missing_product", "Application lender product is not set.", 400);
   }
 
-  const result = await submitApplication({
+  const submitPayload = {
     applicationId: params.applicationId,
     idempotencyKey: params.idempotencyKey,
     lenderId: application.lender_id,
     lenderProductId: application.lender_product_id,
     actorUserId: params.actorUserId,
-    skipRequiredDocuments: params.skipRequiredDocuments,
-    ip: params.ip,
-    userAgent: params.userAgent,
-  });
+    ...(params.skipRequiredDocuments !== undefined
+      ? { skipRequiredDocuments: params.skipRequiredDocuments }
+      : {}),
+    ...(params.ip ? { ip: params.ip } : {}),
+    ...(params.userAgent ? { userAgent: params.userAgent } : {}),
+  };
+  const result = await submitApplication(submitPayload);
 
   return { statusCode: result.statusCode, value: result.value };
 }

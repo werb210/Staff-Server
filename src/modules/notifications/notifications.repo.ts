@@ -41,5 +41,9 @@ export async function createNotification(params: {
       params.metadata ?? null,
     ]
   );
-  return result.rows[0];
+  const record = result.rows[0];
+  if (!record) {
+    throw new Error("Failed to create notification.");
+  }
+  return record;
 }

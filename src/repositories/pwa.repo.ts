@@ -58,7 +58,11 @@ export async function upsertPwaSubscription(params: {
        returning id, user_id, endpoint, p256dh, auth, device_type, created_at, updated_at`,
       [params.p256dh, params.auth, params.deviceType, row.id]
     );
-    return updated.rows[0];
+    const updatedRow = updated.rows[0];
+    if (!updatedRow) {
+      throw new Error("Failed to update PWA subscription.");
+    }
+    return updatedRow;
   }
 
   const created = await pool.query<PwaSubscription>(
@@ -75,7 +79,11 @@ export async function upsertPwaSubscription(params: {
       params.deviceType,
     ]
   );
-  return created.rows[0];
+  const createdRow = created.rows[0];
+  if (!createdRow) {
+    throw new Error("Failed to create PWA subscription.");
+  }
+  return createdRow;
 }
 
 export async function deletePwaSubscription(params: {
@@ -143,7 +151,11 @@ export async function createPwaNotificationAudit(params: {
       params.payloadHash,
     ]
   );
-  return result.rows[0];
+  const notification = result.rows[0];
+  if (!notification) {
+    throw new Error("Failed to create PWA notification.");
+  }
+  return notification;
 }
 
 export async function listPwaNotificationsForUser(

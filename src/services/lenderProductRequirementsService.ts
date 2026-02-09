@@ -444,6 +444,9 @@ export async function deleteRequirementForProduct(params: {
     throw new AppError("not_found", "Requirement not found.", 404);
   }
   const [removed] = documents.splice(index, 1);
+  if (!removed) {
+    throw new AppError("data_error", "Invalid requirement payload.", 500);
+  }
   await pool.query(
     `update lender_products
      set required_documents = $1,

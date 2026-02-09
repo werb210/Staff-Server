@@ -40,7 +40,7 @@ function stableStringify(value: unknown): string {
 }
 
 function isAuthRoute(req: Request): boolean {
-  const path = req.originalUrl.split("?")[0];
+  const path = (req.originalUrl ?? req.url ?? "").split("?")[0] ?? "";
   return path.startsWith("/api/auth/");
 }
 

@@ -233,8 +233,9 @@ function normalizeVariableRateString(value: string | undefined, fieldName: strin
     );
   }
   const trimmed = value.trim();
-  const primeMatch = trimmed.match(/^p\\+\\s*(.+)$/i) ?? trimmed.match(/^prime\\s*\\+\\s*(.+)$/i);
-  if (primeMatch) {
+  const primeMatch =
+    trimmed.match(/^p\\+\\s*(.+)$/i) ?? trimmed.match(/^prime\\s*\\+\\s*(.+)$/i);
+  if (primeMatch?.[1]) {
     return `Prime + ${primeMatch[1].trim()}`;
   }
   const numeric = Number(trimmed);
@@ -320,11 +321,10 @@ async function executeReplayAction(
       throw new AppError("validation_error", "Invalid lender payload.", 400);
     }
     const parsed = parsedResult.data;
-    const lender = await createLender(pool, {
+    const createPayload = {
       name: parsed.name.trim(),
       country: parsed.country.trim(),
       submission_method: parsed.submissionMethod?.trim().toLowerCase() ?? "email",
-      active: parsed.active,
       website: parsed.website ?? null,
       submission_email: parsed.submissionEmail ?? null,
       api_config: parsed.apiConfig ?? null,
@@ -332,7 +332,9 @@ async function executeReplayAction(
       primary_contact_name: parsed.primaryContactName ?? null,
       primary_contact_email: parsed.primaryContactEmail ?? null,
       primary_contact_phone: parsed.primaryContactPhone ?? null,
-    });
+      ...(typeof parsed.active === "boolean" ? { active: parsed.active } : {}),
+    };
+    const lender = await createLender(pool, createPayload);
     return { statusCode: 201, body: lender };
   }
 

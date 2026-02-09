@@ -488,11 +488,10 @@ export async function createLender(
     const normalizedSubmissionEmail =
       typeof submissionEmail === "string" ? submissionEmail.trim() : null;
 
-    const lender = await repo.createLender(pool, {
+    const lenderPayload = {
       name: name.trim(),
       country: normalizedCountry,
       submission_method: resolvedSubmissionMethod ?? "email",
-      active: typeof active === "boolean" ? active : undefined,
       status: resolvedStatus,
       email: typeof email === "string" ? email.trim() : null,
       primary_contact_name: contactName,
@@ -503,7 +502,10 @@ export async function createLender(
       api_config:
         apiConfig && typeof apiConfig === "object" ? (apiConfig as JsonObject) : null,
       submission_config: resolvedSubmissionConfig,
-    });
+      ...(typeof active === "boolean" ? { active } : {}),
+    };
+
+    const lender = await repo.createLender(pool, lenderPayload);
 
     res.status(201).json(lender);
   } catch (err) {
@@ -705,24 +707,32 @@ export async function updateLender(
           ? resolvedStatus === "ACTIVE"
           : undefined;
 
-    const updated = await repo.updateLender(pool, {
+    const updatePayload = {
       id: id.trim(),
-      name: typeof name === "string" ? name.trim() : undefined,
-      status: resolvedStatus,
-      country: normalizedCountry,
-      email: typeof email === "string" ? email.trim() : undefined,
-      primary_contact_name: contactName,
-      primary_contact_email: contactEmail,
-      primary_contact_phone: contactPhone,
-      submission_email:
-        typeof submissionEmail === "string" ? submissionEmail.trim() : undefined,
-      submission_method: resolvedSubmissionMethod,
-      website: typeof website === "string" ? website.trim() : undefined,
-      active: resolvedActive,
-      api_config:
-        apiConfig && typeof apiConfig === "object" ? (apiConfig as JsonObject) : undefined,
-      submission_config: resolvedSubmissionConfig,
-    });
+      ...(typeof name === "string" ? { name: name.trim() } : {}),
+      ...(resolvedStatus !== undefined ? { status: resolvedStatus } : {}),
+      ...(normalizedCountry !== undefined ? { country: normalizedCountry } : {}),
+      ...(typeof email === "string" ? { email: email.trim() } : {}),
+      ...(contactName !== undefined ? { primary_contact_name: contactName } : {}),
+      ...(contactEmail !== undefined ? { primary_contact_email: contactEmail } : {}),
+      ...(contactPhone !== undefined ? { primary_contact_phone: contactPhone } : {}),
+      ...(typeof submissionEmail === "string"
+        ? { submission_email: submissionEmail.trim() }
+        : {}),
+      ...(resolvedSubmissionMethod !== undefined
+        ? { submission_method: resolvedSubmissionMethod }
+        : {}),
+      ...(typeof website === "string" ? { website: website.trim() } : {}),
+      ...(resolvedActive !== undefined ? { active: resolvedActive } : {}),
+      ...(apiConfig && typeof apiConfig === "object"
+        ? { api_config: apiConfig as JsonObject }
+        : {}),
+      ...(resolvedSubmissionConfig !== undefined
+        ? { submission_config: resolvedSubmissionConfig }
+        : {}),
+    };
+
+    const updated = await repo.updateLender(pool, updatePayload);
 
     if (!updated) {
       throw new AppError("not_found", "Lender not found.", 404);

@@ -47,10 +47,13 @@ function parseMetadata(metadata: unknown): { mimeType: string; fileName?: string
   if (!record.mimeType || typeof record.mimeType !== "string") {
     throw new Error("missing_document_mime_type");
   }
-  return {
+  const result: { mimeType: string; fileName?: string } = {
     mimeType: record.mimeType,
-    fileName: typeof record.fileName === "string" ? record.fileName : undefined,
   };
+  if (typeof record.fileName === "string") {
+    result.fileName = record.fileName;
+  }
+  return result;
 }
 
 function computeNextAttempt(attemptCount: number, maxAttempts: number): Date | null {
@@ -217,7 +220,7 @@ function extractFieldsFromText(text: string, registry: OcrFieldDefinition[]): Ar
           return;
         }
 
-        const candidate = normalizedLine.split(/[:\\-]/)[0].trim();
+        const candidate = (normalizedLine.split(/[:\\-]/)[0] ?? "").trim();
         const similarity = jaroWinkler(labelNormalized, candidate || normalizedLine);
         if (similarity >= OCR_FUZZY_THRESHOLD) {
           if (!matchedLine || similarity > matchedConfidence) {
@@ -339,7 +342,12 @@ export async function processOcrJob(
     }
     const { mimeType, fileName } = parseMetadata(version.metadata);
     const buffer = await storage.getBuffer({ content: version.content });
-    const result = await provider.extract({ buffer, mimeType, fileName });
+    const extractPayload = {
+      buffer,
+      mimeType,
+      ...(fileName ? { fileName } : {}),
+    };
+    const result = await provider.extract(extractPayload);
     await markOcrJobSuccess({
       jobId: job.id,
       documentId: job.document_id,

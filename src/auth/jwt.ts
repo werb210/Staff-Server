@@ -91,14 +91,17 @@ function validatePayload(payload: any): asserts payload is AccessTokenPayload {
 export function signAccessToken(payload: AccessTokenPayload): string {
   const secret = requireJwtSecret();
   const expiresIn = getAccessTokenExpiresIn() as SignOptions["expiresIn"];
+  const options: SignOptions = {
+    algorithm: "HS256",
+    issuer: JWT_ISSUER,
+    audience: JWT_AUDIENCE,
+  };
+  if (expiresIn !== undefined) {
+    options.expiresIn = expiresIn;
+  }
 
   try {
-    return jwt.sign(payload, secret, {
-      algorithm: "HS256",
-      expiresIn,
-      issuer: JWT_ISSUER,
-      audience: JWT_AUDIENCE,
-    });
+    return jwt.sign(payload, secret, options);
   } catch (err) {
     throw new AccessTokenSigningError("Failed to sign access token");
   }
@@ -126,13 +129,17 @@ export function verifyAccessToken(token: string): AccessTokenPayload {
 
   validatePayload(decoded);
 
-  return {
+  const payload: AccessTokenPayload = {
     sub: decoded.sub,
     role: decoded.role,
     tokenVersion: decoded.tokenVersion,
     phone: decoded.phone ?? null,
-    silo: typeof decoded.silo === "string" ? decoded.silo : undefined,
   };
+  if (typeof decoded.silo === "string") {
+    payload.silo = decoded.silo;
+  }
+
+  return payload;
 }
 
 export function verifyJwt(token: string): { sub: string } {

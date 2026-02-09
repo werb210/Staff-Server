@@ -51,7 +51,9 @@ function isTimeoutError(err: Error): boolean {
 }
 
 function isAuthRoute(req: Request): boolean {
-  return req.originalUrl.split("?")[0].startsWith("/api/auth/");
+  const url = req.originalUrl ?? req.url ?? "";
+  const path = url.split("?")[0] ?? "";
+  return path.startsWith("/api/auth/");
 }
 
 function resolveFailureReason(err: Error): string {

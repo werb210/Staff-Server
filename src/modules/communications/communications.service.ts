@@ -88,7 +88,9 @@ function normalizeMessage(row: MessageRepoRow): CommunicationMessage {
 export async function getCommunications(params: {
   contactId?: string | null;
 }): Promise<CommunicationRecord[]> {
-  const rows = await listCommunications({ contactId: params.contactId });
+  const rows = await listCommunications({
+    ...(params.contactId !== undefined ? { contactId: params.contactId } : {}),
+  });
   if (rows.length === 0) {
     return [];
   }
@@ -102,7 +104,7 @@ export async function getMessageFeed(params: {
   pageSize: number;
 }): Promise<MessageFeed> {
   const rows = await listMessages({
-    contactId: params.contactId,
+    ...(params.contactId !== undefined ? { contactId: params.contactId } : {}),
     page: params.page,
     pageSize: params.pageSize,
   });
@@ -111,7 +113,7 @@ export async function getMessageFeed(params: {
     return { messages: [], total: 0 };
   }
 
-  const total = rows[0].total_count ?? 0;
+  const total = rows[0]?.total_count ?? 0;
   return {
     messages: rows.map((row) => normalizeMessage(row)),
     total,

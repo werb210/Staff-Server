@@ -119,13 +119,14 @@ router.post(
   safeHandler(async (req, res) => {
     const requestId = res.locals.requestId ?? "unknown";
     const user = req.user!;
+    const replayUser = {
+      userId: user.userId,
+      role: user.role,
+      capabilities: user.capabilities ?? [],
+      ...(user.lenderId !== undefined ? { lenderId: user.lenderId } : {}),
+    };
     const result = await replaySyncBatch({
-      user: {
-        userId: user.userId,
-        role: user.role,
-        lenderId: user.lenderId,
-        capabilities: user.capabilities ?? [],
-      },
+      user: replayUser,
       payload: req.body ?? {},
       requestId,
     });

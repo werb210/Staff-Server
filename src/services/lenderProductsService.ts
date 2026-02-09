@@ -141,17 +141,19 @@ export async function updateLenderProductService(params: {
 }): Promise<Awaited<ReturnType<typeof updateLenderProduct>>> {
   const normalizedName = normalizeLenderProductName(params.name);
 
-  return updateLenderProduct({
+  const updatePayload = {
     id: params.id,
     name: normalizedName,
     requiredDocuments: params.requiredDocuments,
-    active: params.active,
-    category: params.category,
-    country: params.country,
-    rateType: params.rateType,
-    interestMin: params.interestMin,
-    interestMax: params.interestMax,
-    termMin: params.termMin,
-    termMax: params.termMax,
-  });
+    ...(params.active !== undefined ? { active: params.active } : {}),
+    ...(params.category !== undefined ? { category: params.category } : {}),
+    ...(params.country !== undefined ? { country: params.country } : {}),
+    ...(params.rateType !== undefined ? { rateType: params.rateType } : {}),
+    ...(params.interestMin !== undefined ? { interestMin: params.interestMin } : {}),
+    ...(params.interestMax !== undefined ? { interestMax: params.interestMax } : {}),
+    ...(params.termMin !== undefined ? { termMin: params.termMin } : {}),
+    ...(params.termMax !== undefined ? { termMax: params.termMax } : {}),
+  };
+
+  return updateLenderProduct(updatePayload);
 }

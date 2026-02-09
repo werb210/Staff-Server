@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { AppError } from "../../middleware/errors";
 import { recordAuditEvent } from "../audit/audit.service";
 import {
@@ -11,6 +11,13 @@ import {
 
 const router = Router();
 
+function getAuditContext(req: Request): { ip: string | null; userAgent: string | null } {
+  return {
+    ip: req.ip ?? null,
+    userAgent: req.get("user-agent") ?? null,
+  };
+}
+
 router.post("/documents/:documentId/enqueue", async (req, res, next) => {
   try {
     const job = await enqueueOcrForDocument(req.params.documentId);
@@ -20,8 +27,7 @@ router.post("/documents/:documentId/enqueue", async (req, res, next) => {
       targetUserId: null,
       targetType: "ocr_job",
       targetId: job.id,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
+      ...getAuditContext(req),
       success: true,
     });
     res.status(202).json({ job });
@@ -32,8 +38,7 @@ router.post("/documents/:documentId/enqueue", async (req, res, next) => {
       targetUserId: null,
       targetType: "ocr_job",
       targetId: req.params.documentId,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
+      ...getAuditContext(req),
       success: false,
     });
     next(err);
@@ -49,8 +54,7 @@ router.post("/applications/:applicationId/enqueue", async (req, res, next) => {
       targetUserId: null,
       targetType: "application",
       targetId: req.params.applicationId,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
+      ...getAuditContext(req),
       success: true,
     });
     res.status(202).json({ jobs });
@@ -61,8 +65,7 @@ router.post("/applications/:applicationId/enqueue", async (req, res, next) => {
       targetUserId: null,
       targetType: "application",
       targetId: req.params.applicationId,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
+      ...getAuditContext(req),
       success: false,
     });
     next(err);
@@ -81,8 +84,7 @@ router.get("/documents/:documentId/status", async (req, res, next) => {
       targetUserId: null,
       targetType: "ocr_job",
       targetId: job.id,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
+      ...getAuditContext(req),
       success: true,
     });
     res.json({ job });
@@ -93,8 +95,7 @@ router.get("/documents/:documentId/status", async (req, res, next) => {
       targetUserId: null,
       targetType: "ocr_job",
       targetId: req.params.documentId,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
+      ...getAuditContext(req),
       success: false,
     });
     next(err);
@@ -113,8 +114,7 @@ router.get("/documents/:documentId/result", async (req, res, next) => {
       targetUserId: null,
       targetType: "ocr_result",
       targetId: result.id,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
+      ...getAuditContext(req),
       success: true,
     });
     res.json({ result });
@@ -125,8 +125,7 @@ router.get("/documents/:documentId/result", async (req, res, next) => {
       targetUserId: null,
       targetType: "ocr_result",
       targetId: req.params.documentId,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
+      ...getAuditContext(req),
       success: false,
     });
     next(err);
@@ -142,8 +141,7 @@ router.post("/documents/:documentId/retry", async (req, res, next) => {
       targetUserId: null,
       targetType: "ocr_job",
       targetId: job.id,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
+      ...getAuditContext(req),
       success: true,
     });
     res.status(202).json({ job });
@@ -154,8 +152,7 @@ router.post("/documents/:documentId/retry", async (req, res, next) => {
       targetUserId: null,
       targetType: "ocr_job",
       targetId: req.params.documentId,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
+      ...getAuditContext(req),
       success: false,
     });
     next(err);

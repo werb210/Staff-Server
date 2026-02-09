@@ -65,8 +65,8 @@ export async function listStaffActivity(params: {
   const { clause, values } = buildWhereClause({
     from: params.from,
     to: params.to,
-    staffUserId: params.staffUserId,
-    action: params.action,
+    staffUserId: params.staffUserId ?? null,
+    action: params.action ?? null,
   });
   const periodExpr = periodExpression(params.groupBy);
   const limitIndex = values.length + 1;

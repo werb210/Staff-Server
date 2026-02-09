@@ -44,12 +44,18 @@ export function runWithRequestContext<T>(
 ): T {
   const input: RequestContextInput = {
     requestId: ctx.requestId,
-    method: ctx.method,
-    path: ctx.path ?? ctx.route,
-    startTime: ctx.startTime ?? ctx.start,
-    sqlTraceEnabled: ctx.sqlTraceEnabled,
-    dbProcessIds: ctx.dbProcessIds,
-    idempotencyKeyHash: ctx.idempotencyKeyHash,
+    ...(ctx.method !== undefined ? { method: ctx.method } : {}),
+    ...(ctx.path !== undefined || ctx.route !== undefined
+      ? { path: ctx.path ?? ctx.route }
+      : {}),
+    ...(ctx.startTime !== undefined || ctx.start !== undefined
+      ? { startTime: ctx.startTime ?? ctx.start }
+      : {}),
+    ...(ctx.sqlTraceEnabled !== undefined ? { sqlTraceEnabled: ctx.sqlTraceEnabled } : {}),
+    ...(ctx.dbProcessIds !== undefined ? { dbProcessIds: ctx.dbProcessIds } : {}),
+    ...(ctx.idempotencyKeyHash !== undefined
+      ? { idempotencyKeyHash: ctx.idempotencyKeyHash }
+      : {}),
   };
   return withRequestContext(input, fn);
 }

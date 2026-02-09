@@ -173,13 +173,20 @@ export function initializePushService(): PushStatus {
 
   if (!publicKey || !privateKey || !subject) {
     const error = "missing_vapid";
-    cachedStatus = {
+    const status: PushStatus = {
       configured: false,
-      publicKey,
-      privateKey,
-      subject,
       error,
     };
+    if (publicKey) {
+      status.publicKey = publicKey;
+    }
+    if (privateKey) {
+      status.privateKey = privateKey;
+    }
+    if (subject) {
+      status.subject = subject;
+    }
+    cachedStatus = status;
     if (isProductionEnvironment()) {
       throw new Error("VAPID configuration is required in production.");
     }
@@ -199,13 +206,20 @@ export function initializePushService(): PushStatus {
     logInfo("push_initialized", { subject });
     return cachedStatus;
   } catch (error) {
-    cachedStatus = {
+    const status: PushStatus = {
       configured: false,
-      subject,
-      publicKey,
-      privateKey,
       error: error instanceof Error ? error.message : "invalid_vapid",
     };
+    if (publicKey) {
+      status.publicKey = publicKey;
+    }
+    if (privateKey) {
+      status.privateKey = privateKey;
+    }
+    if (subject) {
+      status.subject = subject;
+    }
+    cachedStatus = status;
     if (isProductionEnvironment()) {
       throw error instanceof Error ? error : new Error("invalid_vapid");
     }

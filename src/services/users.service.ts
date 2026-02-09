@@ -263,15 +263,17 @@ export async function createUser(req: Request, res: Response) {
       throw new AppError("validation_error", "Role is invalid.", 400);
     }
 
-    const user = await createUserAccount({
+    const userAgent = req.get("user-agent");
+    const createPayload = {
       email: parsed.email ?? null,
       phoneNumber: parsed.phone ?? null,
       role: normalizedRole,
       lenderId: parsed.lenderId ?? null,
       actorUserId: req.user?.userId ?? null,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
-    });
+      ...(req.ip ? { ip: req.ip } : {}),
+      ...(userAgent ? { userAgent } : {}),
+    };
+    const user = await createUserAccount(createPayload);
 
     res.status(201).json({
       ok: true,
@@ -297,13 +299,15 @@ export async function deleteUser(req: Request, res: Response) {
       throw new AppError("missing_token", "Authorization token is required.", 401);
     }
 
-    await setUserStatus({
+    const userAgent = req.get("user-agent");
+    const statusPayload = {
       userId: targetId,
       active: false,
       actorId,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
-    });
+      ...(req.ip ? { ip: req.ip } : {}),
+      ...(userAgent ? { userAgent } : {}),
+    };
+    await setUserStatus(statusPayload);
 
     res.status(200).json({ ok: true });
   } catch (err) {

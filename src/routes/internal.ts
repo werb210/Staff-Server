@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { pool } from "../db";
 import { getBuildInfo } from "../config";
 import { listKillSwitches } from "../modules/ops/ops.service";
@@ -13,6 +13,18 @@ import { CAPABILITIES } from "../auth/capabilities";
 
 const router = Router();
 let bootstrapAdminDisabled = false;
+
+function buildRequestMetadata(req: Request): { ip?: string; userAgent?: string } {
+  const metadata: { ip?: string; userAgent?: string } = {};
+  if (req.ip) {
+    metadata.ip = req.ip;
+  }
+  const userAgent = req.get("user-agent");
+  if (userAgent) {
+    metadata.userAgent = userAgent;
+  }
+  return metadata;
+}
 
 router.use(requireAuth);
 router.use(requireCapability([CAPABILITIES.OPS_MANAGE]));
@@ -66,8 +78,7 @@ router.post("/bootstrap-admin", async (req, res, next) => {
       phoneNumber,
       role: ROLES.ADMIN,
       actorUserId: null,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
+      ...buildRequestMetadata(req),
     });
 
     bootstrapAdminDisabled = true;

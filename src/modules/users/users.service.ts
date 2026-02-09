@@ -23,8 +23,8 @@ export async function setUserStatus(params: {
       action: params.active ? "user_enabled" : "user_disabled",
       actorUserId: params.actorId,
       targetUserId: params.userId,
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ip: params.ip ?? null,
+      userAgent: params.userAgent ?? null,
       success: false,
     });
     throw new AppError("not_found", "User not found.", 404);
@@ -40,8 +40,8 @@ export async function setUserStatus(params: {
         action: "token_revoke",
         actorUserId: params.actorId,
         targetUserId: params.userId,
-        ip: params.ip,
-        userAgent: params.userAgent,
+        ip: params.ip ?? null,
+        userAgent: params.userAgent ?? null,
         success: true,
         client,
       });
@@ -50,8 +50,8 @@ export async function setUserStatus(params: {
       action: params.active ? "user_enabled" : "user_disabled",
       actorUserId: params.actorId,
       targetUserId: params.userId,
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ip: params.ip ?? null,
+      userAgent: params.userAgent ?? null,
       success: true,
       client,
     });
@@ -62,8 +62,8 @@ export async function setUserStatus(params: {
       action: params.active ? "user_enabled" : "user_disabled",
       actorUserId: params.actorId,
       targetUserId: params.userId,
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ip: params.ip ?? null,
+      userAgent: params.userAgent ?? null,
       success: false,
     });
     throw err;
@@ -85,8 +85,8 @@ export async function changeUserRole(params: {
       action: "user_role_changed",
       actorUserId: params.actorId,
       targetUserId: params.userId,
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ip: params.ip ?? null,
+      userAgent: params.userAgent ?? null,
       success: false,
     });
     throw new AppError("not_found", "User not found.", 404);
@@ -101,8 +101,8 @@ export async function changeUserRole(params: {
       action: "token_revoke",
       actorUserId: params.actorId,
       targetUserId: params.userId,
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ip: params.ip ?? null,
+      userAgent: params.userAgent ?? null,
       success: true,
       client,
     });
@@ -110,8 +110,8 @@ export async function changeUserRole(params: {
       action: "user_role_changed",
       actorUserId: params.actorId,
       targetUserId: params.userId,
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ip: params.ip ?? null,
+      userAgent: params.userAgent ?? null,
       success: true,
       client,
     });
@@ -122,8 +122,8 @@ export async function changeUserRole(params: {
       action: "user_role_changed",
       actorUserId: params.actorId,
       targetUserId: params.userId,
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ip: params.ip ?? null,
+      userAgent: params.userAgent ?? null,
       success: false,
     });
     throw err;

@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import multer from "multer";
 import { AppError } from "../middleware/errors";
 import { safeHandler } from "../middleware/safeHandler";
@@ -37,6 +37,18 @@ const upload = multer({
 });
 
 const router = Router();
+
+function buildRequestMetadata(req: Request): { ip?: string; userAgent?: string } {
+  const metadata: { ip?: string; userAgent?: string } = {};
+  if (req.ip) {
+    metadata.ip = req.ip;
+  }
+  const userAgent = req.get("user-agent");
+  if (userAgent) {
+    metadata.userAgent = userAgent;
+  }
+  return metadata;
+}
 
 router.post(
   "/",
@@ -184,12 +196,15 @@ router.post(
     if (!isRole(req.user.role)) {
       throw new AppError("forbidden", "Not authorized.", 403);
     }
+    const documentId = req.params.id;
+    if (!documentId) {
+      throw new AppError("validation_error", "document id is required.", 400);
+    }
     await acceptDocument({
-      documentId: req.params.id,
+      documentId,
       actorUserId: req.user.userId,
       actorRole: req.user.role,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
+      ...buildRequestMetadata(req),
     });
     res.status(200).json({ ok: true });
   })
@@ -211,13 +226,16 @@ router.post(
     if (!reason) {
       throw new AppError("validation_error", "Rejection reason is required.", 400);
     }
+    const documentId = req.params.id;
+    if (!documentId) {
+      throw new AppError("validation_error", "document id is required.", 400);
+    }
     await rejectDocument({
-      documentId: req.params.id,
+      documentId,
       rejectionReason: reason,
       actorUserId: req.user.userId,
       actorRole: req.user.role,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
+      ...buildRequestMetadata(req),
     });
     res.status(200).json({ ok: true });
   })

@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { AppError } from "../middleware/errors";
 import { requireAuth, requireCapability } from "../middleware/auth";
 import { CAPABILITIES } from "../auth/capabilities";
@@ -29,6 +29,13 @@ function assertKillSwitchKey(key: string): asserts key is OpsKillSwitchKey {
   }
 }
 
+function getAuditContext(req: Request): { ip: string | null; userAgent: string | null } {
+  return {
+    ip: req.ip ?? null,
+    userAgent: req.get("user-agent") ?? null,
+  };
+}
+
 router.get("/kill-switches", safeHandler(async (req, res) => {
   const switches = await listKillSwitches();
   await recordAuditEvent({
@@ -37,8 +44,7 @@ router.get("/kill-switches", safeHandler(async (req, res) => {
     targetUserId: null,
     targetType: "ops",
     targetId: "kill_switches",
-    ip: req.ip,
-    userAgent: req.get("user-agent"),
+    ...getAuditContext(req),
     success: true,
   });
   res.json({ switches });
@@ -54,8 +60,7 @@ router.post("/kill-switches/:key/enable", safeHandler(async (req, res) => {
     targetUserId: null,
     targetType: "ops_kill_switch",
     targetId: key,
-    ip: req.ip,
-    userAgent: req.get("user-agent"),
+    ...getAuditContext(req),
     success: true,
   });
   res.json({ key, enabled: true });
@@ -71,8 +76,7 @@ router.post("/kill-switches/:key/disable", safeHandler(async (req, res) => {
     targetUserId: null,
     targetType: "ops_kill_switch",
     targetId: key,
-    ip: req.ip,
-    userAgent: req.get("user-agent"),
+    ...getAuditContext(req),
     success: true,
   });
   res.json({ key, enabled: false });
@@ -90,8 +94,7 @@ router.post("/replay/:scope", safeHandler(async (req, res) => {
     targetUserId: null,
     targetType: "ops_replay",
     targetId: job.scope,
-    ip: req.ip,
-    userAgent: req.get("user-agent"),
+    ...getAuditContext(req),
     success: true,
   });
   setImmediate(() => {
@@ -104,7 +107,11 @@ router.post("/replay/:scope", safeHandler(async (req, res) => {
 }));
 
 router.get("/replay/:id/status", safeHandler(async (req, res) => {
-  const job = await getReplayJobStatus(req.params.id);
+  const jobId = req.params.id;
+  if (!jobId) {
+    throw new AppError("validation_error", "Replay job id is required.", 400);
+  }
+  const job = await getReplayJobStatus(jobId);
   if (!job) {
     throw new AppError("not_found", "Replay job not found.", 404);
   }
@@ -114,8 +121,7 @@ router.get("/replay/:id/status", safeHandler(async (req, res) => {
     targetUserId: null,
     targetType: "ops_replay",
     targetId: job.id,
-    ip: req.ip,
-    userAgent: req.get("user-agent"),
+    ...getAuditContext(req),
     success: true,
   });
   res.json({ job });
