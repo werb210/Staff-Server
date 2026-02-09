@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ROLES } from "../../auth/roles";
 import { pool } from "../../db";
 import { createTestServer } from "../../server/testServer";
+import { seedLenderProduct } from "../helpers/lenders";
 import { seedUser } from "../helpers/users";
 
 let server: Awaited<ReturnType<typeof createTestServer>>;
@@ -22,6 +23,11 @@ describe("client-to-portal e2e", () => {
   });
 
   it("runs the client submission through document availability", async () => {
+    await seedLenderProduct({
+      category: "LOC",
+      country: "US",
+      requiredDocuments: [{ type: "bank_statement", required: true }],
+    });
     const phone = nextPhone();
     const email = `e2e-${phone.replace(/\D/g, "")}@example.com`;
     await seedUser({ phoneNumber: phone, role: ROLES.STAFF, email });

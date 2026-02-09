@@ -12,14 +12,18 @@ import {
   findApplicationById,
   findDocumentById,
   getLatestDocumentVersion,
-  findApplicationRequiredDocumentById,
-  updateApplicationRequiredDocumentStatusById,
+  upsertApplicationRequiredDocument,
+  updateDocumentUploadDetails,
 } from "../modules/applications/applications.repo";
 import { getDocumentMaxSizeBytes } from "../config";
 import { enqueueOcrForDocument } from "../modules/ocr/ocr.service";
 import { logError } from "../observability/logger";
-import { ApplicationStage } from "../modules/applications/pipelineState";
-import { transitionPipelineState } from "../modules/applications/applications.service";
+import {
+  acceptDocument,
+  rejectDocument,
+} from "../modules/applications/applications.service";
+import { resolveRequirementsForApplication } from "../services/lenderProductRequirementsService";
+import { normalizeRequiredDocumentKey } from "../db/schema/requiredDocuments";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -54,11 +58,34 @@ router.post(
       throw new AppError("not_found", "Application not found.", 404);
     }
 
+    const { requirements } = await resolveRequirementsForApplication({
+      lenderProductId: application.lender_product_id ?? null,
+      productType: application.product_type,
+      requestedAmount: application.requested_amount ?? null,
+      country:
+        typeof application.metadata === "object" && application.metadata !== null
+          ? (application.metadata as { country?: string }).country ?? null
+          : null,
+    });
+    const normalizedCategory = normalizeRequiredDocumentKey(category) ?? category;
+    const requirement = requirements.find((item) => {
+      const normalizedRequirement = normalizeRequiredDocumentKey(item.documentType);
+      if (normalizedRequirement) {
+        return normalizedRequirement === normalizedCategory;
+      }
+      return item.documentType === category;
+    });
+    if (!requirement) {
+      throw new AppError("invalid_document_type", "Document type is not allowed.", 400);
+    }
+
     const document = await createDocument({
       applicationId,
       ownerUserId: application.owner_user_id,
       title: req.file.originalname,
       documentType: category,
+      filename: req.file.originalname,
+      uploadedBy: "client",
     });
     const nextVersion = (await getLatestDocumentVersion(document.id)) + 1;
     const storageKey = `documents/${document.id}/${req.file.originalname}`;
@@ -72,6 +99,19 @@ router.post(
         storageKey,
       },
       content: req.file.buffer.toString("base64"),
+    });
+    await updateDocumentUploadDetails({
+      documentId: document.id,
+      status: "uploaded",
+      filename: req.file.originalname,
+      storageKey,
+      uploadedBy: "client",
+    });
+    await upsertApplicationRequiredDocument({
+      applicationId,
+      documentCategory: normalizedCategory,
+      isRequired: requirement.required !== false,
+      status: "uploaded",
     });
 
     try {
@@ -145,14 +185,12 @@ router.post(
     if (!isRole(req.user.role)) {
       throw new AppError("forbidden", "Not authorized.", 403);
     }
-    const documentId = req.params.id;
-    const document = await findApplicationRequiredDocumentById({ documentId });
-    if (!document) {
-      throw new AppError("not_found", "Document not found.", 404);
-    }
-    await updateApplicationRequiredDocumentStatusById({
-      documentId,
-      status: "accepted",
+    await acceptDocument({
+      documentId: req.params.id,
+      actorUserId: req.user.userId,
+      actorRole: req.user.role,
+      ip: req.ip,
+      userAgent: req.get("user-agent"),
     });
     res.status(200).json({ ok: true });
   })
@@ -169,29 +207,19 @@ router.post(
     if (!isRole(req.user.role)) {
       throw new AppError("forbidden", "Not authorized.", 403);
     }
-    const documentId = req.params.id;
-    const document = await findApplicationRequiredDocumentById({ documentId });
-    if (!document) {
-      throw new AppError("not_found", "Document not found.", 404);
+    const reason =
+      typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (!reason) {
+      throw new AppError("validation_error", "Rejection reason is required.", 400);
     }
-    const updated = await updateApplicationRequiredDocumentStatusById({
-      documentId,
-      status: "rejected",
+    await rejectDocument({
+      documentId: req.params.id,
+      rejectionReason: reason,
+      actorUserId: req.user.userId,
+      actorRole: req.user.role,
+      ip: req.ip,
+      userAgent: req.get("user-agent"),
     });
-    if (updated?.application_id) {
-      const application = await findApplicationById(updated.application_id);
-      if (application?.pipeline_state !== ApplicationStage.DOCUMENTS_REQUIRED) {
-        await transitionPipelineState({
-          applicationId: updated.application_id,
-          nextState: ApplicationStage.DOCUMENTS_REQUIRED,
-          actorUserId: req.user.userId,
-          actorRole: req.user.role,
-          trigger: "document_rejected",
-          ip: req.ip,
-          userAgent: req.get("user-agent"),
-        });
-      }
-    }
     res.status(200).json({ ok: true });
   })
 );

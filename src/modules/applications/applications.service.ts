@@ -12,12 +12,19 @@ import {
   findAcceptedDocumentVersion,
   findDocumentVersionById,
   findDocumentVersionReview,
-  findLatestDocumentVersionStatus,
+  findActiveDocumentVersion,
   getLatestDocumentVersion,
+  listApplicationRequiredDocuments,
   listDocumentsWithLatestVersion,
   updateApplicationFirstOpenedAt,
   updateApplicationPipelineState,
   upsertApplicationRequiredDocument,
+  updateDocumentStatus,
+  updateDocumentUploadDetails,
+} from "./applications.repo";
+import type {
+  ApplicationRecord,
+  ApplicationRequiredDocumentRecord,
 } from "./applications.repo";
 import { pool } from "../../db";
 import { type Role, ROLES } from "../../auth/roles";
@@ -35,7 +42,6 @@ import { recordTransactionRollback } from "../../observability/transactionTeleme
 import { resolveRequirementsForApplication } from "../../services/lenderProductRequirementsService";
 import { enqueueOcrForDocument } from "../ocr/ocr.service";
 import {
-  getDocumentTypeAliases,
   normalizeRequiredDocumentKey,
 } from "../../db/schema/requiredDocuments";
 import { type ApplicationResponse } from "./application.dto";
@@ -62,18 +68,27 @@ type MetadataPayload = {
 };
 
 export type DocumentSummary = {
-  documentId: string;
-  applicationId: string;
-  title: string;
-  documentType: string;
+  documentCategory: string;
+  isRequired: boolean;
   status: string;
-  createdAt: Date;
-  latestVersion: {
-    id: string;
-    version: number;
-    metadata: unknown;
-    reviewStatus: string | null;
-  } | null;
+  documents: Array<{
+    documentId: string;
+    title: string;
+    documentType: string;
+    status: string;
+    filename: string | null;
+    storageKey: string | null;
+    uploadedBy: string;
+    rejectionReason: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+    latestVersion: {
+      id: string;
+      version: number;
+      metadata: unknown;
+      reviewStatus: string | null;
+    } | null;
+  }>;
 };
 
 type IdempotentResult<T> = {
@@ -103,6 +118,7 @@ function resolveApplicationCountry(metadata: unknown): string | null {
 }
 
 const DEFAULT_PIPELINE_STAGE = ApplicationStage.RECEIVED;
+const STAFF_REVIEW_ROLES = new Set([ROLES.ADMIN, ROLES.STAFF, ROLES.OPS]);
 
 function normalizePipelineStage(stage: string | null): string {
   return stage ?? DEFAULT_PIPELINE_STAGE;
@@ -160,6 +176,102 @@ function canAccessApplication(
     return true;
   }
   return role === ROLES.ADMIN || role === ROLES.STAFF;
+}
+
+function resolveUploadedBy(role: Role): "client" | "staff" {
+  return STAFF_REVIEW_ROLES.has(role) ? "staff" : "client";
+}
+
+function assertStaffReviewRole(role: Role): void {
+  if (!STAFF_REVIEW_ROLES.has(role)) {
+    throw new AppError("forbidden", "Not authorized.", 403);
+  }
+}
+
+async function ensureRequiredDocuments(params: {
+  application: ApplicationRecord;
+  requirements: Array<{ documentType: string; required: boolean }>;
+  client?: Queryable;
+}): Promise<ApplicationRequiredDocumentRecord[]> {
+  const existing = await listApplicationRequiredDocuments({
+    applicationId: params.application.id,
+    client: params.client,
+  });
+
+  const existingMap = new Map(
+    existing.map((entry) => [entry.document_category, entry])
+  );
+
+  return params.requirements.map((requirement) => {
+    const key = normalizeRequiredDocumentKey(requirement.documentType);
+    const documentCategory = key ?? requirement.documentType;
+    const match = existingMap.get(documentCategory);
+    if (match) {
+      return match;
+    }
+    return {
+      id: `missing-${documentCategory}`,
+      application_id: params.application.id,
+      document_category: documentCategory,
+      is_required: requirement.required !== false,
+      status: "missing",
+      created_at: new Date(0),
+    };
+  });
+}
+
+async function resolveRequirementForDocument(params: {
+  application: ApplicationRecord;
+  documentType: string;
+  client?: Queryable;
+}): Promise<{ documentCategory: string; isRequired: boolean }> {
+  const { requirements } = await resolveRequirementsForApplication({
+    lenderProductId: params.application.lender_product_id ?? null,
+    productType: params.application.product_type,
+    requestedAmount: params.application.requested_amount ?? null,
+    country: resolveApplicationCountry(params.application.metadata),
+  });
+  const normalizedRequested = normalizeRequiredDocumentKey(params.documentType);
+  const requirement = requirements.find((item) => {
+    const normalizedRequirement = normalizeRequiredDocumentKey(item.documentType);
+    return normalizedRequirement && normalizedRequested
+      ? normalizedRequirement === normalizedRequested
+      : item.documentType === params.documentType;
+  });
+
+  return {
+    documentCategory: normalizedRequested ?? params.documentType,
+    isRequired: requirement?.required !== false,
+  };
+}
+
+async function enforceDocumentsRequiredStage(params: {
+  application: ApplicationRecord;
+  actorUserId: string | null;
+  actorRole: Role | null;
+  trigger: string;
+  client?: Queryable;
+}): Promise<void> {
+  if (params.application.pipeline_state !== ApplicationStage.DOCUMENTS_REQUIRED) {
+    await transitionPipelineState({
+      applicationId: params.application.id,
+      nextState: ApplicationStage.DOCUMENTS_REQUIRED,
+      actorUserId: params.actorUserId,
+      actorRole: params.actorRole,
+      trigger: params.trigger,
+      client: params.client,
+    });
+    return;
+  }
+
+  await createApplicationStageEvent({
+    applicationId: params.application.id,
+    fromStage: params.application.pipeline_state,
+    toStage: ApplicationStage.DOCUMENTS_REQUIRED,
+    trigger: params.trigger,
+    triggeredBy: params.actorUserId ?? "system",
+    client: params.client,
+  });
 }
 
 export async function transitionPipelineState(params: {
@@ -279,34 +391,18 @@ async function evaluateRequirements(params: {
     country: resolveApplicationCountry(application.metadata),
   });
 
-  let missingRequired = false;
-  for (const requirement of requirements) {
-    if (!requirement.required) {
-      continue;
+  const requiredDocuments = await ensureRequiredDocuments({
+    application,
+    requirements,
+    client: params.client,
+  });
+
+  const missingRequired = requiredDocuments.some((doc) => {
+    if (!doc.is_required) {
+      return false;
     }
-    const normalized = normalizeRequiredDocumentKey(requirement.documentType);
-    const aliases = normalized ? getDocumentTypeAliases(normalized) : [requirement.documentType];
-    let latest = null;
-    for (const docType of aliases) {
-      const candidate = await findLatestDocumentVersionStatus({
-        applicationId: application.id,
-        documentType: docType,
-        client: params.client,
-      });
-      if (candidate) {
-        latest = candidate;
-        break;
-      }
-    }
-    if (!latest) {
-      missingRequired = true;
-      break;
-    }
-    if (!latest.status || latest.status === "rejected") {
-      missingRequired = true;
-      break;
-    }
-  }
+    return doc.status !== "accepted";
+  });
 
   if (missingRequired && application.pipeline_state === ApplicationStage.RECEIVED) {
     await transitionPipelineState({
@@ -464,26 +560,69 @@ export async function listDocumentsForApplication(params: {
     throw new AppError("forbidden", "Not authorized.", 403);
   }
 
+  const { requirements } = await resolveRequirementsForApplication({
+    lenderProductId: application.lender_product_id ?? null,
+    productType: application.product_type,
+    requestedAmount: application.requested_amount ?? null,
+    country: resolveApplicationCountry(application.metadata),
+  });
+
+  const requiredDocuments = await ensureRequiredDocuments({
+    application,
+    requirements,
+  });
+
   const documents = await listDocumentsWithLatestVersion({
     applicationId: params.applicationId,
   });
-  return documents.map((doc) => ({
-    documentId: doc.id,
-    applicationId: doc.application_id,
-    title: doc.title,
-    documentType: doc.document_type,
-    status: doc.status,
-    createdAt: doc.created_at,
-    latestVersion:
-      doc.version_id && doc.version !== null
-        ? {
-            id: doc.version_id,
-            version: doc.version,
-            metadata: doc.metadata ?? null,
-            reviewStatus: doc.review_status ?? null,
-          }
-        : null,
-  }));
+
+  const grouped = new Map<string, DocumentSummary>();
+
+  for (const requirement of requiredDocuments) {
+    grouped.set(requirement.document_category, {
+      documentCategory: requirement.document_category,
+      isRequired: requirement.is_required,
+      status: requirement.status,
+      documents: [],
+    });
+  }
+
+  for (const doc of documents) {
+    const existing =
+      grouped.get(doc.document_type) ??
+      {
+        documentCategory: doc.document_type,
+        isRequired: false,
+        status: "uploaded",
+        documents: [],
+      };
+    existing.documents.push({
+      documentId: doc.id,
+      title: doc.title,
+      documentType: doc.document_type,
+      status: doc.status,
+      filename: doc.filename ?? null,
+      storageKey: doc.storage_key ?? null,
+      uploadedBy: doc.uploaded_by,
+      rejectionReason: doc.rejection_reason ?? null,
+      createdAt: doc.created_at,
+      updatedAt: doc.updated_at,
+      latestVersion:
+        doc.version_id && doc.version !== null
+          ? {
+              id: doc.version_id,
+              version: doc.version,
+              metadata: doc.metadata ?? null,
+              reviewStatus: doc.review_status ?? null,
+            }
+          : null,
+    });
+    grouped.set(doc.document_type, existing);
+  }
+
+  return Array.from(grouped.values()).sort((a, b) =>
+    a.documentCategory.localeCompare(b.documentCategory)
+  );
 }
 
 export async function removeDocument(params: {
@@ -512,6 +651,11 @@ export async function removeDocument(params: {
     if (!document || document.application_id !== params.applicationId) {
       throw new AppError("not_found", "Document not found.", 404);
     }
+    const requirement = await resolveRequirementForDocument({
+      application,
+      documentType: document.document_type,
+      client,
+    });
 
     await deleteDocumentById({ documentId: params.documentId, client });
 
@@ -637,6 +781,7 @@ export async function uploadDocument(params: {
     });
     throw new AppError("invalid_document_type", "Document type is not allowed.", 400);
   }
+  const normalizedCategory = normalizedRequested ?? requestedType;
 
   const client = await pool.connect();
   let documentId: string | null = params.documentId ?? null;
@@ -690,6 +835,12 @@ export async function uploadDocument(params: {
         ownerUserId: application.owner_user_id,
         title: params.title,
         documentType: params.documentType ?? params.title,
+        filename: params.metadata.fileName,
+        storageKey:
+          typeof (params.metadata as { storageKey?: string }).storageKey === "string"
+            ? (params.metadata as { storageKey?: string }).storageKey ?? null
+            : null,
+        uploadedBy: resolveUploadedBy(params.actorRole),
         client,
       });
       documentId = doc.id;
@@ -719,9 +870,21 @@ export async function uploadDocument(params: {
       success: true,
       client,
     });
+    await updateDocumentUploadDetails({
+      documentId,
+      status: "uploaded",
+      filename: params.metadata.fileName,
+      storageKey:
+        typeof (params.metadata as { storageKey?: string }).storageKey === "string"
+          ? (params.metadata as { storageKey?: string }).storageKey ?? null
+          : null,
+      uploadedBy: resolveUploadedBy(params.actorRole),
+      client,
+    });
     await upsertApplicationRequiredDocument({
       applicationId: params.applicationId,
-      documentCategory: params.documentType ?? params.title,
+      documentCategory: normalizedCategory,
+      isRequired: requirement.required !== false,
       status: "uploaded",
       client,
     });
@@ -784,6 +947,7 @@ export async function acceptDocumentVersion(params: {
   ip?: string;
   userAgent?: string;
 }): Promise<void> {
+  assertStaffReviewRole(params.actorRole);
   const client = await pool.connect();
   try {
     await client.query("begin");
@@ -844,9 +1008,16 @@ export async function acceptDocumentVersion(params: {
       success: true,
       client,
     });
+    await updateDocumentStatus({
+      documentId: params.documentId,
+      status: "accepted",
+      rejectionReason: null,
+      client,
+    });
     await upsertApplicationRequiredDocument({
       applicationId: params.applicationId,
-      documentCategory: document.document_type,
+      documentCategory: requirement.documentCategory,
+      isRequired: requirement.isRequired,
       status: "accepted",
       client,
     });
@@ -869,6 +1040,7 @@ export async function rejectDocumentVersion(params: {
   ip?: string;
   userAgent?: string;
 }): Promise<void> {
+  assertStaffReviewRole(params.actorRole);
   const client = await pool.connect();
   try {
     await client.query("begin");
@@ -894,6 +1066,11 @@ export async function rejectDocumentVersion(params: {
     if (!document || document.application_id !== params.applicationId) {
       throw new AppError("not_found", "Document not found.", 404);
     }
+    const requirement = await resolveRequirementForDocument({
+      application,
+      documentType: document.document_type,
+      client,
+    });
     await client.query("select id from document_versions where id = $1 for update", [
       params.documentVersionId,
     ]);
@@ -929,25 +1106,190 @@ export async function rejectDocumentVersion(params: {
       success: true,
       client,
     });
+    await updateDocumentStatus({
+      documentId: params.documentId,
+      status: "rejected",
+      rejectionReason: null,
+      client,
+    });
     await upsertApplicationRequiredDocument({
       applicationId: params.applicationId,
-      documentCategory: document.document_type,
+      documentCategory: requirement.documentCategory,
+      isRequired: requirement.isRequired,
       status: "rejected",
       client,
     });
 
-    if (application.pipeline_state !== ApplicationStage.DOCUMENTS_REQUIRED) {
-      await transitionPipelineState({
-        applicationId: params.applicationId,
-        nextState: ApplicationStage.DOCUMENTS_REQUIRED,
-        actorUserId: params.actorUserId,
-        actorRole: params.actorRole,
-        trigger: "document_rejected",
-        ip: params.ip,
-        userAgent: params.userAgent,
-        client,
-      });
+    await enforceDocumentsRequiredStage({
+      application,
+      actorUserId: params.actorUserId,
+      actorRole: params.actorRole,
+      trigger: "document_rejected",
+      client,
+    });
+
+    await client.query("commit");
+  } catch (err) {
+    await client.query("rollback");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export async function acceptDocument(params: {
+  documentId: string;
+  actorUserId: string;
+  actorRole: Role;
+  ip?: string;
+  userAgent?: string;
+}): Promise<void> {
+  assertStaffReviewRole(params.actorRole);
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const document = await findDocumentById(params.documentId, client);
+    if (!document) {
+      throw new AppError("not_found", "Document not found.", 404);
     }
+    const application = await findApplicationById(document.application_id, client);
+    if (!application) {
+      throw new AppError("not_found", "Application not found.", 404);
+    }
+    const requirement = await resolveRequirementForDocument({
+      application,
+      documentType: document.document_type,
+      client,
+    });
+    if (!canAccessApplication(params.actorRole, application.owner_user_id, params.actorUserId)) {
+      throw new AppError("forbidden", "Not authorized.", 403);
+    }
+
+    const version = await findActiveDocumentVersion({ documentId: params.documentId, client });
+    if (!version) {
+      throw new AppError("not_found", "Document version not found.", 404);
+    }
+    const review = await findDocumentVersionReview(version.id, client);
+    if (review) {
+      throw new AppError("version_reviewed", "Document version already reviewed.", 409);
+    }
+
+    await createDocumentVersionReview({
+      documentVersionId: version.id,
+      status: "accepted",
+      reviewedByUserId: params.actorUserId,
+      client,
+    });
+
+    await recordAuditEvent({
+      action: "document_accepted",
+      actorUserId: params.actorUserId,
+      targetUserId: application.owner_user_id,
+      ip: params.ip,
+      userAgent: params.userAgent,
+      success: true,
+      client,
+    });
+
+    await updateDocumentStatus({
+      documentId: params.documentId,
+      status: "accepted",
+      rejectionReason: null,
+      client,
+    });
+    await upsertApplicationRequiredDocument({
+      applicationId: application.id,
+      documentCategory: requirement.documentCategory,
+      isRequired: requirement.isRequired,
+      status: "accepted",
+      client,
+    });
+
+    await client.query("commit");
+  } catch (err) {
+    await client.query("rollback");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export async function rejectDocument(params: {
+  documentId: string;
+  rejectionReason: string;
+  actorUserId: string;
+  actorRole: Role;
+  ip?: string;
+  userAgent?: string;
+}): Promise<void> {
+  assertStaffReviewRole(params.actorRole);
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const document = await findDocumentById(params.documentId, client);
+    if (!document) {
+      throw new AppError("not_found", "Document not found.", 404);
+    }
+    const application = await findApplicationById(document.application_id, client);
+    if (!application) {
+      throw new AppError("not_found", "Application not found.", 404);
+    }
+    const requirement = await resolveRequirementForDocument({
+      application,
+      documentType: document.document_type,
+      client,
+    });
+    if (!canAccessApplication(params.actorRole, application.owner_user_id, params.actorUserId)) {
+      throw new AppError("forbidden", "Not authorized.", 403);
+    }
+
+    const version = await findActiveDocumentVersion({ documentId: params.documentId, client });
+    if (!version) {
+      throw new AppError("not_found", "Document version not found.", 404);
+    }
+    const review = await findDocumentVersionReview(version.id, client);
+    if (review) {
+      throw new AppError("version_reviewed", "Document version already reviewed.", 409);
+    }
+
+    await createDocumentVersionReview({
+      documentVersionId: version.id,
+      status: "rejected",
+      reviewedByUserId: params.actorUserId,
+      client,
+    });
+
+    await recordAuditEvent({
+      action: "document_rejected",
+      actorUserId: params.actorUserId,
+      targetUserId: application.owner_user_id,
+      ip: params.ip,
+      userAgent: params.userAgent,
+      success: true,
+      client,
+    });
+
+    await updateDocumentStatus({
+      documentId: params.documentId,
+      status: "rejected",
+      rejectionReason: params.rejectionReason,
+      client,
+    });
+    await upsertApplicationRequiredDocument({
+      applicationId: application.id,
+      documentCategory: requirement.documentCategory,
+      isRequired: requirement.isRequired,
+      status: "rejected",
+      client,
+    });
+
+    await enforceDocumentsRequiredStage({
+      application,
+      actorUserId: params.actorUserId,
+      actorRole: params.actorRole,
+      trigger: "document_rejected",
+      client,
+    });
 
     await client.query("commit");
   } catch (err) {
