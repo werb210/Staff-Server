@@ -2,6 +2,9 @@
   "name": "staff-server",
   "version": "1.0.0",
   "private": true,
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "dev": "npm run build && node dist/server/index.js",
     "build": "npm run test && tsc",

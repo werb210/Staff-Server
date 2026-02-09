@@ -53,7 +53,7 @@ describe("documents integration", () => {
     await seedLenderProduct({
       category: "LOC",
       country: "US",
-      requiredDocuments: [{ type: "bank_statement", required: true }],
+      requiredDocuments: [{ type: "id_document", required: true }],
     });
     const token = await loginStaff();
     const applicationId = await createApplication(token);
@@ -62,15 +62,15 @@ describe("documents integration", () => {
       .post("/api/documents")
       .set("Authorization", `Bearer ${token}`)
       .field("applicationId", applicationId)
-      .field("category", "bank_statement")
-      .attach("file", Buffer.from("test-file"), "statement.txt");
+      .field("category", "id_document")
+      .attach("file", Buffer.from("test-file"), "id-document.txt");
 
     expect(uploadRes.status).toBe(201);
     expect(uploadRes.body).toMatchObject({
       documentId: expect.any(String),
       applicationId,
-      category: "bank_statement",
-      filename: "statement.txt",
+      category: "id_document",
+      filename: "id-document.txt",
       storageKey: expect.any(String),
     });
 
@@ -87,11 +87,11 @@ describe("documents integration", () => {
     );
     expect(versionRows.rows[0]?.count ?? 0).toBe(1);
 
-    const ocrJobs = await pool.query<{ count: number }>(
-      "select count(*)::int as count from ocr_jobs where document_id = $1",
+    const processingJobs = await pool.query<{ count: number }>(
+      "select count(*)::int as count from document_processing_jobs where document_id = $1",
       [documentId]
     );
-    expect(ocrJobs.rows[0]?.count ?? 0).toBe(1);
+    expect(processingJobs.rows[0]?.count ?? 0).toBe(1);
 
     const presignRes = await request(app).get(
       `/api/documents/${documentId}/presign`
@@ -101,7 +101,7 @@ describe("documents integration", () => {
     expect(presignRes.body).toMatchObject({
       documentId,
       version: 1,
-      filename: "statement.txt",
+      filename: "id-document.txt",
       storageKey: expect.any(String),
       url: expect.any(String),
     });

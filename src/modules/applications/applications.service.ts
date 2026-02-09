@@ -45,6 +45,10 @@ import {
   normalizeRequiredDocumentKey,
 } from "../../db/schema/requiredDocuments";
 import { type ApplicationResponse } from "./application.dto";
+import {
+  handleDocumentUploadProcessing,
+  shouldEnqueueOcrForCategory,
+} from "../documentProcessing/documentProcessing.service";
 
 const EMPTY_OCR_INSIGHTS: ApplicationResponse["ocrInsights"] = {
   fields: {},
@@ -895,17 +899,26 @@ export async function uploadDocument(params: {
       version: version.version,
     };
 
+    await handleDocumentUploadProcessing({
+      applicationId: params.applicationId,
+      documentId,
+      documentCategory: normalizedCategory,
+      client,
+    });
+
     await client.query("commit");
 
-    try {
-      await enqueueOcrForDocument(documentId);
-    } catch (error) {
-      logError("ocr_enqueue_failed", {
-        code: "ocr_enqueue_failed",
-        applicationId: params.applicationId,
-        documentId,
-        error: error instanceof Error ? error.message : String(error),
-      });
+    if (shouldEnqueueOcrForCategory(normalizedCategory)) {
+      try {
+        await enqueueOcrForDocument(documentId);
+      } catch (error) {
+        logError("ocr_enqueue_failed", {
+          code: "ocr_enqueue_failed",
+          applicationId: params.applicationId,
+          documentId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
 
     return { status: 201, value: response, idempotent: false };

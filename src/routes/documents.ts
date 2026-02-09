@@ -24,6 +24,10 @@ import {
 } from "../modules/applications/applications.service";
 import { resolveRequirementsForApplication } from "../services/lenderProductRequirementsService";
 import { normalizeRequiredDocumentKey } from "../db/schema/requiredDocuments";
+import {
+  handleDocumentUploadProcessing,
+  shouldEnqueueOcrForCategory,
+} from "../modules/documentProcessing/documentProcessing.service";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -114,15 +118,23 @@ router.post(
       status: "uploaded",
     });
 
-    try {
-      await enqueueOcrForDocument(document.id);
-    } catch (error) {
-      logError("ocr_enqueue_failed", {
-        code: "ocr_enqueue_failed",
-        applicationId,
-        documentId: document.id,
-        error: error instanceof Error ? error.message : String(error),
-      });
+    await handleDocumentUploadProcessing({
+      applicationId,
+      documentId: document.id,
+      documentCategory: normalizedCategory,
+    });
+
+    if (shouldEnqueueOcrForCategory(normalizedCategory)) {
+      try {
+        await enqueueOcrForDocument(document.id);
+      } catch (error) {
+        logError("ocr_enqueue_failed", {
+          code: "ocr_enqueue_failed",
+          applicationId,
+          documentId: document.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
 
     res.status(201).json({
