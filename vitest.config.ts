@@ -6,7 +6,7 @@ export default defineConfig({
     globals: true,
     clearMocks: true,
     setupFiles: ["src/test/setup.ts"],
-    include: ["src/test/**/*.test.ts"],
+    include: ["src/test/**/*.test.ts", "src/modules/**/__tests__/**/*.test.ts"],
     exclude: ["src/test/e2e/**"],
     coverage: {
       provider: "v8",

@@ -33,3 +33,28 @@ export type ApplicationResponse = {
   updatedAt: Date;
   ocrInsights: OcrInsightsResponse;
 };
+
+export type ProcessingStatusResponse = {
+  applicationId: string;
+  status: {
+    ocr: {
+      completed: boolean;
+      completedAt?: string | null;
+    };
+    banking: {
+      completed: boolean;
+      completedAt?: string | null;
+    };
+    documents: {
+      required: Record<
+        string,
+        { status: "missing" | "uploaded" | "accepted" | "rejected"; updatedAt: string | null }
+      >;
+      allAccepted: boolean;
+    };
+    creditSummary: {
+      completed: boolean;
+      completedAt?: string | null;
+    };
+  };
+};
