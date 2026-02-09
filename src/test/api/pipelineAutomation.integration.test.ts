@@ -3,6 +3,7 @@ import request from "supertest";
 import { beforeAll, describe, expect, it } from "vitest";
 import { ROLES, type Role } from "../../auth/roles";
 import { pool } from "../../db";
+import { seedLenderProduct } from "../helpers/lenders";
 import { createTestApp } from "../helpers/testApp";
 import { seedUser } from "../helpers/users";
 
@@ -95,19 +96,28 @@ describe("pipeline automation", () => {
 
   it("moves to DOCUMENTS_REQUIRED when any document is rejected", async () => {
     const { token } = await loginWithRole(ROLES.STAFF);
+    await seedLenderProduct({
+      category: "LOC",
+      country: "US",
+      requiredDocuments: [{ type: "bank_statement", required: true }],
+    });
     const created = await createApplication({ token, productCategory: "LOC" });
 
-    const docRes = await pool.query<{ id: string }>(
-      `insert into application_required_documents
-       (id, application_id, document_category, status, created_at)
-       values (gen_random_uuid(), $1, 'bank_statement', 'uploaded', now())
-       returning id`,
-      [created.id]
-    );
+    const uploadRes = await request(app)
+      .post(`/api/applications/${created.id}/documents`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        title: "Bank Statement",
+        documentType: "bank_statement",
+        metadata: { fileName: "bank.pdf", mimeType: "application/pdf", size: 123 },
+        content: "base64data",
+      });
+    expect(uploadRes.status).toBe(201);
 
     const rejectRes = await request(app)
-      .post(`/api/documents/${docRes.rows[0].id}/reject`)
-      .set("Authorization", `Bearer ${token}`);
+      .post(`/api/documents/${uploadRes.body.document.documentId}/reject`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ reason: "Blurry document" });
     expect(rejectRes.status).toBe(200);
 
     const state = await pool.query<{ pipeline_state: string }>(

@@ -47,7 +47,12 @@ export type DocumentRecord = {
   title: string;
   document_type: string;
   status: string;
+  filename: string | null;
+  storage_key: string | null;
+  uploaded_by: string;
+  rejection_reason: string | null;
   created_at: Date;
+  updated_at: Date;
 };
 
 export type DocumentVersionRecord = {
@@ -81,6 +86,7 @@ export type ApplicationRequiredDocumentRecord = {
   id: string;
   application_id: string;
   document_category: string;
+  is_required: boolean;
   status: string;
   created_at: Date;
 };
@@ -382,25 +388,67 @@ export async function listApplicationStageEvents(params: {
 export async function upsertApplicationRequiredDocument(params: {
   applicationId: string;
   documentCategory: string;
+  isRequired: boolean;
   status: string;
   client?: Queryable;
 }): Promise<ApplicationRequiredDocumentRecord> {
   const runner = params.client ?? pool;
   const res = await runner.query<ApplicationRequiredDocumentRecord>(
     `insert into application_required_documents
-     (id, application_id, document_category, status, created_at)
-     values ($1, $2, $3, $4, now())
+     (id, application_id, document_category, is_required, status, created_at)
+     values ($1, $2, $3, $4, $5, now())
      on conflict (application_id, document_category) do update
-     set status = excluded.status
-     returning id, application_id, document_category, status, created_at`,
+     set status = excluded.status,
+         is_required = excluded.is_required
+     returning id, application_id, document_category, is_required, status, created_at`,
     [
       randomUUID(),
       params.applicationId,
       params.documentCategory,
+      params.isRequired,
       params.status,
     ]
   );
   return res.rows[0];
+}
+
+export async function ensureApplicationRequiredDocumentDefinition(params: {
+  applicationId: string;
+  documentCategory: string;
+  isRequired: boolean;
+  client?: Queryable;
+}): Promise<ApplicationRequiredDocumentRecord> {
+  const runner = params.client ?? pool;
+  const res = await runner.query<ApplicationRequiredDocumentRecord>(
+    `insert into application_required_documents
+     (id, application_id, document_category, is_required, status, created_at)
+     values ($1, $2, $3, $4, 'missing', now())
+     on conflict (application_id, document_category) do update
+     set is_required = excluded.is_required
+     returning id, application_id, document_category, is_required, status, created_at`,
+    [
+      randomUUID(),
+      params.applicationId,
+      params.documentCategory,
+      params.isRequired,
+    ]
+  );
+  return res.rows[0];
+}
+
+export async function listApplicationRequiredDocuments(params: {
+  applicationId: string;
+  client?: Queryable;
+}): Promise<ApplicationRequiredDocumentRecord[]> {
+  const runner = params.client ?? pool;
+  const res = await runner.query<ApplicationRequiredDocumentRecord>(
+    `select id, application_id, document_category, is_required, status, created_at
+     from application_required_documents
+     where application_id = $1
+     order by document_category asc`,
+    [params.applicationId]
+  );
+  return Array.isArray(res.rows) ? res.rows : [];
 }
 
 export async function findApplicationRequiredDocumentById(params: {
@@ -409,7 +457,7 @@ export async function findApplicationRequiredDocumentById(params: {
 }): Promise<ApplicationRequiredDocumentRecord | null> {
   const runner = params.client ?? pool;
   const res = await runner.query<ApplicationRequiredDocumentRecord>(
-    `select id, application_id, document_category, status, created_at
+    `select id, application_id, document_category, is_required, status, created_at
      from application_required_documents
      where id = $1
      limit 1`,
@@ -428,7 +476,7 @@ export async function updateApplicationRequiredDocumentStatusById(params: {
     `update application_required_documents
      set status = $1
      where id = $2
-     returning id, application_id, document_category, status, created_at`,
+     returning id, application_id, document_category, is_required, status, created_at`,
     [params.status, params.documentId]
   );
   return res.rows[0] ?? null;
@@ -439,23 +487,77 @@ export async function createDocument(params: {
   ownerUserId: string | null;
   title: string;
   documentType: string;
+  filename?: string | null;
+  storageKey?: string | null;
+  uploadedBy?: string | null;
   client?: Queryable;
 }): Promise<DocumentRecord> {
   const runner = params.client ?? pool;
   const res = await runner.query<DocumentRecord>(
     `insert into documents
-     (id, application_id, owner_user_id, title, document_type, created_at)
-     values ($1, $2, $3, $4, $5, now())
-     returning id, application_id, owner_user_id, title, document_type, status, created_at`,
+     (id, application_id, owner_user_id, title, document_type, filename, storage_key, uploaded_by, created_at, updated_at)
+     values ($1, $2, $3, $4, $5, $6, $7, coalesce($8, 'client'), now(), now())
+     returning id, application_id, owner_user_id, title, document_type, status, filename, storage_key, uploaded_by, rejection_reason, created_at, updated_at`,
     [
       randomUUID(),
       params.applicationId,
       params.ownerUserId,
       params.title,
       params.documentType,
+      params.filename ?? null,
+      params.storageKey ?? null,
+      params.uploadedBy ?? null,
     ]
   );
   return res.rows[0];
+}
+
+export async function updateDocumentStatus(params: {
+  documentId: string;
+  status: string;
+  rejectionReason?: string | null;
+  client?: Queryable;
+}): Promise<DocumentRecord | null> {
+  const runner = params.client ?? pool;
+  const res = await runner.query<DocumentRecord>(
+    `update documents
+     set status = $1,
+         rejection_reason = $2,
+         updated_at = now()
+     where id = $3
+     returning id, application_id, owner_user_id, title, document_type, status, filename, storage_key, uploaded_by, rejection_reason, created_at, updated_at`,
+    [params.status, params.rejectionReason ?? null, params.documentId]
+  );
+  return res.rows[0] ?? null;
+}
+
+export async function updateDocumentUploadDetails(params: {
+  documentId: string;
+  status: string;
+  filename?: string | null;
+  storageKey?: string | null;
+  uploadedBy?: string | null;
+  client?: Queryable;
+}): Promise<DocumentRecord | null> {
+  const runner = params.client ?? pool;
+  const res = await runner.query<DocumentRecord>(
+    `update documents
+     set status = $1,
+         filename = $2,
+         storage_key = $3,
+         uploaded_by = coalesce($4, uploaded_by),
+         updated_at = now()
+     where id = $5
+     returning id, application_id, owner_user_id, title, document_type, status, filename, storage_key, uploaded_by, rejection_reason, created_at, updated_at`,
+    [
+      params.status,
+      params.filename ?? null,
+      params.storageKey ?? null,
+      params.uploadedBy ?? null,
+      params.documentId,
+    ]
+  );
+  return res.rows[0] ?? null;
 }
 
 export async function findDocumentById(
@@ -464,7 +566,7 @@ export async function findDocumentById(
 ): Promise<DocumentRecord | null> {
   const runner = client ?? pool;
   const res = await runner.query<DocumentRecord>(
-    `select id, application_id, owner_user_id, title, document_type, status, created_at
+    `select id, application_id, owner_user_id, title, document_type, status, filename, storage_key, uploaded_by, rejection_reason, created_at, updated_at
      from documents
      where id = $1
      limit 1`,
@@ -480,7 +582,7 @@ export async function findDocumentByApplicationAndType(params: {
 }): Promise<DocumentRecord | null> {
   const runner = params.client ?? pool;
   const res = await runner.query<DocumentRecord>(
-    `select id, application_id, owner_user_id, title, document_type, status, created_at
+    `select id, application_id, owner_user_id, title, document_type, status, filename, storage_key, uploaded_by, rejection_reason, created_at, updated_at
      from documents
      where application_id = $1
        and document_type = $2
@@ -496,7 +598,7 @@ export async function listDocumentsByApplicationId(
 ): Promise<DocumentRecord[]> {
   const runner = client ?? pool;
   const res = await runner.query<DocumentRecord>(
-    `select id, application_id, owner_user_id, title, document_type, status, created_at
+    `select id, application_id, owner_user_id, title, document_type, status, filename, storage_key, uploaded_by, rejection_reason, created_at, updated_at
      from documents
      where application_id = $1
      order by created_at asc`,
@@ -517,6 +619,11 @@ export async function listDocumentsWithLatestVersion(params: {
     document_type: string;
     status: string;
     created_at: Date;
+    filename: string | null;
+    storage_key: string | null;
+    uploaded_by: string;
+    rejection_reason: string | null;
+    updated_at: Date;
     version_id: string | null;
     version: number | null;
     metadata: unknown | null;
@@ -532,6 +639,11 @@ export async function listDocumentsWithLatestVersion(params: {
     document_type: string;
     status: string;
     created_at: Date;
+    filename: string | null;
+    storage_key: string | null;
+    uploaded_by: string;
+    rejection_reason: string | null;
+    updated_at: Date;
     version_id: string | null;
     version: number | null;
     metadata: unknown | null;
@@ -543,19 +655,26 @@ export async function listDocumentsWithLatestVersion(params: {
             d.title,
             d.document_type,
             d.status,
+            d.filename,
+            d.storage_key,
+            d.uploaded_by,
+            d.rejection_reason,
             d.created_at,
+            d.updated_at,
             dv.id as version_id,
             dv.version,
             dv.metadata,
             r.status as review_status
      from documents d
-     left join lateral (
-       select dv.id, dv.version, dv.metadata
-       from document_versions dv
-       where dv.document_id = d.id
-       order by dv.version desc
-       limit 1
-     ) dv on true
+     left join (
+       select distinct on (document_id)
+         id,
+         document_id,
+         version,
+         metadata
+       from document_versions
+       order by document_id, version desc
+     ) dv on dv.document_id = d.id
      left join document_version_reviews r on r.document_version_id = dv.id
      where d.application_id = $1
      order by d.created_at asc`,

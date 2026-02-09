@@ -3,6 +3,7 @@ import request from "supertest";
 import { beforeAll, describe, expect, it } from "vitest";
 import { ROLES } from "../../auth/roles";
 import { pool } from "../../db";
+import { seedLenderProduct } from "../helpers/lenders";
 import { createTestApp } from "../helpers/testApp";
 import { seedUser } from "../helpers/users";
 
@@ -49,6 +50,11 @@ describe("documents integration", () => {
   });
 
   it("uploads and presigns documents", async () => {
+    await seedLenderProduct({
+      category: "LOC",
+      country: "US",
+      requiredDocuments: [{ type: "bank_statement", required: true }],
+    });
     const token = await loginStaff();
     const applicationId = await createApplication(token);
 
