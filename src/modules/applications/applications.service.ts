@@ -29,7 +29,6 @@ import type {
 import { pool } from "../../db";
 import { type Role, ROLES } from "../../auth/roles";
 import { type PoolClient } from "pg";
-import { logError } from "../../observability/logger";
 import {
   PIPELINE_STATES,
   ApplicationStage,
@@ -40,15 +39,16 @@ import {
 import { getDocumentAllowedMimeTypes, getDocumentMaxSizeBytes } from "../../config";
 import { recordTransactionRollback } from "../../observability/transactionTelemetry";
 import { resolveRequirementsForApplication } from "../../services/lenderProductRequirementsService";
-import { enqueueOcrForDocument } from "../ocr/ocr.service";
 import {
   normalizeRequiredDocumentKey,
 } from "../../db/schema/requiredDocuments";
 import { type ApplicationResponse } from "./application.dto";
 import {
-  handleDocumentUploadProcessing,
-  shouldEnqueueOcrForCategory,
-} from "../documentProcessing/documentProcessing.service";
+  createBankingAnalysisJob,
+  createDocumentProcessingJob,
+} from "../processing/processing.service";
+
+const BANK_STATEMENT_CATEGORY = "bank_statements_6_months";
 
 const EMPTY_OCR_INSIGHTS: ApplicationResponse["ocrInsights"] = {
   fields: {},
@@ -789,6 +789,7 @@ export async function uploadDocument(params: {
 
   const client = await pool.connect();
   let documentId: string | null = params.documentId ?? null;
+  let isNewDocument = false;
   try {
     await client.query("begin");
     if (documentId) {
@@ -848,6 +849,7 @@ export async function uploadDocument(params: {
         client,
       });
       documentId = doc.id;
+      isNewDocument = true;
     }
 
     const currentVersion = await getLatestDocumentVersion(documentId, client);
@@ -899,25 +901,12 @@ export async function uploadDocument(params: {
       version: version.version,
     };
 
-    await handleDocumentUploadProcessing({
-      applicationId: params.applicationId,
-      documentId,
-      documentCategory: normalizedCategory,
-      client,
-    });
-
     await client.query("commit");
-
-    if (shouldEnqueueOcrForCategory(normalizedCategory)) {
-      try {
-        await enqueueOcrForDocument(documentId);
-      } catch (error) {
-        logError("ocr_enqueue_failed", {
-          code: "ocr_enqueue_failed",
-          applicationId: params.applicationId,
-          documentId,
-          error: error instanceof Error ? error.message : String(error),
-        });
+    if (isNewDocument) {
+      if (normalizedCategory === BANK_STATEMENT_CATEGORY) {
+        await createBankingAnalysisJob(params.applicationId);
+      } else {
+        await createDocumentProcessingJob(params.applicationId, documentId);
       }
     }
 
