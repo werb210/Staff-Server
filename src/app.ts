@@ -67,7 +67,10 @@ export function shouldBlockInternalOriginRequest(
   path: string,
   origin?: string
 ): boolean {
-  return Boolean(origin) && path.startsWith("/api/_int");
+  return (
+    Boolean(origin) &&
+    (path.startsWith("/api/_int") || path.startsWith("/api/internal"))
+  );
 }
 
 function buildCorsOptions(): cors.CorsOptions {
