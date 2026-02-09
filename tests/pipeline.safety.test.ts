@@ -21,6 +21,7 @@ async function ensurePipelineSchema(): Promise<void> {
       metadata jsonb null,
       product_type text not null,
       pipeline_state text not null,
+      processing_stage text not null default 'pending',
       status text not null default 'RECEIVED',
       lender_id uuid null,
       lender_product_id uuid null,

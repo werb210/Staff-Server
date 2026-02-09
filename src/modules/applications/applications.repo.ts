@@ -31,6 +31,7 @@ export type ApplicationRecord = {
   product_category: string | null;
   pipeline_state: string;
   current_stage: string | null;
+  processing_stage: string;
   lender_id: string | null;
   lender_product_id: string | null;
   requested_amount: number | null;
@@ -132,7 +133,7 @@ export async function createApplication(params: {
       `insert into applications
        (id, owner_user_id, name, metadata, product_type, product_category, pipeline_state, current_stage, lender_id, lender_product_id, requested_amount, source, startup_flag, created_at, updated_at)
        values ($1, $2, $3, $4, $5, $6, $7, $7, $8, $9, $10, $11, $12, now(), now())
-       returning id, owner_user_id, name, metadata, product_type, product_category, pipeline_state, current_stage, lender_id, lender_product_id, requested_amount, first_opened_at, ocr_completed_at, banking_completed_at, credit_summary_completed_at, startup_flag, created_at, updated_at`,
+       returning id, owner_user_id, name, metadata, product_type, product_category, pipeline_state, current_stage, processing_stage, lender_id, lender_product_id, requested_amount, first_opened_at, ocr_completed_at, banking_completed_at, credit_summary_completed_at, startup_flag, created_at, updated_at`,
       [
         randomUUID(),
         params.ownerUserId,
@@ -189,7 +190,7 @@ export async function listApplications(params?: {
     values.push(stage);
   }
   const res = await runner.query<ApplicationRecord>(
-    `select id, owner_user_id, name, metadata, product_type, product_category, pipeline_state, current_stage, lender_id, lender_product_id, requested_amount, first_opened_at, ocr_completed_at, banking_completed_at, credit_summary_completed_at, startup_flag, created_at, updated_at
+    `select id, owner_user_id, name, metadata, product_type, product_category, pipeline_state, current_stage, processing_stage, lender_id, lender_product_id, requested_amount, first_opened_at, ocr_completed_at, banking_completed_at, credit_summary_completed_at, startup_flag, created_at, updated_at
      from applications
      ${stageClause}
      order by created_at desc
@@ -238,7 +239,7 @@ export async function findApplicationById(
 ): Promise<ApplicationRecord | null> {
   const runner = client ?? pool;
   const res = await runner.query<ApplicationRecord>(
-    `select id, owner_user_id, name, metadata, product_type, product_category, pipeline_state, current_stage, status, lender_id, lender_product_id, requested_amount, first_opened_at, ocr_completed_at, banking_completed_at, credit_summary_completed_at, startup_flag, created_at, updated_at
+    `select id, owner_user_id, name, metadata, product_type, product_category, pipeline_state, current_stage, status, processing_stage, lender_id, lender_product_id, requested_amount, first_opened_at, ocr_completed_at, banking_completed_at, credit_summary_completed_at, startup_flag, created_at, updated_at
      from applications
      where id = $1
      limit 1`,
