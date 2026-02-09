@@ -60,7 +60,9 @@ async function assertLenderProductColumnsExist(params: {
     });
     const error = err instanceof Error ? err : new Error("Unknown schema error.");
     const appError = new AppError("db_error", error.message, 500);
-    appError.stack = error.stack;
+    if (error.stack) {
+      appError.stack = error.stack;
+    }
     throw appError;
   }
 }
@@ -227,7 +229,9 @@ export async function listLenderProducts(
     });
     const error = err instanceof Error ? err : new Error("Unknown database error.");
     const appError = new AppError("db_error", error.message, 500);
-    appError.stack = error.stack;
+    if (error.stack) {
+      appError.stack = error.stack;
+    }
     throw appError;
   }
 }

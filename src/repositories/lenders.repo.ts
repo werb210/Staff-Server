@@ -78,7 +78,9 @@ async function assertLenderColumnsExist(params: {
     });
     const error = err instanceof Error ? err : new Error("Unknown schema error.");
     const appError = new AppError("db_error", error.message, 500);
-    appError.stack = error.stack;
+    if (error.stack) {
+      appError.stack = error.stack;
+    }
     throw appError;
   }
 }

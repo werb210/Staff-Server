@@ -80,7 +80,11 @@ export async function createCallLog(params: {
       params.applicationId ?? null,
     ]
   );
-  return res.rows[0];
+  const record = res.rows[0];
+  if (!record) {
+    throw new Error("Call log insert failed.");
+  }
+  return record;
 }
 
 export async function findCallLogById(

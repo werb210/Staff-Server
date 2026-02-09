@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { z } from "zod";
 import { pool } from "../../db";
 import { getClientSubmissionOwnerUserId } from "../../config";
@@ -9,6 +9,18 @@ import { submitClientApplication } from "./clientSubmission.service";
 import { ApplicationStage } from "../applications/pipelineState";
 
 const router = Router();
+
+function buildRequestMetadata(req: Request): { ip?: string; userAgent?: string } {
+  const metadata: { ip?: string; userAgent?: string } = {};
+  if (req.ip) {
+    metadata.ip = req.ip;
+  }
+  const userAgent = req.get("user-agent");
+  if (userAgent) {
+    metadata.userAgent = userAgent;
+  }
+  return metadata;
+}
 
 const quickSubmissionSchema = z.object({
   business_name: z.string().min(1),
@@ -56,8 +68,7 @@ router.post("/submissions", clientSubmissionRateLimit(), async (req, res, next) 
     }
     const result = await submitClientApplication({
       payload: req.body,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
+      ...buildRequestMetadata(req),
     });
     res.status(result.status).json({ submission: result.value, idempotent: result.idempotent });
   } catch (err) {

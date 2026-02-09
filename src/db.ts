@@ -7,6 +7,7 @@ import pg, {
   type QueryResult,
   type QueryResultRow,
 } from "pg";
+import { DataType } from "pg-mem";
 import { trackDependency } from "./observability/appInsights";
 import { getRequestContext } from "./observability/requestContext";
 import { logError, logInfo, logWarn } from "./observability/logger";
@@ -43,15 +44,15 @@ if (isTestEnv) {
   });
   memoryDb.public.registerFunction({
     name: "md5",
-    args: ["text"],
-    returns: "text",
+    args: [DataType.text],
+    returns: DataType.text,
     implementation: (value: string) =>
       require("crypto").createHash("md5").update(value).digest("hex"),
   });
   memoryDb.public.registerFunction({
     name: "regexp_replace",
-    args: ["text", "text", "text", "text"],
-    returns: "text",
+    args: [DataType.text, DataType.text, DataType.text, DataType.text],
+    returns: DataType.text,
     implementation: (
       value: string,
       pattern: string,
@@ -68,7 +69,7 @@ if (isTestEnv) {
   memoryDb.public.registerFunction({
     name: "gen_random_uuid",
     args: [],
-    returns: "uuid",
+    returns: DataType.uuid,
     implementation: () => require("crypto").randomUUID(),
   });
   const adapter = memoryDb.adapters.createPg();

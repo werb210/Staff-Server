@@ -31,7 +31,11 @@ export async function createDocumentProcessingJob(params: {
      returning id, document_id, job_type, status, started_at, completed_at, error_message, created_at, updated_at`,
     [randomUUID(), params.documentId, params.jobType, params.status ?? "pending"]
   );
-  return res.rows[0];
+  const record = res.rows[0];
+  if (!record) {
+    throw new Error("Failed to create document processing job.");
+  }
+  return record;
 }
 
 export async function listBankStatementDocuments(params: {
@@ -63,8 +67,9 @@ export async function createBankingAnalysisJob(params: {
      limit 1`,
     [params.applicationId]
   );
-  if (existing.rows[0]) {
-    return existing.rows[0];
+  const existingRecord = existing.rows[0];
+  if (existingRecord) {
+    return existingRecord;
   }
   const res = await runner.query<BankingAnalysisJobRecord>(
     `insert into banking_analysis_jobs
@@ -73,7 +78,11 @@ export async function createBankingAnalysisJob(params: {
      returning id, application_id, status, statement_months_detected, started_at, completed_at, error_message, created_at, updated_at`,
     [randomUUID(), params.applicationId, params.status ?? "pending"]
   );
-  return res.rows[0];
+  const record = res.rows[0];
+  if (!record) {
+    throw new Error("Failed to create banking analysis job.");
+  }
+  return record;
 }
 
 export async function updateDocumentProcessingJob(params: {

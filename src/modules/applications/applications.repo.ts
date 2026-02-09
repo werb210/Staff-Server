@@ -14,6 +14,14 @@ function isPipelineConstraintError(err: unknown): boolean {
   return typeof code === "string" && PIPELINE_ERROR_CODES.has(code);
 }
 
+function requireRow<T>(rows: T[], context: string): T {
+  const row = rows[0];
+  if (!row) {
+    throw new AppError("data_error", `Missing ${context} record.`, 500);
+  }
+  return row;
+}
+
 export type ApplicationRecord = {
   id: string;
   owner_user_id: string | null;
@@ -150,7 +158,7 @@ export async function createApplication(params: {
     }
     throw err;
   }
-  const record = res.rows[0];
+  const record = requireRow(res.rows, "application");
   await createApplicationStageEvent({
     applicationId: record.id,
     fromStage: null,
@@ -219,10 +227,8 @@ export async function countApplications(client?: Queryable): Promise<number> {
   const res = await runner.query<{ total: number }>(
     "select count(*)::int as total from applications"
   );
-  if (res.rows.length === 0) {
-    return 0;
-  }
-  return Number(res.rows[0].total ?? 0);
+  const first = res.rows[0];
+  return Number(first?.total ?? 0);
 }
 
 export async function findApplicationById(
@@ -237,7 +243,8 @@ export async function findApplicationById(
      limit 1`,
     [id]
   );
-  return res.rows.length > 0 ? res.rows[0] : null;
+  const first = res.rows[0];
+  return first ?? null;
 }
 
 export async function updateApplicationStatus(params: {
@@ -369,7 +376,7 @@ export async function createApplicationStageEvent(params: {
       params.triggeredBy,
     ]
   );
-  return res.rows[0];
+  return requireRow(res.rows, "application stage event");
 }
 
 export async function listApplicationStageEvents(params: {
@@ -411,7 +418,7 @@ export async function upsertApplicationRequiredDocument(params: {
       params.status,
     ]
   );
-  return res.rows[0];
+  return requireRow(res.rows, "application required document");
 }
 
 export async function ensureApplicationRequiredDocumentDefinition(params: {
@@ -435,7 +442,7 @@ export async function ensureApplicationRequiredDocumentDefinition(params: {
       params.isRequired,
     ]
   );
-  return res.rows[0];
+  return requireRow(res.rows, "application required document");
 }
 
 export async function listApplicationRequiredDocuments(params: {
@@ -511,7 +518,7 @@ export async function createDocument(params: {
       params.uploadedBy ?? null,
     ]
   );
-  return res.rows[0];
+  return requireRow(res.rows, "document");
 }
 
 export async function updateDocumentStatus(params: {
@@ -574,7 +581,8 @@ export async function findDocumentById(
      limit 1`,
     [id]
   );
-  return res.rows.length > 0 ? res.rows[0] : null;
+  const first = res.rows[0];
+  return first ?? null;
 }
 
 export async function findDocumentByApplicationAndType(params: {
@@ -591,7 +599,8 @@ export async function findDocumentByApplicationAndType(params: {
      limit 1`,
     [params.applicationId, params.documentType]
   );
-  return res.rows.length > 0 ? res.rows[0] : null;
+  const first = res.rows[0];
+  return first ?? null;
 }
 
 export async function listDocumentsByApplicationId(
@@ -707,10 +716,8 @@ export async function getLatestDocumentVersion(
      where document_id = $1`,
     [documentId]
   );
-  if (res.rows.length === 0) {
-    return 0;
-  }
-  return Number(res.rows[0].version ?? 0);
+  const first = res.rows[0];
+  return Number(first?.version ?? 0);
 }
 
 export async function createDocumentVersion(params: {
@@ -734,7 +741,7 @@ export async function createDocumentVersion(params: {
       params.content,
     ]
   );
-  return res.rows[0];
+  return requireRow(res.rows, "document version");
 }
 
 export async function findDocumentVersionById(
@@ -749,7 +756,8 @@ export async function findDocumentVersionById(
      limit 1`,
     [id]
   );
-  return res.rows.length > 0 ? res.rows[0] : null;
+  const first = res.rows[0];
+  return first ?? null;
 }
 
 export async function findDocumentVersionReview(
@@ -764,7 +772,8 @@ export async function findDocumentVersionReview(
      limit 1`,
     [documentVersionId]
   );
-  return res.rows.length > 0 ? res.rows[0] : null;
+  const first = res.rows[0];
+  return first ?? null;
 }
 
 export async function findAcceptedDocumentVersion(params: {
@@ -782,7 +791,8 @@ export async function findAcceptedDocumentVersion(params: {
      limit 1`,
     [params.documentId]
   );
-  return res.rows.length > 0 ? res.rows[0] : null;
+  const first = res.rows[0];
+  return first ?? null;
 }
 
 export async function createDocumentVersionReview(params: {
@@ -799,7 +809,7 @@ export async function createDocumentVersionReview(params: {
      returning id, document_version_id, status, reviewed_by_user_id, reviewed_at`,
     [randomUUID(), params.documentVersionId, params.status, params.reviewedByUserId]
   );
-  return res.rows[0];
+  return requireRow(res.rows, "document version review");
 }
 
 export async function findLatestDocumentVersionStatus(params: {
@@ -835,7 +845,8 @@ export async function findLatestDocumentVersionStatus(params: {
      limit 1`,
     [params.applicationId, params.documentType]
   );
-  return res.rows.length > 0 ? res.rows[0] : null;
+  const first = res.rows[0];
+  return first ?? null;
 }
 
 export async function listLatestAcceptedDocumentVersions(params: {
@@ -898,8 +909,9 @@ export async function findActiveDocumentVersion(params: {
      limit 1`,
     [params.documentId]
   );
-  if (accepted.rows.length > 0) {
-    return accepted.rows[0];
+  const acceptedRecord = accepted.rows[0];
+  if (acceptedRecord) {
+    return acceptedRecord;
   }
   const latest = await runner.query<DocumentVersionRecord>(
     `select id, document_id, version, metadata, content, created_at
@@ -909,5 +921,6 @@ export async function findActiveDocumentVersion(params: {
      limit 1`,
     [params.documentId]
   );
-  return latest.rows.length > 0 ? latest.rows[0] : null;
+  const latestRecord = latest.rows[0];
+  return latestRecord ?? null;
 }

@@ -95,5 +95,9 @@ export async function createContact(params: {
     ]
   );
 
-  return result.rows[0];
+  const record = result.rows[0];
+  if (!record) {
+    throw new Error("Failed to create contact.");
+  }
+  return record;
 }

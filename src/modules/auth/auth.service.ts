@@ -107,10 +107,13 @@ export function issueRefreshToken(params: {
     jti: randomUUID(),
   };
   const expiresIn = getRefreshTokenExpiresIn() as SignOptions["expiresIn"];
-  const token = jwt.sign(payload, secret, {
+  const options: SignOptions = {
     algorithm: "HS256",
-    expiresIn,
-  });
+  };
+  if (expiresIn !== undefined) {
+    options.expiresIn = expiresIn;
+  }
+  const token = jwt.sign(payload, secret, options);
   return {
     token,
     tokenHash: hashRefreshToken(token),
@@ -249,17 +252,19 @@ function getTwilioErrorDetails(error: unknown): TwilioErrorDetails {
       status?: unknown;
       message?: unknown;
     };
-    return {
-      code:
-        typeof err.code === "number" || typeof err.code === "string"
-          ? err.code
-          : undefined,
-      status: typeof err.status === "number" ? err.status : undefined,
+    const details: TwilioErrorDetails = {
       message:
         typeof err.message === "string"
           ? err.message
           : "Twilio verification failed",
     };
+    if (typeof err.code === "number" || typeof err.code === "string") {
+      details.code = err.code;
+    }
+    if (typeof err.status === "number") {
+      details.status = err.status;
+    }
+    return details;
   }
   if (error instanceof Error) {
     return { message: error.message };
@@ -489,7 +494,7 @@ async function safeCreateOtpVerification(params: {
       verificationSid: params.verificationSid ?? null,
       status: params.status,
       verifiedAt: params.verifiedAt ?? null,
-      client: params.client,
+      ...(params.client ? { client: params.client } : {}),
     });
   } catch (err) {
     if (isMissingOtpTableError(err)) {
@@ -512,7 +517,7 @@ async function safeUpdateOtpVerificationStatus(params: {
       id: params.id,
       status: params.status,
       verifiedAt: params.verifiedAt ?? null,
-      client: params.client,
+      ...(params.client ? { client: params.client } : {}),
     });
   } catch (err) {
     if (isMissingOtpTableError(err)) {
@@ -982,8 +987,8 @@ export async function verifyOtpCode(params: {
         action: "login",
         actorUserId: userRecord.id,
         targetUserId: userRecord.id,
-        ip: params.ip,
-        userAgent: params.userAgent,
+        ip: params.ip ?? null,
+        userAgent: params.userAgent ?? null,
         success: true,
         client: db,
       });
@@ -1236,8 +1241,8 @@ export async function refreshSession(params: {
         action: "token_refreshed",
         actorUserId: userRecord.id,
         targetUserId: userRecord.id,
-        ip: params.ip,
-        userAgent: params.userAgent,
+        ip: params.ip ?? null,
+        userAgent: params.userAgent ?? null,
         success: true,
         client: db,
       });
@@ -1311,22 +1316,23 @@ export async function createUserAccount(params: {
     await dbClient.query("begin");
     const lenderId = assertLenderBinding({
       role: params.role,
-      lenderId: params.lenderId,
+      ...(params.lenderId !== undefined ? { lenderId: params.lenderId } : {}),
     });
-    const user = await createUser({
-      email: params.email,
+    const createPayload = {
       phoneNumber,
       role: params.role,
       lenderId,
       active: false,
       client: db,
-    });
+      ...(params.email !== undefined ? { email: params.email } : {}),
+    };
+    const user = await createUser(createPayload);
     await recordAuditEvent({
       action: "user_created",
       actorUserId: params.actorUserId ?? null,
       targetUserId: user.id,
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ip: params.ip ?? null,
+      userAgent: params.userAgent ?? null,
       success: true,
       client: db,
     });
@@ -1338,8 +1344,8 @@ export async function createUserAccount(params: {
       action: "user_created",
       actorUserId: params.actorUserId ?? null,
       targetUserId: null,
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ip: params.ip ?? null,
+      userAgent: params.userAgent ?? null,
       success: false,
       client: db,
     });

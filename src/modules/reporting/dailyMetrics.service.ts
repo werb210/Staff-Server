@@ -134,6 +134,18 @@ export async function computeDailyMetricsForDate(params: {
   );
 
   const row = res.rows[0];
+  if (!row) {
+    return {
+      applicationsCreated: 0,
+      applicationsSubmitted: 0,
+      applicationsApproved: 0,
+      applicationsDeclined: 0,
+      applicationsFunded: 0,
+      documentsUploaded: 0,
+      documentsApproved: 0,
+      lenderSubmissions: 0,
+    };
+  }
   return {
     applicationsCreated: row.applications_created,
     applicationsSubmitted: row.applications_submitted,

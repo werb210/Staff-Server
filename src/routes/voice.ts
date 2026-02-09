@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { z } from "zod";
 import { requireAuth, requireAuthorization } from "../middleware/auth";
 import { safeHandler } from "../middleware/safeHandler";
@@ -19,6 +19,18 @@ import {
 import { listCalls } from "../modules/calls/calls.service";
 
 const router = Router();
+
+function buildRequestMetadata(req: Request): { ip?: string; userAgent?: string } {
+  const metadata: { ip?: string; userAgent?: string } = {};
+  if (req.ip) {
+    metadata.ip = req.ip;
+  }
+  const userAgent = req.get("user-agent");
+  if (userAgent) {
+    metadata.userAgent = userAgent;
+  }
+  return metadata;
+}
 
 const voiceTokenSchema = z.object({});
 
@@ -102,6 +114,9 @@ function parseContext(context?: string): { contactId?: string; applicationId?: s
   const parts = trimmed.split(":");
   if (parts.length === 2) {
     const [kind, id] = parts;
+    if (!id) {
+      return {};
+    }
     if (kind === "contact") return { contactId: id };
     if (kind === "application") return { applicationId: id };
   }
@@ -187,14 +202,14 @@ router.post(
       requesterRole: req.user?.role ?? null,
       fromStaffUserId: null,
     });
-    const result = await startVoiceCall({
+    const startPayload = {
       phoneNumber: parsed.data.toPhone ?? parsed.data.to ?? "",
       staffUserId,
       crmContactId: parsed.data.contactId ?? null,
       applicationId: parsed.data.applicationId ?? null,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
-    });
+      ...buildRequestMetadata(req),
+    };
+    const result = await startVoiceCall(startPayload);
 
     res.status(201).json({
       ok: true,
@@ -224,16 +239,16 @@ router.post(
       requesterRole: req.user?.role ?? null,
       fromStaffUserId: parsed.data.fromStaffUserId ?? null,
     });
-    const result = await startVoiceCall({
+    const startPayload = {
       phoneNumber: parsed.data.toPhone ?? parsed.data.phoneNumber ?? "",
       staffUserId,
       crmContactId: parsed.data.contactId ?? null,
       applicationId: parsed.data.applicationId ?? null,
       callSid: parsed.data.callSid ?? null,
       createTwilioCall: !parsed.data.callSid,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
-    });
+      ...buildRequestMetadata(req),
+    };
+    const result = await startVoiceCall(startPayload);
 
     res.status(201).json({
       ok: true,
@@ -258,13 +273,13 @@ router.post(
       throw new AppError("validation_error", "Invalid call control payload.", 400);
     }
 
-    const updated = await controlVoiceCall({
+    const controlPayload = {
       callSid: parsed.data.callSid,
-      action: "mute",
+      action: "mute" as const,
       staffUserId: req.user?.userId ?? null,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
-    });
+      ...buildRequestMetadata(req),
+    };
+    const updated = await controlVoiceCall(controlPayload);
 
     res.status(200).json({ ok: true, call: updated });
   })
@@ -285,13 +300,13 @@ router.post(
       throw new AppError("validation_error", "Invalid call control payload.", 400);
     }
 
-    const updated = await controlVoiceCall({
+    const controlPayload = {
       callSid: parsed.data.callSid,
-      action: "hold",
+      action: "hold" as const,
       staffUserId: req.user?.userId ?? null,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
-    });
+      ...buildRequestMetadata(req),
+    };
+    const updated = await controlVoiceCall(controlPayload);
 
     res.status(200).json({ ok: true, call: updated });
   })
@@ -312,13 +327,13 @@ router.post(
       throw new AppError("validation_error", "Invalid call control payload.", 400);
     }
 
-    const updated = await controlVoiceCall({
+    const controlPayload = {
       callSid: parsed.data.callSid,
-      action: "resume",
+      action: "resume" as const,
       staffUserId: req.user?.userId ?? null,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
-    });
+      ...buildRequestMetadata(req),
+    };
+    const updated = await controlVoiceCall(controlPayload);
 
     res.status(200).json({ ok: true, call: updated });
   })
@@ -339,13 +354,13 @@ router.post(
       throw new AppError("validation_error", "Invalid call control payload.", 400);
     }
 
-    const updated = await controlVoiceCall({
+    const controlPayload = {
       callSid: parsed.data.callSid,
-      action: "hangup",
+      action: "hangup" as const,
       staffUserId: req.user?.userId ?? null,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
-    });
+      ...buildRequestMetadata(req),
+    };
+    const updated = await controlVoiceCall(controlPayload);
 
     res.status(200).json({ ok: true, call: updated });
   })
@@ -366,14 +381,16 @@ router.post(
       throw new AppError("validation_error", "Invalid call end payload.", 400);
     }
 
-    const updated = await endVoiceCall({
+    const endPayload = {
       callSid: parsed.data.callSid,
-      status: parsed.data.status,
-      durationSeconds: parsed.data.durationSeconds ?? undefined,
       staffUserId: req.user?.userId ?? null,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
-    });
+      ...(parsed.data.status !== undefined ? { status: parsed.data.status } : {}),
+      ...(parsed.data.durationSeconds !== undefined
+        ? { durationSeconds: parsed.data.durationSeconds }
+        : {}),
+      ...buildRequestMetadata(req),
+    };
+    const updated = await endVoiceCall(endPayload);
 
     res.status(200).json({ ok: true, call: updated });
   })
@@ -407,18 +424,23 @@ router.post(
       parsed.data.durationSeconds ??
       (parsed.data.callDuration ? Number(parsed.data.callDuration) : undefined);
 
-    const updated = await updateVoiceCallStatus({
+    const normalizedDuration =
+      durationSeconds !== undefined && Number.isFinite(durationSeconds)
+        ? Math.max(0, Math.round(durationSeconds))
+        : undefined;
+    const updatePayload = {
       callSid: parsed.data.callSid,
-      status: parsed.data.status,
-      callStatus: parsed.data.callStatus,
-      durationSeconds:
-        durationSeconds !== undefined && Number.isFinite(durationSeconds)
-          ? Math.max(0, Math.round(durationSeconds))
-          : undefined,
       staffUserId: req.user?.userId ?? null,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
-    });
+      ...(parsed.data.status !== undefined ? { status: parsed.data.status } : {}),
+      ...(parsed.data.callStatus !== undefined
+        ? { callStatus: parsed.data.callStatus }
+        : {}),
+      ...(normalizedDuration !== undefined
+        ? { durationSeconds: normalizedDuration }
+        : {}),
+      ...buildRequestMetadata(req),
+    };
+    const updated = await updateVoiceCallStatus(updatePayload);
 
     res.status(200).json({ ok: true, call: updated });
   })
@@ -445,17 +467,20 @@ router.post(
         ? Number(parsed.data.recordingDuration)
         : undefined);
 
-    const updated = await recordVoiceCallRecording({
+    const normalizedDuration =
+      durationSeconds !== undefined && Number.isFinite(durationSeconds)
+        ? Math.max(0, Math.round(durationSeconds))
+        : undefined;
+    const recordPayload = {
       callSid: parsed.data.callSid,
       recordingSid: parsed.data.recordingSid,
-      durationSeconds:
-        durationSeconds !== undefined && Number.isFinite(durationSeconds)
-          ? Math.max(0, Math.round(durationSeconds))
-          : undefined,
       staffUserId: req.user?.userId ?? null,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
-    });
+      ...(normalizedDuration !== undefined
+        ? { durationSeconds: normalizedDuration }
+        : {}),
+      ...buildRequestMetadata(req),
+    };
+    const updated = await recordVoiceCallRecording(recordPayload);
 
     res.status(200).json({ ok: true, call: updated });
   })

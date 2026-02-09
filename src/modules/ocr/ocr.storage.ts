@@ -71,6 +71,9 @@ async function downloadAzureBlobFromPath(pathValue: string): Promise<Buffer> {
   }
   const container = match[1];
   const blobName = match[2];
+  if (!container || !blobName) {
+    throw new Error("invalid_azure_blob_path");
+  }
   const serviceClient = BlobServiceClient.fromConnectionString(connectionString);
   const blobClient = serviceClient.getContainerClient(container).getBlobClient(blobName);
   return blobClient.downloadToBuffer();

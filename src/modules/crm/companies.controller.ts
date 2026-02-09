@@ -29,7 +29,16 @@ export async function handleGetCompanyById(
   res: Response
 ): Promise<void> {
   try {
-    const company = await getCompanyById(req.params.id);
+    const companyId = req.params.id;
+    if (!companyId) {
+      res.status(400).json({
+        code: "validation_error",
+        message: "Company id is required.",
+        requestId: res.locals.requestId ?? "unknown",
+      });
+      return;
+    }
+    const company = await getCompanyById(companyId);
     if (!company) {
       res.status(404).json({
         code: "not_found",

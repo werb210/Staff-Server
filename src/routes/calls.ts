@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { z } from "zod";
 import { requireAuth, requireAuthorization } from "../middleware/auth";
 import { safeHandler } from "../middleware/safeHandler";
@@ -54,6 +54,18 @@ const callEndSchema = z.object({
 
 const uuidSchema = z.string().uuid();
 
+function buildRequestMetadata(req: Request): { ip?: string; userAgent?: string } {
+  const metadata: { ip?: string; userAgent?: string } = {};
+  if (req.ip) {
+    metadata.ip = req.ip;
+  }
+  const userAgent = req.get("user-agent");
+  if (userAgent) {
+    metadata.userAgent = userAgent;
+  }
+  return metadata;
+}
+
 router.post(
   "/start",
   requireAuth,
@@ -64,16 +76,16 @@ router.post(
       throw new AppError("validation_error", "Invalid call payload.", 400);
     }
 
-    const record = await startCall({
+    const startPayload = {
       phoneNumber: parsed.data.phoneNumber.trim(),
       direction: parsed.data.direction,
-      status: parsed.data.status as CallStatus | undefined,
       staffUserId: req.user?.userId ?? null,
-      crmContactId: parsed.data.crmContactId,
-      applicationId: parsed.data.applicationId,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
-    });
+      ...(parsed.data.status ? { status: parsed.data.status as CallStatus } : {}),
+      ...(parsed.data.crmContactId ? { crmContactId: parsed.data.crmContactId } : {}),
+      ...(parsed.data.applicationId ? { applicationId: parsed.data.applicationId } : {}),
+      ...buildRequestMetadata(req),
+    };
+    const record = await startCall(startPayload);
 
     res.status(201).json({ ok: true, call: record });
   })
@@ -93,14 +105,16 @@ router.post(
       throw new AppError("validation_error", "Invalid call status payload.", 400);
     }
 
-    const updated = await updateCallStatus({
+    const updatePayload = {
       id,
       status: parsed.data.status,
-      durationSeconds: parsed.data.durationSeconds ?? undefined,
       actorUserId: req.user?.userId ?? null,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
-    });
+      ...(parsed.data.durationSeconds !== undefined
+        ? { durationSeconds: parsed.data.durationSeconds }
+        : {}),
+      ...buildRequestMetadata(req),
+    };
+    const updated = await updateCallStatus(updatePayload);
 
     res.status(200).json({ ok: true, call: updated });
   })
@@ -120,13 +134,15 @@ router.post(
       throw new AppError("validation_error", "Invalid call end payload.", 400);
     }
 
-    const updated = await endCall({
+    const endPayload = {
       id,
-      durationSeconds: parsed.data.durationSeconds ?? undefined,
       staffUserId: req.user?.userId ?? null,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
-    });
+      ...(parsed.data.durationSeconds !== undefined
+        ? { durationSeconds: parsed.data.durationSeconds }
+        : {}),
+      ...buildRequestMetadata(req),
+    };
+    const updated = await endCall(endPayload);
 
     res.status(200).json({ ok: true, call: updated });
   })

@@ -42,7 +42,7 @@ let initialized = false;
 
 function isValidConnectionString(connectionString: string): boolean {
   const match = connectionString.match(/InstrumentationKey=([0-9a-fA-F-]{36})/);
-  if (!match) {
+  if (!match || !match[1]) {
     return false;
   }
   const guidPattern = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;

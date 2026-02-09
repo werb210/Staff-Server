@@ -145,7 +145,11 @@ router.get(
   requireAuth,
   requireCapability([CAPABILITIES.APPLICATION_READ]),
   safeHandler(async (req, res) => {
-    const application = await findApplicationById(req.params.id);
+    const applicationId = req.params.id;
+    if (!applicationId) {
+      throw new AppError("validation_error", "Application id is required.", 400);
+    }
+    const application = await findApplicationById(applicationId);
     if (!application) {
       throw new AppError("not_found", "Application not found.", 404);
     }
@@ -247,7 +251,16 @@ router.get(
   requireCapability([CAPABILITIES.APPLICATION_READ]),
   safeHandler(async (req, res) => {
     try {
-      const record = await findApplicationById(req.params.id);
+      const applicationId = req.params.id;
+      if (!applicationId) {
+        res.status(400).json({
+          code: "validation_error",
+          message: "Application id is required.",
+          requestId: res.locals.requestId ?? "unknown",
+        });
+        return;
+      }
+      const record = await findApplicationById(applicationId);
       if (!record) {
         res.status(404).json({
           code: "not_found",

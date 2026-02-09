@@ -80,12 +80,16 @@ export async function resolveSubmissionProfile(
   if (res.rows.length === 0) {
     throw new Error("Lender not found.");
   }
-  const method = normalizeSubmissionMethod(res.rows[0].submission_method) ?? "email";
-  const submissionEmail = res.rows[0].submission_email ?? null;
+  const row = res.rows[0];
+  if (!row) {
+    throw new Error("Lender not found.");
+  }
+  const method = normalizeSubmissionMethod(row.submission_method) ?? "email";
+  const submissionEmail = row.submission_email ?? null;
   if (method === "email" && (!submissionEmail || !submissionEmail.trim())) {
     throw new Error("Submission email is required.");
   }
-  const submissionConfig = res.rows[0].submission_config ?? null;
+  const submissionConfig = row.submission_config ?? null;
   if (method === "api" && !submissionConfig) {
     throw new Error("Submission config is required for API submissions.");
   }
@@ -94,7 +98,7 @@ export async function resolveSubmissionProfile(
   }
   return {
     lenderId,
-    lenderName: res.rows[0].name ?? "",
+    lenderName: row.name ?? "",
     submissionMethod: method,
     submissionEmail,
     submissionConfig,

@@ -103,6 +103,20 @@ type IdempotentResult<T> = {
 
 type Queryable = Pick<PoolClient, "query">;
 
+function buildRequestMetadata(params: {
+  ip?: string;
+  userAgent?: string;
+}): { ip?: string; userAgent?: string } {
+  const metadata: { ip?: string; userAgent?: string } = {};
+  if (params.ip) {
+    metadata.ip = params.ip;
+  }
+  if (params.userAgent) {
+    metadata.userAgent = params.userAgent;
+  }
+  return metadata;
+}
+
 function resolveApplicationCountry(metadata: unknown): string | null {
   if (!metadata || typeof metadata !== "object") {
     return null;
@@ -122,7 +136,11 @@ function resolveApplicationCountry(metadata: unknown): string | null {
 }
 
 const DEFAULT_PIPELINE_STAGE = ApplicationStage.RECEIVED;
-const STAFF_REVIEW_ROLES = new Set([ROLES.ADMIN, ROLES.STAFF, ROLES.OPS]);
+const STAFF_REVIEW_ROLES: ReadonlySet<Role> = new Set([
+  ROLES.ADMIN,
+  ROLES.STAFF,
+  ROLES.OPS,
+]);
 
 function normalizePipelineStage(stage: string | null): string {
   return stage ?? DEFAULT_PIPELINE_STAGE;
@@ -160,15 +178,16 @@ async function recordDocumentUploadFailure(params: {
   userAgent?: string;
   client?: Queryable;
 }): Promise<void> {
-  await recordAuditEvent({
+  const auditPayload = {
     action: "document_upload_rejected",
     actorUserId: params.actorUserId,
     targetUserId: params.targetUserId,
-    ip: params.ip,
-    userAgent: params.userAgent,
+    ip: params.ip ?? null,
+    userAgent: params.userAgent ?? null,
     success: false,
-    client: params.client,
-  });
+    ...(params.client ? { client: params.client } : {}),
+  };
+  await recordAuditEvent(auditPayload);
 }
 
 function canAccessApplication(
@@ -199,7 +218,7 @@ async function ensureRequiredDocuments(params: {
 }): Promise<ApplicationRequiredDocumentRecord[]> {
   const existing = await listApplicationRequiredDocuments({
     applicationId: params.application.id,
-    client: params.client,
+    ...(params.client ? { client: params.client } : {}),
   });
 
   const existingMap = new Map(
@@ -263,7 +282,7 @@ async function enforceDocumentsRequiredStage(params: {
       actorUserId: params.actorUserId,
       actorRole: params.actorRole,
       trigger: params.trigger,
-      client: params.client,
+      ...(params.client ? { client: params.client } : {}),
     });
     return;
   }
@@ -274,7 +293,7 @@ async function enforceDocumentsRequiredStage(params: {
     toStage: ApplicationStage.DOCUMENTS_REQUIRED,
     trigger: params.trigger,
     triggeredBy: params.actorUserId ?? "system",
-    client: params.client,
+    ...(params.client ? { client: params.client } : {}),
   });
 }
 
@@ -288,31 +307,36 @@ export async function transitionPipelineState(params: {
   userAgent?: string;
   client?: Queryable;
 }): Promise<void> {
-  const application = await findApplicationById(params.applicationId, params.client);
+  const application = await findApplicationById(
+    params.applicationId,
+    params.client
+  );
   if (!application) {
-    await recordAuditEvent({
+    const auditPayload = {
       action: "pipeline_state_changed",
       actorUserId: params.actorUserId,
       targetUserId: null,
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ip: params.ip ?? null,
+      userAgent: params.userAgent ?? null,
       success: false,
-      client: params.client,
-    });
+      ...(params.client ? { client: params.client } : {}),
+    };
+    await recordAuditEvent(auditPayload);
     throw new AppError("not_found", "Application not found.", 404);
   }
 
   if (params.actorUserId && params.actorRole) {
     if (!canAccessApplication(params.actorRole, application.owner_user_id, params.actorUserId)) {
-      await recordAuditEvent({
+      const auditPayload = {
         action: "pipeline_state_changed",
         actorUserId: params.actorUserId,
         targetUserId: application.owner_user_id,
-        ip: params.ip,
-        userAgent: params.userAgent,
+        ip: params.ip ?? null,
+        userAgent: params.userAgent ?? null,
         success: false,
-        client: params.client,
-      });
+        ...(params.client ? { client: params.client } : {}),
+      };
+      await recordAuditEvent(auditPayload);
       throw new AppError("forbidden", "Not authorized.", 403);
     }
   }
@@ -322,22 +346,23 @@ export async function transitionPipelineState(params: {
   }
 
   if (!canTransition(application.pipeline_state, params.nextState)) {
-    await recordAuditEvent({
+    const auditPayload = {
       action: "pipeline_state_changed",
       actorUserId: params.actorUserId,
       targetUserId: application.owner_user_id,
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ip: params.ip ?? null,
+      userAgent: params.userAgent ?? null,
       success: false,
-      client: params.client,
-    });
+      ...(params.client ? { client: params.client } : {}),
+    };
+    await recordAuditEvent(auditPayload);
     throw new AppError("invalid_transition", "Invalid pipeline transition.", 400);
   }
 
   await updateApplicationPipelineState({
     applicationId: params.applicationId,
     pipelineState: params.nextState,
-    client: params.client,
+    ...(params.client ? { client: params.client } : {}),
   });
   await createApplicationStageEvent({
     applicationId: params.applicationId,
@@ -345,32 +370,34 @@ export async function transitionPipelineState(params: {
     toStage: params.nextState,
     trigger: params.trigger,
     triggeredBy: params.actorUserId ?? "system",
-    client: params.client,
+    ...(params.client ? { client: params.client } : {}),
   });
-  await recordAuditEvent({
+  const auditSuccessPayload = {
     action: "pipeline_state_changed",
     actorUserId: params.actorUserId,
     targetUserId: application.owner_user_id,
-    ip: params.ip,
-    userAgent: params.userAgent,
+    ip: params.ip ?? null,
+    userAgent: params.userAgent ?? null,
     success: true,
-    client: params.client,
-  });
-  await recordAuditEvent({
+    ...(params.client ? { client: params.client } : {}),
+  };
+  await recordAuditEvent(auditSuccessPayload);
+  const auditStagePayload = {
     action: "pipeline_stage_changed",
     actorUserId: params.actorUserId,
     targetUserId: application.owner_user_id,
     targetType: "application",
     targetId: params.applicationId,
-    ip: params.ip,
-    userAgent: params.userAgent,
+    ip: params.ip ?? null,
+    userAgent: params.userAgent ?? null,
     success: true,
     metadata: {
       from: application.pipeline_state,
       to: params.nextState,
     },
-    client: params.client,
-  });
+    ...(params.client ? { client: params.client } : {}),
+  };
+  await recordAuditEvent(auditStagePayload);
 }
 
 async function evaluateRequirements(params: {
@@ -381,7 +408,10 @@ async function evaluateRequirements(params: {
   userAgent?: string;
   client?: Queryable;
 }): Promise<{ missingRequired: boolean }> {
-  const application = await findApplicationById(params.applicationId, params.client);
+  const application = await findApplicationById(
+    params.applicationId,
+    params.client
+  );
   if (!application) {
     throw new AppError("not_found", "Application not found.", 404);
   }
@@ -398,7 +428,7 @@ async function evaluateRequirements(params: {
   const requiredDocuments = await ensureRequiredDocuments({
     application,
     requirements,
-    client: params.client,
+    ...(params.client ? { client: params.client } : {}),
   });
 
   const missingRequired = requiredDocuments.some((doc) => {
@@ -415,9 +445,9 @@ async function evaluateRequirements(params: {
       actorUserId: params.actorUserId,
       actorRole: params.actorRole,
       trigger: "requirements_missing",
-      ip: params.ip,
-      userAgent: params.userAgent,
-      client: params.client,
+      ...(params.ip ? { ip: params.ip } : {}),
+      ...(params.userAgent ? { userAgent: params.userAgent } : {}),
+      ...(params.client ? { client: params.client } : {}),
     });
   }
 
@@ -454,8 +484,8 @@ export async function createApplicationForUser(params: {
       action: "application_created",
       actorUserId: params.actorUserId,
       targetUserId: params.ownerUserId,
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ip: params.ip ?? null,
+      userAgent: params.userAgent ?? null,
       success: true,
       client,
     });
@@ -464,8 +494,7 @@ export async function createApplicationForUser(params: {
       applicationId: application.id,
       actorUserId: params.actorUserId,
       actorRole: params.actorRole ?? (params.actorUserId ? ROLES.REFERRER : null),
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ...buildRequestMetadata(params),
       client,
     });
 
@@ -507,7 +536,7 @@ export async function openApplicationForStaff(params: {
   ip?: string;
   userAgent?: string;
 }): Promise<void> {
-  if (![ROLES.ADMIN, ROLES.STAFF].includes(params.actorRole)) {
+  if (params.actorRole !== ROLES.ADMIN && params.actorRole !== ROLES.STAFF) {
     throw new AppError("forbidden", "Not authorized.", 403);
   }
   const client = await pool.connect();
@@ -536,8 +565,7 @@ export async function openApplicationForStaff(params: {
         actorUserId: params.actorUserId,
         actorRole: params.actorRole,
         trigger: "first_opened",
-        ip: params.ip,
-        userAgent: params.userAgent,
+        ...buildRequestMetadata(params),
         client,
       });
     }
@@ -655,12 +683,6 @@ export async function removeDocument(params: {
     if (!document || document.application_id !== params.applicationId) {
       throw new AppError("not_found", "Document not found.", 404);
     }
-    const requirement = await resolveRequirementForDocument({
-      application,
-      documentType: document.document_type,
-      client,
-    });
-
     await deleteDocumentById({ documentId: params.documentId, client });
 
     await recordAuditEvent({
@@ -669,8 +691,8 @@ export async function removeDocument(params: {
       targetUserId: application.owner_user_id,
       targetType: "document",
       targetId: params.documentId,
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ip: params.ip ?? null,
+      userAgent: params.userAgent ?? null,
       success: true,
       client,
     });
@@ -679,8 +701,7 @@ export async function removeDocument(params: {
       applicationId: params.applicationId,
       actorUserId: params.actorUserId,
       actorRole: params.actorRole,
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ...buildRequestMetadata(params),
       client,
     });
 
@@ -694,8 +715,7 @@ export async function removeDocument(params: {
         actorUserId: params.actorUserId,
         actorRole: params.actorRole,
         trigger: "requirements_missing",
-        ip: params.ip,
-        userAgent: params.userAgent,
+        ...buildRequestMetadata(params),
         client,
       });
     }
@@ -728,8 +748,7 @@ export async function uploadDocument(params: {
     await recordDocumentUploadFailure({
       actorUserId: params.actorUserId,
       targetUserId: null,
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ...buildRequestMetadata(params),
     });
     throw err;
   }
@@ -740,8 +759,8 @@ export async function uploadDocument(params: {
       action: "document_uploaded",
       actorUserId: params.actorUserId,
       targetUserId: null,
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ip: params.ip ?? null,
+      userAgent: params.userAgent ?? null,
       success: false,
     });
     throw new AppError("not_found", "Application not found.", 404);
@@ -752,8 +771,8 @@ export async function uploadDocument(params: {
       action: "document_uploaded",
       actorUserId: params.actorUserId,
       targetUserId: application.owner_user_id,
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ip: params.ip ?? null,
+      userAgent: params.userAgent ?? null,
       success: false,
     });
     throw new AppError("forbidden", "Not authorized.", 403);
@@ -780,8 +799,7 @@ export async function uploadDocument(params: {
     await recordDocumentUploadFailure({
       actorUserId: params.actorUserId,
       targetUserId: application.owner_user_id,
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ...buildRequestMetadata(params),
     });
     throw new AppError("invalid_document_type", "Document type is not allowed.", 400);
   }
@@ -810,8 +828,7 @@ export async function uploadDocument(params: {
         await recordDocumentUploadFailure({
           actorUserId: params.actorUserId,
           targetUserId: application.owner_user_id,
-          ip: params.ip,
-          userAgent: params.userAgent,
+          ...buildRequestMetadata(params),
           client,
         });
         throw new AppError("document_type_mismatch", "Document type mismatch.", 400);
@@ -824,8 +841,7 @@ export async function uploadDocument(params: {
         await recordDocumentUploadFailure({
           actorUserId: params.actorUserId,
           targetUserId: application.owner_user_id,
-          ip: params.ip,
-          userAgent: params.userAgent,
+          ...buildRequestMetadata(params),
           client,
         });
         throw new AppError(
@@ -871,8 +887,8 @@ export async function uploadDocument(params: {
       action: "document_uploaded",
       actorUserId: params.actorUserId,
       targetUserId: application.owner_user_id,
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ip: params.ip ?? null,
+      userAgent: params.userAgent ?? null,
       success: true,
       client,
     });
@@ -1005,9 +1021,14 @@ export async function acceptDocumentVersion(params: {
       action: "document_accepted",
       actorUserId: params.actorUserId,
       targetUserId: application.owner_user_id,
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ip: params.ip ?? null,
+      userAgent: params.userAgent ?? null,
       success: true,
+      client,
+    });
+    const requirement = await resolveRequirementForDocument({
+      application,
+      documentType: document.document_type,
       client,
     });
     await updateDocumentStatus({
@@ -1103,8 +1124,8 @@ export async function rejectDocumentVersion(params: {
       action: "document_rejected",
       actorUserId: params.actorUserId,
       targetUserId: application.owner_user_id,
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ip: params.ip ?? null,
+      userAgent: params.userAgent ?? null,
       success: true,
       client,
     });
@@ -1187,8 +1208,8 @@ export async function acceptDocument(params: {
       action: "document_accepted",
       actorUserId: params.actorUserId,
       targetUserId: application.owner_user_id,
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ip: params.ip ?? null,
+      userAgent: params.userAgent ?? null,
       success: true,
       client,
     });
@@ -1265,8 +1286,8 @@ export async function rejectDocument(params: {
       action: "document_rejected",
       actorUserId: params.actorUserId,
       targetUserId: application.owner_user_id,
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ip: params.ip ?? null,
+      userAgent: params.userAgent ?? null,
       success: true,
       client,
     });

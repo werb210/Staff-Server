@@ -94,18 +94,32 @@ function getVoiceConfig(): {
 function normalizeTwilioError(error: unknown): { message: string; code?: string | number } {
   if (error && typeof error === "object") {
     const err = error as { message?: unknown; code?: unknown };
-    return {
+    const details: { message: string; code?: string | number } = {
       message: typeof err.message === "string" ? err.message : "Twilio error",
-      code:
-        typeof err.code === "string" || typeof err.code === "number"
-          ? err.code
-          : undefined,
     };
+    if (typeof err.code === "string" || typeof err.code === "number") {
+      details.code = err.code;
+    }
+    return details;
   }
   if (error instanceof Error) {
     return { message: error.message };
   }
   return { message: "Twilio error" };
+}
+
+function buildRequestMetadata(params: {
+  ip?: string;
+  userAgent?: string;
+}): { ip?: string; userAgent?: string } {
+  const metadata: { ip?: string; userAgent?: string } = {};
+  if (params.ip) {
+    metadata.ip = params.ip;
+  }
+  if (params.userAgent) {
+    metadata.userAgent = params.userAgent;
+  }
+  return metadata;
 }
 
 function getVoiceStatusCallbackUrl(): string | null {
@@ -225,25 +239,33 @@ export async function startVoiceCall(params: {
   if (shouldCreateTwilioCall) {
     try {
       const client = getTwilioClient();
-      const call = await client.calls.create({
+      const callOptions: {
+        to: string;
+        from: string;
+        applicationSid: string;
+        statusCallback?: string;
+        statusCallbackEvent?: string[];
+        statusCallbackMethod?: string;
+      } = {
         to: normalizedPhone,
         from: callerId,
         applicationSid,
-        statusCallback: statusCallbackUrl ?? undefined,
-        statusCallbackEvent: statusCallbackUrl
-          ? [
-              "initiated",
-              "ringing",
-              "answered",
-              "completed",
-              "busy",
-              "failed",
-              "no-answer",
-              "canceled",
-            ]
-          : undefined,
-        statusCallbackMethod: statusCallbackUrl ? "POST" : undefined,
-      });
+      };
+      if (statusCallbackUrl) {
+        callOptions.statusCallback = statusCallbackUrl;
+        callOptions.statusCallbackEvent = [
+          "initiated",
+          "ringing",
+          "answered",
+          "completed",
+          "busy",
+          "failed",
+          "no-answer",
+          "canceled",
+        ];
+        callOptions.statusCallbackMethod = "POST";
+      }
+      const call = await client.calls.create(callOptions);
       callSid = call.sid;
     } catch (error) {
       const details = normalizeTwilioError(error);
@@ -271,8 +293,7 @@ export async function startVoiceCall(params: {
     twilioCallSid: callSid,
     crmContactId: params.crmContactId ?? null,
     applicationId: params.applicationId ?? null,
-    ip: params.ip,
-    userAgent: params.userAgent,
+    ...buildRequestMetadata(params),
   });
 
   return { callSid, call };
@@ -320,14 +341,14 @@ export async function endVoiceCall(params: {
       ? Math.max(0, Math.round((endedAt.getTime() - callLog.created_at.getTime()) / 1000))
       : undefined);
 
-  const updated = await updateCallStatus({
+  const endPayload = {
     id: callLog.id,
     status: normalizeLifecycleStatus(twilioError ? "failed" : finalStatus),
-    durationSeconds,
     actorUserId: params.staffUserId,
-    ip: params.ip,
-    userAgent: params.userAgent,
-  });
+    ...(durationSeconds !== undefined ? { durationSeconds } : {}),
+    ...buildRequestMetadata(params),
+  };
+  const updated = await updateCallStatus(endPayload);
 
   if (twilioError) {
     throw twilioError;
@@ -361,14 +382,16 @@ export async function updateVoiceCallStatus(params: {
     throw new AppError("validation_error", "Unsupported call status.", 400);
   }
 
-  const updated = await updateCallStatus({
+  const updatePayload = {
     id: callLog.id,
     status: normalizedStatus,
-    durationSeconds: params.durationSeconds ?? undefined,
     actorUserId: params.staffUserId,
-    ip: params.ip,
-    userAgent: params.userAgent,
-  });
+    ...(params.durationSeconds !== undefined
+      ? { durationSeconds: params.durationSeconds }
+      : {}),
+    ...buildRequestMetadata(params),
+  };
+  const updated = await updateCallStatus(updatePayload);
 
   return updated;
 }
@@ -440,8 +463,7 @@ export async function controlVoiceCall(params: {
     id: callLog.id,
     status: normalizeLifecycleStatus(nextStatus),
     actorUserId: params.staffUserId,
-    ip: params.ip,
-    userAgent: params.userAgent,
+    ...buildRequestMetadata(params),
   });
 
   await recordAuditEvent({
@@ -450,8 +472,8 @@ export async function controlVoiceCall(params: {
     targetUserId: null,
     targetType: "call_log",
     targetId: updated.id,
-    ip: params.ip,
-    userAgent: params.userAgent,
+    ip: params.ip ?? null,
+    userAgent: params.userAgent ?? null,
     success: true,
     metadata: {
       twilio_call_sid: updated.twilio_call_sid,
@@ -486,10 +508,11 @@ export async function recordVoiceCallRecording(params: {
   const updated = await updateCallRecording({
     id: callLog.id,
     recordingSid: params.recordingSid,
-    recordingDurationSeconds: params.durationSeconds ?? undefined,
+    ...(params.durationSeconds !== undefined
+      ? { recordingDurationSeconds: params.durationSeconds }
+      : {}),
     actorUserId: params.staffUserId,
-    ip: params.ip,
-    userAgent: params.userAgent,
+    ...buildRequestMetadata(params),
   });
 
   return updated;
@@ -528,15 +551,16 @@ export async function handleVoiceStatusWebhook(params: {
       ? Math.max(0, Math.round(durationSeconds))
       : undefined;
 
-  const updated = await updateCallStatus({
+  const updatePayload = {
     id: callLog.id,
     status: normalizeLifecycleStatus(mappedStatus),
-    durationSeconds: sanitizedDuration,
-    fromNumber: params.from ?? undefined,
-    toNumber: params.to ?? undefined,
-    errorCode: params.errorCode ?? undefined,
-    errorMessage: params.errorMessage ?? undefined,
-  });
+    ...(sanitizedDuration !== undefined ? { durationSeconds: sanitizedDuration } : {}),
+    ...(params.from !== undefined ? { fromNumber: params.from } : {}),
+    ...(params.to !== undefined ? { toNumber: params.to } : {}),
+    ...(params.errorCode !== undefined ? { errorCode: params.errorCode } : {}),
+    ...(params.errorMessage !== undefined ? { errorMessage: params.errorMessage } : {}),
+  };
+  const updated = await updateCallStatus(updatePayload);
 
   logInfo("voice_webhook_status_updated", {
     callSid: params.callSid,

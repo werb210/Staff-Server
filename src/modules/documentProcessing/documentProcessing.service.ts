@@ -42,7 +42,7 @@ export async function handleDocumentUploadProcessing(params: {
       documentId: params.documentId,
       jobType: "ocr",
       status: "pending",
-      client: params.client,
+      ...(params.client ? { client: params.client } : {}),
     });
     return { ocrJob, bankingJob: null };
   }
@@ -51,7 +51,7 @@ export async function handleDocumentUploadProcessing(params: {
   const bankDocs = await listBankStatementDocuments({
     applicationId: params.applicationId,
     documentTypes: aliases,
-    client: params.client,
+    ...(params.client ? { client: params.client } : {}),
   });
   if (bankDocs.length < 6) {
     return { ocrJob: null, bankingJob: null };
@@ -63,7 +63,7 @@ export async function handleDocumentUploadProcessing(params: {
   const bankingJob = await createBankingAnalysisJob({
     applicationId: params.applicationId,
     status: "pending",
-    client: params.client,
+    ...(params.client ? { client: params.client } : {}),
   });
   return { ocrJob: null, bankingJob };
 }

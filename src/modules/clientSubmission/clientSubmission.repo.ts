@@ -41,5 +41,9 @@ export async function createClientSubmission(params: {
      returning id, submission_key, application_id, payload, created_at`,
     [randomUUID(), params.submissionKey, params.applicationId, params.payload]
   );
-  return res.rows[0];
+  const record = res.rows[0];
+  if (!record) {
+    throw new Error("Failed to create client submission.");
+  }
+  return record;
 }

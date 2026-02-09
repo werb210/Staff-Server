@@ -1,10 +1,22 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { AppError } from "../../middleware/errors";
 import { createUserAccount } from "../auth/auth.service";
 import { changeUserRole, setUserStatus } from "./users.service";
 import { normalizeRole } from "../../auth/roles";
 
 const router = Router();
+
+function buildRequestMetadata(req: Request): { ip?: string; userAgent?: string } {
+  const metadata: { ip?: string; userAgent?: string } = {};
+  if (req.ip) {
+    metadata.ip = req.ip;
+  }
+  const userAgent = req.get("user-agent");
+  if (userAgent) {
+    metadata.userAgent = userAgent;
+  }
+  return metadata;
+}
 
 router.post("/", async (req, res, next) => {
   try {
@@ -30,8 +42,7 @@ router.post("/", async (req, res, next) => {
       role: normalizedRole,
       lenderId,
       actorUserId: req.user?.userId ?? null,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
+      ...buildRequestMetadata(req),
     });
     res.status(201).json({ user });
   } catch (err) {
@@ -54,8 +65,7 @@ router.post("/:id/role", async (req, res, next) => {
       userId: req.params.id,
       role: normalizedRole,
       actorId,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
+      ...buildRequestMetadata(req),
     });
     res.json({ ok: true });
   } catch (err) {
@@ -69,12 +79,15 @@ router.post("/:id/disable", async (req, res, next) => {
     if (!actorId) {
       throw new AppError("missing_token", "Authorization token is required.", 401);
     }
+    const targetId = req.params.id;
+    if (!targetId) {
+      throw new AppError("validation_error", "id is required.", 400);
+    }
     await setUserStatus({
-      userId: req.params.id,
+      userId: targetId,
       active: false,
       actorId,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
+      ...buildRequestMetadata(req),
     });
     res.json({ ok: true });
   } catch (err) {
@@ -88,12 +101,15 @@ router.post("/:id/enable", async (req, res, next) => {
     if (!actorId) {
       throw new AppError("missing_token", "Authorization token is required.", 401);
     }
+    const targetId = req.params.id;
+    if (!targetId) {
+      throw new AppError("validation_error", "id is required.", 400);
+    }
     await setUserStatus({
-      userId: req.params.id,
+      userId: targetId,
       active: true,
       actorId,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
+      ...buildRequestMetadata(req),
     });
     res.json({ ok: true });
   } catch (err) {

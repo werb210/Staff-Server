@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { AppError } from "../../middleware/errors";
 import { requireAuth, requireCapability } from "../../middleware/auth";
 import { CAPABILITIES } from "../../auth/capabilities";
@@ -72,6 +72,13 @@ function assertRange(from: Date | null, to: Date | null): void {
 router.use(requireAuth);
 router.use(requireCapability([CAPABILITIES.REPORT_VIEW]));
 
+function getAuditContext(req: Request): { ip: string | null; userAgent: string | null } {
+  return {
+    ip: req.ip ?? null,
+    userAgent: req.get("user-agent") ?? null,
+  };
+}
+
 router.get("/overview", safeHandler(async (req, res) => {
   const { from, to, groupBy, limit, offset } = req.query ?? {};
   const parsedFrom = parseDate(from, "from");
@@ -94,8 +101,7 @@ router.get("/overview", safeHandler(async (req, res) => {
     targetUserId: null,
     targetType: "report",
     targetId: "overview",
-    ip: req.ip,
-    userAgent: req.get("user-agent"),
+    ...getAuditContext(req),
     success: true,
   });
 
@@ -126,8 +132,7 @@ router.get("/pipeline", safeHandler(async (req, res) => {
       targetUserId: null,
       targetType: "report",
       targetId: "pipeline",
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
+      ...getAuditContext(req),
       success: true,
     });
 
@@ -153,8 +158,7 @@ router.get("/pipeline/summary", safeHandler(async (req, res) => {
       targetUserId: null,
       targetType: "reporting",
       targetId: "pipeline_summary",
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
+      ...getAuditContext(req),
       success: true,
     });
 
@@ -194,8 +198,7 @@ router.get("/pipeline/timeseries", safeHandler(async (req, res) => {
       targetUserId: null,
       targetType: "reporting",
       targetId: "pipeline_timeseries",
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
+      ...getAuditContext(req),
       success: true,
     });
 
@@ -242,8 +245,7 @@ router.get("/lenders/performance", safeHandler(async (req, res) => {
     targetUserId: null,
     targetType: "reporting",
     targetId: "lender_performance",
-    ip: req.ip,
-    userAgent: req.get("user-agent"),
+    ...getAuditContext(req),
     success: true,
   });
 
@@ -273,8 +275,7 @@ router.get("/applications/volume", safeHandler(async (req, res) => {
     targetUserId: null,
     targetType: "reporting",
     targetId: "application_volume",
-    ip: req.ip,
-    userAgent: req.get("user-agent"),
+    ...getAuditContext(req),
     success: true,
   });
 
@@ -304,8 +305,7 @@ router.get("/documents/metrics", safeHandler(async (req, res) => {
     targetUserId: null,
     targetType: "reporting",
     targetId: "document_metrics",
-    ip: req.ip,
-    userAgent: req.get("user-agent"),
+    ...getAuditContext(req),
     success: true,
   });
 
@@ -336,8 +336,7 @@ router.get("/staff/activity", safeHandler(async (req, res) => {
     targetUserId: null,
     targetType: "reporting",
     targetId: "staff_activity",
-    ip: req.ip,
-    userAgent: req.get("user-agent"),
+    ...getAuditContext(req),
     success: true,
   });
 
@@ -361,8 +360,7 @@ router.get("/conversion", safeHandler(async (_req, res) => {
     targetUserId: null,
     targetType: "report",
     targetId: "conversion",
-    ip: _req.ip,
-    userAgent: _req.get("user-agent"),
+    ...getAuditContext(_req),
     success: true,
   });
 
@@ -386,8 +384,7 @@ router.get("/documents", safeHandler(async (req, res) => {
     targetUserId: null,
     targetType: "report",
     targetId: "documents",
-    ip: req.ip,
-    userAgent: req.get("user-agent"),
+    ...getAuditContext(req),
     success: true,
   });
 
@@ -431,8 +428,7 @@ router.get("/lenders", safeHandler(async (req, res) => {
     targetUserId: null,
     targetType: "report",
     targetId: "lenders",
-    ip: req.ip,
-    userAgent: req.get("user-agent"),
+    ...getAuditContext(req),
     success: true,
   });
 

@@ -100,7 +100,11 @@ export async function createSubmission(params: {
       params.externalReference,
     ]
   );
-  return res.rows[0];
+  const record = res.rows[0];
+  if (!record) {
+    throw new Error("Failed to create lender submission.");
+  }
+  return record;
 }
 
 export async function findSubmissionById(
@@ -245,7 +249,11 @@ export async function upsertSubmissionRetryState(params: {
        limit 1`,
       [params.submissionId]
     );
-    return res.rows[0];
+    const retryRecord = res.rows[0];
+    if (!retryRecord) {
+      throw new Error("Failed to load lender submission retry.");
+    }
+    return retryRecord;
   }
   const res = await runner.query<LenderSubmissionRetryRecord>(
     `insert into lender_submission_retries
@@ -270,7 +278,11 @@ export async function upsertSubmissionRetryState(params: {
       params.canceledAt,
     ]
   );
-  return res.rows[0];
+  const retryRecord = res.rows[0];
+  if (!retryRecord) {
+    throw new Error("Failed to create lender submission retry.");
+  }
+  return retryRecord;
 }
 
 export async function findSubmissionRetryState(
@@ -314,7 +326,11 @@ export async function createSubmissionEvent(params: {
         params.timestamp,
       ]
     );
-    return res.rows[0];
+    const eventRecord = res.rows[0];
+    if (!eventRecord) {
+      throw new Error("Failed to create submission event.");
+    }
+    return eventRecord;
   } catch (err) {
     const code = (err as { code?: string }).code;
     if (isTestEnvironment() && code === "42P01") {

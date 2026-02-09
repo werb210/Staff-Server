@@ -37,8 +37,8 @@ router.get("/events", async (req, res, next) => {
       action: "audit_view",
       actorUserId: req.user?.userId ?? null,
       targetUserId: null,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
+      ip: req.ip ?? null,
+      userAgent: req.get("user-agent") ?? null,
       success: true,
     });
 

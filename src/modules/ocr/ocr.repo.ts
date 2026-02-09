@@ -27,8 +27,9 @@ export async function createOcrJob(params: {
        limit 1`,
       [params.documentId]
     );
-    if (existing.rows[0]) {
-      return existing.rows[0];
+    const existingRecord = existing.rows[0];
+    if (existingRecord) {
+      return existingRecord;
     }
     const inserted = await runner.query<OcrJobRecord>(
       `insert into ocr_jobs
@@ -38,7 +39,11 @@ export async function createOcrJob(params: {
                  next_attempt_at, locked_at, locked_by, last_error, created_at, updated_at`,
       [randomUUID(), params.documentId, params.applicationId, params.maxAttempts]
     );
-    return inserted.rows[0];
+    const insertedRecord = inserted.rows[0];
+    if (!insertedRecord) {
+      throw new Error("Failed to create OCR job.");
+    }
+    return insertedRecord;
   }
   const res = await runner.query<OcrJobRecord>(
     `insert into ocr_jobs
@@ -50,7 +55,11 @@ export async function createOcrJob(params: {
                next_attempt_at, locked_at, locked_by, last_error, created_at, updated_at`,
     [randomUUID(), params.documentId, params.applicationId, params.maxAttempts]
   );
-  return res.rows[0];
+  const record = res.rows[0];
+  if (!record) {
+    throw new Error("Failed to create OCR job.");
+  }
+  return record;
 }
 
 export async function lockOcrJobs(params: {

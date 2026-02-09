@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { AppError, forbiddenError } from "../../middleware/errors";
 import {
   changePipelineState,
@@ -19,6 +19,18 @@ import { logError } from "../../observability/logger";
 
 const router = Router();
 
+function buildRequestMetadata(req: Request): { ip?: string; userAgent?: string } {
+  const metadata: { ip?: string; userAgent?: string } = {};
+  if (req.ip) {
+    metadata.ip = req.ip;
+  }
+  const userAgent = req.get("user-agent");
+  if (userAgent) {
+    metadata.userAgent = userAgent;
+  }
+  return metadata;
+}
+
 router.post(
   "/",
   requireAuth,
@@ -36,16 +48,16 @@ router.post(
       if (!role || !isRole(role)) {
         throw forbiddenError();
       }
-      const result = await createApplicationForUser({
+      const createPayload = {
         ownerUserId: req.user.userId,
         name,
         metadata: metadata ?? null,
         productType: productType ?? null,
         actorUserId: req.user.userId,
         actorRole: role,
-        ip: req.ip,
-        userAgent: req.get("user-agent"),
-      });
+        ...buildRequestMetadata(req),
+      };
+      const result = await createApplicationForUser(createPayload);
       res.status(result.status).json({ application: result.value });
     } catch (err) {
       logError("applications_create_failed", {
@@ -71,8 +83,12 @@ router.get(
     if (!role || !isRole(role)) {
       throw forbiddenError();
     }
+    const applicationId = req.params.id;
+    if (!applicationId) {
+      throw new AppError("validation_error", "application id is required.", 400);
+    }
     const documents = await listDocumentsForApplication({
-      applicationId: req.params.id,
+      applicationId,
       actorUserId: req.user.userId,
       actorRole: role,
     });
@@ -92,13 +108,17 @@ router.post(
     if (!role || !isRole(role)) {
       throw forbiddenError();
     }
-    await openApplicationForStaff({
-      applicationId: req.params.id,
+    const applicationId = req.params.id;
+    if (!applicationId) {
+      throw new AppError("validation_error", "application id is required.", 400);
+    }
+    const openPayload = {
+      applicationId,
       actorUserId: req.user.userId,
       actorRole: role,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
-    });
+      ...buildRequestMetadata(req),
+    };
+    await openApplicationForStaff(openPayload);
     res.status(200).json({ ok: true });
   })
 );
@@ -125,8 +145,12 @@ router.post(
       if (!role || !isRole(role)) {
         throw forbiddenError();
       }
-      const result = await uploadDocument({
-        applicationId: req.params.id,
+      const applicationId = req.params.id;
+      if (!applicationId) {
+        throw new AppError("validation_error", "application id is required.", 400);
+      }
+      const uploadPayload = {
+        applicationId,
         documentId: documentId ?? null,
         title,
         documentType: documentType ?? null,
@@ -134,9 +158,9 @@ router.post(
         content,
         actorUserId: req.user.userId,
         actorRole: role,
-        ip: req.ip,
-        userAgent: req.get("user-agent"),
-      });
+        ...buildRequestMetadata(req),
+      };
+      const result = await uploadDocument(uploadPayload);
       res.status(result.status).json({ document: result.value });
     } catch (err) {
       logError("applications_upload_failed", {
@@ -162,14 +186,19 @@ router.delete(
     if (!role || !isRole(role)) {
       throw forbiddenError();
     }
-    await removeDocument({
-      applicationId: req.params.id,
-      documentId: req.params.documentId,
+    const applicationId = req.params.id;
+    const documentId = req.params.documentId;
+    if (!applicationId || !documentId) {
+      throw new AppError("validation_error", "application id is required.", 400);
+    }
+    const removePayload = {
+      applicationId,
+      documentId,
       actorUserId: req.user.userId,
       actorRole: role,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
-    });
+      ...buildRequestMetadata(req),
+    };
+    await removeDocument(removePayload);
     res.status(200).json({ ok: true });
   })
 );
@@ -191,14 +220,18 @@ router.post(
       if (!role || !isRole(role)) {
         throw forbiddenError();
       }
-      await changePipelineState({
-        applicationId: req.params.id,
+      const applicationId = req.params.id;
+      if (!applicationId) {
+        throw new AppError("validation_error", "application id is required.", 400);
+      }
+      const changePayload = {
+        applicationId,
         nextState: state,
         actorUserId: req.user.userId,
         actorRole: role,
-        ip: req.ip,
-        userAgent: req.get("user-agent"),
-      });
+        ...buildRequestMetadata(req),
+      };
+      await changePipelineState(changePayload);
       res.json({ ok: true });
     } catch (err) {
       logError("applications_pipeline_change_failed", {
@@ -225,15 +258,21 @@ router.post(
       if (!role || !isRole(role)) {
         throw forbiddenError();
       }
-      await acceptDocumentVersion({
-        applicationId: req.params.id,
-        documentId: req.params.documentId,
-        documentVersionId: req.params.versionId,
+      const applicationId = req.params.id;
+      const documentId = req.params.documentId;
+      const documentVersionId = req.params.versionId;
+      if (!applicationId || !documentId || !documentVersionId) {
+        throw new AppError("validation_error", "application id is required.", 400);
+      }
+      const acceptPayload = {
+        applicationId,
+        documentId,
+        documentVersionId,
         actorUserId: req.user.userId,
         actorRole: role,
-        ip: req.ip,
-        userAgent: req.get("user-agent"),
-      });
+        ...buildRequestMetadata(req),
+      };
+      await acceptDocumentVersion(acceptPayload);
       res.json({ ok: true });
     } catch (err) {
       logError("applications_document_accept_failed", {
@@ -260,15 +299,21 @@ router.post(
       if (!role || !isRole(role)) {
         throw forbiddenError();
       }
-      await rejectDocumentVersion({
-        applicationId: req.params.id,
-        documentId: req.params.documentId,
-        documentVersionId: req.params.versionId,
+      const applicationId = req.params.id;
+      const documentId = req.params.documentId;
+      const documentVersionId = req.params.versionId;
+      if (!applicationId || !documentId || !documentVersionId) {
+        throw new AppError("validation_error", "application id is required.", 400);
+      }
+      const rejectPayload = {
+        applicationId,
+        documentId,
+        documentVersionId,
         actorUserId: req.user.userId,
         actorRole: role,
-        ip: req.ip,
-        userAgent: req.get("user-agent"),
-      });
+        ...buildRequestMetadata(req),
+      };
+      await rejectDocumentVersion(rejectPayload);
       res.json({ ok: true });
     } catch (err) {
       logError("applications_document_reject_failed", {

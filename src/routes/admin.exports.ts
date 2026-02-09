@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { AppError } from "../middleware/errors";
 import { requireAuth, requireCapability } from "../middleware/auth";
 import { CAPABILITIES } from "../auth/capabilities";
@@ -83,8 +83,15 @@ async function handleExport(params: {
   return params.run({
     filters: params.filters,
     format: params.format,
-    write: params.write,
+    ...(params.write ? { write: params.write } : {}),
   });
+}
+
+function getAuditContext(req: Request): { ip: string | null; userAgent: string | null } {
+  return {
+    ip: req.ip ?? null,
+    userAgent: req.get("user-agent") ?? null,
+  };
 }
 
 router.post("/pipeline", safeHandler(async (req, res, next) => {
@@ -111,8 +118,7 @@ router.post("/pipeline", safeHandler(async (req, res, next) => {
         targetUserId: null,
         targetType: "export",
         targetId: "pipeline_summary",
-        ip: req.ip,
-        userAgent: req.get("user-agent"),
+        ...getAuditContext(req),
         success: true,
       });
       res.end();
@@ -133,8 +139,7 @@ router.post("/pipeline", safeHandler(async (req, res, next) => {
       targetUserId: null,
       targetType: "export",
       targetId: "pipeline_summary",
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
+      ...getAuditContext(req),
       success: true,
     });
     res.json({ data: rows });
@@ -145,8 +150,7 @@ router.post("/pipeline", safeHandler(async (req, res, next) => {
       targetUserId: null,
       targetType: "export",
       targetId: "pipeline_summary",
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
+      ...getAuditContext(req),
       success: false,
     });
     const message = err instanceof Error ? err.message : "unknown error";
@@ -179,8 +183,7 @@ router.post("/lenders", safeHandler(async (req, res, next) => {
         targetUserId: null,
         targetType: "export",
         targetId: "lender_performance",
-        ip: req.ip,
-        userAgent: req.get("user-agent"),
+        ...getAuditContext(req),
         success: true,
       });
       res.end();
@@ -201,8 +204,7 @@ router.post("/lenders", safeHandler(async (req, res, next) => {
       targetUserId: null,
       targetType: "export",
       targetId: "lender_performance",
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
+      ...getAuditContext(req),
       success: true,
     });
     res.json({ data: rows });
@@ -213,8 +215,7 @@ router.post("/lenders", safeHandler(async (req, res, next) => {
       targetUserId: null,
       targetType: "export",
       targetId: "lender_performance",
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
+      ...getAuditContext(req),
       success: false,
     });
     const message = err instanceof Error ? err.message : "unknown error";
@@ -247,8 +248,7 @@ router.post("/applications", safeHandler(async (req, res, next) => {
         targetUserId: null,
         targetType: "export",
         targetId: "application_volume",
-        ip: req.ip,
-        userAgent: req.get("user-agent"),
+        ...getAuditContext(req),
         success: true,
       });
       res.end();
@@ -269,8 +269,7 @@ router.post("/applications", safeHandler(async (req, res, next) => {
       targetUserId: null,
       targetType: "export",
       targetId: "application_volume",
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
+      ...getAuditContext(req),
       success: true,
     });
     res.json({ data: rows });
@@ -281,8 +280,7 @@ router.post("/applications", safeHandler(async (req, res, next) => {
       targetUserId: null,
       targetType: "export",
       targetId: "application_volume",
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
+      ...getAuditContext(req),
       success: false,
     });
     const message = err instanceof Error ? err.message : "unknown error";

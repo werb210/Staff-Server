@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { getTransmissionStatus, retrySubmission, cancelSubmissionRetry } from "./lender.service";
 import { AppError } from "../../middleware/errors";
 import { requireAuth, requireCapability } from "../../middleware/auth";
@@ -9,9 +9,25 @@ const router = Router();
 router.use(requireAuth);
 router.use(requireCapability([CAPABILITIES.OPS_MANAGE]));
 
+function buildRequestMetadata(req: Request): { ip?: string; userAgent?: string } {
+  const metadata: { ip?: string; userAgent?: string } = {};
+  if (req.ip) {
+    metadata.ip = req.ip;
+  }
+  const userAgent = req.get("user-agent");
+  if (userAgent) {
+    metadata.userAgent = userAgent;
+  }
+  return metadata;
+}
+
 router.get("/applications/:id/transmission-status", async (req, res, next) => {
   try {
-    const status = await getTransmissionStatus(req.params.id);
+    const applicationId = req.params.id;
+    if (!applicationId) {
+      throw new AppError("validation_error", "application id is required.", 400);
+    }
+    const status = await getTransmissionStatus(applicationId);
     res.json({ transmission: status });
   } catch (err) {
     next(err);
@@ -23,11 +39,14 @@ router.post("/transmissions/:id/retry", async (req, res, next) => {
     if (!req.user) {
       throw new AppError("missing_token", "Authorization token is required.", 401);
     }
+    const submissionId = req.params.id;
+    if (!submissionId) {
+      throw new AppError("validation_error", "submission id is required.", 400);
+    }
     const result = await retrySubmission({
-      submissionId: req.params.id,
+      submissionId,
       actorUserId: req.user.userId,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
+      ...buildRequestMetadata(req),
     });
     res.json({ retry: result });
   } catch (err) {
@@ -40,11 +59,14 @@ router.post("/transmissions/:id/cancel", async (req, res, next) => {
     if (!req.user) {
       throw new AppError("missing_token", "Authorization token is required.", 401);
     }
+    const submissionId = req.params.id;
+    if (!submissionId) {
+      throw new AppError("validation_error", "submission id is required.", 400);
+    }
     const result = await cancelSubmissionRetry({
-      submissionId: req.params.id,
+      submissionId,
       actorUserId: req.user.userId,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
+      ...buildRequestMetadata(req),
     });
     res.json({ retry: result });
   } catch (err) {

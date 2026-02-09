@@ -53,7 +53,8 @@ export async function listClientLenderProductRequirementsHandler(
   req: Request,
   res: Response
 ): Promise<void> {
-  if (!UUID_REGEX.test(req.params.id)) {
+  const lenderProductId = req.params.id;
+  if (!lenderProductId || !UUID_REGEX.test(lenderProductId)) {
     res.status(400).json({ ok: false, error: "INVALID_LENDER_PRODUCT_ID" });
     return;
   }
@@ -73,12 +74,12 @@ export async function listClientLenderProductRequirementsHandler(
   }
 
   const requirements = await listClientRequirements({
-    lenderProductId: req.params.id,
+    lenderProductId,
     requestedAmount,
   });
 
   res.status(200).json({
-    productId: req.params.id,
+    productId: lenderProductId,
     requirements: requirements.map((requirement) => ({
       documentType: requirement.documentType,
       required: requirement.required,
@@ -90,7 +91,11 @@ export async function listLenderProductRequirementsHandler(
   req: Request,
   res: Response
 ): Promise<void> {
-  assertUuid(req.params.id, "lender product id");
+  const lenderProductId = req.params.id;
+  if (!lenderProductId) {
+    throw new AppError("validation_error", "lender product id is required.", 400);
+  }
+  assertUuid(lenderProductId, "lender product id");
 
   const requestedAmountRaw = req.query.requestedAmount;
   let requestedAmount: number | null = null;
@@ -107,12 +112,12 @@ export async function listLenderProductRequirementsHandler(
   }
 
   const requirements = await resolveLenderProductRequirements({
-    lenderProductId: req.params.id,
+    lenderProductId,
     requestedAmount,
   });
 
   res.status(200).json({
-    productId: req.params.id,
+    productId: lenderProductId,
     requirements: requirements.map((requirement) => ({
       id: requirement.id,
       documentType: requirement.documentType,
@@ -127,14 +132,18 @@ export async function createLenderProductRequirementHandler(
   req: Request,
   res: Response
 ): Promise<void> {
-  assertUuid(req.params.id, "lender product id");
+  const lenderProductId = req.params.id;
+  if (!lenderProductId) {
+    throw new AppError("validation_error", "lender product id is required.", 400);
+  }
+  assertUuid(lenderProductId, "lender product id");
   const documentType = parseDocumentType(req.body?.document_type);
   const required = parseRequired(req.body?.required);
   const minAmount = parseAmount(req.body?.min_amount, "min_amount");
   const maxAmount = parseAmount(req.body?.max_amount, "max_amount");
 
   const requirement = await createRequirementForProduct({
-    lenderProductId: req.params.id,
+    lenderProductId,
     documentType,
     required,
     minAmount,
@@ -148,15 +157,23 @@ export async function updateLenderProductRequirementHandler(
   req: Request,
   res: Response
 ): Promise<void> {
-  assertUuid(req.params.id, "lender product id");
-  assertUuid(req.params.reqId, "requirement id");
+  const lenderProductId = req.params.id;
+  const requirementId = req.params.reqId;
+  if (!lenderProductId) {
+    throw new AppError("validation_error", "lender product id is required.", 400);
+  }
+  if (!requirementId) {
+    throw new AppError("validation_error", "requirement id is required.", 400);
+  }
+  assertUuid(lenderProductId, "lender product id");
+  assertUuid(requirementId, "requirement id");
   const documentType = parseDocumentType(req.body?.document_type);
   const required = parseRequired(req.body?.required);
   const minAmount = parseAmount(req.body?.min_amount, "min_amount");
   const maxAmount = parseAmount(req.body?.max_amount, "max_amount");
 
   const requirement = await updateRequirementForProduct({
-    id: req.params.reqId,
+    id: requirementId,
     documentType,
     required,
     minAmount,
@@ -170,8 +187,16 @@ export async function deleteLenderProductRequirementHandler(
   req: Request,
   res: Response
 ): Promise<void> {
-  assertUuid(req.params.id, "lender product id");
-  assertUuid(req.params.reqId, "requirement id");
-  const requirement = await deleteRequirementForProduct({ id: req.params.reqId });
+  const lenderProductId = req.params.id;
+  const requirementId = req.params.reqId;
+  if (!lenderProductId) {
+    throw new AppError("validation_error", "lender product id is required.", 400);
+  }
+  if (!requirementId) {
+    throw new AppError("validation_error", "requirement id is required.", 400);
+  }
+  assertUuid(lenderProductId, "lender product id");
+  assertUuid(requirementId, "requirement id");
+  const requirement = await deleteRequirementForProduct({ id: requirementId });
   res.status(200).json({ requirement });
 }

@@ -251,8 +251,9 @@ function parseVariableRateValue(value: unknown, fieldName: string): string {
         400
       );
     }
-    const primeMatch = trimmed.match(/^p\\+\\s*(.+)$/i) ?? trimmed.match(/^prime\\s*\\+\\s*(.+)$/i);
-    if (primeMatch) {
+    const primeMatch =
+      trimmed.match(/^p\\+\\s*(.+)$/i) ?? trimmed.match(/^prime\\s*\\+\\s*(.+)$/i);
+    if (primeMatch?.[1]) {
       return `Prime + ${primeMatch[1].trim()}`;
     }
     const numeric = Number(trimmed);
@@ -795,19 +796,20 @@ export async function updateLenderProductHandler(
       }
     }
 
-    const updated = await updateLenderProductService({
+    const updatePayload = {
       id: id.trim(),
       name,
       requiredDocuments: requiredDocumentsList,
-      active,
-      category: resolvedCategory,
-      country: normalizedCountry,
-      rateType: normalizedRateType,
-      interestMin: parsedMinRate,
-      interestMax: parsedMaxRate,
-      termMin,
-      termMax,
-    });
+      ...(active !== undefined ? { active } : {}),
+      ...(resolvedCategory !== undefined ? { category: resolvedCategory } : {}),
+      ...(normalizedCountry !== undefined ? { country: normalizedCountry } : {}),
+      ...(normalizedRateType !== undefined ? { rateType: normalizedRateType } : {}),
+      ...(parsedMinRate !== undefined ? { interestMin: parsedMinRate } : {}),
+      ...(parsedMaxRate !== undefined ? { interestMax: parsedMaxRate } : {}),
+      ...(termMin !== undefined ? { termMin } : {}),
+      ...(termMax !== undefined ? { termMax } : {}),
+    };
+    const updated = await updateLenderProductService(updatePayload);
 
     if (!updated) {
       throw new AppError("not_found", "Lender product not found.", 404);

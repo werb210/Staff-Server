@@ -120,7 +120,7 @@ export function buildOcrInsights(results: OcrDocumentResult[]): OcrInsights {
   const registry = getOcrFieldDefinitions();
 
   results.forEach((result) => {
-    const fieldsForDoc = getOcrFieldsForDocumentType(result.documentType);
+    const fieldsForDoc = getOcrFieldsForDocumentType();
     fieldsForDoc.forEach((field) => {
       const extracted = extractFieldValue(result.extractedJson, field.field_key);
       if (!extracted) {

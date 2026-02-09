@@ -42,6 +42,32 @@ import {
   resolveSubmissionProfile,
 } from "../submissions/SubmissionRouter";
 
+type Queryable = Pick<PoolClient, "query">;
+
+function buildRequestMetadata(params: {
+  ip?: string;
+  userAgent?: string;
+}): { ip?: string; userAgent?: string } {
+  const metadata: { ip?: string; userAgent?: string } = {};
+  if (params.ip) {
+    metadata.ip = params.ip;
+  }
+  if (params.userAgent) {
+    metadata.userAgent = params.userAgent;
+  }
+  return metadata;
+}
+
+function buildAuditContext(params: {
+  ip?: string;
+  userAgent?: string;
+}): { ip: string | null; userAgent: string | null } {
+  return {
+    ip: params.ip ?? null,
+    userAgent: params.userAgent ?? null,
+  };
+}
+
 function createAdvisoryLockKey(value: string): [number, number] {
   const hash = createHash("sha256").update(value).digest();
   return [hash.readInt32BE(0), hash.readInt32BE(4)];
@@ -116,7 +142,7 @@ function resolveApplicationCountry(metadata: unknown): string | null {
 async function assertLenderProduct(params: {
   lenderId: string;
   lenderProductId: string;
-  client: Pick<PoolClient, "query">;
+  client: Queryable;
 }): Promise<void> {
   const res = await params.client.query<{ lender_id: string }>(
     `select lender_id
@@ -128,7 +154,11 @@ async function assertLenderProduct(params: {
   if (res.rows.length === 0) {
     throw new AppError("invalid_product", "Lender product not found.", 400);
   }
-  if (res.rows[0].lender_id !== params.lenderId) {
+  const row = res.rows[0];
+  if (!row) {
+    throw new AppError("invalid_product", "Lender product not found.", 400);
+  }
+  if (row.lender_id !== params.lenderId) {
     throw new AppError("invalid_product", "Lender product does not match lender.", 400);
   }
 }
@@ -216,7 +246,7 @@ async function sendToLender(params: {
 
 async function resolveSubmissionMethod(params: {
   lenderId: string;
-  client: Pick<PoolClient, "query">;
+  client: Queryable;
 }): Promise<SubmissionMethod> {
   const res = await params.client.query<{ submission_method: string | null }>(
     `select submission_method
@@ -228,13 +258,17 @@ async function resolveSubmissionMethod(params: {
   if (res.rows.length === 0) {
     throw new AppError("not_found", "Lender not found.", 404);
   }
-  return normalizeSubmissionMethod(res.rows[0].submission_method) ?? "email";
+  const row = res.rows[0];
+  if (!row) {
+    throw new AppError("not_found", "Lender not found.", 404);
+  }
+  return normalizeSubmissionMethod(row.submission_method) ?? "email";
 }
 
 async function buildSubmissionPacket(params: {
   applicationId: string;
   submittedAt: Date;
-  client: Pick<PoolClient, "query">;
+  client: Queryable;
 }): Promise<{ packet: SubmissionPacket; missingDocumentTypes: string[] }> {
   const application = await findApplicationById(params.applicationId, params.client);
   if (!application) {
@@ -319,7 +353,7 @@ async function recordSubmissionFailure(params: {
   actorUserId: string;
   ip?: string;
   userAgent?: string;
-  client: Pick<PoolClient, "query">;
+  client: Queryable;
 }): Promise<void> {
   await updateSubmissionStatus({
     submissionId: params.submissionId,
@@ -367,8 +401,7 @@ async function recordSubmissionFailure(params: {
       actorUserId: params.actorUserId,
       actorRole: null,
       trigger: "submission_failed",
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ...buildRequestMetadata(params),
       client: params.client,
     });
   }
@@ -379,8 +412,7 @@ async function recordSubmissionFailure(params: {
     targetUserId: params.ownerUserId,
     targetType: "application",
     targetId: params.applicationId,
-    ip: params.ip,
-    userAgent: params.userAgent,
+    ...buildAuditContext(params),
     success: false,
     client: params.client,
   });
@@ -396,7 +428,7 @@ async function transmitSubmission(params: {
   userAgent?: string;
   attempt: number;
   skipRequiredDocuments?: boolean;
-  client: Pick<PoolClient, "query">;
+  client: Queryable;
 }): Promise<IdempotentResult<{ id: string; status: string; failureReason?: string | null }>> {
   const application = await findApplicationById(params.applicationId, params.client);
   if (!application) {
@@ -480,8 +512,7 @@ async function transmitSubmission(params: {
       retryable: true,
       method: submissionMethod,
       actorUserId: params.actorUserId,
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ...buildRequestMetadata(params),
       client: params.client,
     });
     logWarn("lender_submission_failed", {
@@ -508,8 +539,7 @@ async function transmitSubmission(params: {
       targetUserId: application.owner_user_id,
       targetType: "application",
       targetId: params.applicationId,
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ...buildAuditContext(params),
       success: false,
       client: params.client,
     });
@@ -572,8 +602,7 @@ async function transmitSubmission(params: {
       retryable: response.retryable,
       method: submissionMethod,
       actorUserId: params.actorUserId,
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ...buildRequestMetadata(params),
       client: params.client,
     });
     logWarn("lender_submission_failed", {
@@ -622,8 +651,7 @@ async function transmitSubmission(params: {
       actorUserId: params.actorUserId,
       actorRole: null,
       trigger: "submission_review_started",
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ...buildRequestMetadata(params),
       client: params.client,
     });
   }
@@ -638,8 +666,7 @@ async function transmitSubmission(params: {
       actorUserId: params.actorUserId,
       actorRole: null,
       trigger: "submission_prepared",
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ...buildRequestMetadata(params),
       client: params.client,
     });
   }
@@ -650,8 +677,7 @@ async function transmitSubmission(params: {
     actorUserId: params.actorUserId,
     actorRole: null,
     trigger: "submission_sent",
-    ip: params.ip,
-    userAgent: params.userAgent,
+    ...buildRequestMetadata(params),
     client: params.client,
   });
 
@@ -667,8 +693,7 @@ async function transmitSubmission(params: {
     targetUserId: application.owner_user_id,
     targetType: "application",
     targetId: params.applicationId,
-    ip: params.ip,
-    userAgent: params.userAgent,
+    ...buildAuditContext(params),
     success: true,
     client: params.client,
   });
@@ -691,7 +716,7 @@ async function retryExistingSubmission(params: {
   ip?: string;
   userAgent?: string;
   attempt: number;
-  client: Pick<PoolClient, "query">;
+  client: Queryable;
 }): Promise<IdempotentResult<{ id: string; status: string; failureReason?: string | null }>> {
   const application = await findApplicationById(params.applicationId, params.client);
   if (!application) {
@@ -715,8 +740,7 @@ async function retryExistingSubmission(params: {
       retryable: response.retryable,
       method: params.submissionMethod,
       actorUserId: params.actorUserId,
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ...buildRequestMetadata(params),
       client: params.client,
     });
 
@@ -754,8 +778,7 @@ async function retryExistingSubmission(params: {
       actorUserId: params.actorUserId,
       actorRole: null,
       trigger: "submission_review_started",
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ...buildRequestMetadata(params),
       client: params.client,
     });
   }
@@ -770,8 +793,7 @@ async function retryExistingSubmission(params: {
       actorUserId: params.actorUserId,
       actorRole: null,
       trigger: "submission_prepared",
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ...buildRequestMetadata(params),
       client: params.client,
     });
   }
@@ -782,8 +804,7 @@ async function retryExistingSubmission(params: {
     actorUserId: params.actorUserId,
     actorRole: null,
     trigger: "submission_sent",
-    ip: params.ip,
-    userAgent: params.userAgent,
+    ...buildRequestMetadata(params),
     client: params.client,
   });
 
@@ -844,8 +865,7 @@ export async function submitApplication(params: {
           targetUserId: null,
           targetType: "application",
           targetId: existingSubmission.application_id,
-          ip: params.ip,
-          userAgent: params.userAgent,
+          ...buildAuditContext(params),
           success: true,
           client,
         });
@@ -869,8 +889,7 @@ export async function submitApplication(params: {
         targetUserId: null,
         targetType: "application",
         targetId: params.applicationId,
-        ip: params.ip,
-        userAgent: params.userAgent,
+        ...buildAuditContext(params),
         success: true,
         client,
       });
@@ -894,10 +913,11 @@ export async function submitApplication(params: {
       lenderProductId: params.lenderProductId,
       idempotencyKey: params.idempotencyKey,
       actorUserId: params.actorUserId,
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ...buildRequestMetadata(params),
       attempt: 0,
-      skipRequiredDocuments: params.skipRequiredDocuments,
+      ...(params.skipRequiredDocuments !== undefined
+        ? { skipRequiredDocuments: params.skipRequiredDocuments }
+        : {}),
       client,
     });
 
@@ -1013,8 +1033,7 @@ export async function retrySubmission(params: {
       profile: submissionProfile,
       payload: submission.payload as SubmissionPacket & Record<string, unknown>,
       actorUserId: params.actorUserId,
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ...buildRequestMetadata(params),
       attempt: attemptCount + 1,
       client,
     });
@@ -1038,8 +1057,7 @@ export async function retrySubmission(params: {
       targetUserId: null,
       targetType: "submission",
       targetId: submission.id,
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ...buildAuditContext(params),
       success: status === "submitted",
       client,
     });
@@ -1088,8 +1106,7 @@ export async function cancelSubmissionRetry(params: {
       targetUserId: null,
       targetType: "submission",
       targetId: submission.id,
-      ip: params.ip,
-      userAgent: params.userAgent,
+      ...buildAuditContext(params),
       success: true,
       client,
     });

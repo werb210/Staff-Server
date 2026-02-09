@@ -70,9 +70,10 @@ export async function createDocumentProcessingJob(
        where application_id = $1 and document_id = $2`,
       [applicationId, documentId]
     );
-    if (existing.rows.length > 0) {
+    const existingRecord = existing.rows[0];
+    if (existingRecord) {
       await client.query("commit");
-      return existing.rows[0];
+      return existingRecord;
     }
     const inserted = await client.query<DocumentProcessingJobRecord>(
       `insert into document_processing_jobs
@@ -82,7 +83,11 @@ export async function createDocumentProcessingJob(
       [applicationId, documentId]
     );
     await client.query("commit");
-    return inserted.rows[0];
+    const insertedRecord = inserted.rows[0];
+    if (!insertedRecord) {
+      throw new AppError("data_error", "OCR job not created.", 500);
+    }
+    return insertedRecord;
   } catch (err) {
     await client.query("rollback");
     throw err;
@@ -187,9 +192,10 @@ export async function createBankingAnalysisJob(
        where application_id = $1`,
       [applicationId]
     );
-    if (existing.rows.length > 0) {
+    const existingRecord = existing.rows[0];
+    if (existingRecord) {
       await client.query("commit");
-      return existing.rows[0];
+      return existingRecord;
     }
     const aliases = getDocumentTypeAliases(BANK_STATEMENT_CATEGORY);
     const countRes = await client.query<{ count: number }>(
@@ -213,7 +219,11 @@ export async function createBankingAnalysisJob(
       [applicationId]
     );
     await client.query("commit");
-    return inserted.rows[0];
+    const insertedRecord = inserted.rows[0];
+    if (!insertedRecord) {
+      throw new AppError("data_error", "Banking analysis job not created.", 500);
+    }
+    return insertedRecord;
   } catch (err) {
     await client.query("rollback");
     throw err;

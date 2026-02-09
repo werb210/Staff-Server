@@ -29,15 +29,18 @@ router.post("/start", otpSendLimiter(), async (req, res, next) => {
 router.post("/verify", otpVerifyLimiter(), async (req, res, next) => {
   try {
     const { phone, code, email } = req.body ?? {};
-    const result = await verifyOtpCode({
+    const userAgent = req.get("user-agent");
+    const route = req.originalUrl ?? req.url;
+    const payload = {
       phone,
       code,
       email,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
-      route: req.originalUrl,
-      method: req.method,
-    });
+      ...(req.ip ? { ip: req.ip } : {}),
+      ...(userAgent ? { userAgent } : {}),
+      ...(route ? { route } : {}),
+      ...(req.method ? { method: req.method } : {}),
+    };
+    const result = await verifyOtpCode(payload);
     if (!result.ok) {
       return res.status(result.status).json({
         ok: false,

@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { pool } from "../../db";
 import { type PoolClient, type QueryResult, type QueryResultRow } from "pg";
 import { type Role } from "../../auth/roles";
+import { AppError } from "../../middleware/errors";
 import { normalizePhoneNumber } from "./phone";
 
 type Queryable = Pick<PoolClient, "query">;
@@ -225,7 +226,11 @@ export async function createUser(params: {
     ]
   );
 
-  return res.rows[0];
+  const created = res.rows[0];
+  if (!created) {
+    throw new AppError("data_error", "Failed to create user.", 500);
+  }
+  return created;
 }
 
 export async function updateUserPhoneNumber(params: {
