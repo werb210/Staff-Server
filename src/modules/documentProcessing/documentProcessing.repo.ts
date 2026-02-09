@@ -24,11 +24,12 @@ export async function createDocumentProcessingJob(params: {
   const runner = params.client ?? pool;
   const res = await runner.query<DocumentProcessingJobRecord>(
     `insert into document_processing_jobs
-     (id, document_id, job_type, status, created_at, updated_at)
-     values ($1, $2, $3, $4, now(), now())
+     (id, application_id, document_id, job_type, status, created_at, updated_at)
+     values ($1, (select application_id from documents where id = $2), $2, $3, $4, now(), now())
      on conflict (document_id, job_type)
      do update set updated_at = document_processing_jobs.updated_at
-     returning id, document_id, job_type, status, started_at, completed_at, error_message, created_at, updated_at`,
+     returning id, document_id, job_type, status, started_at, completed_at, error_message,
+               retry_count, last_retry_at, max_retries, created_at, updated_at`,
     [randomUUID(), params.documentId, params.jobType, params.status ?? "pending"]
   );
   const record = res.rows[0];
@@ -61,7 +62,8 @@ export async function createBankingAnalysisJob(params: {
 }): Promise<BankingAnalysisJobRecord> {
   const runner = params.client ?? pool;
   const existing = await runner.query<BankingAnalysisJobRecord>(
-    `select id, application_id, status, statement_months_detected, started_at, completed_at, error_message, created_at, updated_at
+    `select id, application_id, status, statement_months_detected, started_at, completed_at,
+            error_message, retry_count, last_retry_at, max_retries, created_at, updated_at
      from banking_analysis_jobs
      where application_id = $1
      limit 1`,
@@ -75,7 +77,8 @@ export async function createBankingAnalysisJob(params: {
     `insert into banking_analysis_jobs
      (id, application_id, status, created_at, updated_at)
      values ($1, $2, $3, now(), now())
-     returning id, application_id, status, statement_months_detected, started_at, completed_at, error_message, created_at, updated_at`,
+     returning id, application_id, status, statement_months_detected, started_at, completed_at,
+               error_message, retry_count, last_retry_at, max_retries, created_at, updated_at`,
     [randomUUID(), params.applicationId, params.status ?? "pending"]
   );
   const record = res.rows[0];
@@ -101,7 +104,8 @@ export async function updateDocumentProcessingJob(params: {
          error_message = $5,
          updated_at = now()
      where document_id = $1 and job_type = $2
-     returning id, document_id, job_type, status, started_at, completed_at, error_message, created_at, updated_at`,
+     returning id, document_id, job_type, status, started_at, completed_at, error_message,
+               retry_count, last_retry_at, max_retries, created_at, updated_at`,
     [
       params.documentId,
       params.jobType,
@@ -130,7 +134,8 @@ export async function updateBankingAnalysisJob(params: {
          error_message = $5,
          updated_at = now()
      where application_id = $1
-     returning id, application_id, status, statement_months_detected, started_at, completed_at, error_message, created_at, updated_at`,
+     returning id, application_id, status, statement_months_detected, started_at, completed_at,
+               error_message, retry_count, last_retry_at, max_retries, created_at, updated_at`,
     [
       params.applicationId,
       params.status,

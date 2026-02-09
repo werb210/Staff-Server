@@ -10,6 +10,9 @@ export type DocumentProcessingJobRecord = {
   started_at: Date | null;
   completed_at: Date | null;
   error_message: string | null;
+  retry_count: number;
+  last_retry_at: Date | null;
+  max_retries: number;
   created_at: Date;
   updated_at: Date;
 };
@@ -22,6 +25,9 @@ export type BankingAnalysisJobRecord = {
   started_at: Date | null;
   completed_at: Date | null;
   error_message: string | null;
+  retry_count: number;
+  last_retry_at: Date | null;
+  max_retries: number;
   created_at: Date;
   updated_at: Date;
 };

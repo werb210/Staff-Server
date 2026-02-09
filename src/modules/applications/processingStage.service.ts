@@ -4,6 +4,7 @@ import { resolveRequirementsForApplication } from "../../services/lenderProductR
 import { normalizeRequiredDocumentKey } from "../../db/schema/requiredDocuments";
 import { listApplicationRequiredDocuments } from "./applications.repo";
 import type { PoolClient } from "pg";
+import { ensureCreditSummaryJob } from "../processing/creditSummary.service";
 
 export const PROCESSING_STAGES = [
   "pending",
@@ -379,6 +380,10 @@ async function advanceProcessingStageInternal(params: {
        where id = $1`,
       [params.applicationId, currentStage]
     );
+  }
+
+  if (currentStage === "credit_summary_processing") {
+    await ensureCreditSummaryJob({ applicationId: params.applicationId, client: params.client });
   }
 
   return currentStage;

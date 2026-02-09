@@ -17,8 +17,17 @@ import {
   updateDocumentProcessingJob,
 } from "./documentProcessing.repo";
 import { advanceProcessingStage } from "../applications/processingStage.service";
+import { getCircuitBreaker } from "../../utils/circuitBreaker";
 
 const BANK_STATEMENT_CATEGORY = "bank_statements_6_months";
+const OCR_BREAKER = getCircuitBreaker("ocr_job_creation", {
+  failureThreshold: 3,
+  cooldownMs: 60_000,
+});
+const BANKING_BREAKER = getCircuitBreaker("banking_job_creation", {
+  failureThreshold: 3,
+  cooldownMs: 60_000,
+});
 
 type Queryable = Pick<PoolClient, "query">;
 
@@ -39,13 +48,22 @@ export async function handleDocumentUploadProcessing(params: {
   const normalizedCategory =
     normalizeRequiredDocumentKey(params.documentCategory) ?? params.documentCategory;
   if (!isBankStatementCategory(normalizedCategory)) {
-    const ocrJob = await createDocumentProcessingJob({
-      documentId: params.documentId,
-      jobType: "ocr",
-      status: "pending",
-      ...(params.client ? { client: params.client } : {}),
-    });
-    return { ocrJob, bankingJob: null };
+    if (!OCR_BREAKER.canRequest()) {
+      throw new AppError("circuit_open", "OCR circuit breaker is open.", 503);
+    }
+    try {
+      const ocrJob = await createDocumentProcessingJob({
+        documentId: params.documentId,
+        jobType: "ocr",
+        status: "pending",
+        ...(params.client ? { client: params.client } : {}),
+      });
+      OCR_BREAKER.recordSuccess();
+      return { ocrJob, bankingJob: null };
+    } catch (err) {
+      OCR_BREAKER.recordFailure();
+      throw err;
+    }
   }
 
   const aliases = getDocumentTypeAliases(BANK_STATEMENT_CATEGORY);
@@ -55,18 +73,29 @@ export async function handleDocumentUploadProcessing(params: {
     ...(params.client ? { client: params.client } : {}),
   });
   if (bankDocs.length < 6) {
+    BANKING_BREAKER.recordSuccess();
     return { ocrJob: null, bankingJob: null };
   }
   const allUploaded = bankDocs.every((doc) => doc.status === "uploaded");
   if (!allUploaded) {
+    BANKING_BREAKER.recordSuccess();
     return { ocrJob: null, bankingJob: null };
   }
-  const bankingJob = await createBankingAnalysisJob({
-    applicationId: params.applicationId,
-    status: "pending",
-    ...(params.client ? { client: params.client } : {}),
-  });
-  return { ocrJob: null, bankingJob };
+  if (!BANKING_BREAKER.canRequest()) {
+    throw new AppError("circuit_open", "Banking circuit breaker is open.", 503);
+  }
+  try {
+    const bankingJob = await createBankingAnalysisJob({
+      applicationId: params.applicationId,
+      status: "pending",
+      ...(params.client ? { client: params.client } : {}),
+    });
+    BANKING_BREAKER.recordSuccess();
+    return { ocrJob: null, bankingJob };
+  } catch (err) {
+    BANKING_BREAKER.recordFailure();
+    throw err;
+  }
 }
 
 export async function markOcrCompleted(
