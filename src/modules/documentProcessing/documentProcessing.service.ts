@@ -16,6 +16,7 @@ import {
   updateBankingAnalysisJob,
   updateDocumentProcessingJob,
 } from "./documentProcessing.repo";
+import { advanceProcessingStage } from "../applications/processingStage.service";
 
 const BANK_STATEMENT_CATEGORY = "bank_statements_6_months";
 
@@ -96,6 +97,11 @@ export async function markOcrCompleted(
     if (appRes.rows.length === 0) {
       throw new AppError("not_found", "Application not found.", 404);
     }
+    const applicationId = appRes.rows[0]?.id;
+    if (!applicationId) {
+      throw new AppError("not_found", "Application not found.", 404);
+    }
+    await advanceProcessingStage({ applicationId, client });
     await client.query("commit");
     return job;
   } catch (err) {
@@ -159,6 +165,7 @@ export async function markBankingCompleted(params: {
        where id = $1`,
       [params.applicationId]
     );
+    await advanceProcessingStage({ applicationId: params.applicationId, client });
     await client.query("commit");
     return job;
   } catch (err) {

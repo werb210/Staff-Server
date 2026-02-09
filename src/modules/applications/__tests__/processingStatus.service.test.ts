@@ -69,7 +69,7 @@ describe("getProcessingStatus", () => {
     });
     const completedAt = new Date("2024-01-02T12:00:00Z");
     await pool.query(
-      "update applications set ocr_completed_at = $2 where id = $1",
+      "update applications set ocr_completed_at = $2, processing_stage = 'ocr_complete' where id = $1",
       [applicationId, completedAt]
     );
 
@@ -79,13 +79,29 @@ describe("getProcessingStatus", () => {
     expect(status.status.ocr.completedAt).toBe(completedAt.toISOString());
   });
 
+  it("does not infer ocr completion from timestamps alone", async () => {
+    const { applicationId } = await createApplicationWithRequirements({
+      requiredDocuments: [{ type: "bank_statement", required: true }],
+    });
+    const completedAt = new Date("2024-01-02T12:00:00Z");
+    await pool.query(
+      "update applications set ocr_completed_at = $2, processing_stage = 'pending' where id = $1",
+      [applicationId, completedAt]
+    );
+
+    const status = await getProcessingStatus(applicationId);
+
+    expect(status.status.ocr.completed).toBe(false);
+    expect(status.status.ocr.completedAt).toBeNull();
+  });
+
   it("should return true for banking when timestamp set", async () => {
     const { applicationId } = await createApplicationWithRequirements({
       requiredDocuments: [{ type: "bank_statement", required: true }],
     });
     const completedAt = new Date("2024-02-03T08:30:00Z");
     await pool.query(
-      "update applications set banking_completed_at = $2 where id = $1",
+      "update applications set banking_completed_at = $2, processing_stage = 'banking_complete' where id = $1",
       [applicationId, completedAt]
     );
 
@@ -186,7 +202,7 @@ describe("getProcessingStatus", () => {
     });
     const completedAt = new Date("2024-04-05T15:45:00Z");
     await pool.query(
-      "update applications set credit_summary_completed_at = $2 where id = $1",
+      "update applications set credit_summary_completed_at = $2, processing_stage = 'credit_summary_complete' where id = $1",
       [applicationId, completedAt]
     );
 

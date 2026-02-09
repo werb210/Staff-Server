@@ -154,6 +154,7 @@ beforeAll(async () => {
       metadata jsonb,
       product_type text,
       pipeline_state text,
+      processing_stage text default 'pending',
       status text,
       lender_id uuid,
       lender_product_id uuid,

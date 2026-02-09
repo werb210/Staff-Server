@@ -8,6 +8,7 @@ export type ApplicationRecord = {
   pipeline_state: string;
   current_stage: string | null;
   status: string;
+  processing_stage: string;
   lender_id: string | null;
   lender_product_id: string | null;
   requested_amount: number | null;

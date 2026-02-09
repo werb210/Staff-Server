@@ -1,6 +1,7 @@
 import { pool } from "../../db";
 import { AppError } from "../../middleware/errors";
 import { getDocumentTypeAliases } from "../../db/schema/requiredDocuments";
+import { advanceProcessingStage } from "../applications/processingStage.service";
 import type { PoolClient } from "pg";
 
 const BANK_STATEMENT_CATEGORY = "bank_statements_6_months";
@@ -82,6 +83,7 @@ export async function createDocumentProcessingJob(
        returning id, application_id, document_id, status, created_at, completed_at`,
       [applicationId, documentId]
     );
+    await advanceProcessingStage({ applicationId, client });
     await client.query("commit");
     const insertedRecord = inserted.rows[0];
     if (!insertedRecord) {
@@ -125,6 +127,7 @@ export async function markDocumentProcessingCompleted(
        where id = $1`,
       [applicationId]
     );
+    await advanceProcessingStage({ applicationId, client });
     const updated = await client.query<DocumentProcessingJobRecord>(
       `select id, application_id, document_id, status, created_at, completed_at
        from document_processing_jobs
@@ -218,6 +221,7 @@ export async function createBankingAnalysisJob(
        returning id, application_id, status, created_at, completed_at`,
       [applicationId]
     );
+    await advanceProcessingStage({ applicationId, client });
     await client.query("commit");
     const insertedRecord = inserted.rows[0];
     if (!insertedRecord) {
@@ -265,6 +269,7 @@ export async function markBankingAnalysisCompleted(
         [applicationId]
       );
     }
+    await advanceProcessingStage({ applicationId, client });
     const updated = await client.query<BankingAnalysisJobRecord>(
       `select id, application_id, status, created_at, completed_at
        from banking_analysis_jobs

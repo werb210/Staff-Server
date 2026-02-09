@@ -44,6 +44,10 @@ import {
 } from "../../db/schema/requiredDocuments";
 import { type ApplicationResponse, type ProcessingStatusResponse } from "./application.dto";
 import {
+  advanceProcessingStage,
+  getProcessingStageFlags,
+} from "./processingStage.service";
+import {
   createBankingAnalysisJob,
   createDocumentProcessingJob,
 } from "../processing/processing.service";
@@ -730,25 +734,32 @@ export async function getProcessingStatus(
   const allAccepted = Object.values(requiredMap).every(
     (document) => document.status === "accepted"
   );
+  const stageFlags = getProcessingStageFlags(application.processing_stage);
 
   return {
     applicationId: application.id,
     status: {
       ocr: {
-        completed: Boolean(application.ocr_completed_at),
-        completedAt: toIsoString(application.ocr_completed_at),
+        completed: stageFlags.ocrCompleted,
+        completedAt: stageFlags.ocrCompleted
+          ? toIsoString(application.ocr_completed_at)
+          : null,
       },
       banking: {
-        completed: Boolean(application.banking_completed_at),
-        completedAt: toIsoString(application.banking_completed_at),
+        completed: stageFlags.bankingCompleted,
+        completedAt: stageFlags.bankingCompleted
+          ? toIsoString(application.banking_completed_at)
+          : null,
       },
       documents: {
         required: requiredMap,
         allAccepted,
       },
       creditSummary: {
-        completed: Boolean(application.credit_summary_completed_at),
-        completedAt: toIsoString(application.credit_summary_completed_at),
+        completed: stageFlags.creditSummaryCompleted,
+        completedAt: stageFlags.creditSummaryCompleted
+          ? toIsoString(application.credit_summary_completed_at)
+          : null,
       },
     },
   };
@@ -817,6 +828,48 @@ export async function removeDocument(params: {
       });
     }
 
+    await client.query("commit");
+  } catch (err) {
+    await client.query("rollback");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export async function markCreditSummaryCompleted(params: {
+  applicationId: string;
+  client?: Queryable;
+}): Promise<void> {
+  if (params.client) {
+    await params.client.query(
+      `update applications
+       set credit_summary_completed_at = now(),
+           updated_at = now()
+       where id = $1`,
+      [params.applicationId]
+    );
+    await advanceProcessingStage({
+      applicationId: params.applicationId,
+      client: params.client,
+    });
+    return;
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    await client.query(
+      `update applications
+       set credit_summary_completed_at = now(),
+           updated_at = now()
+       where id = $1`,
+      [params.applicationId]
+    );
+    await advanceProcessingStage({
+      applicationId: params.applicationId,
+      client,
+    });
     await client.query("commit");
   } catch (err) {
     await client.query("rollback");
@@ -1142,6 +1195,11 @@ export async function acceptDocumentVersion(params: {
       client,
     });
 
+    await advanceProcessingStage({
+      applicationId: params.applicationId,
+      client,
+    });
+
     await client.query("commit");
   } catch (err) {
     await client.query("rollback");
@@ -1248,6 +1306,11 @@ export async function rejectDocumentVersion(params: {
       client,
     });
 
+    await advanceProcessingStage({
+      applicationId: params.applicationId,
+      client,
+    });
+
     await client.query("commit");
   } catch (err) {
     await client.query("rollback");
@@ -1322,6 +1385,11 @@ export async function acceptDocument(params: {
       documentCategory: requirement.documentCategory,
       isRequired: requirement.isRequired,
       status: "accepted",
+      client,
+    });
+
+    await advanceProcessingStage({
+      applicationId: application.id,
       client,
     });
 
@@ -1408,6 +1476,11 @@ export async function rejectDocument(params: {
       actorUserId: params.actorUserId,
       actorRole: params.actorRole,
       trigger: "document_rejected",
+      client,
+    });
+
+    await advanceProcessingStage({
+      applicationId: application.id,
       client,
     });
 
