@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "document.json",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["documentId", "applicationId", "category", "filename", "size", "storageKey", "createdAt"],
+  "properties": {
+    "documentId": { "type": "string" },
+    "applicationId": { "type": "string" },
+    "category": { "type": "string" },
+    "filename": { "type": "string" },
+    "size": { "type": "number" },
+    "storageKey": { "type": "string" },
+    "createdAt": { "type": "string", "format": "date-time" }
+  }
+}

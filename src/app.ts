@@ -32,6 +32,8 @@ import applicationsRoutes from "./routes/applications";
 import internalRoutes from "./routes/_int";
 import { intHealthHandler } from "./routes/_int/health";
 import { runtimeHandler } from "./routes/_int/runtime";
+import { assertApiV1Frozen } from "./contracts/v1Freeze";
+import { contractGuard } from "./middleware/contractGuard";
 
 function assertRoutesMounted(app: express.Express): void {
   const mountedRoutes = listRoutes(app);
@@ -187,6 +189,7 @@ export async function initializeServer(): Promise<void> {
 }
 
 export function registerApiRoutes(app: express.Express): void {
+  assertApiV1Frozen();
   app.use((req, res, next) => {
     if (req.path.startsWith("/api/_int")) {
       next();
@@ -216,6 +219,9 @@ export function registerApiRoutes(app: express.Express): void {
     ensureIdempotencyKey,
     idempotencyMiddleware
   );
+
+  app.use("/api/client", contractGuard);
+  app.use("/api/portal", contractGuard);
 
   const explicitMounts = [
     { path: "/auth", router: authRoutes },

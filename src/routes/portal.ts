@@ -27,6 +27,7 @@ import {
   resolveNextPipelineStage,
 } from "../modules/applications/applicationLifecycle.service";
 import { getAuditHistoryEnabled } from "../config";
+import { listLenders } from "../repositories/lenders.repo";
 
 const router = Router();
 const portalLimiter = portalRateLimit();
@@ -445,12 +446,16 @@ router.post(
     const transition = assertPipelineTransition({
       currentStage,
       nextStage,
-      status: record.status,
+      status: null,
     });
     if (!transition.shouldTransition) {
       res.status(200).json({ ok: true, applicationId, nextStage });
       return;
     }
+    const promoteMeta = {
+      ...(req.ip ? { ip: req.ip } : {}),
+      ...(req.get("user-agent") ? { userAgent: req.get("user-agent") as string } : {}),
+    };
     await transitionPipelineState({
       applicationId,
       nextState: nextStage,
@@ -458,8 +463,7 @@ router.post(
       actorRole: req.user.role,
       trigger: "admin_promotion",
       reason,
-      ip: req.ip ?? null,
-      userAgent: req.get("user-agent") ?? null,
+      ...promoteMeta,
     });
     await recordAuditEvent({
       action: "application_promoted",
@@ -478,6 +482,85 @@ router.post(
     });
     await advanceProcessingStage({ applicationId });
     res.status(200).json({ ok: true, applicationId, nextStage });
+  })
+);
+
+
+router.patch(
+  "/applications/:id/status",
+  requireAuth,
+  portalLimiter,
+  requireAuthorization({ roles: [ROLES.ADMIN, ROLES.STAFF] }),
+  safeHandler(async (req, res) => {
+    if (!req.user) {
+      throw new AppError("missing_token", "Authorization token is required.", 401);
+    }
+    const applicationId = typeof req.params.id === "string" ? req.params.id.trim() : "";
+    if (!applicationId) {
+      throw new AppError("validation_error", "Application id is required.", 400);
+    }
+    const status = typeof req.body?.status === "string" ? req.body.status.trim() : "";
+    if (!status || !isPipelineState(status)) {
+      throw new AppError("validation_error", "status is invalid.", 400);
+    }
+    const statusMeta = {
+      ...(req.ip ? { ip: req.ip } : {}),
+      ...(req.get("user-agent") ? { userAgent: req.get("user-agent") as string } : {}),
+    };
+    await transitionPipelineState({
+      applicationId,
+      nextState: status,
+      actorUserId: req.user.userId,
+      actorRole: req.user.role,
+      trigger: "manual_status_update",
+      reason: typeof req.body?.reason === "string" ? req.body.reason.trim() : null,
+      ...statusMeta,
+    });
+    res.status(200).json({ ok: true, applicationId, status });
+  })
+);
+
+router.post(
+  "/applications/:id/retry",
+  requireAuth,
+  portalLimiter,
+  requireAuthorization({ roles: [ROLES.ADMIN] }),
+  safeHandler(async (req, res) => {
+    if (!req.user) {
+      throw new AppError("missing_token", "Authorization token is required.", 401);
+    }
+    const applicationId = typeof req.params.id === "string" ? req.params.id.trim() : "";
+    if (!applicationId) {
+      throw new AppError("validation_error", "Application id is required.", 400);
+    }
+    const reason =
+      typeof req.body?.reason === "string" ? req.body.reason.trim() : null;
+    const job = await retryProcessingJobForApplication({
+      applicationId,
+      actorUserId: req.user.userId,
+      actorRole: req.user.role,
+      reason,
+      ip: req.ip ?? null,
+      userAgent: req.get("user-agent") ?? null,
+    });
+    res.status(200).json({ job });
+  })
+);
+
+router.get(
+  "/lenders",
+  portalLimiter,
+  safeHandler(async (_req, res) => {
+    const lenders = await listLenders(pool);
+    res.status(200).json({ items: lenders ?? [] });
+  })
+);
+
+router.get(
+  "/offers",
+  portalLimiter,
+  safeHandler(async (_req, res) => {
+    res.status(200).json({ items: [] });
   })
 );
 
