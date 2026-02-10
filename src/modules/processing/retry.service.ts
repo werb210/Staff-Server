@@ -3,6 +3,8 @@ import { AppError } from "../../middleware/errors";
 import { recordAuditEvent } from "../audit/audit.service";
 import { getCircuitBreaker } from "../../utils/circuitBreaker";
 import type { Role } from "../../auth/roles";
+import { getRetryPolicyEnabled } from "../../config";
+import { assertRetryAllowed } from "./retryPolicy";
 
 type RetryJobResult = {
   jobId: string;
@@ -16,8 +18,6 @@ type RetryJobResult = {
   nextRetryInMs: number;
 };
 
-const BASE_BACKOFF_MS = 30_000;
-
 const OCR_BREAKER = getCircuitBreaker("ocr_job_creation", {
   failureThreshold: 3,
   cooldownMs: 60_000,
@@ -30,26 +30,6 @@ const CREDIT_BREAKER = getCircuitBreaker("credit_summary_generation", {
   failureThreshold: 3,
   cooldownMs: 60_000,
 });
-
-function computeBackoffMs(retryCount: number): number {
-  return BASE_BACKOFF_MS * 2 ** Math.max(0, retryCount);
-}
-
-function assertBackoffReady(lastRetryAt: Date | null, retryCount: number): number {
-  const delay = computeBackoffMs(retryCount);
-  if (!lastRetryAt) {
-    return delay;
-  }
-  const elapsed = Date.now() - lastRetryAt.getTime();
-  if (elapsed < delay) {
-    throw new AppError(
-      "retry_backoff",
-      "Retry backoff window has not elapsed.",
-      429
-    );
-  }
-  return delay;
-}
 
 function getBreaker(jobType: RetryJobResult["jobType"]) {
   switch (jobType) {
@@ -66,9 +46,14 @@ export async function retryProcessingJob(params: {
   jobId: string;
   actorUserId: string;
   actorRole: Role;
+  reason?: string | null;
+  force?: boolean;
   ip?: string | null;
   userAgent?: string | null;
 }): Promise<RetryJobResult> {
+  if (!getRetryPolicyEnabled() && !params.force) {
+    throw new AppError("retry_disabled", "Retry policy is disabled.", 403);
+  }
   const client = await pool.connect();
   try {
     await client.query("begin");
@@ -93,14 +78,18 @@ export async function retryProcessingJob(params: {
       const row = ocrJob.rows[0];
       const retryCount = row.retry_count ?? 0;
       const maxRetries = row.max_retries ?? 3;
-      if (retryCount >= maxRetries) {
-        throw new AppError("retry_exhausted", "Max retries reached.", 409);
-      }
       const breaker = getBreaker("ocr");
-      if (!breaker.canRequest()) {
+      if (!params.force && !breaker.canRequest()) {
         throw new AppError("circuit_open", "OCR circuit breaker is open.", 503);
       }
-      const nextRetryInMs = assertBackoffReady(row.last_retry_at, retryCount);
+      const nextRetryInMs = params.force
+        ? 0
+        : assertRetryAllowed({
+            retryCount,
+            maxRetries,
+            lastRetryAt: row.last_retry_at,
+            baseDelayMs: 30_000,
+          });
       const updated = await client.query<{
         id: string;
         application_id: string | null;
@@ -134,6 +123,8 @@ export async function retryProcessingJob(params: {
         metadata: {
           jobType: "ocr",
           retryCount: updatedRow?.retry_count ?? retryCount + 1,
+          reason: params.reason ?? null,
+          forced: Boolean(params.force),
         },
         client,
       });
@@ -170,14 +161,18 @@ export async function retryProcessingJob(params: {
       const row = bankingJob.rows[0];
       const retryCount = row.retry_count ?? 0;
       const maxRetries = row.max_retries ?? 2;
-      if (retryCount >= maxRetries) {
-        throw new AppError("retry_exhausted", "Max retries reached.", 409);
-      }
       const breaker = getBreaker("banking");
-      if (!breaker.canRequest()) {
+      if (!params.force && !breaker.canRequest()) {
         throw new AppError("circuit_open", "Banking circuit breaker is open.", 503);
       }
-      const nextRetryInMs = assertBackoffReady(row.last_retry_at, retryCount);
+      const nextRetryInMs = params.force
+        ? 0
+        : assertRetryAllowed({
+            retryCount,
+            maxRetries,
+            lastRetryAt: row.last_retry_at,
+            baseDelayMs: 30_000,
+          });
       const updated = await client.query<{
         id: string;
         application_id: string | null;
@@ -210,6 +205,8 @@ export async function retryProcessingJob(params: {
         metadata: {
           jobType: "banking",
           retryCount: updatedRow?.retry_count ?? retryCount + 1,
+          reason: params.reason ?? null,
+          forced: Boolean(params.force),
         },
         client,
       });
@@ -246,14 +243,18 @@ export async function retryProcessingJob(params: {
       const row = creditJob.rows[0];
       const retryCount = row.retry_count ?? 0;
       const maxRetries = row.max_retries ?? 1;
-      if (retryCount >= maxRetries) {
-        throw new AppError("retry_exhausted", "Max retries reached.", 409);
-      }
       const breaker = getBreaker("credit_summary");
-      if (!breaker.canRequest()) {
+      if (!params.force && !breaker.canRequest()) {
         throw new AppError("circuit_open", "Credit summary circuit breaker is open.", 503);
       }
-      const nextRetryInMs = assertBackoffReady(row.last_retry_at, retryCount);
+      const nextRetryInMs = params.force
+        ? 0
+        : assertRetryAllowed({
+            retryCount,
+            maxRetries,
+            lastRetryAt: row.last_retry_at,
+            baseDelayMs: 30_000,
+          });
       const updated = await client.query<{
         id: string;
         application_id: string | null;
@@ -286,6 +287,8 @@ export async function retryProcessingJob(params: {
         metadata: {
           jobType: "credit_summary",
           retryCount: updatedRow?.retry_count ?? retryCount + 1,
+          reason: params.reason ?? null,
+          forced: Boolean(params.force),
         },
         client,
       });
@@ -310,4 +313,49 @@ export async function retryProcessingJob(params: {
   } finally {
     client.release();
   }
+}
+
+export async function retryProcessingJobForApplication(params: {
+  applicationId: string;
+  actorUserId: string;
+  actorRole: Role;
+  reason?: string | null;
+  ip?: string | null;
+  userAgent?: string | null;
+}): Promise<RetryJobResult> {
+  const job = await pool.query<{
+    id: string;
+    job_type: RetryJobResult["jobType"];
+  }>(
+    `select id, job_type
+     from (
+       select id, 'ocr'::text as job_type, updated_at
+       from document_processing_jobs
+       where application_id = $1 and status = 'failed'
+       union all
+       select id, 'banking'::text as job_type, updated_at
+       from banking_analysis_jobs
+       where application_id = $1 and status = 'failed'
+       union all
+       select id, 'credit_summary'::text as job_type, updated_at
+       from credit_summary_jobs
+       where application_id = $1 and status = 'failed'
+     ) failures
+     order by updated_at desc
+     limit 1`,
+    [params.applicationId]
+  );
+  const row = job.rows[0];
+  if (!row) {
+    throw new AppError("not_found", "No failed processing job found.", 404);
+  }
+  return retryProcessingJob({
+    jobId: row.id,
+    actorUserId: params.actorUserId,
+    actorRole: params.actorRole,
+    reason: params.reason ?? null,
+    force: true,
+    ip: params.ip ?? null,
+    userAgent: params.userAgent ?? null,
+  });
 }

@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { type NextFunction, type Request, type Response } from "express";
+import { getIdempotencyEnabled } from "../config";
 
 const IDEMPOTENCY_HEADER = "idempotency-key";
 const enforceMethods = new Set(["POST", "PUT", "PATCH", "DELETE"]);
@@ -14,6 +15,10 @@ export function ensureIdempotencyKey(
   res: Response,
   next: NextFunction
 ): void {
+  if (!getIdempotencyEnabled()) {
+    next();
+    return;
+  }
   if (!enforceMethods.has(req.method.toUpperCase())) {
     next();
     return;

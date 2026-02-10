@@ -203,6 +203,121 @@ async function ensureCoreTables(): Promise<void> {
   );
 }
 
+async function ensureAuditViews(): Promise<void> {
+  await pool.query(
+    `create or replace view application_pipeline_history as
+     select
+       ase.application_id,
+       ase.from_stage,
+       ase.to_stage,
+       ase.trigger,
+       ase.triggered_by as actor_id,
+       u.role as actor_role,
+       case
+         when ase.triggered_by = 'system' then 'system'
+         when u.role in ('ADMIN', 'STAFF') then 'staff'
+         else 'system'
+       end as actor_type,
+       ase.created_at as occurred_at,
+       ase.reason as reason
+     from application_stage_events ase
+     left join users u on u.id::text = ase.triggered_by`
+  );
+  await pool.query(
+    `create or replace view application_pipeline_history_view as
+     select * from application_pipeline_history`
+  );
+  await pool.query(
+    `create or replace view document_status_history as
+     select
+       d.application_id,
+       d.id as document_id,
+       d.document_type,
+       null::text as actor_id,
+       d.uploaded_by as actor_role,
+       case when d.uploaded_by = 'staff' then 'staff' else 'system' end as actor_type,
+       null::text as previous_status,
+       d.status as next_status,
+       d.rejection_reason as reason,
+       d.created_at as occurred_at
+     from documents d
+     union all
+     select
+       d.application_id,
+       d.id as document_id,
+       d.document_type,
+       r.reviewed_by_user_id::text as actor_id,
+       u.role as actor_role,
+       case
+         when u.role in ('ADMIN', 'STAFF') then 'staff'
+         else 'system'
+       end as actor_type,
+       'uploaded' as previous_status,
+       r.status as next_status,
+       d.rejection_reason as reason,
+       r.reviewed_at as occurred_at
+     from document_version_reviews r
+     join document_versions dv on dv.id = r.document_version_id
+     join documents d on d.id = dv.document_id
+     left join users u on u.id = r.reviewed_by_user_id`
+  );
+  await pool.query(
+    `create or replace view document_status_history_view as
+     select * from document_status_history`
+  );
+  await pool.query(
+    `create or replace view processing_job_history as
+     select
+       id as job_id,
+       'ocr'::text as job_type,
+       application_id,
+       document_id,
+       null::text as previous_status,
+       status as next_status,
+       error_message as reason,
+       retry_count,
+       last_retry_at,
+       coalesce(updated_at, created_at) as occurred_at,
+       'system'::text as actor_type,
+       null::text as actor_id
+     from document_processing_jobs
+     union all
+     select
+       id as job_id,
+       'banking'::text as job_type,
+       application_id,
+       null::text as document_id,
+       null::text as previous_status,
+       status as next_status,
+       error_message as reason,
+       retry_count,
+       last_retry_at,
+       coalesce(updated_at, created_at) as occurred_at,
+       'system'::text as actor_type,
+       null::text as actor_id
+     from banking_analysis_jobs
+     union all
+     select
+       id as job_id,
+       'credit_summary'::text as job_type,
+       application_id,
+       null::text as document_id,
+       null::text as previous_status,
+       status as next_status,
+       error_message as reason,
+       retry_count,
+       last_retry_at,
+       coalesce(updated_at, created_at) as occurred_at,
+       'system'::text as actor_type,
+       null::text as actor_id
+     from credit_summary_jobs`
+  );
+  await pool.query(
+    `create or replace view processing_job_history_view as
+     select * from processing_job_history`
+  );
+}
+
 export function setupTestDatabase(): void {
   beforeAll(async () => {
     assertTestDatabase();
@@ -216,6 +331,7 @@ export function setupTestDatabase(): void {
     await ensureUserColumns();
     await ensureAuthRefreshTokenColumns();
     await ensureCoreTables();
+    await ensureAuditViews();
   });
 
   afterEach(async () => {

@@ -5,9 +5,10 @@ import { createHash } from "crypto";
 import { pool } from "../db";
 import { isDbConnectionFailure, isTestEnvironment } from "../dbRuntime";
 import { AppError } from "./errors";
-import { isProductionEnvironment } from "../config";
+import { getIdempotencyEnabled, isProductionEnvironment } from "../config";
 import {
   createIdempotencyRecord,
+  deleteExpiredIdempotencyRecord,
   findIdempotencyRecord,
 } from "../modules/idempotency/idempotency.repo";
 import { logWarn } from "../observability/logger";
@@ -46,9 +47,18 @@ function isAuthRoute(req: Request): boolean {
 
 function isIdempotencyExempt(req: Request): boolean {
   return (
-    req.path === "/client/submissions" ||
     req.path === "/webhooks/twilio/voice"
   );
+}
+
+function isOptionalIdempotencyRoute(req: Request): boolean {
+  if (req.path === "/client/submissions") {
+    return true;
+  }
+  if (req.path === "/client/documents" || req.path.startsWith("/client/documents/")) {
+    return true;
+  }
+  return false;
 }
 
 function shouldBypass(error: unknown): boolean {
@@ -63,12 +73,16 @@ export function idempotencyMiddleware(
   res: Response,
   next: NextFunction
 ): void {
+  if (!getIdempotencyEnabled()) return next();
   if (isAuthRoute(req)) return next();
   if (isIdempotencyExempt(req)) return next();
   if (!ENFORCED_METHODS.has(req.method)) return next();
 
   const rawKey = req.get(IDEMPOTENCY_HEADER)?.trim();
   if (!rawKey) {
+    if (isOptionalIdempotencyRoute(req)) {
+      return next();
+    }
     if (!isProductionEnvironment()) {
       logWarn("idempotency_key_missing", {
         route: req.originalUrl,
@@ -106,12 +120,15 @@ export function idempotencyMiddleware(
   }
 
   const lockKey = advisoryLockKey(`${route}:${rawKey}`);
+  const shouldLock = !isTestEnvironment();
 
   (async () => {
     try {
       const client = await pool.connect();
       try {
-        await client.query("select pg_advisory_lock($1,$2)", lockKey);
+        if (shouldLock) {
+          await client.query("select pg_advisory_lock($1,$2)", lockKey);
+        }
 
         const existing = await findIdempotencyRecord({
           route,
@@ -141,6 +158,12 @@ export function idempotencyMiddleware(
           res.status(existing.response_code).json(existing.response_body);
           return;
         }
+
+        await deleteExpiredIdempotencyRecord({
+          route,
+          idempotencyKey: rawKey,
+          client,
+        });
 
         const wrap = <T extends (...args: any[]) => any>(fn: T): T =>
           ((body: unknown) => {
@@ -172,9 +195,11 @@ export function idempotencyMiddleware(
           });
         }
       } finally {
-        try {
-          await client.query("select pg_advisory_unlock($1,$2)", lockKey);
-        } catch {}
+        if (shouldLock) {
+          try {
+            await client.query("select pg_advisory_unlock($1,$2)", lockKey);
+          } catch {}
+        }
         client.release();
       }
     } catch (err) {

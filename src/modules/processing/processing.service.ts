@@ -4,6 +4,8 @@ import { getDocumentTypeAliases } from "../../db/schema/requiredDocuments";
 import { advanceProcessingStage } from "../applications/processingStage.service";
 import type { PoolClient } from "pg";
 import { getCircuitBreaker } from "../../utils/circuitBreaker";
+import { getRetryPolicyEnabled } from "../../config";
+import { assertRetryAllowed } from "./retryPolicy";
 
 const BANK_STATEMENT_CATEGORY = "bank_statements_6_months";
 const OCR_BREAKER = getCircuitBreaker("ocr_job_creation", {
@@ -27,6 +29,7 @@ type DocumentProcessingJobRecord = {
   retry_count?: number;
   last_retry_at?: Date | null;
   max_retries?: number;
+  updated_at?: Date;
 };
 
 type BankingAnalysisJobRecord = {
@@ -38,6 +41,7 @@ type BankingAnalysisJobRecord = {
   retry_count?: number;
   last_retry_at?: Date | null;
   max_retries?: number;
+  updated_at?: Date;
 };
 
 
@@ -84,13 +88,44 @@ export async function createDocumentProcessingJob(
     await client.query("begin");
     await lockDocument({ applicationId, documentId, client });
     const existing = await client.query<DocumentProcessingJobRecord>(
-      `select id, application_id, document_id, status, created_at, completed_at
+      `select id, application_id, document_id, status, created_at, completed_at,
+              retry_count, last_retry_at, max_retries, updated_at
        from document_processing_jobs
        where application_id = $1 and document_id = $2`,
       [applicationId, documentId]
     );
     const existingRecord = existing.rows[0];
     if (existingRecord) {
+      if (
+        getRetryPolicyEnabled() &&
+        existingRecord.status === "failed"
+      ) {
+        const retryCount = existingRecord.retry_count ?? 0;
+        const maxRetries = existingRecord.max_retries ?? 3;
+        assertRetryAllowed({
+          retryCount,
+          maxRetries,
+          lastRetryAt: existingRecord.last_retry_at ?? null,
+          baseDelayMs: 30_000,
+        });
+        const updated = await client.query<DocumentProcessingJobRecord>(
+          `update document_processing_jobs
+           set status = 'pending',
+               retry_count = retry_count + 1,
+               last_retry_at = now(),
+               updated_at = now(),
+               completed_at = null,
+               error_message = null
+           where id = $1
+           returning id, application_id, document_id, status, created_at, completed_at,
+                     retry_count, last_retry_at, max_retries, updated_at`,
+          [existingRecord.id]
+        );
+        await advanceProcessingStage({ applicationId, client });
+        await client.query("commit");
+        OCR_BREAKER.recordSuccess();
+        return updated.rows[0] ?? existingRecord;
+      }
       await client.query("commit");
       return existingRecord;
     }
@@ -110,7 +145,12 @@ export async function createDocumentProcessingJob(
     OCR_BREAKER.recordSuccess();
     return insertedRecord;
   } catch (err) {
-    OCR_BREAKER.recordFailure();
+    if (
+      !(err instanceof AppError) ||
+      !["retry_backoff", "retry_exhausted"].includes(err.code)
+    ) {
+      OCR_BREAKER.recordFailure();
+    }
     await client.query("rollback");
     throw err;
   } finally {
@@ -213,13 +253,44 @@ export async function createBankingAnalysisJob(
     await client.query("begin");
     await lockApplication({ applicationId, client });
     const existing = await client.query<BankingAnalysisJobRecord>(
-      `select id, application_id, status, created_at, completed_at
+      `select id, application_id, status, created_at, completed_at,
+              retry_count, last_retry_at, max_retries, updated_at
        from banking_analysis_jobs
        where application_id = $1`,
       [applicationId]
     );
     const existingRecord = existing.rows[0];
     if (existingRecord) {
+      if (
+        getRetryPolicyEnabled() &&
+        existingRecord.status === "failed"
+      ) {
+        const retryCount = existingRecord.retry_count ?? 0;
+        const maxRetries = existingRecord.max_retries ?? 2;
+        assertRetryAllowed({
+          retryCount,
+          maxRetries,
+          lastRetryAt: existingRecord.last_retry_at ?? null,
+          baseDelayMs: 30_000,
+        });
+        const updated = await client.query<BankingAnalysisJobRecord>(
+          `update banking_analysis_jobs
+           set status = 'pending',
+               retry_count = retry_count + 1,
+               last_retry_at = now(),
+               updated_at = now(),
+               completed_at = null,
+               error_message = null
+           where id = $1
+           returning id, application_id, status, created_at, completed_at,
+                     retry_count, last_retry_at, max_retries, updated_at`,
+          [existingRecord.id]
+        );
+        await advanceProcessingStage({ applicationId, client });
+        await client.query("commit");
+        BANKING_BREAKER.recordSuccess();
+        return updated.rows[0] ?? existingRecord;
+      }
       await client.query("commit");
       BANKING_BREAKER.recordSuccess();
       return existingRecord;
@@ -255,7 +326,12 @@ export async function createBankingAnalysisJob(
     BANKING_BREAKER.recordSuccess();
     return insertedRecord;
   } catch (err) {
-    BANKING_BREAKER.recordFailure();
+    if (
+      !(err instanceof AppError) ||
+      !["retry_backoff", "retry_exhausted"].includes(err.code)
+    ) {
+      BANKING_BREAKER.recordFailure();
+    }
     await client.query("rollback");
     throw err;
   } finally {

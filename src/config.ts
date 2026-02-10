@@ -338,7 +338,22 @@ export function getGlobalRateLimitMaxConfig(): number {
 }
 
 export function getRateLimitEnabled(): boolean {
+  if (process.env.ENABLE_RATE_LIMITING !== undefined) {
+    return parseBoolean(process.env.ENABLE_RATE_LIMITING, !isTestEnv());
+  }
   return parseBoolean(process.env.RATE_LIMIT_ENABLED, !isTestEnv());
+}
+
+export function getIdempotencyEnabled(): boolean {
+  return parseBoolean(process.env.ENABLE_IDEMPOTENCY, true);
+}
+
+export function getAuditHistoryEnabled(): boolean {
+  return parseBoolean(process.env.ENABLE_AUDIT_HISTORY, true);
+}
+
+export function getRetryPolicyEnabled(): boolean {
+  return parseBoolean(process.env.ENABLE_RETRY_POLICY, true);
 }
 
 export function getAppInsightsConnectionStringConfig(): string {
