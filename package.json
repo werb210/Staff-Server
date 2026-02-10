@@ -22,6 +22,8 @@
   "dependencies": {
     "@azure/storage-blob": "^12.29.1",
     "@types/multer": "^2.0.0",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
     "applicationinsights": "^3.12.1",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
@@ -51,8 +53,8 @@
     "jest": "^30.0.5",
     "pg-mem": "^3.0.5",
     "supertest": "^7.1.4",
-    "ts-node": "^10.9.2",
     "ts-jest": "^29.4.0",
+    "ts-node": "^10.9.2",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3",
     "vitest": "^4.0.17"

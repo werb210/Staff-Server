@@ -3,6 +3,21 @@
   "routes": {
     "client": [
       {
+        "method": "GET",
+        "path": "/api/client/application/:id/status",
+        "classification": "read"
+      },
+      {
+        "method": "POST",
+        "path": "/api/client/applications",
+        "classification": "write"
+      },
+      {
+        "method": "PATCH",
+        "path": "/api/client/applications/:id",
+        "classification": "write"
+      },
+      {
         "method": "POST",
         "path": "/api/client/documents",
         "classification": "write"
@@ -60,11 +75,6 @@
         "classification": "read"
       },
       {
-        "method": "POST",
-        "path": "/api/portal/applications/:id/promote",
-        "classification": "write"
-      },
-      {
         "method": "GET",
         "path": "/api/portal/applications/:id",
         "classification": "read"
@@ -75,14 +85,29 @@
         "classification": "read"
       },
       {
-        "method": "GET",
-        "path": "/api/portal/applications/stages",
-        "classification": "read"
+        "method": "POST",
+        "path": "/api/portal/applications/:id/promote",
+        "classification": "write"
+      },
+      {
+        "method": "POST",
+        "path": "/api/portal/applications/:id/retry",
+        "classification": "write"
       },
       {
         "method": "POST",
         "path": "/api/portal/applications/:id/retry-job",
         "classification": "write"
+      },
+      {
+        "method": "PATCH",
+        "path": "/api/portal/applications/:id/status",
+        "classification": "write"
+      },
+      {
+        "method": "GET",
+        "path": "/api/portal/applications/stages",
+        "classification": "read"
       },
       {
         "method": "GET",
@@ -98,6 +123,16 @@
         "method": "POST",
         "path": "/api/portal/jobs/:id/retry",
         "classification": "write"
+      },
+      {
+        "method": "GET",
+        "path": "/api/portal/lenders",
+        "classification": "read"
+      },
+      {
+        "method": "GET",
+        "path": "/api/portal/offers",
+        "classification": "read"
       }
     ]
   }
