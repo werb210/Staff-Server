@@ -32,10 +32,13 @@ import { type PoolClient } from "pg";
 import {
   PIPELINE_STATES,
   ApplicationStage,
-  canTransition,
   isPipelineState,
   type PipelineState,
 } from "./pipelineState";
+import {
+  assertPipelineState,
+  assertPipelineTransition,
+} from "./applicationLifecycle.service";
 import { getDocumentAllowedMimeTypes, getDocumentMaxSizeBytes } from "../../config";
 import { recordTransactionRollback } from "../../observability/transactionTelemetry";
 import { resolveRequirementsForApplication } from "../../services/lenderProductRequirementsService";
@@ -312,15 +315,6 @@ async function enforceDocumentsRequiredStage(params: {
     });
     return;
   }
-
-  await createApplicationStageEvent({
-    applicationId: params.application.id,
-    fromStage: params.application.pipeline_state,
-    toStage: ApplicationStage.DOCUMENTS_REQUIRED,
-    trigger: params.trigger,
-    triggeredBy: params.actorUserId ?? "system",
-    ...(params.client ? { client: params.client } : {}),
-  });
 }
 
 export async function transitionPipelineState(params: {
@@ -329,6 +323,7 @@ export async function transitionPipelineState(params: {
   actorUserId: string | null;
   actorRole: Role | null;
   trigger: string;
+  reason?: string | null;
   ip?: string;
   userAgent?: string;
   client?: Queryable;
@@ -367,11 +362,15 @@ export async function transitionPipelineState(params: {
     }
   }
 
-  if (!isPipelineState(application.pipeline_state)) {
-    throw new AppError("invalid_state", "Pipeline state is invalid.", 400);
-  }
-
-  if (!canTransition(application.pipeline_state, params.nextState)) {
+  const currentStage = assertPipelineState(application.pipeline_state);
+  let transition;
+  try {
+    transition = assertPipelineTransition({
+      currentStage,
+      nextStage: params.nextState,
+      status: application.status,
+    });
+  } catch (error) {
     const auditPayload = {
       action: "pipeline_state_changed",
       actorUserId: params.actorUserId,
@@ -382,7 +381,10 @@ export async function transitionPipelineState(params: {
       ...(params.client ? { client: params.client } : {}),
     };
     await recordAuditEvent(auditPayload);
-    throw new AppError("invalid_transition", "Invalid pipeline transition.", 400);
+    throw error;
+  }
+  if (!transition.shouldTransition) {
+    return;
   }
 
   await updateApplicationPipelineState({
@@ -392,10 +394,11 @@ export async function transitionPipelineState(params: {
   });
   await createApplicationStageEvent({
     applicationId: params.applicationId,
-    fromStage: application.pipeline_state,
+    fromStage: currentStage,
     toStage: params.nextState,
     trigger: params.trigger,
     triggeredBy: params.actorUserId ?? "system",
+    reason: params.reason ?? null,
     ...(params.client ? { client: params.client } : {}),
   });
   const auditSuccessPayload = {
@@ -418,7 +421,7 @@ export async function transitionPipelineState(params: {
     userAgent: params.userAgent ?? null,
     success: true,
     metadata: {
-      from: application.pipeline_state,
+      from: currentStage,
       to: params.nextState,
     },
     ...(params.client ? { client: params.client } : {}),

@@ -23,6 +23,11 @@
         "classification": "write"
       },
       {
+        "method": "POST",
+        "path": "/api/client/documents/upload",
+        "classification": "write"
+      },
+      {
         "method": "GET",
         "path": "/api/client/lender-products",
         "classification": "read"
@@ -72,6 +77,16 @@
       {
         "method": "GET",
         "path": "/api/portal/applications/stages",
+        "classification": "read"
+      },
+      {
+        "method": "POST",
+        "path": "/api/portal/applications/:id/retry-job",
+        "classification": "write"
+      },
+      {
+        "method": "GET",
+        "path": "/api/portal/documents/:id/history",
         "classification": "read"
       },
       {

@@ -91,6 +91,7 @@ export type ApplicationStageEventRecord = {
   to_stage: string;
   trigger: string;
   triggered_by: string;
+  reason: string | null;
   created_at: Date;
 };
 
@@ -361,14 +362,15 @@ export async function createApplicationStageEvent(params: {
   toStage: string;
   trigger: string;
   triggeredBy: string;
+  reason?: string | null;
   client?: Queryable;
 }): Promise<ApplicationStageEventRecord> {
   const runner = params.client ?? pool;
   const res = await runner.query<ApplicationStageEventRecord>(
     `insert into application_stage_events
-     (id, application_id, from_stage, to_stage, trigger, triggered_by, created_at)
-     values ($1, $2, $3, $4, $5, $6, now())
-     returning id, application_id, from_stage, to_stage, trigger, triggered_by, created_at`,
+     (id, application_id, from_stage, to_stage, trigger, triggered_by, reason, created_at)
+     values ($1, $2, $3, $4, $5, $6, $7, now())
+     returning id, application_id, from_stage, to_stage, trigger, triggered_by, reason, created_at`,
     [
       randomUUID(),
       params.applicationId,
@@ -376,6 +378,7 @@ export async function createApplicationStageEvent(params: {
       params.toStage,
       params.trigger,
       params.triggeredBy,
+      params.reason ?? null,
     ]
   );
   return requireRow(res.rows, "application stage event");
@@ -387,7 +390,7 @@ export async function listApplicationStageEvents(params: {
 }): Promise<ApplicationStageEventRecord[]> {
   const runner = params.client ?? pool;
   const res = await runner.query<ApplicationStageEventRecord>(
-    `select id, application_id, from_stage, to_stage, trigger, triggered_by, created_at
+    `select id, application_id, from_stage, to_stage, trigger, triggered_by, reason, created_at
      from application_stage_events
      where application_id = $1
      order by created_at asc`,

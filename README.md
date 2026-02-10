@@ -59,6 +59,7 @@ Avoid static-site startup modes (such as `serve`, blank startup commands, or SPA
 Client applications can be submitted without authentication:
 
 - `POST /api/client/submissions`
+- `POST /api/client/documents` (alias: `/api/client/documents/upload`)
 
 Payloads must include `submissionKey`, `productType`, `business`, `applicant`, and `documents`.
 Submissions are idempotent by `submissionKey`, persist applications in `DOCUMENTS_REQUIRED`, and attach documents
@@ -84,6 +85,22 @@ Admin visibility and controls:
 
 Failed lender submissions create retry state with exponential backoff and a maximum retry count.
 Manual retries can be triggered via admin endpoints and are fully audited.
+
+## Portal admin helpers
+
+- `POST /api/portal/applications/:id/promote` – promote to the next valid stage (requires `reason`)
+- `POST /api/portal/applications/:id/retry-job` – force retry of the latest failed processing job
+- `GET /api/portal/applications/:id/history` – application stage history (supports pagination + filters)
+- `GET /api/portal/jobs/:id/history` – processing job history (supports pagination + filters)
+- `GET /api/portal/documents/:id/history` – document status history (supports pagination + filters)
+
+## Audit history views
+
+Read-only history views back the portal endpoints:
+
+- `application_pipeline_history`
+- `document_status_history`
+- `processing_job_history`
 
 ## Business intelligence reporting
 
@@ -125,6 +142,10 @@ Disable OCR by setting `OCR_ENABLED=false` or by enabling the OCR kill switch
 - `LENDER_RETRY_BASE_DELAY_MS`
 - `LENDER_RETRY_MAX_DELAY_MS`
 - `LENDER_RETRY_MAX_COUNT`
+- `ENABLE_RATE_LIMITING` (default: true)
+- `ENABLE_AUDIT_HISTORY` (default: true)
+- `ENABLE_RETRY_POLICY` (default: true)
+- `ENABLE_IDEMPOTENCY` (default: true)
 - `OCR_ENABLED` (default: true)
 - `OCR_PROVIDER` (default: openai)
 - `OCR_TIMEOUT_MS`
@@ -199,6 +220,14 @@ curl -X POST -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"productType":"term_loan","format":"csv"}' \
   http://localhost:8080/api/admin/exports/applications
+```
+
+## Backfill utility
+
+Recompute pipeline and processing stages for legacy applications:
+
+```bash
+tsx scripts/backfillApplications.ts --dry-run --verbose
 ```
 
 ## Emergency Kill Switches

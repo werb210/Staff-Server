@@ -87,7 +87,7 @@ describe("portal history endpoints", () => {
   it("enforces read-only views", async () => {
     await expect(
       pool.query(
-        `insert into application_pipeline_history_view
+        `insert into application_pipeline_history
          (application_id, from_stage, to_stage, trigger, actor_id, actor_type, occurred_at)
          values ($1, $2, $3, $4, $5, $6, now())`,
         [randomUUID(), "RECEIVED", "IN_REVIEW", "manual", "system", "system"]

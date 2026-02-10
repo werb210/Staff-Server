@@ -25,11 +25,26 @@ export async function findIdempotencyRecord(params: {
      from idempotency_keys
      where route = $1
        and key = $2
-       and created_at >= (now() - interval '24 hours')
+       and created_at >= (localtimestamp - interval '24 hours')
      limit 1`,
     [params.route, params.idempotencyKey]
   );
   return res.rows[0] ?? null;
+}
+
+export async function deleteExpiredIdempotencyRecord(params: {
+  route: string;
+  idempotencyKey: string;
+  client?: Queryable;
+}): Promise<void> {
+  const runner = params.client ?? pool;
+  await runner.query(
+    `delete from idempotency_keys
+     where route = $1
+       and key = $2
+       and created_at < (localtimestamp - interval '24 hours')`,
+    [params.route, params.idempotencyKey]
+  );
 }
 
 export async function createIdempotencyRecord(params: {

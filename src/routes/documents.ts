@@ -50,103 +50,102 @@ function buildRequestMetadata(req: Request): { ip?: string; userAgent?: string }
   return metadata;
 }
 
-router.post(
-  "/",
-  upload.single("file"),
-  safeHandler(async (req, res) => {
-    const applicationId = typeof req.body?.applicationId === "string"
-      ? req.body.applicationId.trim()
-      : "";
-    const category =
-      typeof req.body?.category === "string" ? req.body.category.trim() : "";
-    if (!applicationId) {
-      throw new AppError("validation_error", "applicationId is required.", 400);
-    }
-    if (!category) {
-      throw new AppError("validation_error", "category is required.", 400);
-    }
-    if (!req.file) {
-      throw new AppError("validation_error", "file is required.", 400);
-    }
+const uploadHandler = safeHandler(async (req, res) => {
+  const applicationId = typeof req.body?.applicationId === "string"
+    ? req.body.applicationId.trim()
+    : "";
+  const category =
+    typeof req.body?.category === "string" ? req.body.category.trim() : "";
+  if (!applicationId) {
+    throw new AppError("validation_error", "applicationId is required.", 400);
+  }
+  if (!category) {
+    throw new AppError("validation_error", "category is required.", 400);
+  }
+  if (!req.file) {
+    throw new AppError("validation_error", "file is required.", 400);
+  }
 
-    const application = await findApplicationById(applicationId);
-    if (!application) {
-      throw new AppError("not_found", "Application not found.", 404);
+  const application = await findApplicationById(applicationId);
+  if (!application) {
+    throw new AppError("not_found", "Application not found.", 404);
+  }
+
+  const { requirements } = await resolveRequirementsForApplication({
+    lenderProductId: application.lender_product_id ?? null,
+    productType: application.product_type,
+    requestedAmount: application.requested_amount ?? null,
+    country:
+      typeof application.metadata === "object" && application.metadata !== null
+        ? (application.metadata as { country?: string }).country ?? null
+        : null,
+  });
+  const normalizedCategory = normalizeRequiredDocumentKey(category) ?? category;
+  const requirement = requirements.find((item) => {
+    const normalizedRequirement = normalizeRequiredDocumentKey(item.documentType);
+    if (normalizedRequirement) {
+      return normalizedRequirement === normalizedCategory;
     }
+    return item.documentType === category;
+  });
+  if (!requirement) {
+    throw new AppError("invalid_document_type", "Document type is not allowed.", 400);
+  }
 
-    const { requirements } = await resolveRequirementsForApplication({
-      lenderProductId: application.lender_product_id ?? null,
-      productType: application.product_type,
-      requestedAmount: application.requested_amount ?? null,
-      country:
-        typeof application.metadata === "object" && application.metadata !== null
-          ? (application.metadata as { country?: string }).country ?? null
-          : null,
-    });
-    const normalizedCategory = normalizeRequiredDocumentKey(category) ?? category;
-    const requirement = requirements.find((item) => {
-      const normalizedRequirement = normalizeRequiredDocumentKey(item.documentType);
-      if (normalizedRequirement) {
-        return normalizedRequirement === normalizedCategory;
-      }
-      return item.documentType === category;
-    });
-    if (!requirement) {
-      throw new AppError("invalid_document_type", "Document type is not allowed.", 400);
-    }
-
-    const document = await createDocument({
-      applicationId,
-      ownerUserId: application.owner_user_id,
-      title: req.file.originalname,
-      documentType: category,
-      filename: req.file.originalname,
-      uploadedBy: "client",
-    });
-    const nextVersion = (await getLatestDocumentVersion(document.id)) + 1;
-    const storageKey = `documents/${document.id}/${req.file.originalname}`;
-    await createDocumentVersion({
-      documentId: document.id,
-      version: nextVersion,
-      metadata: {
-        fileName: req.file.originalname,
-        mimeType: req.file.mimetype,
-        size: req.file.size,
-        storageKey,
-      },
-      content: req.file.buffer.toString("base64"),
-    });
-    await updateDocumentUploadDetails({
-      documentId: document.id,
-      status: "uploaded",
-      filename: req.file.originalname,
-      storageKey,
-      uploadedBy: "client",
-    });
-    await upsertApplicationRequiredDocument({
-      applicationId,
-      documentCategory: normalizedCategory,
-      isRequired: requirement.required !== false,
-      status: "uploaded",
-    });
-
-    if (normalizedCategory === BANK_STATEMENT_CATEGORY) {
-      await createBankingAnalysisJob(applicationId);
-    } else {
-      await createDocumentProcessingJob(applicationId, document.id);
-    }
-
-    res.status(201).json({
-      documentId: document.id,
-      applicationId,
-      category,
-      filename: req.file.originalname,
+  const document = await createDocument({
+    applicationId,
+    ownerUserId: application.owner_user_id,
+    title: req.file.originalname,
+    documentType: category,
+    filename: req.file.originalname,
+    uploadedBy: "client",
+  });
+  const nextVersion = (await getLatestDocumentVersion(document.id)) + 1;
+  const storageKey = `documents/${document.id}/${req.file.originalname}`;
+  await createDocumentVersion({
+    documentId: document.id,
+    version: nextVersion,
+    metadata: {
+      fileName: req.file.originalname,
+      mimeType: req.file.mimetype,
       size: req.file.size,
       storageKey,
-      createdAt: document.created_at,
-    });
-  })
-);
+    },
+    content: req.file.buffer.toString("base64"),
+  });
+  await updateDocumentUploadDetails({
+    documentId: document.id,
+    status: "uploaded",
+    filename: req.file.originalname,
+    storageKey,
+    uploadedBy: "client",
+  });
+  await upsertApplicationRequiredDocument({
+    applicationId,
+    documentCategory: normalizedCategory,
+    isRequired: requirement.required !== false,
+    status: "uploaded",
+  });
+
+  if (normalizedCategory === BANK_STATEMENT_CATEGORY) {
+    await createBankingAnalysisJob(applicationId);
+  } else {
+    await createDocumentProcessingJob(applicationId, document.id);
+  }
+
+  res.status(201).json({
+    documentId: document.id,
+    applicationId,
+    category,
+    filename: req.file.originalname,
+    size: req.file.size,
+    storageKey,
+    createdAt: document.created_at,
+  });
+});
+
+router.post("/", upload.single("file"), uploadHandler);
+router.post("/upload", upload.single("file"), uploadHandler);
 
 router.get(
   "/:id/presign",

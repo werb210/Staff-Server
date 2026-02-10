@@ -5,7 +5,10 @@ import {
   ensureApplicationRequiredDocumentDefinition,
   listApplicationRequiredDocuments,
 } from "../src/modules/applications/applications.repo";
-import { normalizeProcessingStage } from "../src/modules/applications/processingStage.service";
+import {
+  advanceProcessingStage,
+  normalizeProcessingStage,
+} from "../src/modules/applications/processingStage.service";
 import { ApplicationStage, isPipelineState } from "../src/modules/applications/pipelineState";
 
 type BackfillOptions = {
@@ -58,6 +61,13 @@ async function backfillApplicationStages(
   const nextProcessingStage = normalizeProcessingStage(app.processing_stage);
 
   if (options.dryRun) {
+    if (app.pipeline_state !== pipelineState) {
+      logVerbose(options, "Would normalize pipeline_state", {
+        applicationId: app.id,
+        from: app.pipeline_state,
+        to: pipelineState,
+      });
+    }
     if (app.current_stage !== nextCurrentStage) {
       logVerbose(options, "Would backfill current_stage", {
         applicationId: app.id,
@@ -75,17 +85,23 @@ async function backfillApplicationStages(
     return;
   }
 
-  if (app.current_stage !== nextCurrentStage || app.processing_stage !== nextProcessingStage) {
+  if (
+    app.pipeline_state !== pipelineState ||
+    app.current_stage !== nextCurrentStage ||
+    app.processing_stage !== nextProcessingStage
+  ) {
     await pool.query(
       `update applications
-       set current_stage = $2,
-           processing_stage = $3,
+       set pipeline_state = $2,
+           current_stage = $3,
+           processing_stage = $4,
            updated_at = now()
        where id = $1`,
-      [app.id, nextCurrentStage, nextProcessingStage]
+      [app.id, pipelineState, nextCurrentStage, nextProcessingStage]
     );
     logVerbose(options, "Backfilled stages", {
       applicationId: app.id,
+      pipelineState,
       currentStage: nextCurrentStage,
       processingStage: nextProcessingStage,
     });
@@ -214,6 +230,28 @@ export async function backfillApplications(
     await backfillApplicationStages(app, options);
     await backfillRequiredDocuments(app, options);
     await backfillCompletionTimestamps(app, options);
+    if (options.dryRun) {
+      const client = await pool.connect();
+      try {
+        await client.query("begin");
+        const stage = await advanceProcessingStage({
+          applicationId: app.id,
+          client,
+        });
+        await client.query("rollback");
+        if (stage !== normalizeProcessingStage(app.processing_stage)) {
+          logVerbose(options, "Would recompute processing_stage", {
+            applicationId: app.id,
+            from: app.processing_stage,
+            to: stage,
+          });
+        }
+      } finally {
+        client.release();
+      }
+    } else {
+      await advanceProcessingStage({ applicationId: app.id });
+    }
   }
 }
 

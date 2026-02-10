@@ -3,6 +3,8 @@ import { pool } from "../../db";
 import { AppError } from "../../middleware/errors";
 import { getCircuitBreaker } from "../../utils/circuitBreaker";
 import type { PoolClient } from "pg";
+import { getRetryPolicyEnabled } from "../../config";
+import { assertRetryAllowed } from "./retryPolicy";
 
 type Queryable = Pick<PoolClient, "query">;
 
@@ -42,8 +44,34 @@ export async function ensureCreditSummaryJob(params: {
     [params.applicationId]
   );
   if (existing.rows[0]) {
+    const existingRecord = existing.rows[0];
+    if (getRetryPolicyEnabled() && existingRecord.status === "failed") {
+      const retryCount = existingRecord.retry_count ?? 0;
+      const maxRetries = existingRecord.max_retries ?? 1;
+      assertRetryAllowed({
+        retryCount,
+        maxRetries,
+        lastRetryAt: existingRecord.last_retry_at ?? null,
+        baseDelayMs: 30_000,
+      });
+      const updated = await runner.query<CreditSummaryJobRecord>(
+        `update credit_summary_jobs
+         set status = 'pending',
+             retry_count = retry_count + 1,
+             last_retry_at = now(),
+             updated_at = now(),
+             completed_at = null,
+             error_message = null
+         where id = $1
+         returning id, application_id, status, retry_count, last_retry_at, max_retries,
+                   started_at, completed_at, error_message, created_at, updated_at`,
+        [existingRecord.id]
+      );
+      CREDIT_BREAKER.recordSuccess();
+      return updated.rows[0] ?? existingRecord;
+    }
     CREDIT_BREAKER.recordSuccess();
-    return existing.rows[0];
+    return existingRecord;
   }
   const res = await runner.query<CreditSummaryJobRecord>(
     `insert into credit_summary_jobs
