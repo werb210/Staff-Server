@@ -20,6 +20,12 @@ const requiredColumns: RequiredColumn[] = [
   { table: "lender_product_requirements", column: "lender_product_id" },
   { table: "lender_product_requirements", column: "document_type" },
   { table: "lender_product_requirements", column: "created_at" },
+  { table: "ai_knowledge_documents", column: "id" },
+  { table: "ai_knowledge_chunks", column: "id" },
+  { table: "chat_sessions", column: "id" },
+  { table: "chat_messages", column: "id" },
+  { table: "issue_reports", column: "id" },
+  { table: "ai_prequal_sessions", column: "id" },
 ];
 
 export async function assertRequiredSchema(): Promise<void> {

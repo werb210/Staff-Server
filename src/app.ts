@@ -29,6 +29,7 @@ import authRoutes from "./routes/auth";
 import lendersRoutes from "./routes/lenders";
 import lenderProductsRoutes from "./routes/lenderProducts";
 import applicationsRoutes from "./routes/applications";
+import aiRoutes from "./routes/ai";
 import internalRoutes from "./routes/_int";
 import { intHealthHandler } from "./routes/_int/health";
 import { runtimeHandler } from "./routes/_int/runtime";
@@ -228,6 +229,7 @@ export function registerApiRoutes(app: express.Express): void {
     { path: "/lenders", router: lendersRoutes },
     { path: "/lender-products", router: lenderProductsRoutes },
     { path: "/applications", router: applicationsRoutes },
+    { path: "/ai", router: aiRoutes },
   ];
   const explicitPaths = new Set([
     "/_int",
