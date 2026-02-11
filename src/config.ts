@@ -392,3 +392,12 @@ export function getDbPoolConnectionTimeoutMs(): number {
 export function shouldRunMigrations(): boolean {
   return isProductionEnvironment() || process.env.RUN_MIGRATIONS === "true";
 }
+
+
+export function getAiModel(): string {
+  return process.env.AI_MODEL ?? "gpt-4o-mini";
+}
+
+export function getAiEmbeddingModel(): string {
+  return process.env.AI_EMBED_MODEL ?? "text-embedding-3-small";
+}
