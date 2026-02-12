@@ -51,6 +51,9 @@ import chatRoutes from "./routes/chat";
 import supportRoutes from "./routes/support";
 import publicRoutes from "./routes/public";
 import analyticsRoutes from "./routes/analytics";
+import readinessRoutes from "./routes/readiness";
+import productComparisonRoutes from "./routes/productComparison";
+import { publicLimiter as publicRouteLimiter } from "./middleware/rateLimiter";
 
 function assertRoutesMounted(app: express.Express): void {
   const mountedRoutes = listRoutes(app);
@@ -212,12 +215,15 @@ export async function initializeServer(): Promise<void> {
 export function registerApiRoutes(app: express.Express): void {
   assertApiV1Frozen();
   app.use(envCheck);
-  app.use("/api/contact", contactRoute);
+  app.use("/api/contact", publicRouteLimiter, contactRoute);
   app.use("/api/report", issueRoutes);
+  app.use("/api/report-issue", publicRouteLimiter, issueRoutes);
   app.use("/api/chat", publicLimiter, chatRoutes);
   app.use("/api/support", publicLimiter, supportRoutes);
   app.use("/api/public", publicLimiter, publicRoutes);
   app.use("/api/analytics", analyticsRoutes);
+  app.use("/api/readiness", readinessRoutes);
+  app.use("/api/product-comparison", productComparisonRoutes);
   app.use("/api/lead", leadRoute);
   app.use("/api/healthz", healthRoute);
 
@@ -266,6 +272,10 @@ export function registerApiRoutes(app: express.Express): void {
     ...explicitMounts.map((entry) => entry.path),
   ]);
   explicitMounts.forEach((entry) => {
+    if (entry.path === "/ai") {
+      app.use(`/api${entry.path}`, publicRouteLimiter, entry.router);
+      return;
+    }
     app.use(`/api${entry.path}`, entry.router);
   });
   API_ROUTE_MOUNTS.filter((entry) => !explicitPaths.has(entry.path)).forEach(

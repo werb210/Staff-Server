@@ -174,7 +174,11 @@ export const postAiChat = safeHandler(async (req: Request, res: Response) => {
 });
 
 export const postAiEscalate = safeHandler(async (req: Request, res: Response) => {
-  const { sessionId, escalatedTo } = req.body as { sessionId?: string; escalatedTo?: string };
+  const { sessionId, escalatedTo, messages } = req.body as {
+    sessionId?: string;
+    escalatedTo?: string;
+    messages?: unknown;
+  };
   if (!sessionId) {
     res.status(400).json({ code: "invalid_request", message: "sessionId is required" });
     return;
@@ -185,6 +189,12 @@ export const postAiEscalate = safeHandler(async (req: Request, res: Response) =>
      set status = 'escalated', escalated_to = $2, updated_at = now()
      where id = $1`,
     [sessionId, escalatedTo ?? null]
+  );
+
+  await pool.query(
+    `insert into ai_escalations (id, session_id, messages, status, created_at)
+     values ($1, $2, $3::jsonb, 'open', now())`,
+    [randomUUID(), sessionId, JSON.stringify(messages ?? [])]
   );
 
   emitAiEscalation({

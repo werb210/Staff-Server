@@ -20,8 +20,8 @@ function ensureUploadDir(): void {
   }
 }
 
-router.post("/chat", requireAuth, postAiChat);
-router.post("/escalate", requireAuth, postAiEscalate);
+router.post("/chat", postAiChat);
+router.post("/escalate", postAiEscalate);
 
 router.post(
   "/knowledge",
