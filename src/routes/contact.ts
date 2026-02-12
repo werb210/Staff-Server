@@ -8,6 +8,7 @@ import { validateBody } from "../middleware/validate";
 import { getTwilioClient } from "../services/twilio";
 import { pushLeadToCRM } from "../services/crmWebhook";
 import { retry } from "../utils/retry";
+import { withTimeout } from "../utils/withTimeout";
 import { logger } from "../utils/logger";
 
 const schema = Joi.object({
@@ -36,12 +37,14 @@ router.post("/", contactRateLimiter, validateBody(schema), async (req, res) => {
 
     const client = getTwilioClient();
 
-    await retry(async () =>
-      client.messages.create({
-      body: `New Contact:\nCompany: ${company}\nName: ${firstName} ${lastName}\nEmail: ${email}\nPhone: ${phone}`,
-      from: process.env.TWILIO_PHONE as string,
-      to: "+15878881837",
-      })
+    await withTimeout(
+      retry(async () =>
+        client.messages.create({
+          body: `New website contact:\n${company}\n${firstName} ${lastName}\n${email}\n${phone}`,
+          from: (process.env.TWILIO_NUMBER || process.env.TWILIO_PHONE) as string,
+          to: "+15878881837",
+        })
+      )
     );
 
     const companyId = randomUUID();
@@ -66,7 +69,7 @@ router.post("/", contactRateLimiter, validateBody(schema), async (req, res) => {
     );
 
 
-    await pushLeadToCRM({
+    await withTimeout(pushLeadToCRM({
       type: "contact_form",
       company,
       firstName,
@@ -75,7 +78,7 @@ router.post("/", contactRateLimiter, validateBody(schema), async (req, res) => {
       phone,
       source,
       utm: utm ?? null,
-    });
+    }));
     logger.info("contact_request", { company, email, phone, source, utm: utm ?? null });
     return successResponse(res, {}, "contact submitted");
   } catch (err) {

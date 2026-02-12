@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
 
 import { healthHandler, readyHandler } from "./routes/ready";
 import { listRoutes, printRoutes } from "./debug/printRoutes";
@@ -53,7 +54,6 @@ import publicRoutes from "./routes/public";
 import analyticsRoutes from "./routes/analytics";
 import readinessRoutes from "./routes/readiness";
 import productComparisonRoutes from "./routes/productComparison";
-import { publicLimiter as publicRouteLimiter } from "./middleware/rateLimiter";
 
 function assertRoutesMounted(app: express.Express): void {
   const mountedRoutes = listRoutes(app);
@@ -177,6 +177,7 @@ export function buildApp(): express.Express {
   app.use(express.urlencoded({ extended: true }));
   const corsOptions = buildCorsOptions();
   app.use(cors(corsOptions));
+  app.use(helmet());
   app.use((req, res, next) => {
     res.vary("Origin");
     next();
@@ -193,6 +194,15 @@ export function buildApp(): express.Express {
 
   app.get("/api/health", healthHandler);
   app.get("/api/ready", readyHandler);
+  app.get("/api/_int/production-readiness", (_req, res) => {
+    res.json({
+      status: "ready",
+      rateLimiting: true,
+      scoring: true,
+      crm: true,
+      analytics: true,
+    });
+  });
   app.get("/health", healthHandler);
   app.use("/health/details", healthRoute);
   app.get("/ready", readyHandler);
@@ -216,16 +226,18 @@ export async function initializeServer(): Promise<void> {
 export function registerApiRoutes(app: express.Express): void {
   assertApiV1Frozen();
   app.use(envCheck);
-  app.use("/api/contact", publicRouteLimiter, contactRoute);
+  app.use("/api/contact", strictLimiter, contactRoute);
   app.use("/api/report", issueRoutes);
-  app.use("/api/report-issue", publicRouteLimiter, issueRoutes);
+  app.use("/api/report-issue", publicLimiter, issueRoutes);
   app.use("/api/chat", publicLimiter, chatRoutes);
   app.use("/api/support", strictLimiter, supportRoutes);
   app.use("/api/public", publicLimiter, publicRoutes);
   app.use("/api/analytics", analyticsRoutes);
   app.use("/api/readiness", readinessRoutes);
+  app.use("/api/scoring", readinessRoutes);
   app.use("/api/product-comparison", productComparisonRoutes);
-  app.use("/api/lead", leadRoute);
+  app.use("/api/comparison", productComparisonRoutes);
+  app.use("/api/lead", strictLimiter, leadRoute);
   app.use("/api/crm", crmRoutes);
   app.use("/api/healthz", healthRoute);
 

@@ -20,8 +20,8 @@ const loginLimiter = makeLimiter(20);
 const otpLimiter = makeLimiter(20);
 
 export const apiLimiter = makeLimiter(200, 15 * 60 * 1000);
-export const publicLimiter = makeLimiter(60);
-export const strictLimiter = makeLimiter(10);
+export const publicLimiter = makeLimiter(200, 15 * 60 * 1000);
+export const strictLimiter = makeLimiter(25, 15 * 60 * 1000);
 
 export const adminRateLimit = (max = 120, windowMs = oneMinute) => makeLimiter(max, windowMs);
 export const portalRateLimit = (max = 120, windowMs = oneMinute) => makeLimiter(max, windowMs);
