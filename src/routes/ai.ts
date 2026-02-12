@@ -7,7 +7,8 @@ import { requireAuth } from "../middleware/auth";
 import { safeHandler } from "../middleware/safeHandler";
 import { pool } from "../db";
 import { postAiChat, postAiEscalate } from "../ai/aiChatController";
-import { saveKnowledge } from "../services/aiKnowledgeService";
+import { saveKnowledge as saveKnowledgeDb } from "../services/aiKnowledgeService";
+import { loadKnowledge, saveKnowledge } from "../modules/ai/knowledge.service";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -23,6 +24,11 @@ function ensureUploadDir(): void {
 router.post("/chat", postAiChat);
 router.post("/escalate", postAiEscalate);
 
+
+router.get("/knowledge", (_req, res) => {
+  res.json(loadKnowledge());
+});
+
 router.post(
   "/knowledge",
   safeHandler(async (req, res) => {
@@ -37,11 +43,16 @@ router.post(
       return;
     }
 
-    await saveKnowledge({
+    await saveKnowledgeDb({
       title,
       content,
       ...(sourceType ? { sourceType } : {}),
     });
+
+    const existing = loadKnowledge();
+    existing.push({ title, content, createdAt: new Date().toISOString() });
+    saveKnowledge(existing);
+
     res.json({ success: true });
   })
 );

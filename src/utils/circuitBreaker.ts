@@ -76,3 +76,24 @@ export function getCircuitBreaker(
 export function resetCircuitBreakers(): void {
   breakers.clear();
 }
+
+
+let globalFailureCount = 0;
+let globalBlockedUntil = 0;
+
+export function canProceed(): boolean {
+  if (Date.now() < globalBlockedUntil) return false;
+  return true;
+}
+
+export function recordFailure(): void {
+  globalFailureCount += 1;
+  if (globalFailureCount > 5) {
+    globalBlockedUntil = Date.now() + 60_000;
+  }
+}
+
+export function recordSuccess(): void {
+  globalFailureCount = 0;
+  globalBlockedUntil = 0;
+}
