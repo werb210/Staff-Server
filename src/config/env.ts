@@ -3,6 +3,23 @@ import { logError, logWarn } from "../observability/logger";
 
 dotenv.config();
 
+const REQUIRED = [
+  "DATABASE_URL",
+  "JWT_SECRET",
+  "TWILIO_ACCOUNT_SID",
+  "TWILIO_AUTH_TOKEN",
+  "SENDGRID_API_KEY",
+] as const;
+
+export function validateEnv() {
+  const missing = REQUIRED.filter((key) => !process.env[key]);
+  if (missing.length) {
+    throw new Error(
+      `Missing required environment variables: ${missing.join(", ")}`
+    );
+  }
+}
+
 const requiredRuntimeEnv = [
   "NODE_ENV",
   "DATABASE_URL",
