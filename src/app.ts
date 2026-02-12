@@ -3,7 +3,7 @@ import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 
-import { healthHandler, readyHandler } from "./routes/ready";
+import { readyHandler } from "./routes/ready";
 import { listRoutes, printRoutes } from "./debug/printRoutes";
 import { requestContext } from "./middleware/requestContext";
 import { requestLogger } from "./middleware/requestLogger";
@@ -18,7 +18,7 @@ import {
 import "./startup/envValidation";
 import "./services/twilio";
 import { PORTAL_ROUTE_REQUIREMENTS, API_ROUTE_MOUNTS } from "./routes/routeRegistry";
-import { checkDb } from "./db";
+import { checkDb, db } from "./db";
 import {
   productionLogger,
   requireHttps,
@@ -73,12 +73,15 @@ function assertRoutesMounted(app: express.Express): void {
 }
 
 function getCorsAllowlist(): Set<string> {
-  const frontendUrl = process.env.FRONTEND_URL?.trim();
-  const allowlist = new Set<string>();
-  if (frontendUrl) {
-    allowlist.add(frontendUrl);
-  }
-  return allowlist;
+  const allowedOrigins = [
+    process.env.WEBSITE_URL,
+    process.env.PORTAL_URL,
+    process.env.CLIENT_URL,
+  ]
+    .filter(Boolean)
+    .map((origin) => String(origin).trim())
+    .filter(Boolean);
+  return new Set(allowedOrigins);
 }
 
 export function shouldBlockInternalOriginRequest(
@@ -103,7 +106,7 @@ function buildCorsOptions(): cors.CorsOptions {
         callback(null, true);
         return;
       }
-      callback(null, false);
+      callback(new Error("CORS blocked"));
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -119,8 +122,7 @@ function buildCorsOptions(): cors.CorsOptions {
 
 export function assertCorsConfig(): void {
   const allowlist = getCorsAllowlist();
-  const frontendUrl = process.env.FRONTEND_URL?.trim();
-  const corsOptions = buildCorsOptions();
+    const corsOptions = buildCorsOptions();
   const allowedHeaders = Array.isArray(corsOptions.allowedHeaders)
     ? corsOptions.allowedHeaders
     : typeof corsOptions.allowedHeaders === "string"
@@ -136,8 +138,8 @@ export function assertCorsConfig(): void {
   const shouldAllowServer =
     !shouldBlockInternalOriginRequest("/api/_int/routes", undefined);
 
-  if (!frontendUrl || !allowlist.has(frontendUrl)) {
-    throw new Error("FRONTEND_URL must be configured for CORS.");
+  if (allowlist.size === 0) {
+    throw new Error("At least one of WEBSITE_URL, PORTAL_URL, or CLIENT_URL must be configured for CORS.");
   }
   if (corsOptions.credentials !== true) {
     throw new Error("CORS credentials must be enabled.");
@@ -168,7 +170,11 @@ export function buildApp(): express.Express {
   app.use(express.urlencoded({ extended: true, limit: "10mb" }));
   const corsOptions = buildCorsOptions();
   app.use(cors(corsOptions));
-  app.use(helmet());
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+    })
+  );
   app.use((req, res, next) => {
     res.vary("Origin");
     next();
@@ -201,7 +207,14 @@ export function buildApp(): express.Express {
       res.json({ success: true, data: { status: "ready" } });
     });
   }
-  app.get("/health", healthHandler);
+  app.get("/health", async (_req, res) => {
+    try {
+      await db.query("SELECT 1");
+      res.json({ status: "ok" });
+    } catch (_err) {
+      res.status(500).json({ status: "db_error" });
+    }
+  });
   app.use("/health/details", healthRoute);
   app.get("/ready", readyHandler);
   if (process.env.NODE_ENV !== "production") {
@@ -228,6 +241,14 @@ export async function initializeServer(): Promise<void> {
 export function registerApiRoutes(app: express.Express): void {
   assertApiV1Frozen();
   app.use(envCheck);
+  const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 500,
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  app.use("/api", limiter);
   const externalEndpointLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 100,
