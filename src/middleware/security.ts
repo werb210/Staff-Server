@@ -1,4 +1,6 @@
 import { type NextFunction, type Request, type Response } from "express";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import { isProductionEnvironment } from "../config";
 
 function isLoopback(req: Request): boolean {
@@ -52,14 +54,23 @@ export function requireHttps(req: Request, res: Response, next: NextFunction): v
   next();
 }
 
-export function securityHeaders(
-  _req: Request,
-  res: Response,
-  next: NextFunction
-): void {
-  res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("X-Frame-Options", "DENY");
-  res.setHeader("Referrer-Policy", "no-referrer");
-  res.setHeader("Permissions-Policy", "geolocation=(), microphone=(), camera=()");
+export const securityHeaders = helmet({
+  contentSecurityPolicy: false,
+});
+
+export const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: {
+    trustProxy: false,
+  },
+});
+
+export function productionLogger(req: Request, _res: Response, next: NextFunction): void {
+  if (process.env.NODE_ENV === "production") {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+  }
   next();
 }

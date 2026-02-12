@@ -1,9 +1,11 @@
+import { randomUUID } from "node:crypto";
 import { Router } from "express";
 import Joi from "joi";
-import twilio from "twilio";
+import { dbQuery } from "../db";
 import { contactRateLimiter } from "../middleware/rateLimiter";
-import { validateBody } from "../middleware/validate";
 import { successResponse, errorResponse } from "../middleware/response";
+import { validateBody } from "../middleware/validate";
+import { getTwilioClient } from "../services/twilio";
 
 const schema = Joi.object({
   company: Joi.string().trim().min(2).required(),
@@ -29,19 +31,30 @@ router.post("/", contactRateLimiter, validateBody(schema), async (req, res) => {
       utm?: Record<string, unknown>;
     };
 
-    console.log("Contact Request:", { company, email, phone, source });
-
-    const client = twilio(
-      process.env.TWILIO_ACCOUNT_SID as string,
-      process.env.TWILIO_AUTH_TOKEN as string
-    );
+    const client = getTwilioClient();
 
     await client.messages.create({
-      body: `New Lead:\nCompany: ${company}\nName: ${firstName} ${lastName}\nEmail: ${email}\nPhone: ${phone}\nSource: ${source}\nUTM:${JSON.stringify(utm)}`,
+      body: `New Contact:\nCompany: ${company}\nName: ${firstName} ${lastName}\nEmail: ${email}\nPhone: ${phone}`,
       from: process.env.TWILIO_PHONE as string,
       to: "+15878881837",
     });
 
+    const companyId = randomUUID();
+    const contactId = randomUUID();
+
+    await dbQuery(
+      `insert into companies (id, name, email, phone, status)
+       values ($1, $2, $3, $4, 'prospect')`,
+      [companyId, company, email, phone]
+    );
+
+    await dbQuery(
+      `insert into contacts (id, company_id, name, email, phone, status)
+       values ($1, $2, $3, $4, $5, $6)`,
+      [contactId, companyId, `${firstName} ${lastName}`, email, phone, source || "website_contact"]
+    );
+
+    console.log("Contact Request:", { company, email, phone, source, utm });
     return successResponse(res, {}, "contact submitted");
   } catch (err) {
     console.error("Contact Error:", err);

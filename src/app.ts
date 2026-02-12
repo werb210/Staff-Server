@@ -18,7 +18,12 @@ import "./startup/envValidation";
 import "./services/twilio";
 import { PORTAL_ROUTE_REQUIREMENTS, API_ROUTE_MOUNTS } from "./routes/routeRegistry";
 import { checkDb } from "./db";
-import { requireHttps, securityHeaders } from "./middleware/security";
+import {
+  apiLimiter,
+  productionLogger,
+  requireHttps,
+  securityHeaders,
+} from "./middleware/security";
 import { idempotencyMiddleware } from "./middleware/idempotency";
 import { ensureIdempotencyKey } from "./middleware/idempotencyKey";
 import { notFoundHandler } from "./middleware/errors";
@@ -40,6 +45,8 @@ import envCheck from "./middleware/envCheck";
 import healthRoute from "./routes/health";
 import contactRoute from "./routes/contact";
 import leadRoute from "./routes/lead";
+import issueRoutes from "./routes/issueReport";
+import chatRoutes from "./routes/chatEscalation";
 
 function assertRoutesMounted(app: express.Express): void {
   const mountedRoutes = listRoutes(app);
@@ -150,6 +157,7 @@ export function buildApp(): express.Express {
   app.use(logger);
   app.use(requestContext);
   app.use(requestLogger);
+  app.use(productionLogger);
   app.use((req, res, next) => {
     if (shouldBlockInternalOriginRequest(req.path, req.headers.origin)) {
       res.status(403).json({ ok: false, code: "forbidden" });
@@ -167,6 +175,7 @@ export function buildApp(): express.Express {
   });
   app.options("*", cors(corsOptions));
   app.use(securityHeaders);
+  app.use(apiLimiter);
   app.use(routeResolutionLogger);
   app.use(requestTimeout);
 
@@ -200,6 +209,8 @@ export function registerApiRoutes(app: express.Express): void {
   assertApiV1Frozen();
   app.use(envCheck);
   app.use("/api/contact", contactRoute);
+  app.use("/api/report", issueRoutes);
+  app.use("/api/chat/escalate", chatRoutes);
   app.use("/api/lead", leadRoute);
   app.use("/api/healthz", healthRoute);
 
