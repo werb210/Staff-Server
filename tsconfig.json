@@ -6,7 +6,7 @@
     "rootDir": "src",
     "strict": true,
     "noImplicitAny": true,
-    "exactOptionalPropertyTypes": true,
+    "exactOptionalPropertyTypes": false,
     "noUncheckedIndexedAccess": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
