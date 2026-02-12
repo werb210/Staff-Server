@@ -1,4 +1,5 @@
 import { pool } from "./db";
+import { logger } from "./server/utils/logger";
 
 export function isTestEnvironment(): boolean {
   return process.env.NODE_ENV === "test";
@@ -65,6 +66,6 @@ export async function cancelDbWork(processIds: number[]): Promise<void> {
     ]);
   } catch (err) {
     const message = err instanceof Error ? err.message : "unknown_error";
-    console.error("[DB CANCEL ERROR]", message);
+    logger.error("db_cancel_error", { message });
   }
 }

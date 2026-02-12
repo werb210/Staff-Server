@@ -1,4 +1,5 @@
 import { Router, type Request } from "express";
+import { randomUUID } from "crypto";
 import multer from "multer";
 import { AppError } from "../middleware/errors";
 import { safeHandler } from "../middleware/safeHandler";
@@ -33,6 +34,19 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
     fileSize: getDocumentMaxSizeBytes(),
+  },
+  fileFilter: (_req, file, cb) => {
+    const allowedMimeTypes = new Set([
+      "application/pdf",
+      "image/png",
+      "image/jpeg",
+      "image/webp",
+    ]);
+    if (!allowedMimeTypes.has(file.mimetype)) {
+      cb(new AppError("validation_error", "Invalid file type.", 400));
+      return;
+    }
+    cb(null, true);
   },
 });
 
@@ -92,21 +106,27 @@ const uploadHandler = safeHandler(async (req, res) => {
     throw new AppError("invalid_document_type", "Document type is not allowed.", 400);
   }
 
+  const safeFileId = randomUUID();
+  const extension = req.file.originalname.includes(".")
+    ? req.file.originalname.split(".").pop()
+    : "bin";
+  const safeFilename = `${safeFileId}.${extension}`;
+
   const document = await createDocument({
     applicationId,
     ownerUserId: application.owner_user_id,
-    title: req.file.originalname,
+    title: safeFilename,
     documentType: category,
-    filename: req.file.originalname,
+    filename: safeFilename,
     uploadedBy: "client",
   });
   const nextVersion = (await getLatestDocumentVersion(document.id)) + 1;
-  const storageKey = `documents/${document.id}/${req.file.originalname}`;
+  const storageKey = `documents/${document.id}/${safeFilename}`;
   await createDocumentVersion({
     documentId: document.id,
     version: nextVersion,
     metadata: {
-      fileName: req.file.originalname,
+      fileName: safeFilename,
       mimeType: req.file.mimetype,
       size: req.file.size,
       storageKey,
@@ -116,7 +136,7 @@ const uploadHandler = safeHandler(async (req, res) => {
   await updateDocumentUploadDetails({
     documentId: document.id,
     status: "uploaded",
-    filename: req.file.originalname,
+    filename: safeFilename,
     storageKey,
     uploadedBy: "client",
   });
@@ -137,7 +157,7 @@ const uploadHandler = safeHandler(async (req, res) => {
     documentId: document.id,
     applicationId,
     category,
-    filename: req.file.originalname,
+    filename: safeFilename,
     size: req.file.size,
     storageKey,
     createdAt: document.created_at,
@@ -205,7 +225,7 @@ router.post(
       actorRole: req.user.role,
       ...buildRequestMetadata(req),
     });
-    res.status(200).json({ ok: true });
+    res.status(200).json({ success: true, data: { accepted: true } });
   })
 );
 
@@ -236,7 +256,7 @@ router.post(
       actorRole: req.user.role,
       ...buildRequestMetadata(req),
     });
-    res.status(200).json({ ok: true });
+    res.status(200).json({ success: true, data: { rejected: true } });
   })
 );
 

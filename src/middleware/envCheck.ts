@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
+import { logger } from "../server/utils/logger";
 
 export default function envCheck(_req: Request, res: Response, next: NextFunction): void {
   if (process.env.NODE_ENV === "test") {
@@ -6,12 +7,12 @@ export default function envCheck(_req: Request, res: Response, next: NextFunctio
     return;
   }
 
-  const required = ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_PHONE"];
+  const required = ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_PHONE_NUMBER"];
   const missing = required.filter((key) => !process.env[key]);
 
   if (missing.length) {
-    console.error("ENV MISSING:", missing);
-    res.status(500).json({ error: `env_missing: ${missing.join(",")}` });
+    logger.error("env_missing", { missing });
+    res.status(500).json({ success: false, error: `env_missing: ${missing.join(",")}` });
     return;
   }
 

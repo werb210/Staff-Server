@@ -29,6 +29,7 @@ function buildPoolConfig(): PoolConfig {
   return {
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false },
+    max: Number(process.env.DB_POOL_MAX ?? 20),
   };
 }
 
@@ -239,3 +240,29 @@ export async function getInstrumentedClient(): Promise<PoolClient> {
   (client as any).query = createQueryWrapper((client as any).query.bind(client));
   return client;
 }
+
+
+let shutdownInProgress = false;
+
+async function shutdownPool(signal: string): Promise<void> {
+  if (shutdownInProgress) return;
+  shutdownInProgress = true;
+  try {
+    logInfo("db_pool_shutdown_started", { signal });
+    await pool.end();
+    logInfo("db_pool_shutdown_completed", { signal });
+  } catch (err) {
+    logError("db_pool_shutdown_failed", {
+      signal,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+process.on("SIGTERM", () => {
+  void shutdownPool("SIGTERM");
+});
+
+process.on("SIGINT", () => {
+  void shutdownPool("SIGINT");
+});

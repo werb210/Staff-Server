@@ -4,6 +4,7 @@ import { type PoolClient, type QueryResult, type QueryResultRow } from "pg";
 import { type Role } from "../../auth/roles";
 import { AppError } from "../../middleware/errors";
 import { normalizePhoneNumber } from "./phone";
+import { logger } from "../../server/utils/logger";
 
 type Queryable = Pick<PoolClient, "query">;
 
@@ -16,7 +17,7 @@ async function runAuthQuery<T extends QueryResultRow = QueryResultRow>(
     return await runner.query<T>(text, params);
   } catch (err: any) {
     if (process.env.NODE_ENV !== "test") {
-      console.error("[AUTH QUERY ERROR]", err?.message ?? "unknown_error");
+      logger.error("auth_query_error", { error: err?.message ?? "unknown_error" });
     }
     throw err;
   }

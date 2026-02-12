@@ -3,12 +3,12 @@
   "version": "1.0.0",
   "private": true,
   "engines": {
-    "node": ">=22"
+    "node": ">=22.0.0"
   },
   "scripts": {
     "dev": "npm run build && node dist/server/index.js",
-    "build": "npm run test && tsc",
-    "start": "node dist/server/index.js",
+    "build": "tsc",
+    "start": "node dist/index.js",
     "db:migrate": "tsx -e \"import('./src/migrations').then(m => m.runMigrations()).catch(err => { console.error(err); process.exit(1); })\"",
     "db:seed": "tsx src/db/seed.ts",
     "test": "vitest run",

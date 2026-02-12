@@ -368,7 +368,6 @@ export async function transitionPipelineState(params: {
     transition = assertPipelineTransition({
       currentStage,
       nextStage: params.nextState,
-      status: application.status,
     });
   } catch (error) {
     const auditPayload = {
