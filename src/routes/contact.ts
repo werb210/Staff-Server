@@ -44,6 +44,12 @@ router.post("/", contactRateLimiter, validateBody(schema), async (req, res) => {
     const contactId = randomUUID();
 
     await dbQuery(
+      `insert into contact_leads (company, first_name, last_name, email, phone)
+       values ($1, $2, $3, $4, $5)`,
+      [company, firstName, lastName, email, phone]
+    );
+
+    await dbQuery(
       `insert into companies (id, name, email, phone, status)
        values ($1, $2, $3, $4, 'prospect')`,
       [companyId, company, email, phone]

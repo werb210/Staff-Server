@@ -25,9 +25,21 @@ router.post("/chat", postAiChat);
 router.post("/escalate", postAiEscalate);
 
 
-router.get("/knowledge", (_req, res) => {
-  res.json(loadKnowledge());
-});
+router.get(
+  "/knowledge",
+  safeHandler(async (_req, res) => {
+    const { rows } = await pool.query<{
+      id: string;
+      content: string;
+      created_at: string;
+    }>(
+      `select id, content, created_at
+       from ai_knowledge
+       order by created_at desc`
+    );
+    res.json(rows);
+  })
+);
 
 router.post(
   "/knowledge",
@@ -38,19 +50,22 @@ router.post(
       sourceType?: "spec_sheet" | "faq" | "internal" | "product";
     };
 
-    if (!title || !content) {
-      res.status(400).json({ error: "Missing fields" });
+    if (!content) {
+      res.status(400).json({ error: "Missing content" });
       return;
     }
 
+    const resolvedTitle = title ?? "Knowledge Entry";
+    const resolvedSourceType = sourceType ?? "internal";
+
     await saveKnowledgeDb({
-      title,
+      title: resolvedTitle,
       content,
-      ...(sourceType ? { sourceType } : {}),
+      sourceType: resolvedSourceType,
     });
 
     const existing = loadKnowledge();
-    existing.push({ title, content, createdAt: new Date().toISOString() });
+    existing.push({ title: resolvedTitle, content, createdAt: new Date().toISOString() });
     saveKnowledge(existing);
 
     res.json({ success: true });

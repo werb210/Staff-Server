@@ -59,8 +59,8 @@ export const securityHeaders = helmet({
 });
 
 export const apiLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 100,
+  windowMs: 15 * 60 * 1000,
+  max: 200,
   standardHeaders: true,
   legacyHeaders: false,
   validate: {
