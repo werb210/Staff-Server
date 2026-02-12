@@ -15,6 +15,8 @@ import { type ApplicationResponse } from "../modules/applications/application.dt
 import { getOcrInsightsForApplication } from "../modules/applications/ocr/ocrAnalysis.service";
 import { safeHandler } from "../middleware/safeHandler";
 import { logError } from "../observability/logger";
+import { logAnalyticsEvent } from "../services/analyticsService";
+import { pushLeadToCRM } from "../services/crmWebhook";
 
 type ApplicationPayload = {
   country?: string;
@@ -227,6 +229,25 @@ router.post(
         triggeredBy: req.user?.userId ?? "system",
       });
 
+
+      if (typeof body.readinessScore === "number") {
+        await logAnalyticsEvent({
+          event: "readiness_score",
+          metadata: {
+            score: body.readinessScore,
+            applicationId: created.id,
+          },
+          ...(req.ip ? { ip: req.ip } : {}),
+          ...(req.headers["user-agent"] ? { userAgent: req.headers["user-agent"] } : {}),
+        });
+      }
+
+      await pushLeadToCRM({
+        type: "application_submitted",
+        applicationId: created.id,
+        source: payload.source ?? null,
+        applicant: payload.applicant ?? null,
+      });
       res.status(201).json({
         applicationId: created.id,
         createdAt: created.created_at,

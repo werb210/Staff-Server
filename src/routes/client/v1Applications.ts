@@ -7,6 +7,7 @@ import { AppError } from "../../middleware/errors";
 import { safeHandler } from "../../middleware/safeHandler";
 import { ApplicationStage } from "../../modules/applications/pipelineState";
 import { findApplicationById } from "../../modules/applications/applications.repo";
+import { logAnalyticsEvent } from "../../services/analyticsService";
 
 const router = Router();
 
@@ -50,6 +51,18 @@ router.post(
         "client",
       ]
     );
+
+    if (typeof req.body?.readinessScore === "number") {
+      await logAnalyticsEvent({
+        event: "readiness_score",
+        metadata: {
+          score: req.body.readinessScore,
+          applicationId,
+        },
+        ...(req.ip ? { ip: req.ip } : {}),
+        ...(req.headers["user-agent"] ? { userAgent: req.headers["user-agent"] } : {}),
+      });
+    }
     res.status(201).json({
       application: {
         id: applicationId,

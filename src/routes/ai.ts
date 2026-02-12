@@ -7,6 +7,7 @@ import { requireAuth } from "../middleware/auth";
 import { safeHandler } from "../middleware/safeHandler";
 import { pool } from "../db";
 import { postAiChat, postAiEscalate } from "../ai/aiChatController";
+import { saveKnowledge } from "../services/aiKnowledgeService";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -21,6 +22,29 @@ function ensureUploadDir(): void {
 
 router.post("/chat", requireAuth, postAiChat);
 router.post("/escalate", requireAuth, postAiEscalate);
+
+router.post(
+  "/knowledge",
+  safeHandler(async (req, res) => {
+    const { title, content, sourceType } = req.body as {
+      title?: string;
+      content?: string;
+      sourceType?: "spec_sheet" | "faq" | "internal" | "product";
+    };
+
+    if (!title || !content) {
+      res.status(400).json({ error: "Missing fields" });
+      return;
+    }
+
+    await saveKnowledge({
+      title,
+      content,
+      ...(sourceType ? { sourceType } : {}),
+    });
+    res.json({ success: true });
+  })
+);
 
 router.post(
   "/report-issue",
