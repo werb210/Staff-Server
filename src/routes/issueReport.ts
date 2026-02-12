@@ -5,16 +5,17 @@ import { dbQuery } from "../db";
 const router = Router();
 
 router.post("/", async (req, res) => {
-  const { message, screenshot, pageUrl, browserInfo, sessionId } = req.body as {
+  const { message, screenshot, pageUrl, browserInfo, sessionId, url } = req.body as {
     message?: string;
     screenshot?: string;
     pageUrl?: string;
     browserInfo?: string;
     sessionId?: string;
+    url?: string;
   };
 
-  if (!message) {
-    return res.status(400).json({ error: "Message required" });
+  if (!message && !url) {
+    return res.status(400).json({ error: "Message or url required" });
   }
 
   await dbQuery(
@@ -24,8 +25,8 @@ router.post("/", async (req, res) => {
     [
       randomUUID(),
       sessionId ?? null,
-      message,
-      pageUrl ?? "unknown",
+      message ?? "Issue reported",
+      pageUrl ?? url ?? "unknown",
       browserInfo ?? "unknown",
       screenshot ?? null,
     ]
