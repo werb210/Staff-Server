@@ -20,8 +20,8 @@ router.post("/", async (req, res) => {
 
   await dbQuery(
     `insert into issue_reports
-      (id, session_id, description, page_url, browser_info, screenshot_path, status)
-     values ($1, $2, $3, $4, $5, $6, 'open')`,
+      (id, session_id, description, page_url, browser_info, screenshot_path, screenshot_base64, user_agent, status)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, 'open')`,
     [
       randomUUID(),
       sessionId ?? null,
@@ -29,6 +29,8 @@ router.post("/", async (req, res) => {
       pageUrl ?? url ?? "unknown",
       browserInfo ?? "unknown",
       screenshot ?? null,
+      screenshot ?? null,
+      req.headers["user-agent"] ?? "",
     ]
   );
 
