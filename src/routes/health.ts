@@ -1,10 +1,13 @@
 import { Router } from "express";
-import { successResponse } from "../middleware/response";
 
 const router = Router();
 
 router.get("/", (_req, res) => {
-  return successResponse(res, { uptime: process.uptime() }, "server healthy");
+  return res.json({
+    status: "OK",
+    timestamp: new Date().toISOString(),
+    env: process.env.NODE_ENV,
+  });
 });
 
 export default router;
