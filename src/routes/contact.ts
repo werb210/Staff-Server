@@ -6,6 +6,7 @@ import { contactRateLimiter } from "../middleware/rateLimiter";
 import { successResponse, errorResponse } from "../middleware/response";
 import { validateBody } from "../middleware/validate";
 import { getTwilioClient } from "../services/twilio";
+import { pushLeadToCRM } from "../services/crmWebhook";
 
 const schema = Joi.object({
   company: Joi.string().trim().min(2).required(),
@@ -54,6 +55,17 @@ router.post("/", contactRateLimiter, validateBody(schema), async (req, res) => {
       [contactId, companyId, `${firstName} ${lastName}`, email, phone, source || "website_contact"]
     );
 
+
+    await pushLeadToCRM({
+      type: "contact_form",
+      company,
+      firstName,
+      lastName,
+      email,
+      phone,
+      source,
+      utm: utm ?? null,
+    });
     console.log("Contact Request:", { company, email, phone, source, utm });
     return successResponse(res, {}, "contact submitted");
   } catch (err) {

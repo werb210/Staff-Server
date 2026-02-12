@@ -24,6 +24,7 @@ import {
   requireHttps,
   securityHeaders,
 } from "./middleware/security";
+import { publicLimiter } from "./middleware/rateLimit";
 import { idempotencyMiddleware } from "./middleware/idempotency";
 import { ensureIdempotencyKey } from "./middleware/idempotencyKey";
 import { notFoundHandler } from "./middleware/errors";
@@ -46,7 +47,10 @@ import healthRoute from "./routes/health";
 import contactRoute from "./routes/contact";
 import leadRoute from "./routes/lead";
 import issueRoutes from "./routes/issueReport";
-import chatRoutes from "./routes/chatEscalation";
+import chatRoutes from "./routes/chat";
+import supportRoutes from "./routes/support";
+import publicRoutes from "./routes/public";
+import analyticsRoutes from "./routes/analytics";
 
 function assertRoutesMounted(app: express.Express): void {
   const mountedRoutes = listRoutes(app);
@@ -210,7 +214,10 @@ export function registerApiRoutes(app: express.Express): void {
   app.use(envCheck);
   app.use("/api/contact", contactRoute);
   app.use("/api/report", issueRoutes);
-  app.use("/api/chat/escalate", chatRoutes);
+  app.use("/api/chat", publicLimiter, chatRoutes);
+  app.use("/api/support", publicLimiter, supportRoutes);
+  app.use("/api/public", publicLimiter, publicRoutes);
+  app.use("/api/analytics", analyticsRoutes);
   app.use("/api/lead", leadRoute);
   app.use("/api/healthz", healthRoute);
 
