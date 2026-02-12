@@ -24,7 +24,7 @@ import {
   requireHttps,
   securityHeaders,
 } from "./middleware/security";
-import { publicLimiter } from "./middleware/rateLimit";
+import { publicLimiter, strictLimiter } from "./middleware/rateLimit";
 import { idempotencyMiddleware } from "./middleware/idempotency";
 import { ensureIdempotencyKey } from "./middleware/idempotencyKey";
 import { notFoundHandler } from "./middleware/errors";
@@ -82,6 +82,7 @@ function getCorsAllowlist(): Set<string> {
   PORTAL_ORIGINS.forEach((origin) => allowlist.add(origin));
   allowlist.add("http://localhost:5173");
   allowlist.add("http://localhost:3000");
+  allowlist.add("https://yourdomain.com");
   return allowlist;
 }
 
@@ -219,7 +220,7 @@ export function registerApiRoutes(app: express.Express): void {
   app.use("/api/report", issueRoutes);
   app.use("/api/report-issue", publicRouteLimiter, issueRoutes);
   app.use("/api/chat", publicLimiter, chatRoutes);
-  app.use("/api/support", publicLimiter, supportRoutes);
+  app.use("/api/support", strictLimiter, supportRoutes);
   app.use("/api/public", publicLimiter, publicRoutes);
   app.use("/api/analytics", analyticsRoutes);
   app.use("/api/readiness", readinessRoutes);
@@ -273,7 +274,7 @@ export function registerApiRoutes(app: express.Express): void {
   ]);
   explicitMounts.forEach((entry) => {
     if (entry.path === "/ai") {
-      app.use(`/api${entry.path}`, publicRouteLimiter, entry.router);
+      app.use(`/api${entry.path}`, strictLimiter, entry.router);
       return;
     }
     app.use(`/api${entry.path}`, entry.router);

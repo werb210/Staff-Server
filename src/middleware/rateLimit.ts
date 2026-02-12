@@ -1,29 +1,58 @@
-import rateLimit from "express-rate-limit";
+import rateLimit, { type RateLimitRequestHandler } from "express-rate-limit";
 
 const oneMinute = 60 * 1000;
 
-function makeLimiter(max: number) {
+function isEnabled(): boolean {
+  return process.env.RATE_LIMIT_ENABLED !== "false";
+}
+
+function makeLimiter(max: number, windowMs = oneMinute): RateLimitRequestHandler {
   return rateLimit({
-    windowMs: oneMinute,
+    windowMs,
     max,
     standardHeaders: true,
     legacyHeaders: false,
+    skip: () => !isEnabled(),
   });
 }
 
+const loginLimiter = makeLimiter(20);
+const otpLimiter = makeLimiter(20);
+
 export const publicLimiter = makeLimiter(60);
-export const adminRateLimit = makeLimiter(120);
-export const portalRateLimit = makeLimiter(120);
-export const voiceRateLimit = makeLimiter(60);
-export const loginRateLimit = makeLimiter(20);
-export const otpRateLimit = makeLimiter(20);
-export const resetOtpRateLimit = makeLimiter(20);
-export const refreshRateLimit = makeLimiter(30);
-export const documentUploadRateLimit = makeLimiter(30);
-export const clientSubmissionRateLimit = makeLimiter(40);
-export const lenderSubmissionRateLimit = makeLimiter(40);
-export const clientReadRateLimit = makeLimiter(120);
-export const clientDocumentsRateLimit = makeLimiter(40);
-export const pushSendRateLimit = makeLimiter(30);
-export const otpSendLimiter = makeLimiter(20);
-export const otpVerifyLimiter = makeLimiter(20);
+export const strictLimiter = makeLimiter(10);
+
+export const adminRateLimit = (max = 120, windowMs = oneMinute) => makeLimiter(max, windowMs);
+export const portalRateLimit = (max = 120, windowMs = oneMinute) => makeLimiter(max, windowMs);
+export const voiceRateLimit = (max = 60, windowMs = oneMinute) => makeLimiter(max, windowMs);
+export const loginRateLimit = () => loginLimiter;
+export const otpRateLimit = () => otpLimiter;
+export function resetOtpRateLimit(key?: string): void {
+  if (!key) {
+    otpLimiter.resetKey?.("::/0");
+    return;
+  }
+  otpLimiter.resetKey?.(key);
+}
+export const refreshRateLimit = (max = 30, windowMs = oneMinute) => makeLimiter(max, windowMs);
+export const documentUploadRateLimit = (max = 30, windowMs = oneMinute) =>
+  makeLimiter(max, windowMs);
+export const clientSubmissionRateLimit = (max = 40, windowMs = oneMinute) =>
+  makeLimiter(max, windowMs);
+export const lenderSubmissionRateLimit = (max = 40, windowMs = oneMinute) =>
+  makeLimiter(max, windowMs);
+export const clientReadRateLimit = (max = 120, windowMs = oneMinute) =>
+  makeLimiter(max, windowMs);
+export const clientDocumentsRateLimit = (max = 40, windowMs = oneMinute) =>
+  makeLimiter(max, windowMs);
+export const pushSendRateLimit = (max = 30, windowMs = oneMinute) => makeLimiter(max, windowMs);
+export const otpSendLimiter = (max = 20, windowMs = oneMinute) => makeLimiter(max, windowMs);
+export const otpVerifyLimiter = (max = 20, windowMs = oneMinute) => makeLimiter(max, windowMs);
+
+export function resetLoginRateLimit(key?: string): void {
+  if (!key) {
+    loginLimiter.resetKey?.("::/0");
+    return;
+  }
+  loginLimiter.resetKey?.(key);
+}
