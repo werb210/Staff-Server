@@ -1,9 +1,11 @@
 import { Router } from "express";
-import { withRetry } from "../utils/retry";
+import { retry, withRetry } from "../utils/retry";
 import { createSupportThread } from "../services/supportService";
 import { dbQuery } from "../db";
 import { getTwilioClient } from "../services/twilio";
 import { pushLeadToCRM } from "../services/crmWebhook";
+import { SupportController } from "../modules/support/support.controller";
+import { logger } from "../utils/logger";
 
 const router = Router();
 
@@ -59,7 +61,7 @@ router.post("/human", async (req, res) => {
     });
   });
 
-  console.log("Human chat request:", message);
+  logger.info("human_chat_request", { message });
   res.json({ success: true });
 });
 
@@ -93,7 +95,7 @@ router.post("/report", async (req, res) => {
     });
   });
 
-  console.log("Issue reported:", resolvedDescription);
+  logger.info("issue_reported", { description: resolvedDescription ?? null });
   res.json({ success: true });
 });
 
@@ -117,11 +119,13 @@ router.post("/contact", async (req, res) => {
   );
 
   const client = getTwilioClient();
-  await client.messages.create({
-    body: `New Contact: ${company} - ${firstName} ${lastName} - ${phone}`,
-    from: process.env.TWILIO_PHONE as string,
-    to: "+15878881837",
-  });
+  await retry(async () =>
+    client.messages.create({
+      body: `New Contact: ${company} - ${firstName} ${lastName} - ${phone}`,
+      from: process.env.TWILIO_PHONE as string,
+      to: "+15878881837",
+    })
+  );
 
   await pushLeadToCRM({
     type: "contact_form",
@@ -141,8 +145,15 @@ router.post("/track", async (req, res) => {
     metadata?: Record<string, unknown>;
   };
 
-  console.log("Track Event:", event, metadata);
+  logger.info("support_track_event", { event: event ?? null, metadata: metadata ?? null });
   return res.json({ success: true });
 });
+
+router.post("/session", SupportController.createSession);
+router.get("/queue", SupportController.getQueue);
+router.post("/issue", SupportController.createIssue);
+router.get("/issues", SupportController.getIssues);
+router.post("/event", SupportController.trackEvent);
+router.get("/events", SupportController.getEvents);
 
 export default router;

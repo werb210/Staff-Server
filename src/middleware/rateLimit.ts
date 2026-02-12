@@ -12,13 +12,14 @@ function makeLimiter(max: number, windowMs = oneMinute): RateLimitRequestHandler
     max,
     standardHeaders: true,
     legacyHeaders: false,
-    skip: () => !isEnabled(),
+    skip: () => !isEnabled() || process.env.NODE_ENV === "test",
   });
 }
 
 const loginLimiter = makeLimiter(20);
 const otpLimiter = makeLimiter(20);
 
+export const apiLimiter = makeLimiter(200, 15 * 60 * 1000);
 export const publicLimiter = makeLimiter(60);
 export const strictLimiter = makeLimiter(10);
 

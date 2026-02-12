@@ -2,6 +2,7 @@ import { Router } from "express";
 import Joi from "joi";
 import { validateBody } from "../middleware/validate";
 import { successResponse, errorResponse } from "../middleware/response";
+import { logger } from "../utils/logger";
 
 const schema = Joi.object({
   revenue: Joi.number().min(0).required(),
@@ -29,11 +30,11 @@ router.post("/", validateBody(schema), async (req, res) => {
 
     const score = Math.min(100, Math.round(revenue / 10000 + years * 10));
 
-    console.log("Lead Stored:", { revenue, industry, years, amount, email, phone, utm });
+    logger.info("lead_stored", { revenue, industry, years, amount, email, phone, utm: utm ?? null });
 
     return successResponse(res, { score }, "lead evaluated");
   } catch (err) {
-    console.error("Lead Error:", err);
+    logger.error("lead_error", { err });
     return errorResponse(res, 500, "could_not_process_lead");
   }
 });
