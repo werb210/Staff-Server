@@ -6,12 +6,12 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "dev": "npm run build && node dist/server/index.js",
+    "dev": "tsx src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
     "db:migrate": "tsx -e \"import('./src/migrations').then(m => m.runMigrations()).catch(err => { console.error(err); process.exit(1); })\"",
     "db:seed": "tsx src/db/seed.ts",
-    "test": "vitest run",
+    "test": "vitest",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
