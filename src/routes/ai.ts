@@ -12,7 +12,18 @@ import { loadKnowledge, saveKnowledge } from "../modules/ai/knowledge.service";
 import { AIKnowledgeController, upload as knowledgeUpload } from "../modules/ai/knowledge.controller";
 
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowedMimeTypes = new Set(["image/png", "image/jpeg", "image/webp"]);
+    if (!allowedMimeTypes.has(file.mimetype)) {
+      cb(new Error("Invalid file type"));
+      return;
+    }
+    cb(null, true);
+  },
+});
 
 const uploadDir = path.join(process.cwd(), "uploads", "ai-issues");
 
@@ -41,7 +52,7 @@ router.get(
        from ai_knowledge
        order by created_at desc`
     );
-    res.json(rows);
+    res.json({ success: true, data: rows });
   })
 );
 
@@ -55,7 +66,7 @@ router.post(
     };
 
     if (!content) {
-      res.status(400).json({ error: "Missing content" });
+      res.status(400).json({ success: false, error: "Missing content" });
       return;
     }
 
@@ -72,7 +83,7 @@ router.post(
     existing.push({ title: resolvedTitle, content, createdAt: new Date().toISOString() });
     saveKnowledge(existing);
 
-    res.json({ success: true });
+    res.json({ success: true, data: { saved: true } });
   })
 );
 
@@ -90,8 +101,8 @@ router.post(
 
     if (!body.description || !body.page_url || !body.browser_info) {
       res.status(400).json({
-        code: "invalid_request",
-        message: "description, page_url, and browser_info are required",
+        success: false,
+        error: "description, page_url, and browser_info are required",
       });
       return;
     }
@@ -121,7 +132,10 @@ router.post(
       ]
     );
 
-    res.status(201).json({ ok: true, id, screenshotPath });
+    res.status(201).json({
+      success: true,
+      data: { id, screenshotPath },
+    });
   })
 );
 

@@ -1,10 +1,10 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 
 import { healthHandler, readyHandler } from "./routes/ready";
 import { listRoutes, printRoutes } from "./debug/printRoutes";
-import { getCorsAllowlistConfig, getRequestBodyLimit } from "./config";
 import { requestContext } from "./middleware/requestContext";
 import { requestLogger } from "./middleware/requestLogger";
 import { requestTimeout } from "./middleware/requestTimeout";
@@ -28,7 +28,6 @@ import { apiLimiter, publicLimiter, strictLimiter } from "./middleware/rateLimit
 import { idempotencyMiddleware } from "./middleware/idempotency";
 import { ensureIdempotencyKey } from "./middleware/idempotencyKey";
 import { notFoundHandler } from "./middleware/errors";
-import { errorHandler } from "./middleware/errorHandler";
 import { logError } from "./observability/logger";
 import { getRequestContext } from "./observability/requestContext";
 import authRoutes from "./routes/auth";
@@ -41,7 +40,7 @@ import { intHealthHandler } from "./routes/_int/health";
 import { runtimeHandler } from "./routes/_int/runtime";
 import { assertApiV1Frozen } from "./contracts/v1Freeze";
 import { contractGuard } from "./middleware/contractGuard";
-import logger from "./middleware/logger";
+import requestLogMiddleware from "./middleware/logger";
 import envCheck from "./middleware/envCheck";
 import healthRoute from "./routes/health";
 import contactRoute from "./routes/contact";
@@ -54,6 +53,7 @@ import publicRoutes from "./routes/public";
 import analyticsRoutes from "./routes/analytics";
 import readinessRoutes from "./routes/readiness";
 import productComparisonRoutes from "./routes/productComparison";
+import { logger as serverLogger } from "./server/utils/logger";
 
 function assertRoutesMounted(app: express.Express): void {
   const mountedRoutes = listRoutes(app);
@@ -72,17 +72,12 @@ function assertRoutesMounted(app: express.Express): void {
   }
 }
 
-const PORTAL_ORIGINS = [
-  "https://staff.boreal.financial",
-  "https://portal.staff.boreal.financial",
-];
-
 function getCorsAllowlist(): Set<string> {
-  const allowlist = new Set(getCorsAllowlistConfig());
-  PORTAL_ORIGINS.forEach((origin) => allowlist.add(origin));
-  allowlist.add("http://localhost:5173");
-  allowlist.add("http://localhost:3000");
-  allowlist.add("https://yourdomain.com");
+  const frontendUrl = process.env.FRONTEND_URL?.trim();
+  const allowlist = new Set<string>();
+  if (frontendUrl) {
+    allowlist.add(frontendUrl);
+  }
   return allowlist;
 }
 
@@ -101,10 +96,6 @@ function buildCorsOptions(): cors.CorsOptions {
   return {
     origin: (origin, callback) => {
       if (!origin) {
-        callback(null, true);
-        return;
-      }
-      if (allowlist.has("*")) {
         callback(null, true);
         return;
       }
@@ -128,7 +119,7 @@ function buildCorsOptions(): cors.CorsOptions {
 
 export function assertCorsConfig(): void {
   const allowlist = getCorsAllowlist();
-  const missingOrigins = PORTAL_ORIGINS.filter((origin) => !allowlist.has(origin));
+  const frontendUrl = process.env.FRONTEND_URL?.trim();
   const corsOptions = buildCorsOptions();
   const allowedHeaders = Array.isArray(corsOptions.allowedHeaders)
     ? corsOptions.allowedHeaders
@@ -145,8 +136,8 @@ export function assertCorsConfig(): void {
   const shouldAllowServer =
     !shouldBlockInternalOriginRequest("/api/_int/routes", undefined);
 
-  if (missingOrigins.length > 0) {
-    throw new Error(`Missing CORS allowlist origins: ${missingOrigins.join(", ")}`);
+  if (!frontendUrl || !allowlist.has(frontendUrl)) {
+    throw new Error("FRONTEND_URL must be configured for CORS.");
   }
   if (corsOptions.credentials !== true) {
     throw new Error("CORS credentials must be enabled.");
@@ -162,7 +153,7 @@ export function assertCorsConfig(): void {
 export function buildApp(): express.Express {
   const app = express();
 
-  app.use(logger);
+  app.use(requestLogMiddleware);
   app.use(requestContext);
   app.use(requestLogger);
   app.use(productionLogger);
@@ -173,8 +164,8 @@ export function buildApp(): express.Express {
     }
     next();
   });
-  app.use(express.json({ limit: getRequestBodyLimit() }));
-  app.use(express.urlencoded({ extended: true }));
+  app.use(express.json({ limit: "10mb" }));
+  app.use(express.urlencoded({ extended: true, limit: "10mb" }));
   const corsOptions = buildCorsOptions();
   app.use(cors(corsOptions));
   app.use(helmet());
@@ -188,31 +179,42 @@ export function buildApp(): express.Express {
   app.use(routeResolutionLogger);
   app.use(requestTimeout);
 
-  app.use("/api/_int", internalRoutes);
-  app.get("/_int/health", intHealthHandler);
-  app.get("/_int/runtime", runtimeHandler);
+  if (process.env.NODE_ENV !== "production") {
+    app.use("/api/_int", internalRoutes);
+    app.get("/_int/health", intHealthHandler);
+    app.get("/_int/runtime", runtimeHandler);
+  }
 
-  app.get("/api/health", healthHandler);
-  app.get("/api/ready", readyHandler);
-  app.get("/api/_int/production-readiness", (_req, res) => {
-    res.json({
-      status: "ready",
-      rateLimiting: true,
-      scoring: true,
-      crm: true,
-      analytics: true,
+  app.get("/api/health", (_req, res) => {
+    res.status(200).json({
+      success: true,
+      data: {
+        status: "ok",
+        uptime: process.uptime(),
+        environment: process.env.NODE_ENV,
+      },
     });
   });
+  app.get("/api/ready", readyHandler);
+  if (process.env.NODE_ENV !== "production") {
+    app.get("/api/_int/production-readiness", (_req, res) => {
+      res.json({ success: true, data: { status: "ready" } });
+    });
+  }
   app.get("/health", healthHandler);
   app.use("/health/details", healthRoute);
   app.get("/ready", readyHandler);
-  app.get("/__boot", (_req, res) => {
-    res.status(200).json({
-      pid: process.pid,
-      port: app.get("port") ?? null,
-      envKeys: Object.keys(process.env ?? {}),
+  if (process.env.NODE_ENV !== "production") {
+    app.get("/__boot", (_req, res) => {
+      res.status(200).json({
+        success: true,
+        data: {
+          pid: process.pid,
+          port: app.get("port") ?? null,
+        },
+      });
     });
-  });
+  }
 
   return app;
 }
@@ -226,12 +228,23 @@ export async function initializeServer(): Promise<void> {
 export function registerApiRoutes(app: express.Express): void {
   assertApiV1Frozen();
   app.use(envCheck);
-  app.use("/api/contact", strictLimiter, contactRoute);
+  const externalEndpointLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+    handler: (_req, res) => {
+      res.status(429).json({ success: false, error: "Too many requests" });
+    },
+    skip: () => process.env.NODE_ENV === "test",
+  });
+
+  app.use("/api/contact", externalEndpointLimiter, contactRoute);
   app.use("/api/report", issueRoutes);
   app.use("/api/report-issue", publicLimiter, issueRoutes);
-  app.use("/api/chat", publicLimiter, chatRoutes);
+  app.use("/api/chat", externalEndpointLimiter, chatRoutes);
   app.use("/api/support", strictLimiter, supportRoutes);
-  app.use("/api/public", publicLimiter, publicRoutes);
+  app.use("/api/public", externalEndpointLimiter, publicRoutes);
   app.use("/api/analytics", analyticsRoutes);
   app.use("/api/readiness", readinessRoutes);
   app.use("/api/scoring", readinessRoutes);
@@ -286,8 +299,12 @@ export function registerApiRoutes(app: express.Express): void {
     ...explicitMounts.map((entry) => entry.path),
   ]);
   explicitMounts.forEach((entry) => {
+    if (entry.path === "/auth") {
+      app.use(`/api${entry.path}`, externalEndpointLimiter, entry.router);
+      return;
+    }
     if (entry.path === "/ai") {
-      app.use(`/api${entry.path}`, strictLimiter, entry.router);
+      app.use(`/api${entry.path}`, externalEndpointLimiter, entry.router);
       return;
     }
     app.use(`/api${entry.path}`, entry.router);
@@ -299,7 +316,6 @@ export function registerApiRoutes(app: express.Express): void {
   );
 
   app.use("/api", notFoundHandler);
-  app.use("/api", errorHandler);
   app.use(
     (
       err: Error,
@@ -312,7 +328,7 @@ export function registerApiRoutes(app: express.Express): void {
       }
       const requestId = res.locals.requestId ?? "unknown";
       const requestContext = getRequestContext();
-      const shouldLogStack = requestContext?.sqlTraceEnabled ?? false;
+      const shouldLogStack = process.env.NODE_ENV === "development" || Boolean(requestContext?.sqlTraceEnabled);
       logError("request_failed", {
         requestId,
         method: _req.method,
@@ -323,9 +339,8 @@ export function registerApiRoutes(app: express.Express): void {
         ...(shouldLogStack ? { stack: err.stack } : {}),
       });
       res.status(500).json({
-        code: "internal_error",
-        message: "Unexpected error",
-        requestId,
+        success: false,
+        error: "Internal Server Error",
       });
     }
   );
@@ -333,7 +348,9 @@ export function registerApiRoutes(app: express.Express): void {
   const mountedRoutes = listRoutes(app);
   printRoutes(app);
   if (process.env.PRINT_ROUTES === "true") {
-    console.log(mountedRoutes.map((route) => `${route.method} ${route.path}`).join("\n"));
+    serverLogger.info("mounted_routes", {
+      routes: mountedRoutes.map((route) => `${route.method} ${route.path}`),
+    });
   }
   assertRoutesMounted(app);
 }

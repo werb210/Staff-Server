@@ -111,6 +111,9 @@ export async function retryProcessingJob(params: {
         [params.jobId]
       );
       const updatedRow = updated.rows[0];
+      if (!updatedRow) {
+        throw new AppError("processing_retry_failed", "Failed to update processing job.", 500);
+      }
       await recordAuditEvent({
         action: "processing_job_retried",
         actorUserId: params.actorUserId,
@@ -193,6 +196,9 @@ export async function retryProcessingJob(params: {
         [params.jobId]
       );
       const updatedRow = updated.rows[0];
+      if (!updatedRow) {
+        throw new AppError("processing_retry_failed", "Failed to update processing job.", 500);
+      }
       await recordAuditEvent({
         action: "processing_job_retried",
         actorUserId: params.actorUserId,
@@ -275,6 +281,9 @@ export async function retryProcessingJob(params: {
         [params.jobId]
       );
       const updatedRow = updated.rows[0];
+      if (!updatedRow) {
+        throw new AppError("processing_retry_failed", "Failed to update processing job.", 500);
+      }
       await recordAuditEvent({
         action: "processing_job_retried",
         actorUserId: params.actorUserId,

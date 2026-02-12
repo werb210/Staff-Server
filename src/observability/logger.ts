@@ -34,14 +34,12 @@ function writeLog(level: LogLevel, event: string, fields?: LogFields): void {
     const payload = buildPayload(level, event, fields);
     const output = JSON.stringify(payload);
     switch (level) {
-      case "warn":
-        console.warn(output);
-        break;
       case "error":
-        console.error(output);
+        process.stderr.write(`${output}\n`);
         break;
+      case "warn":
       default:
-        console.info(output);
+        process.stdout.write(`${output}\n`);
         break;
     }
   } catch {

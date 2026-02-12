@@ -2,7 +2,8 @@
 
 import type { Express } from "express";
 import type { Server } from "http";
-import { logError, logWarn } from "../observability/logger";
+import { validateServerEnv } from "./config/env";
+import { logger } from "./utils/logger";
 import { markReady } from "../startupState";
 import { createServer } from "./createServer";
 
@@ -15,23 +16,23 @@ function installProcessHandlers(): void {
   processHandlersInstalled = true;
 
   process.on("unhandledRejection", (err) => {
-    logError("unhandled_rejection", { err });
+    logger.error("unhandled_rejection", { err: err instanceof Error ? err.message : String(err) });
   });
 
   process.on("uncaughtException", (err) => {
-    logError("uncaught_exception", { err });
+    logger.error("uncaught_exception", { err: err instanceof Error ? err.message : String(err) });
   });
 }
 
 function resolvePort(): number {
   const rawPort = process.env.PORT;
   if (!rawPort) {
-    logWarn("port_missing_defaulting", { fallback: 3000 });
+    logger.warn("port_missing_defaulting", { fallback: 3000 });
     return 3000;
   }
   const port = Number(rawPort);
   if (Number.isNaN(port)) {
-    logWarn("port_invalid_defaulting", { value: rawPort, fallback: 3000 });
+    logger.warn("port_invalid_defaulting", { value: rawPort, fallback: 3000 });
     return 3000;
   }
   return port;
@@ -39,10 +40,7 @@ function resolvePort(): number {
 
 export async function startServer() {
   installProcessHandlers();
-  const isProd = process.env.NODE_ENV === "production";
-  if (isProd && !process.env.BASE_URL) {
-    throw new Error("BASE_URL must be set in production.");
-  }
+  validateServerEnv();
   app = await createServer();
 
   const port = resolvePort();
@@ -55,7 +53,7 @@ export async function startServer() {
         app.set("port", port);
         app.set("server", listener);
       }
-      console.log(`API server listening on ${port}`);
+      logger.info("server_listening", { port });
       resolve(listener);
     });
   });
@@ -68,7 +66,7 @@ export async function startServer() {
 
 if (require.main === module && process.env.NODE_ENV !== "test") {
   startServer().catch((err) => {
-    logError("server_start_failed", { err });
+    logger.error("server_start_failed", { err: err instanceof Error ? err.message : String(err) });
   });
 }
 

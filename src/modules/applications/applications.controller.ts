@@ -1,9 +1,9 @@
 import { type Request, type Response } from "express";
 import { AppError, forbiddenError } from "../../middleware/errors";
-import { isRole, ROLES } from "../../auth/roles";
+import { type Role, isRole, ROLES } from "../../auth/roles";
 import { getProcessingStatus } from "./applications.service";
 
-const STAFF_ROLES = new Set([ROLES.ADMIN, ROLES.STAFF, ROLES.OPS]);
+const STAFF_ROLES = new Set<Role>([ROLES.ADMIN, ROLES.STAFF, ROLES.OPS]);
 
 export async function getApplicationProcessingStatus(
   req: Request,
