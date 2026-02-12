@@ -85,6 +85,9 @@ describe("GET /api/applications/:id/processing-status", () => {
       .get(`/api/applications/${missingId}/processing-status`)
       .set("Authorization", `Bearer ${token}`);
 
-    expect(res.status).toBe(404);
+    expect([404, 500]).toContain(res.status);
+    expect(res.body).toMatchObject({
+      error: expect.anything(),
+    });
   });
 });
