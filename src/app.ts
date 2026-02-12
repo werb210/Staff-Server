@@ -35,6 +35,11 @@ import { intHealthHandler } from "./routes/_int/health";
 import { runtimeHandler } from "./routes/_int/runtime";
 import { assertApiV1Frozen } from "./contracts/v1Freeze";
 import { contractGuard } from "./middleware/contractGuard";
+import logger from "./middleware/logger";
+import envCheck from "./middleware/envCheck";
+import healthRoute from "./routes/health";
+import contactRoute from "./routes/contact";
+import leadRoute from "./routes/lead";
 
 function assertRoutesMounted(app: express.Express): void {
   const mountedRoutes = listRoutes(app);
@@ -142,6 +147,7 @@ export function assertCorsConfig(): void {
 export function buildApp(): express.Express {
   const app = express();
 
+  app.use(logger);
   app.use(requestContext);
   app.use(requestLogger);
   app.use((req, res, next) => {
@@ -171,6 +177,7 @@ export function buildApp(): express.Express {
   app.get("/api/health", healthHandler);
   app.get("/api/ready", readyHandler);
   app.get("/health", healthHandler);
+  app.use("/health/details", healthRoute);
   app.get("/ready", readyHandler);
   app.get("/__boot", (_req, res) => {
     res.status(200).json({
@@ -191,6 +198,11 @@ export async function initializeServer(): Promise<void> {
 
 export function registerApiRoutes(app: express.Express): void {
   assertApiV1Frozen();
+  app.use(envCheck);
+  app.use("/api/contact", contactRoute);
+  app.use("/api/lead", leadRoute);
+  app.use("/api/healthz", healthRoute);
+
   app.use((req, res, next) => {
     if (req.path.startsWith("/api/_int")) {
       next();
