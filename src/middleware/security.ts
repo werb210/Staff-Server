@@ -2,6 +2,7 @@ import { type NextFunction, type Request, type Response } from "express";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { isProductionEnvironment } from "../config";
+import { logger } from "../utils/logger";
 
 function isLoopback(req: Request): boolean {
   const ip = req.ip || "";
@@ -70,7 +71,7 @@ export const apiLimiter = rateLimit({
 
 export function productionLogger(req: Request, _res: Response, next: NextFunction): void {
   if (process.env.NODE_ENV === "production") {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+    logger.info("production_request", { method: req.method, url: req.originalUrl });
   }
   next();
 }

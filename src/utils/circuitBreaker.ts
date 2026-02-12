@@ -97,3 +97,18 @@ export function recordSuccess(): void {
   globalFailureCount = 0;
   globalBlockedUntil = 0;
 }
+
+
+export function circuitGuard(): void {
+  const now = Date.now();
+  if (globalFailureCount > 5 && now - (globalBlockedUntil - 60_000) < 30_000 && now < globalBlockedUntil) {
+    throw new Error("AI temporarily disabled due to repeated failures.");
+  }
+  if (!canProceed()) {
+    throw new Error("AI temporarily disabled due to repeated failures.");
+  }
+}
+
+export function resetCircuit(): void {
+  recordSuccess();
+}

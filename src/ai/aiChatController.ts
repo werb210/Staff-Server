@@ -7,6 +7,8 @@ import { retrieveTopKnowledgeChunks } from "./retrievalService";
 import { matchLenders } from "./lenderMatchEngine";
 import { getAiModel } from "../config";
 import { emitAiEscalation } from "../realtime/events";
+import { circuitGuard, recordFailure, resetCircuit } from "../utils/circuitBreaker";
+import { retry } from "../utils/retry";
 
 function detectIntent(message: string): "faq" | "prequal" | "escalation" {
   const lower = message.toLowerCase();
@@ -57,24 +59,37 @@ async function createAiResponse(prompt: string, context: string[]): Promise<stri
       .slice(0, 2)
       .join(" ")}`;
   }
+
   const client = new OpenAI({ apiKey });
-  const response = await client.chat.completions.create({
-    model: getAiModel(),
-    messages: [
-      {
-        role: "system",
-        content:
-          "You are Boreal Marketplace AI. Position Boreal as a marketplace, never promise lender approval, and if data is missing say you do not know.",
-      },
-      {
-        role: "user",
-        content: `Question: ${prompt}\n\nContext:\n${context.join("\n---\n")}`,
-      },
-    ],
-    temperature: 0.2,
+  const response = await retry(async () => {
+    circuitGuard();
+    try {
+      const completion = await client.chat.completions.create({
+        model: getAiModel(),
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are Boreal Marketplace AI. Position Boreal as a marketplace, never promise lender approval, and if data is missing say you do not know.",
+          },
+          {
+            role: "user",
+            content: `Question: ${prompt}\n\nContext:\n${context.join("\n---\n")}`,
+          },
+        ],
+        temperature: 0.2,
+      });
+      resetCircuit();
+      return completion;
+    } catch (error) {
+      recordFailure();
+      throw error;
+    }
   });
+
   return response.choices[0]?.message?.content ?? "I could not generate a response.";
 }
+
 
 export const postAiChat = safeHandler(async (req: Request, res: Response) => {
   const body = req.body as {

@@ -9,6 +9,7 @@ import { pool } from "../db";
 import { postAiChat, postAiEscalate } from "../ai/aiChatController";
 import { saveKnowledge as saveKnowledgeDb } from "../services/aiKnowledgeService";
 import { loadKnowledge, saveKnowledge } from "../modules/ai/knowledge.service";
+import { AIKnowledgeController, upload as knowledgeUpload } from "../modules/ai/knowledge.controller";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -24,9 +25,12 @@ function ensureUploadDir(): void {
 router.post("/chat", postAiChat);
 router.post("/escalate", postAiEscalate);
 
+router.post("/knowledge/upload", knowledgeUpload.single("file"), AIKnowledgeController.upload);
+router.get("/knowledge", AIKnowledgeController.list);
+
 
 router.get(
-  "/knowledge",
+  "/knowledge/db",
   safeHandler(async (_req, res) => {
     const { rows } = await pool.query<{
       id: string;

@@ -4,8 +4,12 @@ import { CAPABILITIES } from "../auth/capabilities";
 import { safeHandler } from "../middleware/safeHandler";
 import { respondOk } from "../utils/respondOk";
 import { handleListCrmTimeline } from "../modules/crm/timeline.controller";
+import { SupportController } from "../modules/support/support.controller";
 
 const router = Router();
+
+// Public website lead intake endpoint
+router.post("/web-leads", SupportController.createWebLead);
 
 router.use(requireAuth);
 router.use(requireCapability([CAPABILITIES.CRM_READ]));
@@ -52,5 +56,6 @@ router.get("/contacts", safeHandler((req, res) => {
 }));
 
 router.get("/timeline", safeHandler(handleListCrmTimeline));
+router.get("/web-leads", SupportController.getWebLeads);
 
 export default router;

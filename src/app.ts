@@ -19,12 +19,11 @@ import "./services/twilio";
 import { PORTAL_ROUTE_REQUIREMENTS, API_ROUTE_MOUNTS } from "./routes/routeRegistry";
 import { checkDb } from "./db";
 import {
-  apiLimiter,
   productionLogger,
   requireHttps,
   securityHeaders,
 } from "./middleware/security";
-import { publicLimiter, strictLimiter } from "./middleware/rateLimit";
+import { apiLimiter, publicLimiter, strictLimiter } from "./middleware/rateLimit";
 import { idempotencyMiddleware } from "./middleware/idempotency";
 import { ensureIdempotencyKey } from "./middleware/idempotencyKey";
 import { notFoundHandler } from "./middleware/errors";
@@ -46,6 +45,7 @@ import envCheck from "./middleware/envCheck";
 import healthRoute from "./routes/health";
 import contactRoute from "./routes/contact";
 import leadRoute from "./routes/lead";
+import crmRoutes from "./routes/crm";
 import issueRoutes from "./routes/issueReport";
 import chatRoutes from "./routes/chat";
 import supportRoutes from "./routes/support";
@@ -183,7 +183,7 @@ export function buildApp(): express.Express {
   });
   app.options("*", cors(corsOptions));
   app.use(securityHeaders);
-  app.use(apiLimiter);
+  app.use("/api/", apiLimiter);
   app.use(routeResolutionLogger);
   app.use(requestTimeout);
 
@@ -226,6 +226,7 @@ export function registerApiRoutes(app: express.Express): void {
   app.use("/api/readiness", readinessRoutes);
   app.use("/api/product-comparison", productComparisonRoutes);
   app.use("/api/lead", leadRoute);
+  app.use("/api/crm", crmRoutes);
   app.use("/api/healthz", healthRoute);
 
   app.use((req, res, next) => {
