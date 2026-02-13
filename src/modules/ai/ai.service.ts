@@ -1,83 +1,54 @@
 import OpenAI from "openai";
-import { randomUUID } from "crypto";
-import { z } from "zod";
-import { pool } from "../../db";
 
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+type AiReply = {
+  reply: string;
+  askIntakeQuestions?: boolean;
+};
 
-const jsonObjectSchema = z.record(z.unknown());
+const LENDER_LANGUAGE = "We have lenders across different capital types, including Institutional lenders, Banking, and Private Capital sources as well as our own funding offerings.";
 
-export async function getPolicyConstraints(): Promise<string> {
-  const { rows } = await pool.query<{ content: string }>(
-    `select content from ai_policy_rules
-     where active = true and rule_type = 'hard_constraint'`
-  );
+const SYSTEM_PROMPT = [
+  "You are a financing assistant for Boreal Financial.",
+  "Output only valid JSON with keys: reply (string), askIntakeQuestions (boolean).",
+  "Never name lenders.",
+  LENDER_LANGUAGE,
+  "Use range-based language for all rates, pricing, and limits.",
+  "Never guarantee approvals.",
+  "Never make fixed pricing promises.",
+  "If user asks qualification-related questions, ask intake questions before recommendations.",
+].join("\n");
 
-  return rows.map((row) => row.content).join("\n");
-}
+const client = process.env.OPENAI_API_KEY
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  : null;
 
-export async function retrieveContext(query: string): Promise<string> {
-  const embedding = await client.embeddings.create({
-    model: "text-embedding-3-small",
-    input: query,
-  });
-
-  const vector = embedding.data[0]?.embedding ?? [];
-
-  const { rows } = await pool.query<{ content: string }>(
-    `select content
-     from ai_knowledge
-     order by embedding <-> $1
-     limit 5`,
-    [`[${vector.join(",")}]`]
-  );
-
-  return rows.map((row) => row.content).join("\n\n");
-}
-
-export async function generateAIResponse(sessionId: string, message: string): Promise<string> {
-  const policy = await getPolicyConstraints();
-  const context = await retrieveContext(message);
-
-  const systemPrompt = `
-You are Maya, a professional and friendly AI assistant for Boreal Financial.
-
-HARD CONSTRAINTS:
-${policy}
-
-RULES:
-- Never mention lender names.
-- Always speak in ranges.
-- Use "subject to underwriting".
-- Output strictly valid JSON.
-- No markdown.
-- No extra commentary.
-`;
+export async function generateAIResponse(_sessionId: string, message: string): Promise<string> {
+  if (!client) {
+    return JSON.stringify({
+      reply: `${LENDER_LANGUAGE} To guide qualification, could you share time in business, monthly revenue range, and existing obligations?`,
+      askIntakeQuestions: true,
+    } satisfies AiReply);
+  }
 
   const response = await client.chat.completions.create({
-    model: "gpt-4.1-mini",
-    temperature: 0.4,
+    model: process.env.OPENAI_CHAT_MODEL ?? "gpt-4.1-mini",
+    temperature: 0.2,
     response_format: { type: "json_object" },
     messages: [
-      { role: "system", content: systemPrompt },
-      { role: "system", content: `Knowledge:\n${context}` },
+      { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: message },
     ],
   });
 
   const content = response.choices[0]?.message?.content ?? "{}";
+  const parsed = JSON.parse(content) as AiReply;
 
-  const parsed = JSON.parse(content) as unknown;
-  jsonObjectSchema.parse(parsed);
-  const serializedContent = JSON.stringify(parsed);
+  if (typeof parsed.reply !== "string") {
+    throw new Error("AI response format invalid: missing reply.");
+  }
 
-  await pool.query(
-    `insert into chat_messages (id, session_id, role, content)
-     values ($1, $2, 'ai', $3)`,
-    [randomUUID(), sessionId, serializedContent]
-  );
-
-  return serializedContent;
+  return JSON.stringify({
+    reply: parsed.reply,
+    askIntakeQuestions: Boolean(parsed.askIntakeQuestions),
+  } satisfies AiReply);
 }

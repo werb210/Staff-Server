@@ -36,6 +36,8 @@ import lenderProductsRoutes from "./routes/lenderProducts";
 import applicationsRoutes from "./routes/applications";
 import aiRoutes from "./routes/ai";
 import aiV2Routes from "./routes/ai.v2";
+import chatApiRoutes from "./modules/ai/chat.routes";
+import capitalRoutes from "./modules/ai/capital.routes";
 import internalRoutes from "./routes/_int";
 import { intHealthHandler } from "./routes/_int/health";
 import { runtimeHandler } from "./routes/_int/runtime";
@@ -266,6 +268,8 @@ export function registerApiRoutes(app: express.Express): void {
   app.use("/api/report-issue", publicLimiter, issueRoutes);
   app.use("/api/chat", externalEndpointLimiter, chatRoutes);
   app.use("/api", externalEndpointLimiter, aiV2Routes);
+  app.use("/api", externalEndpointLimiter, chatApiRoutes);
+  app.use("/api", externalEndpointLimiter, capitalRoutes);
   app.use("/api/support", strictLimiter, supportRoutes);
   app.use("/api/public", externalEndpointLimiter, publicRoutes);
   app.use("/api/analytics", analyticsRoutes);
