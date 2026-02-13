@@ -58,6 +58,7 @@ import publicRoutes from "./routes/public";
 import analyticsRoutes from "./routes/analytics";
 import readinessRoutes from "./routes/readiness";
 import productComparisonRoutes from "./routes/productComparison";
+import leadRoutes from "./routes/lead.routes";
 import { logger as serverLogger } from "./server/utils/logger";
 
 function assertRoutesMounted(app: express.Express): void {
@@ -82,6 +83,7 @@ function getCorsAllowlist(): Set<string> {
     process.env.WEBSITE_URL,
     process.env.PORTAL_URL,
     process.env.CLIENT_URL,
+    "http://localhost:5173",
   ]
     .filter(Boolean)
     .map((origin) => String(origin).trim())
@@ -282,6 +284,7 @@ export function registerApiRoutes(app: express.Express): void {
   app.use("/api/product-comparison", productComparisonRoutes);
   app.use("/api/comparison", productComparisonRoutes);
   app.use("/api/lead", strictLimiter, leadRoute);
+  app.use("/api", leadRoutes);
   app.use("/api/crm", crmRoutes);
   app.use("/api/healthz", healthRoute);
 
