@@ -9,6 +9,7 @@ import { saveKnowledge as saveKnowledgeDb } from "../services/aiKnowledgeService
 import { loadKnowledge, saveKnowledge } from "../modules/ai/knowledge.service";
 import { AIKnowledgeController, upload as knowledgeUpload } from "../modules/ai/knowledge.controller";
 import { logger } from "../utils/logger";
+import { generateAIResponse } from "../services/ai/aiService";
 
 const router = Router();
 const upload = multer({
@@ -89,6 +90,17 @@ async function tryStoreReport(payload: {
   return reportId;
 }
 
+const SYSTEM_PROMPT = `
+You are Maya, Boreal Financial’s AI Assistant.
+Professional and friendly.
+Never name lenders.
+Always show ranges.
+Never give binding quotes.
+Always say "subject to underwriting".
+Capital types: Institutional lenders, Banking, Private Capital sources and internal offerings.
+If startup funding asked: explain coming soon and ask for contact info.
+`;
+
 router.post(
   "/chat",
   safeHandler(async (req, res) => {
@@ -122,11 +134,13 @@ router.post(
       });
     }
 
-    const reply = "Thanks for reaching out. We received your message and will assist shortly.";
+    const reply = await generateAIResponse(SYSTEM_PROMPT, message);
+
     res.status(200).json({
       reply,
       message: reply,
       escalationAvailable: true,
+      subjectToUnderwriting: true,
     });
   })
 );
