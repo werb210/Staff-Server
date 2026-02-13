@@ -3,13 +3,12 @@ import path from "path";
 import multer from "multer";
 import { Router } from "express";
 import { randomUUID } from "crypto";
-import { requireAuth } from "../middleware/auth";
 import { safeHandler } from "../middleware/safeHandler";
 import { pool } from "../db";
-import { postAiChat, postAiEscalate } from "../ai/aiChatController";
 import { saveKnowledge as saveKnowledgeDb } from "../services/aiKnowledgeService";
 import { loadKnowledge, saveKnowledge } from "../modules/ai/knowledge.service";
 import { AIKnowledgeController, upload as knowledgeUpload } from "../modules/ai/knowledge.controller";
+import { logger } from "../utils/logger";
 
 const router = Router();
 const upload = multer({
@@ -33,12 +32,165 @@ function ensureUploadDir(): void {
   }
 }
 
-router.post("/chat", postAiChat);
-router.post("/escalate", postAiEscalate);
+async function tryStoreEscalation(payload: {
+  sessionId: string;
+  escalatedTo?: string | null;
+  messages?: unknown;
+}): Promise<string> {
+  const escalationId = randomUUID();
+  try {
+    await pool.query(
+      `update chat_sessions
+       set status = 'escalated', escalated_to = $2, updated_at = now()
+       where id = $1`,
+      [payload.sessionId, payload.escalatedTo ?? null]
+    );
+
+    await pool.query(
+      `insert into ai_escalations (id, session_id, messages, status, created_at)
+       values ($1, $2, $3::jsonb, 'open', now())`,
+      [escalationId, payload.sessionId, JSON.stringify(payload.messages ?? [])]
+    );
+  } catch (error) {
+    logger.warn("ai_escalation_store_failed", {
+      sessionId: payload.sessionId,
+      error: error instanceof Error ? error.message : "unknown_error",
+    });
+  }
+  return escalationId;
+}
+
+async function tryStoreReport(payload: {
+  message: string;
+  screenshot?: string | null;
+  context?: unknown;
+  metadata?: Record<string, unknown>;
+}): Promise<string> {
+  const reportId = randomUUID();
+
+  try {
+    await pool.query(
+      `insert into issue_reports (id, description, screenshot_base64, user_agent, status, created_at)
+       values ($1, $2, $3, $4, 'open', now())`,
+      [
+        reportId,
+        payload.message,
+        payload.screenshot ?? null,
+        String(payload.metadata?.userAgent ?? ""),
+      ]
+    );
+  } catch (error) {
+    logger.warn("ai_report_store_failed", {
+      reportId,
+      error: error instanceof Error ? error.message : "unknown_error",
+    });
+  }
+
+  return reportId;
+}
+
+router.post(
+  "/chat",
+  safeHandler(async (req, res) => {
+    const message = typeof req.body?.message === "string" ? req.body.message.trim() : "";
+    if (!message) {
+      res.status(400).json({ error: "message is required" });
+      return;
+    }
+
+    const sessionId =
+      typeof req.body?.sessionId === "string" && req.body.sessionId.trim().length > 0
+        ? req.body.sessionId
+        : randomUUID();
+
+    try {
+      await pool.query(
+        `insert into chat_sessions (id, user_type, status, escalated_to, created_at, updated_at)
+         values ($1, 'guest', 'active', null, now(), now())
+         on conflict (id) do update set updated_at = now()`,
+        [sessionId]
+      );
+      await pool.query(
+        `insert into chat_messages (id, session_id, role, message, metadata, created_at)
+         values ($1, $2, 'user', $3, null, now())`,
+        [randomUUID(), sessionId, message]
+      );
+    } catch (error) {
+      logger.warn("ai_chat_store_failed", {
+        sessionId,
+        error: error instanceof Error ? error.message : "unknown_error",
+      });
+    }
+
+    const reply = "Thanks for reaching out. We received your message and will assist shortly.";
+    res.status(200).json({
+      reply,
+      message: reply,
+      escalationAvailable: true,
+    });
+  })
+);
+
+router.post(
+  "/escalate",
+  safeHandler(async (req, res) => {
+    const sessionId =
+      typeof req.body?.sessionId === "string" && req.body.sessionId.trim().length > 0
+        ? req.body.sessionId
+        : randomUUID();
+
+    const escalationId = await tryStoreEscalation({
+      sessionId,
+      escalatedTo: typeof req.body?.escalatedTo === "string" ? req.body.escalatedTo : null,
+      messages: req.body?.messages,
+    });
+
+    res.status(202).json({
+      acknowledged: true,
+      ok: true,
+      escalationId,
+      sessionId,
+    });
+  })
+);
+
+router.post(
+  "/report",
+  safeHandler(async (req, res) => {
+    const message =
+      typeof req.body?.message === "string" && req.body.message.trim().length > 0
+        ? req.body.message
+        : "Issue report received";
+    const screenshot =
+      typeof req.body?.screenshot === "string" && req.body.screenshot.length > 0
+        ? req.body.screenshot
+        : null;
+
+    const reportId = await tryStoreReport({
+      message,
+      screenshot,
+      context: req.body?.context,
+      metadata:
+        typeof req.body === "object" && req.body !== null
+          ? (req.body as Record<string, unknown>)
+          : {},
+    });
+
+    logger.info("ai_report_received", {
+      reportId,
+      hasScreenshot: Boolean(screenshot),
+      hasContext: Boolean(req.body?.context),
+    });
+
+    res.status(202).json({
+      accepted: true,
+      reportId,
+    });
+  })
+);
 
 router.post("/knowledge/upload", knowledgeUpload.single("file"), AIKnowledgeController.upload);
 router.get("/knowledge", AIKnowledgeController.list);
-
 
 router.get(
   "/knowledge/db",
@@ -89,7 +241,6 @@ router.post(
 
 router.post(
   "/report-issue",
-  requireAuth,
   upload.single("screenshot"),
   safeHandler(async (req, res) => {
     const body = req.body as {

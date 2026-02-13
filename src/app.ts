@@ -325,6 +325,7 @@ export function registerApiRoutes(app: express.Express): void {
       return;
     }
     if (entry.path === "/ai") {
+      // Keep AI widget endpoints public for website/client integrations.
       app.use(`/api${entry.path}`, externalEndpointLimiter, entry.router);
       return;
     }
