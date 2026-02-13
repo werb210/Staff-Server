@@ -29,6 +29,7 @@ import referralsRoutes from "./referrals";
 import pipelineRoutes from "./pipeline";
 import voiceRoutes from "./voice";
 import webhooksRoutes from "./webhooks";
+import websiteRoutes from "./website";
 
 export type ApiRoute = {
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -78,6 +79,7 @@ export const API_ROUTE_MOUNTS: ApiRouteMount[] = [
   { path: "/pipeline", router: pipelineRoutes },
   { path: "/voice", router: voiceRoutes },
   { path: "/webhooks", router: webhooksRoutes },
+  { path: "/website", router: websiteRoutes },
 ];
 
 export const PORTAL_ROUTE_REQUIREMENTS: Pick<ApiRoute, "method" | "path">[] = [
@@ -130,6 +132,8 @@ export const ROUTES: ApiRoute[] = [
   { method: "GET", path: "/api/staff/overview", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "GET", path: "/api/dashboard", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "POST", path: "/api/referrals", roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.REFERRER] },
+  { method: "POST", path: "/api/website/credit-readiness", roles: [] },
+  { method: "POST", path: "/api/website/contact", roles: [] },
 ];
 
 export function registerApiRouteMounts(router: Router): void {
