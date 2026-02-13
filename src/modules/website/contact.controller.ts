@@ -4,7 +4,7 @@ import { sendSms } from "../notifications/sms.service";
 
 export async function submitContactForm(req: Request, res: Response) {
   try {
-    const { companyName, fullName, phone, email, message } = req.body as Record<
+    const { companyName, fullName, phone, email, message, productInterest, industryInterest } = req.body as Record<
       string,
       string | undefined
     >;
@@ -19,6 +19,8 @@ export async function submitContactForm(req: Request, res: Response) {
       phone,
       email,
       notes: message,
+      productInterest,
+      industryInterest,
       source: "website_contact",
       tags: ["contact_form"],
     });

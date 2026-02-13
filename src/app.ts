@@ -58,7 +58,7 @@ import publicRoutes from "./routes/public";
 import analyticsRoutes from "./routes/analytics";
 import readinessRoutes from "./routes/readiness";
 import productComparisonRoutes from "./routes/productComparison";
-import leadRoutes from "./routes/lead.routes";
+import crmLeadRoutes from "./routes/leads";
 import { logger as serverLogger } from "./server/utils/logger";
 
 function assertRoutesMounted(app: express.Express): void {
@@ -284,7 +284,7 @@ export function registerApiRoutes(app: express.Express): void {
   app.use("/api/product-comparison", productComparisonRoutes);
   app.use("/api/comparison", productComparisonRoutes);
   app.use("/api/lead", strictLimiter, leadRoute);
-  app.use("/api", leadRoutes);
+  app.use("/api/crm/leads", externalEndpointLimiter, crmLeadRoutes);
   app.use("/api/crm", crmRoutes);
   app.use("/api/healthz", healthRoute);
 
