@@ -8,6 +8,7 @@ import { logger } from "./utils/logger";
 import { markReady } from "../startupState";
 import { createServer } from "./createServer";
 import { db } from "../db";
+import { initChatSocket } from "../modules/ai/socket.server";
 
 let processHandlersInstalled = false;
 let server: Server | null = null;
@@ -78,6 +79,7 @@ export async function startServer() {
 
   if (!server) throw new Error("Server failed to start.");
 
+  initChatSocket(server);
   markReady();
   return server;
 }
