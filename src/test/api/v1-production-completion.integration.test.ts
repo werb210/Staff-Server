@@ -34,11 +34,10 @@ describe("v1 production completion", () => {
     expect(createRes.body?.data?.readinessToken).toEqual(expect.any(String));
     expect(createRes.body?.data?.sessionId).toEqual(expect.any(String));
 
-    const tokenRes = await request(app).get(`/api/readiness/${createRes.body.data.sessionId}`);
+    const tokenRes = await request(app).get(`/api/readiness/session/${createRes.body.data.sessionId}`);
     expect(tokenRes.status).toBe(200);
     expect(tokenRes.body?.data?.kyc?.email).toBe(payload.email);
     expect(Number(tokenRes.body?.data?.financial?.monthlyRevenue)).toBe(55000);
-    expect(tokenRes.body?.data?.leadId).toEqual(expect.any(String));
 
     const dupRes = await request(app).post("/api/readiness").send(payload);
     expect([200, 201]).toContain(dupRes.status);
@@ -52,6 +51,8 @@ describe("v1 production completion", () => {
     );
     expect(sessions.rowCount).toBe(1);
   });
+
+
 
 
   it("dedupes contact form entries by email/phone", async () => {
@@ -114,6 +115,19 @@ describe("v1 production completion", () => {
     });
 
     expect(messages.some((entry) => entry.includes('"state":"HUMAN_ACTIVE"'))).toBe(true);
+
+
+    await new Promise<void>((resolve, reject) => {
+      client.send(JSON.stringify({ type: "close_chat", sessionId }));
+      setTimeout(() => resolve(), 250);
+      setTimeout(() => reject(new Error("timeout waiting close")), 2000);
+    });
+
+    const sessionStatus = await pool.query(
+      `select status from chat_sessions where id = $1 limit 1`,
+      [sessionId]
+    );
+    expect(sessionStatus.rows[0]?.status).toBe("closed");
 
     client.close();
     staff.close();

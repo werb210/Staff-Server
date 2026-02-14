@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { type Request, type Response, Router } from "express";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import { db } from "../db";
@@ -27,7 +27,7 @@ const continueSchema = z.object({
 });
 
 const readinessLookupParamsSchema = z.object({
-  sessionId: z.string().uuid(),
+  id: z.string().uuid(),
 });
 
 router.post("/", readinessLimiter, async (req, res) => {
@@ -67,10 +67,10 @@ router.post("/", readinessLimiter, async (req, res) => {
   }
 });
 
-router.get("/:sessionId", readinessLimiter, async (req, res) => {
+const getReadinessSessionHandler = async (req: Request, res: Response) => {
   try {
-    const { sessionId } = readinessLookupParamsSchema.parse(req.params);
-    const session = await getActiveReadinessSessionByToken(sessionId);
+    const { id } = readinessLookupParamsSchema.parse(req.params);
+    const session = await getActiveReadinessSessionByToken(id);
 
     if (!session) {
       res.status(404).json({ success: false, error: "Not found" });
@@ -81,7 +81,6 @@ router.get("/:sessionId", readinessLimiter, async (req, res) => {
       success: true,
       data: {
         sessionId: session.sessionId,
-        readinessToken: session.readinessToken,
         kyc: {
           companyName: session.companyName,
           fullName: session.fullName,
@@ -96,13 +95,12 @@ router.get("/:sessionId", readinessLimiter, async (req, res) => {
           arOutstanding: session.arOutstanding,
           existingDebt: session.existingDebt,
         },
-        leadId: session.leadId,
         expiresAt: session.expiresAt,
       },
     });
   } catch (error) {
     if (error instanceof Error && error.name === "ZodError") {
-      res.status(400).json({ success: false, error: "Invalid token" });
+      res.status(400).json({ success: false, error: "Invalid session id" });
       return;
     }
 
@@ -111,7 +109,10 @@ router.get("/:sessionId", readinessLimiter, async (req, res) => {
     });
     res.status(500).json({ success: false, error: "Server error" });
   }
-});
+};
+
+router.get("/session/:id", readinessLimiter, getReadinessSessionHandler);
+router.get("/:id", readinessLimiter, getReadinessSessionHandler);
 
 router.post("/continue", readinessLimiter, async (req, res) => {
   try {
