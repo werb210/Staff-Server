@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { pool } from "../../db";
 
 export type ContinuationPayload = {
@@ -51,7 +51,7 @@ export async function createContinuation(
   payload: ContinuationPayload,
   crmLeadId: string
 ): Promise<string> {
-  const token = randomBytes(24).toString("hex");
+  const token = randomUUID();
 
   await pool.query(
     `
