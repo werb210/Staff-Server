@@ -10,7 +10,6 @@ import {
   createOrReuseReadinessSession,
   getActiveReadinessSessionByToken,
 } from "../modules/readiness/readinessSession.service";
-import { sendSMS } from "../services/smsService";
 import { logError, logInfo } from "../observability/logger";
 
 const router = Router();
@@ -27,24 +26,14 @@ const continueSchema = z.object({
   email: z.string().trim().email(),
 });
 
-const readinessTokenParamsSchema = z.object({
-  token: z.string().uuid(),
+const readinessLookupParamsSchema = z.object({
+  sessionId: z.string().uuid(),
 });
 
 router.post("/", readinessLimiter, async (req, res) => {
   try {
     const parsed = createReadinessLeadSchema.parse(req.body ?? {});
     const readinessSession = await createOrReuseReadinessSession(parsed);
-
-    await sendSMS(
-      "+15878881837",
-      `Readiness submission: ${parsed.companyName} | ${parsed.fullName} | ${parsed.phone}`
-    ).catch((error) => {
-      logError("readiness_sms_failed", {
-        message: error instanceof Error ? error.message : String(error),
-        email: parsed.email,
-      });
-    });
 
     logInfo("readiness_session_upserted", {
       sessionId: readinessSession.sessionId,
@@ -78,10 +67,10 @@ router.post("/", readinessLimiter, async (req, res) => {
   }
 });
 
-router.get("/:token", readinessLimiter, async (req, res) => {
+router.get("/:sessionId", readinessLimiter, async (req, res) => {
   try {
-    const { token } = readinessTokenParamsSchema.parse(req.params);
-    const session = await getActiveReadinessSessionByToken(token);
+    const { sessionId } = readinessLookupParamsSchema.parse(req.params);
+    const session = await getActiveReadinessSessionByToken(sessionId);
 
     if (!session) {
       res.status(404).json({ success: false, error: "Not found" });

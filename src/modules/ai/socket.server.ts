@@ -4,7 +4,7 @@ import { WebSocketServer, type RawData, type WebSocket } from "ws";
 import { pool } from "../../db";
 import { logError, logInfo } from "../../observability/logger";
 
-type SessionSocket = WebSocket & { sessionId?: string; isAlive?: boolean; role?: "client" | "staff" };
+type SessionSocket = WebSocket & { sessionId?: string; isAlive?: boolean; role?: "client" | "staff"; userId?: string };
 
 type ChatSessionState = "AI_ACTIVE" | "HUMAN_ACTIVE";
 
@@ -18,6 +18,7 @@ type SocketPayload = {
   type?: string;
   sessionId?: string;
   content?: string;
+  userId?: string;
 };
 
 const sessionMap = new Map<string, SessionPresence>();
@@ -117,6 +118,12 @@ function detachSocket(socket: SessionSocket): void {
 
   if (presence.sockets.size === 0) {
     sessionMap.delete(socket.sessionId);
+    void attachTranscriptToCrm(socket.sessionId).catch((error) => {
+      logError("chat_transcript_attach_on_close_failed", {
+        message: error instanceof Error ? error.message : String(error),
+        sessionId: socket.sessionId,
+      });
+    });
   }
 }
 
@@ -138,8 +145,13 @@ export function initChatSocket(server: Server): WebSocketServer {
         }
 
         if (payload.type === "join_session" && payload.sessionId) {
+          if (!payload.userId || payload.userId.trim().length === 0) {
+            ws.send(JSON.stringify({ type: "error", message: "unauthorized" }));
+            return;
+          }
           ws.sessionId = payload.sessionId;
           ws.role = "client";
+          ws.userId = payload.userId;
 
           const presence = getOrCreatePresence(payload.sessionId);
           presence.sockets.add(ws);
@@ -156,8 +168,13 @@ export function initChatSocket(server: Server): WebSocketServer {
         }
 
         if (payload.type === "staff_join" && payload.sessionId) {
+          if (!payload.userId || payload.userId.trim().length === 0) {
+            ws.send(JSON.stringify({ type: "error", message: "unauthorized" }));
+            return;
+          }
           ws.sessionId = payload.sessionId;
           ws.role = "staff";
+          ws.userId = payload.userId;
 
           const presence = getOrCreatePresence(payload.sessionId);
           presence.sockets.add(ws);
@@ -227,6 +244,16 @@ export function initChatSocket(server: Server): WebSocketServer {
     });
   });
 
+
+  const idleCleanup = setInterval(() => {
+    const now = Date.now();
+    for (const [sessionId, presence] of sessionMap.entries()) {
+      if (presence.sockets.size === 0 || now - presence.updatedAt > 1000 * 60 * 10) {
+        sessionMap.delete(sessionId);
+      }
+    }
+  }, 30000);
+
   const heartbeat = setInterval(() => {
     wss.clients.forEach((client) => {
       const socket = client as SessionSocket;
@@ -241,6 +268,7 @@ export function initChatSocket(server: Server): WebSocketServer {
 
   wss.on("close", () => {
     clearInterval(heartbeat);
+    clearInterval(idleCleanup);
   });
 
   return wss;

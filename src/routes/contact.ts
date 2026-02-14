@@ -150,11 +150,7 @@ router.post("/", contactRateLimiter, validateBody(schema), async (req, res) => {
     await withTimeout(
       retry(async () =>
         client.messages.create({
-          body: `New website contact:
-${resolvedCompany}
-${resolvedFullName}
-${email}
-${phone}`,
+          body: `Lead type: contact_form | Name: ${resolvedFullName} | Phone: ${phone} | Company: ${resolvedCompany} | Email: ${email}`,
           from: (process.env.TWILIO_NUMBER || process.env.TWILIO_PHONE || "+14155550000") as string,
           to: "+15878881837",
         })
@@ -218,7 +214,7 @@ ${phone}`,
     }
 
     if (process.env.INTAKE_SMS_NUMBER) {
-      await sendSMS(process.env.INTAKE_SMS_NUMBER, `New Website Contact: ${resolvedCompany}`);
+      await sendSMS(process.env.INTAKE_SMS_NUMBER, `Lead type: contact_form | Name: ${resolvedFullName} | Phone: ${phone} | Company: ${resolvedCompany}`);
     }
 
     logger.info("contact_request", { company: resolvedCompany, email, phone, source, utm: utm ?? null, deduped: existingContactLead.rows.length > 0 });

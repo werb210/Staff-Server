@@ -134,7 +134,7 @@ export async function createOrReuseReadinessSession(payload: ReadinessSessionInp
   return { sessionId: id, token, reused: false, crmLeadId: crmLead.id };
 }
 
-export async function getActiveReadinessSessionByToken(token: string): Promise<null | {
+export async function getActiveReadinessSessionByToken(sessionId: string): Promise<null | {
   sessionId: string;
   readinessToken: string;
   email: string;
@@ -168,9 +168,9 @@ export async function getActiveReadinessSessionByToken(token: string): Promise<n
             years_in_business, monthly_revenue, annual_revenue, ar_outstanding, existing_debt,
             expires_at
      from readiness_sessions
-     where token = $1 and is_active = true and expires_at > now()
+     where id = $1 and is_active = true and expires_at > now()
      limit 1`,
-    [token]
+    [sessionId]
   );
 
   const row = result.rows[0];

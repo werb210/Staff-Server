@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { dbQuery } from "../../db";
 import { normalizePhoneNumber } from "../auth/phone";
-import { sendSMS } from "../../services/smsService";
 import { createApplication } from "../applications/applications.repo";
 import { upsertCrmLead } from "../crm/leadUpsert.service";
 
@@ -232,11 +231,6 @@ export async function createReadinessLead(input: CreateReadinessLeadInput): Prom
       source,
       crmContactId,
     ]
-  );
-
-  await sendSMS(
-    "+15878881837",
-    `New Readiness Lead: ${parsed.companyName} – ${parsed.fullName} – ${phone}`
   );
 
   return { leadId };
