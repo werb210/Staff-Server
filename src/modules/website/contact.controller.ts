@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { createCrmLead } from "../crm/crm.service";
 import { sendSms } from "../notifications/sms.service";
+import { createContinuation } from "../continuation/continuation.service";
 
 export async function submitContactForm(req: Request, res: Response) {
   try {
@@ -25,12 +26,18 @@ export async function submitContactForm(req: Request, res: Response) {
       tags: ["contact_form"],
     });
 
+    const token = await createContinuation(req.body, lead.id);
+
     await sendSms({
       to: "+15878881837",
-      message: `New Website Contact:\n${companyName}\n${fullName}\n${phone}\n${email}`,
+      message: `New continuation lead: ${companyName}`,
     });
 
-    return res.json({ success: true, leadId: lead.id });
+    return res.json({
+      success: true,
+      leadId: lead.id,
+      redirect: `https://client.boreal.financial/apply?continue=${token}`,
+    });
   } catch (err) {
     console.error("Contact form error:", err);
     return res.status(500).json({ error: "Server error" });

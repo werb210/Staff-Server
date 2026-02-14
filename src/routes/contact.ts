@@ -9,6 +9,7 @@ import { getTwilioClient } from "../services/twilio";
 import { pushLeadToCRM } from "../services/crmWebhook";
 import { createCRMLead } from "../services/crmService";
 import { sendSMS } from "../services/smsService";
+import { createContinuation } from "../modules/continuation/continuation.service";
 import { retry } from "../utils/retry";
 import { withTimeout } from "../utils/withTimeout";
 import { logger } from "../utils/logger";
@@ -110,7 +111,7 @@ router.post("/", contactRateLimiter, validateBody(schema), async (req, res) => {
       source,
       utm: utm ?? null,
     }));
-    await createCRMLead({
+    const crmLead = await createCRMLead({
       companyName: resolvedCompany,
       fullName: resolvedFullName,
       email,
@@ -119,12 +120,19 @@ router.post("/", contactRateLimiter, validateBody(schema), async (req, res) => {
       metadata: { utm: utm ?? null },
     });
 
+    const token = await createContinuation({
+      companyName: resolvedCompany,
+      fullName: resolvedFullName,
+      email,
+      phone,
+    }, crmLead.id);
+
     if (process.env.INTAKE_SMS_NUMBER) {
       await sendSMS(process.env.INTAKE_SMS_NUMBER, `New Website Contact: ${resolvedCompany}`);
     }
 
     logger.info("contact_request", { company: resolvedCompany, email, phone, source, utm: utm ?? null });
-    return successResponse(res, {}, "contact submitted");
+    return successResponse(res, { redirect: `https://client.boreal.financial/apply?continue=${token}` }, "contact submitted");
   } catch (err) {
     logger.error("contact_error", { err });
     return errorResponse(res, 500, "could_not_submit_contact");

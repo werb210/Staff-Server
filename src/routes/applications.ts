@@ -17,11 +17,13 @@ import { safeHandler } from "../middleware/safeHandler";
 import { logError } from "../observability/logger";
 import { logAnalyticsEvent } from "../services/analyticsService";
 import { pushLeadToCRM } from "../services/crmWebhook";
+import { convertContinuation } from "../modules/continuation/continuation.service";
 
 type ApplicationPayload = {
   country?: string;
   productCategory?: string;
   source?: string;
+  continuationToken?: string;
   business?: { legalName?: string };
   applicant?: { firstName?: string; lastName?: string; email?: string };
   financialProfile?: unknown;
@@ -181,6 +183,9 @@ router.post(
       }
 
       const payload = body as ApplicationPayload;
+      const continuationToken = typeof body.continuationToken === "string"
+        ? body.continuationToken
+        : undefined;
       const missingFields: string[] = [];
 
       if (!payload.source) missingFields.push("source");
@@ -240,6 +245,10 @@ router.post(
           ...(req.ip ? { ip: req.ip } : {}),
           ...(req.headers["user-agent"] ? { userAgent: req.headers["user-agent"] } : {}),
         });
+      }
+
+      if (continuationToken) {
+        await convertContinuation(continuationToken, created.id);
       }
 
       await pushLeadToCRM({
