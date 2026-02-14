@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { dbQuery } from "../../db";
 import { upsertCrmLead } from "../crm/leadUpsert.service";
 
@@ -42,6 +42,7 @@ function toBoolean(value: boolean | string | undefined): boolean | null {
 
 export async function createOrReuseReadinessSession(payload: ReadinessSessionInput): Promise<{ sessionId: string; token: string; reused: boolean; crmLeadId: string }> {
   const email = normalizeEmail(payload.email);
+  const normalizedPhone = payload.phone.trim();
 
   await dbQuery(
     `update readiness_sessions
@@ -52,10 +53,17 @@ export async function createOrReuseReadinessSession(payload: ReadinessSessionInp
   const existing = await dbQuery<{ id: string; token: string; crm_lead_id: string | null }>(
     `select id, token, crm_lead_id
      from readiness_sessions
-     where lower(email) = $1 and is_active = true and expires_at > now()
+     where (
+        lower(email) = $1
+        or (
+          $2::text is not null
+          and regexp_replace(coalesce(phone, ''), '\\D', '', 'g') = regexp_replace($2, '\\D', '', 'g')
+        )
+     )
+     and is_active = true and expires_at > now()
      order by created_at desc
      limit 1`,
-    [email]
+    [email, normalizedPhone]
   );
 
   const crmLead = await upsertCrmLead({
@@ -92,7 +100,7 @@ export async function createOrReuseReadinessSession(payload: ReadinessSessionInp
   }
 
   const id = randomUUID();
-  const token = randomBytes(24).toString("hex");
+  const token = randomUUID();
   const expiresAt = new Date(Date.now() + 1000 * 60 * 30);
 
   await dbQuery(
@@ -124,4 +132,65 @@ export async function createOrReuseReadinessSession(payload: ReadinessSessionInp
   );
 
   return { sessionId: id, token, reused: false, crmLeadId: crmLead.id };
+}
+
+export async function getActiveReadinessSessionByToken(token: string): Promise<null | {
+  sessionId: string;
+  readinessToken: string;
+  email: string;
+  phone: string | null;
+  companyName: string;
+  fullName: string;
+  industry: string | null;
+  yearsInBusiness: number | null;
+  monthlyRevenue: string | null;
+  annualRevenue: string | null;
+  arOutstanding: string | null;
+  existingDebt: boolean | null;
+  expiresAt: Date;
+}> {
+  const result = await dbQuery<{
+    id: string;
+    token: string;
+    email: string;
+    phone: string | null;
+    company_name: string;
+    full_name: string;
+    industry: string | null;
+    years_in_business: number | null;
+    monthly_revenue: string | null;
+    annual_revenue: string | null;
+    ar_outstanding: string | null;
+    existing_debt: boolean | null;
+    expires_at: Date;
+  }>(
+    `select id, token, email, phone, company_name, full_name, industry,
+            years_in_business, monthly_revenue, annual_revenue, ar_outstanding, existing_debt,
+            expires_at
+     from readiness_sessions
+     where token = $1 and is_active = true and expires_at > now()
+     limit 1`,
+    [token]
+  );
+
+  const row = result.rows[0];
+  if (!row) {
+    return null;
+  }
+
+  return {
+    sessionId: row.id,
+    readinessToken: row.token,
+    email: row.email,
+    phone: row.phone,
+    companyName: row.company_name,
+    fullName: row.full_name,
+    industry: row.industry,
+    yearsInBusiness: row.years_in_business,
+    monthlyRevenue: row.monthly_revenue,
+    annualRevenue: row.annual_revenue,
+    arOutstanding: row.ar_outstanding,
+    existingDebt: row.existing_debt,
+    expiresAt: row.expires_at,
+  };
 }

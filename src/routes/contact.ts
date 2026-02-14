@@ -67,39 +67,103 @@ router.post("/", contactRateLimiter, validateBody(schema), async (req, res) => {
     const [resolvedFirstName, ...restName] = resolvedFullName.split(" ");
     const resolvedLastName = restName.join(" ") || "N/A";
 
+    const existingContactLead = await dbQuery<{ id: string }>(
+      `select id
+       from contact_leads
+       where lower(email) = lower($1)
+          or regexp_replace(coalesce(phone, ''), '\\D', '', 'g') = regexp_replace($2, '\\D', '', 'g')
+       order by created_at desc
+       limit 1`,
+      [email, phone]
+    );
+
+    if (existingContactLead.rows.length === 0) {
+      await dbQuery(
+        `insert into contact_leads (company, first_name, last_name, email, phone)
+         values ($1, $2, $3, $4, $5)`,
+        [resolvedCompany, resolvedFirstName, resolvedLastName, email, phone]
+      );
+    }
+
+    const existingCompany = await dbQuery<{ id: string }>(
+      `select id
+       from companies
+       where lower(email) = lower($1)
+          or regexp_replace(coalesce(phone, ''), '\\D', '', 'g') = regexp_replace($2, '\\D', '', 'g')
+       order by created_at asc nulls last
+       limit 1`,
+      [email, phone]
+    );
+
+    const companyId = existingCompany.rows[0]?.id ?? randomUUID();
+
+    if (existingCompany.rows[0]) {
+      await dbQuery(
+        `update companies
+         set name = coalesce($2, name),
+             email = coalesce($3, email),
+             phone = coalesce($4, phone)
+         where id = $1`,
+        [companyId, resolvedCompany, email, phone]
+      );
+    } else {
+      await dbQuery(
+        `insert into companies (id, name, email, phone, status)
+         values ($1, $2, $3, $4, 'prospect')`,
+        [companyId, resolvedCompany, email, phone]
+      );
+    }
+
+    const existingContact = await dbQuery<{ id: string }>(
+      `select id
+       from contacts
+       where lower(email) = lower($1)
+          or regexp_replace(coalesce(phone, ''), '\\D', '', 'g') = regexp_replace($2, '\\D', '', 'g')
+       order by created_at asc nulls last
+       limit 1`,
+      [email, phone]
+    );
+
+    const contactId = existingContact.rows[0]?.id ?? randomUUID();
+
+    if (existingContact.rows[0]) {
+      await dbQuery(
+        `update contacts
+         set company_id = coalesce($2, company_id),
+             name = coalesce($3, name),
+             email = coalesce($4, email),
+             phone = coalesce($5, phone),
+             status = coalesce($6, status)
+         where id = $1`,
+        [contactId, companyId, resolvedFullName, email, phone, source || "website_contact"]
+      );
+    } else {
+      await dbQuery(
+        `insert into contacts (id, company_id, name, email, phone, status)
+         values ($1, $2, $3, $4, $5, $6)`,
+        [contactId, companyId, resolvedFullName, email, phone, source || "website_contact"]
+      );
+    }
+
     const client = getTwilioClient();
 
     await withTimeout(
       retry(async () =>
         client.messages.create({
-          body: `New website contact:\n${resolvedCompany}\n${resolvedFullName}\n${email}\n${phone}`,
-          from: (process.env.TWILIO_NUMBER || process.env.TWILIO_PHONE) as string,
+          body: `New website contact:
+${resolvedCompany}
+${resolvedFullName}
+${email}
+${phone}`,
+          from: (process.env.TWILIO_NUMBER || process.env.TWILIO_PHONE || "+14155550000") as string,
           to: "+15878881837",
         })
       )
-    );
-
-    const companyId = randomUUID();
-    const contactId = randomUUID();
-
-    await dbQuery(
-      `insert into contact_leads (company, first_name, last_name, email, phone)
-       values ($1, $2, $3, $4, $5)`,
-      [resolvedCompany, resolvedFirstName, resolvedLastName, email, phone]
-    );
-
-    await dbQuery(
-      `insert into companies (id, name, email, phone, status)
-       values ($1, $2, $3, $4, 'prospect')`,
-      [companyId, resolvedCompany, email, phone]
-    );
-
-    await dbQuery(
-      `insert into contacts (id, company_id, name, email, phone, status)
-       values ($1, $2, $3, $4, $5, $6)`,
-      [contactId, companyId, resolvedFullName, email, phone, source || "website_contact"]
-    );
-
+    ).catch((error) => {
+      logger.warn("contact_sms_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
 
     await withTimeout(pushLeadToCRM({
       type: "contact_form",
@@ -110,7 +174,12 @@ router.post("/", contactRateLimiter, validateBody(schema), async (req, res) => {
       phone,
       source,
       utm: utm ?? null,
-    }));
+    })).catch((error) => {
+      logger.warn("contact_crm_webhook_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
+
     const crmLead = await upsertCrmLead({
       companyName: resolvedCompany,
       fullName: resolvedFullName,
@@ -122,19 +191,41 @@ router.post("/", contactRateLimiter, validateBody(schema), async (req, res) => {
       activityPayload: { utm: utm ?? null },
     });
 
-    const token = await createContinuation({
-      companyName: resolvedCompany,
-      fullName: resolvedFullName,
-      email,
-      phone,
-    }, crmLead.id);
+    try {
+      await dbQuery(
+        `insert into communications_messages (id, type, direction, status, contact_id, body, created_at)
+         values ($1, 'sms', 'outbound', 'queued', $2, $3, now())`,
+        [randomUUID(), contactId, `Contact form submitted by ${resolvedFullName} (${email}, ${phone})`]
+      );
+    } catch (error) {
+      logger.warn("communications_log_insert_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    let token = "";
+    try {
+      token = await createContinuation({
+        companyName: resolvedCompany,
+        fullName: resolvedFullName,
+        email,
+        phone,
+      }, crmLead.id);
+    } catch (error) {
+      logger.warn("contact_continuation_create_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
 
     if (process.env.INTAKE_SMS_NUMBER) {
       await sendSMS(process.env.INTAKE_SMS_NUMBER, `New Website Contact: ${resolvedCompany}`);
     }
 
-    logger.info("contact_request", { company: resolvedCompany, email, phone, source, utm: utm ?? null });
-    return successResponse(res, { redirect: `https://client.boreal.financial/apply?continue=${token}` }, "contact submitted");
+    logger.info("contact_request", { company: resolvedCompany, email, phone, source, utm: utm ?? null, deduped: existingContactLead.rows.length > 0 });
+        const redirect = token
+      ? `https://client.boreal.financial/apply?continue=${token}`
+      : "https://client.boreal.financial/apply";
+    return successResponse(res, { redirect }, "contact submitted");
   } catch (err) {
     logger.error("contact_error", { err });
     return errorResponse(res, 500, "could_not_submit_contact");
