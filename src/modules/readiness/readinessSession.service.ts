@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { dbQuery } from "../../db";
+import { dbQuery, getInstrumentedClient } from "../../db";
 import { upsertCrmLead } from "../crm/leadUpsert.service";
 
 type ReadinessSessionInput = {
@@ -50,90 +50,104 @@ export async function createOrReuseReadinessSession(payload: ReadinessSessionInp
      where is_active = true and expires_at <= now()`
   );
 
-  const existing = await dbQuery<{ id: string; token: string; crm_lead_id: string | null }>(
-    `select id, token, crm_lead_id
-     from readiness_sessions
-     where (
-        lower(email) = $1
-        or (
-          $2::text is not null
-          and regexp_replace(coalesce(phone, ''), '\\D', '', 'g') = regexp_replace($2, '\\D', '', 'g')
-        )
-     )
-     and is_active = true and expires_at > now()
-     order by created_at desc
-     limit 1`,
-    [email, normalizedPhone]
-  );
-
   const startupInterest = String(payload.industry ?? "").toLowerCase().includes("startup");
 
-  const crmLead = await upsertCrmLead({
-    companyName: payload.companyName,
-    fullName: payload.fullName,
-    email,
-    phone: payload.phone,
-    industry: payload.industry,
-    yearsInBusiness: payload.yearsInBusiness,
-    monthlyRevenue: payload.monthlyRevenue,
-    annualRevenue: payload.annualRevenue,
-    arOutstanding: payload.arOutstanding,
-    existingDebt: payload.existingDebt,
-    source: "credit_readiness",
-    tags: startupInterest ? ["readiness", "startup_interest"] : ["readiness"],
-    activityType: "readiness_submission",
-    activityPayload: { email },
-  });
-
-  if (existing.rows[0]) {
-    await dbQuery(
-      `update readiness_sessions
-       set crm_lead_id = $2,
-           updated_at = now()
-       where id = $1`,
-      [existing.rows[0].id, crmLead.id]
+  const client = await getInstrumentedClient();
+  try {
+    await client.query("begin");
+    const existing = await client.query<{ id: string; token: string; crm_lead_id: string | null }>(
+      `select id, token, crm_lead_id
+       from readiness_sessions
+       where (
+          lower(email) = $1
+          or (
+            $2::text is not null
+            and regexp_replace(coalesce(phone, ''), '\\D', '', 'g') = regexp_replace($2, '\\D', '', 'g')
+          )
+       )
+       and is_active = true and expires_at > now()
+       order by created_at desc
+       limit 1
+       for update`,
+      [email, normalizedPhone]
     );
-    return {
-      sessionId: existing.rows[0].id,
-      token: existing.rows[0].token,
-      reused: true,
-      crmLeadId: crmLead.id,
-    };
-  }
 
-  const id = randomUUID();
-  const token = randomUUID();
-  const expiresAt = new Date(Date.now() + 1000 * 60 * 30);
-
-  await dbQuery(
-    `insert into readiness_sessions (
-      id, token, email, phone, company_name, full_name, industry,
-      years_in_business, monthly_revenue, annual_revenue, ar_outstanding, existing_debt,
-      crm_lead_id, expires_at
-    ) values (
-      $1, $2, $3, $4, $5, $6, $7,
-      $8, $9, $10, $11, $12,
-      $13, $14
-    )`,
-    [
-      id,
-      token,
+    const crmLead = await upsertCrmLead({
+      companyName: payload.companyName,
+      fullName: payload.fullName,
       email,
-      payload.phone,
-      payload.companyName,
-      payload.fullName,
-      payload.industry ?? null,
-      toInteger(payload.yearsInBusiness),
-      toNumeric(payload.monthlyRevenue),
-      toNumeric(payload.annualRevenue),
-      toNumeric(payload.arOutstanding),
-      toBoolean(payload.existingDebt),
-      crmLead.id,
-      expiresAt,
-    ]
-  );
+      phone: payload.phone,
+      industry: payload.industry,
+      yearsInBusiness: payload.yearsInBusiness,
+      monthlyRevenue: payload.monthlyRevenue,
+      annualRevenue: payload.annualRevenue,
+      arOutstanding: payload.arOutstanding,
+      existingDebt: payload.existingDebt,
+      source: "credit_readiness",
+      tags: startupInterest ? ["readiness", "startup_interest"] : ["readiness"],
+      activityType: "readiness_submission",
+      activityPayload: { email },
+    });
 
-  return { sessionId: id, token, reused: false, crmLeadId: crmLead.id };
+    if (existing.rows[0]) {
+      await client.query(
+        `update readiness_sessions
+         set crm_lead_id = coalesce(crm_lead_id, $2),
+             status = 'open',
+             updated_at = now()
+         where id = $1`,
+        [existing.rows[0].id, crmLead.id]
+      );
+
+      await client.query("commit");
+      return {
+        sessionId: existing.rows[0].id,
+        token: existing.rows[0].token,
+        reused: true,
+        crmLeadId: existing.rows[0].crm_lead_id ?? crmLead.id,
+      };
+    }
+
+    const id = randomUUID();
+    const token = randomUUID();
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 30);
+
+    await client.query(
+      `insert into readiness_sessions (
+        id, token, email, phone, company_name, full_name, industry,
+        years_in_business, monthly_revenue, annual_revenue, ar_outstanding, existing_debt,
+        crm_lead_id, expires_at, status
+      ) values (
+        $1, $2, $3, $4, $5, $6, $7,
+        $8, $9, $10, $11, $12,
+        $13, $14, 'open'
+      )`,
+      [
+        id,
+        token,
+        email,
+        payload.phone,
+        payload.companyName,
+        payload.fullName,
+        payload.industry ?? null,
+        toInteger(payload.yearsInBusiness),
+        toNumeric(payload.monthlyRevenue),
+        toNumeric(payload.annualRevenue),
+        toNumeric(payload.arOutstanding),
+        toBoolean(payload.existingDebt),
+        crmLead.id,
+        expiresAt,
+      ]
+    );
+
+    await client.query("commit");
+    return { sessionId: id, token, reused: false, crmLeadId: crmLead.id };
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function getActiveReadinessSessionByToken(sessionId: string): Promise<null | {

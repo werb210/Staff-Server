@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
 import { z } from "zod";
-import { db } from "../db";
+import { getInstrumentedClient } from "../db";
 import { createApplication } from "../modules/applications/applications.repo";
 import { getClientSubmissionOwnerUserId } from "../config";
 
@@ -13,22 +13,17 @@ const createApplicationSchema = z.object({
 });
 
 router.post("/", async (req, res) => {
+  let client: Awaited<ReturnType<typeof getInstrumentedClient>> | null = null;
   try {
     const { sessionId, source } = createApplicationSchema.parse(req.body ?? {});
 
-    const mapped = await db.query<{ application_id: string }>(
-      `select application_id from readiness_application_mappings where readiness_session_id = $1 limit 1`,
-      [sessionId]
-    );
+    client = await getInstrumentedClient();
+    await client.query("begin");
 
-    if (mapped.rows[0]?.application_id) {
-      res.status(200).json({ success: true, applicationId: mapped.rows[0].application_id, reused: true });
-      return;
-    }
-
-    const session = await db.query<{
+    const session = await client.query<{
       id: string;
       crm_lead_id: string | null;
+      converted_application_id: string | null;
       company_name: string;
       full_name: string;
       email: string;
@@ -40,15 +35,50 @@ router.post("/", async (req, res) => {
       ar_outstanding: string | null;
       existing_debt: boolean | null;
     }>(
-      `select id, crm_lead_id, company_name, full_name, email, phone, industry, years_in_business,
+      `select id, crm_lead_id, converted_application_id, company_name, full_name, email, phone, industry, years_in_business,
               monthly_revenue, annual_revenue, ar_outstanding, existing_debt
-       from readiness_sessions where id = $1 limit 1`,
+       from readiness_sessions
+       where id = $1
+       limit 1
+       for update`,
       [sessionId]
     );
 
     const readiness = session.rows[0];
     if (!readiness) {
+      await client.query("rollback");
       res.status(404).json({ success: false, error: "readiness_session_not_found" });
+      return;
+    }
+
+    if (readiness.converted_application_id) {
+      await client.query("commit");
+      res.status(200).json({ success: true, applicationId: readiness.converted_application_id, reused: true });
+      return;
+    }
+
+    const mapped = await client.query<{ application_id: string }>(
+      `select application_id from readiness_application_mappings where readiness_session_id = $1 limit 1`,
+      [sessionId]
+    );
+
+    const mappedApplicationId = mapped.rows[0]?.application_id;
+    if (mappedApplicationId) {
+      await client.query(
+        `update readiness_sessions
+         set converted_application_id = coalesce(converted_application_id, $2), is_active = false, status = 'converted', updated_at = now()
+         where id = $1`,
+        [readiness.id, mappedApplicationId]
+      ).catch(async () => {
+        await client?.query(
+          `update readiness_sessions
+           set converted_application_id = coalesce(converted_application_id, $2), is_active = false, updated_at = now()
+           where id = $1`,
+          [readiness.id, mappedApplicationId]
+        );
+      });
+      await client.query("commit");
+      res.status(200).json({ success: true, applicationId: mappedApplicationId, reused: true });
       return;
     }
 
@@ -73,29 +103,64 @@ router.post("/", async (req, res) => {
       productType: "standard",
       productCategory: "standard",
       source: source ?? "readiness_continuation",
+      client,
     });
 
-    await db.query(
+    await client.query(
       `insert into readiness_application_mappings (id, readiness_session_id, application_id)
-       values ($1, $2, $3)
-       on conflict (readiness_session_id) do nothing`,
+       values ($1, $2, $3)`,
       [randomUUID(), readiness.id, created.id]
-    );
+    ).catch(() => undefined);
 
-    await db.query(
+    await client.query(
       `update readiness_sessions
-       set converted_application_id = $2, is_active = false, updated_at = now()
+       set converted_application_id = $2, is_active = false, status = 'converted', updated_at = now()
        where id = $1`,
       [readiness.id, created.id]
-    );
+    ).catch(async () => {
+      await client?.query(
+        `update readiness_sessions
+         set converted_application_id = $2, is_active = false, updated_at = now()
+         where id = $1`,
+        [readiness.id, created.id]
+      );
+    });
+
+    if (readiness.crm_lead_id) {
+      await client.query(
+        `update crm_leads
+         set tags = (
+               select to_jsonb(array(
+                 select distinct value
+                 from jsonb_array_elements_text(coalesce(crm_leads.tags, '[]'::jsonb) || '["application"]'::jsonb)
+               ))
+             )
+         where id = $1`,
+        [readiness.crm_lead_id]
+      ).catch(() => undefined);
+
+      await client.query(
+        `update crm_leads
+         set application_id = coalesce(application_id, $2::text)
+         where id = $1`,
+        [readiness.crm_lead_id, created.id]
+      ).catch(() => undefined);
+    }
+
+    await client.query("commit");
 
     res.status(201).json({ success: true, applicationId: created.id, leadId: readiness.crm_lead_id, reused: false });
   } catch (error) {
+    if (client) {
+      await client.query("rollback").catch(() => undefined);
+    }
     if (error instanceof Error && error.name === "ZodError") {
       res.status(400).json({ success: false, error: "invalid_payload" });
       return;
     }
-    res.status(500).json({ success: false, error: "server_error" });
+    res.status(500).json({ success: false, error: "server_error", ...(process.env.NODE_ENV === "production" ? {} : { detail: error instanceof Error ? error.message : String(error) }) });
+  } finally {
+    client?.release();
   }
 });
 

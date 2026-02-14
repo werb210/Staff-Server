@@ -22,6 +22,13 @@ type SocketPayload = {
 };
 
 const sessionMap = new Map<string, SessionPresence>();
+const messageWindowMap = new Map<string, { count: number; resetAt: number }>();
+const MAX_CONCURRENT_SESSIONS = Number(process.env.CHAT_MAX_CONCURRENT_SESSIONS ?? 1000);
+const IDLE_TIMEOUT_MS = Number(process.env.CHAT_IDLE_TIMEOUT_MS ?? 30 * 60 * 1000);
+const MAX_MESSAGES_PER_WINDOW = Number(process.env.CHAT_MAX_MESSAGES_PER_10S ?? 100);
+
+let shutdownHookInstalled = false;
+let activeServer: WebSocketServer | null = null;
 
 function safeParsePayload(data: RawData): SocketPayload | null {
   try {
@@ -160,8 +167,42 @@ function detachSocket(socket: SessionSocket): void {
   }
 }
 
+function canAcceptMessage(sessionId: string): boolean {
+  const now = Date.now();
+  const key = sessionId;
+  const current = messageWindowMap.get(key);
+  if (!current || current.resetAt <= now) {
+    messageWindowMap.set(key, { count: 1, resetAt: now + 10000 });
+    return true;
+  }
+  current.count += 1;
+  return current.count <= MAX_MESSAGES_PER_WINDOW;
+}
+
+function installShutdownHooks(): void {
+  if (shutdownHookInstalled) return;
+  shutdownHookInstalled = true;
+
+  const graceful = () => {
+    if (!activeServer) return;
+    for (const client of activeServer.clients) {
+      try {
+        client.close(1001, "server_shutdown");
+      } catch {
+        // noop
+      }
+    }
+    activeServer.close();
+  };
+
+  process.once("SIGINT", graceful);
+  process.once("SIGTERM", graceful);
+}
+
 export function initChatSocket(server: Server): WebSocketServer {
   const wss = new WebSocketServer({ server, path: "/ws/chat" });
+  activeServer = wss;
+  installShutdownHooks();
 
   wss.on("connection", (ws: SessionSocket) => {
     ws.isAlive = true;
@@ -184,6 +225,12 @@ export function initChatSocket(server: Server): WebSocketServer {
             ws.send(JSON.stringify({ type: "error", message: "unauthorized" }));
             return;
           }
+          if (sessionMap.size >= MAX_CONCURRENT_SESSIONS && !sessionMap.has(payload.sessionId)) {
+            ws.send(JSON.stringify({ type: "error", message: "session_capacity_reached" }));
+            ws.close(1013, "over_capacity");
+            return;
+          }
+
           ws.sessionId = payload.sessionId;
           ws.role = "client";
           ws.userId = payload.userId;
@@ -216,6 +263,12 @@ export function initChatSocket(server: Server): WebSocketServer {
             ws.send(JSON.stringify({ type: "error", message: "unauthorized" }));
             return;
           }
+          if (sessionMap.size >= MAX_CONCURRENT_SESSIONS && !sessionMap.has(payload.sessionId)) {
+            ws.send(JSON.stringify({ type: "error", message: "session_capacity_reached" }));
+            ws.close(1013, "over_capacity");
+            return;
+          }
+
           ws.sessionId = payload.sessionId;
           ws.role = "staff";
           ws.userId = payload.userId;
@@ -254,6 +307,11 @@ export function initChatSocket(server: Server): WebSocketServer {
         }
 
         if ((messageType === "staff_message" || messageType === "user_message" || messageType === "ai_message") && payload.sessionId && payload.content) {
+          if (!canAcceptMessage(payload.sessionId)) {
+            ws.send(JSON.stringify({ type: "error", message: "rate_limited" }));
+            return;
+          }
+
           const role = messageType === "staff_message" ? "staff" : messageType === "ai_message" ? "ai" : "user";
           await pool.query(
             `insert into chat_messages (id, session_id, role, content)
@@ -301,8 +359,9 @@ export function initChatSocket(server: Server): WebSocketServer {
   const idleCleanup = setInterval(() => {
     const now = Date.now();
     for (const [sessionId, presence] of sessionMap.entries()) {
-      if (presence.sockets.size === 0 || now - presence.updatedAt > 1000 * 60 * 10) {
+      if (presence.sockets.size === 0 || now - presence.updatedAt > IDLE_TIMEOUT_MS) {
         sessionMap.delete(sessionId);
+        messageWindowMap.delete(sessionId);
       }
     }
   }, 30000);
