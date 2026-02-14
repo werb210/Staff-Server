@@ -157,7 +157,6 @@ function detachSocket(socket: SessionSocket): void {
   presence.updatedAt = Date.now();
 
   if (presence.sockets.size === 0) {
-    sessionMap.delete(socket.sessionId);
     void attachTranscriptToCrm(socket.sessionId).catch((error) => {
       logError("chat_transcript_attach_on_close_failed", {
         message: error instanceof Error ? error.message : String(error),
@@ -252,6 +251,7 @@ export function initChatSocket(server: Server): WebSocketServer {
               type: "transferring",
               sessionId: payload.sessionId,
               state: "HUMAN_ACTIVE",
+              message: "Transferring you…",
             }));
           }
           logInfo("chat_ws_join", { sessionId: payload.sessionId, role: "client" });
@@ -290,6 +290,7 @@ export function initChatSocket(server: Server): WebSocketServer {
             type: "transferring",
             sessionId: payload.sessionId,
             state: "HUMAN_ACTIVE",
+            message: "Transferring you…",
           });
 
           logInfo("chat_ws_join", { sessionId: payload.sessionId, role: "staff" });
