@@ -66,6 +66,11 @@
         "method": "POST",
         "path": "/api/client/submissions",
         "classification": "write"
+      },
+      {
+        "method": "GET",
+        "path": "/api/client/continuation/:token",
+        "classification": "read"
       }
     ],
     "portal": [
@@ -132,6 +137,21 @@
       {
         "method": "GET",
         "path": "/api/portal/offers",
+        "classification": "read"
+      },
+      {
+        "method": "GET",
+        "path": "/api/portal/readiness-leads",
+        "classification": "read"
+      },
+      {
+        "method": "POST",
+        "path": "/api/portal/readiness-leads/:id/convert",
+        "classification": "write"
+      },
+      {
+        "method": "GET",
+        "path": "/api/portal/applications/:id/readiness",
         "classification": "read"
       }
     ]

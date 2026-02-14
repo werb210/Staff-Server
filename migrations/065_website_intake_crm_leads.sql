@@ -33,7 +33,7 @@ alter table if exists crm_leads add column if not exists tags jsonb not null def
 alter table if exists crm_leads add column if not exists created_at timestamptz not null default now();
 
 update crm_leads
-set source = coalesce(nullif(source, ''), 'website')
+set source = case when source is null or source = '' then 'website' else source end
 where source is null or source = '';
 
 alter table if exists crm_leads alter column source set not null;

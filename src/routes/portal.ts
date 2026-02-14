@@ -28,6 +28,11 @@ import {
 } from "../modules/applications/applicationLifecycle.service";
 import { getAuditHistoryEnabled } from "../config";
 import { listLenders } from "../repositories/lenders.repo";
+import {
+  convertReadinessLeadToApplication,
+  getReadinessLeadByApplicationId,
+  listReadinessLeads,
+} from "../modules/readiness/readiness.service";
 
 const router = Router();
 const portalLimiter = portalRateLimit();
@@ -173,6 +178,62 @@ router.get(
       },
       documents: documentsWithVersions,
     });
+  })
+);
+
+router.get(
+  "/readiness-leads",
+  requireAuth,
+  portalLimiter,
+  requireAuthorization({ roles: [ROLES.ADMIN] }),
+  safeHandler(async (_req, res) => {
+    const items = await listReadinessLeads();
+    res.status(200).json({ items });
+  })
+);
+
+router.post(
+  "/readiness-leads/:id/convert",
+  requireAuth,
+  portalLimiter,
+  requireAuthorization({ roles: [ROLES.ADMIN] }),
+  safeHandler(async (req, res) => {
+    const leadId = typeof req.params.id === "string" ? req.params.id.trim() : "";
+    if (!leadId) {
+      throw new AppError("validation_error", "Lead id is required.", 400);
+    }
+    const actorUserId = req.user?.userId;
+    if (!actorUserId) {
+      throw new AppError("unauthorized", "Authentication required.", 401);
+    }
+    try {
+      const { applicationId } = await convertReadinessLeadToApplication(leadId, actorUserId);
+      res.status(200).json({ applicationId });
+    } catch (error) {
+      if (error instanceof Error && error.message === "not_found") {
+        throw new AppError("not_found", "Readiness lead not found.", 404);
+      }
+      throw error;
+    }
+  })
+);
+
+router.get(
+  "/applications/:id/readiness",
+  requireAuth,
+  portalLimiter,
+  requireAuthorization({ roles: [ROLES.ADMIN] }),
+  safeHandler(async (req, res) => {
+    const applicationId = typeof req.params.id === "string" ? req.params.id.trim() : "";
+    if (!applicationId) {
+      throw new AppError("validation_error", "Application id is required.", 400);
+    }
+    const readinessLead = await getReadinessLeadByApplicationId(applicationId);
+    if (!readinessLead) {
+      res.status(404).json({ error: "not_found" });
+      return;
+    }
+    res.status(200).json({ readinessLead });
   })
 );
 

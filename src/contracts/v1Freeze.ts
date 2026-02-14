@@ -32,6 +32,7 @@ const FROZEN_V1_MOUNTS = [
   "/pipeline",
   "/voice",
   "/webhooks",
+  "/website",
 ] as const;
 
 export function assertApiV1Frozen(): void {

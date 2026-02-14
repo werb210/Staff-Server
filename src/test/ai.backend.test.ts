@@ -6,6 +6,10 @@ import { generateEmbedding } from "../ai/embeddingService";
 import { retrieveTopKnowledgeChunks } from "../ai/retrievalService";
 import { matchLenders } from "../ai/lenderMatchEngine";
 
+vi.mock("../modules/ai/openai.service", () => ({
+  askAI: vi.fn(async () => "Mocked AI response"),
+}));
+
 vi.mock("../middleware/auth", () => ({
   requireAuth: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
     req.user = {
