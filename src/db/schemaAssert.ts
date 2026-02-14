@@ -26,6 +26,7 @@ const requiredColumns: RequiredColumn[] = [
   { table: "chat_messages", column: "id" },
   { table: "issue_reports", column: "id" },
   { table: "ai_prequal_sessions", column: "id" },
+  { table: "pre_applications", column: "id" },
 ];
 
 export async function assertRequiredSchema(): Promise<void> {
