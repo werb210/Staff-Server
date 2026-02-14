@@ -8,8 +8,8 @@ import { pool } from "../db";
 import { saveKnowledge as saveKnowledgeDb } from "../services/aiKnowledgeService";
 import { loadKnowledge, saveKnowledge } from "../modules/ai/knowledge.service";
 import { AIKnowledgeController, upload as knowledgeUpload } from "../modules/ai/knowledge.controller";
+import { chatHandler } from "../modules/ai/ai.controller";
 import { logger } from "../utils/logger";
-import { generateAIResponse } from "../services/ai/aiService";
 
 const router = Router();
 const upload = multer({
@@ -90,60 +90,7 @@ async function tryStoreReport(payload: {
   return reportId;
 }
 
-const SYSTEM_PROMPT = `
-You are Maya, Boreal Financial’s AI Assistant.
-Professional and friendly.
-Never name lenders.
-Always show ranges.
-Never give binding quotes.
-Always say "subject to underwriting".
-Capital types: Institutional lenders, Banking, Private Capital sources and internal offerings.
-If startup funding asked: explain coming soon and ask for contact info.
-`;
-
-router.post(
-  "/chat",
-  safeHandler(async (req, res) => {
-    const message = typeof req.body?.message === "string" ? req.body.message.trim() : "";
-    if (!message) {
-      res.status(400).json({ error: "message is required" });
-      return;
-    }
-
-    const sessionId =
-      typeof req.body?.sessionId === "string" && req.body.sessionId.trim().length > 0
-        ? req.body.sessionId
-        : randomUUID();
-
-    try {
-      await pool.query(
-        `insert into chat_sessions (id, user_type, status, escalated_to, created_at, updated_at)
-         values ($1, 'guest', 'active', null, now(), now())
-         on conflict (id) do update set updated_at = now()`,
-        [sessionId]
-      );
-      await pool.query(
-        `insert into chat_messages (id, session_id, role, message, metadata, created_at)
-         values ($1, $2, 'user', $3, null, now())`,
-        [randomUUID(), sessionId, message]
-      );
-    } catch (error) {
-      logger.warn("ai_chat_store_failed", {
-        sessionId,
-        error: error instanceof Error ? error.message : "unknown_error",
-      });
-    }
-
-    const reply = await generateAIResponse(SYSTEM_PROMPT, message);
-
-    res.status(200).json({
-      reply,
-      message: reply,
-      escalationAvailable: true,
-      subjectToUnderwriting: true,
-    });
-  })
-);
+router.post("/chat", safeHandler(chatHandler));
 
 router.post(
   "/escalate",
