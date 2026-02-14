@@ -2,17 +2,18 @@ import { Request, Response } from "express";
 import { v4 as uuid } from "uuid";
 import { pool } from "../db";
 import { openai } from "../services/ai/openai.service";
-import { searchRelevantDocs } from "../services/ai/rag.service";
+import { retrieveContext } from "../modules/ai/knowledge.service";
 
 const SYSTEM_PROMPT = `
-You are Maya, a professional and friendly AI assistant for Boreal Financial.
+You are Maya, AI assistant for Boreal Financial.
 
 Rules:
-- Never name lenders
-- Never give exact quotes
-- Always show ranges
-- Say subject to underwriting
-- Mention: Institutional lenders, Banking, Private Capital sources
+- Never name lenders.
+- Always speak in ranges.
+- Do not guarantee approval.
+- Use underwriting language.
+- Capital sources include institutional, banking, private capital and internal programs.
+- If startup funding requested, inform it is coming soon and collect contact info.
 `;
 
 type ChatRequestBody = {
@@ -53,13 +54,13 @@ export async function chat(req: Request, res: Response): Promise<void> {
 
   await saveMessage(session.id, "user", message);
 
-  const docs = await searchRelevantDocs(message);
+  const contextText = await retrieveContext(pool, message);
 
   const completion = await openai.chat.completions.create({
     model: process.env.OPENAI_CHAT_MODEL ?? "gpt-4o-mini",
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
-      { role: "system", content: docs.join("\n") },
+      { role: "system", content: `Context:\n${contextText}` },
       { role: "user", content: message },
     ],
   });

@@ -7,6 +7,8 @@ import {
   listLenderProductsByLenderIdService,
   updateLenderProductService,
 } from "../services/lenderProductsService";
+import { ingestProductById } from "../modules/ai/productIngest.service";
+import { pool } from "../db";
 import {
   type JsonObject,
   type LenderProductRecord,
@@ -613,6 +615,8 @@ export async function createLenderProductHandler(
       termMax,
     });
 
+    await ingestProductById(pool, created.id);
+
     res.status(201).json(toLenderProductResponse(created));
   } catch (err) {
     logError("lender_products_create_failed", {
@@ -814,6 +818,8 @@ export async function updateLenderProductHandler(
     if (!updated) {
       throw new AppError("not_found", "Lender product not found.", 404);
     }
+
+    await ingestProductById(pool, updated.id);
 
     res.status(200).json(toLenderProductResponse(updated));
   } catch (err) {
