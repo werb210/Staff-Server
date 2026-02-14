@@ -10,10 +10,18 @@ alter table if exists ai_sessions
   add column if not exists application_token text,
   add column if not exists startup_interest_tags jsonb not null default '[]'::jsonb;
 
-update ai_sessions
-set visitor_id = coalesce(visitor_id, id::text),
-    context = coalesce(context, source)
-where visitor_id is null or context is null;
+do $$
+begin
+  if exists (
+    select 1 from information_schema.tables
+    where table_schema = 'public' and table_name = 'ai_sessions'
+  ) then
+    update ai_sessions
+    set visitor_id = coalesce(visitor_id, id::text),
+        context = coalesce(context, source)
+    where visitor_id is null or context is null;
+  end if;
+end$$;
 
 alter table if exists ai_sessions
   alter column visitor_id set not null,

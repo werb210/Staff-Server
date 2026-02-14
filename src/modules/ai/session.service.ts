@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { db } from "../../db";
 
 export type AISession = {
@@ -11,8 +12,8 @@ export type AISession = {
 
 export async function createSession(source: string): Promise<AISession> {
   const result = await db.query<AISession>(
-    `insert into ai_sessions (source) values ($1) returning *`,
-    [source]
+    `insert into ai_sessions (id, source) values ($1, $2) returning *`,
+    [randomUUID(), source]
   );
   const session = result.rows[0];
   if (!session) {
@@ -29,7 +30,7 @@ export async function addMessage(
   metadata?: Record<string, unknown>
 ): Promise<void> {
   await db.query(
-    `insert into ai_messages (session_id, role, content, metadata) values ($1, $2, $3, $4::jsonb)`,
-    [sessionId, role, content, metadata ? JSON.stringify(metadata) : null]
+    `insert into ai_messages (id, session_id, role, content, metadata) values ($1, $2, $3, $4, $5::jsonb)`,
+    [randomUUID(), sessionId, role, content, metadata ? JSON.stringify(metadata) : null]
   );
 }

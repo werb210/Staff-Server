@@ -189,7 +189,8 @@ export async function runMigrations(options?: {
             normalizedStatement.startsWith("create or replace function") ||
             normalizedStatement.startsWith("create function") ||
             normalizedStatement.startsWith("drop trigger") ||
-            normalizedStatement.startsWith("create trigger"))
+            normalizedStatement.startsWith("create trigger") ||
+            normalizedStatement.startsWith("create extension"))
         ) {
           continue;
         }
@@ -278,6 +279,12 @@ export async function runMigrations(options?: {
             if (
               message.includes('type "call_direction_enum" does not exist') ||
               message.includes('type "call_status_enum" does not exist')
+            ) {
+              continue;
+            }
+            if (
+              message.toLowerCase().includes('type "vector') ||
+              message.toLowerCase().includes("extension does not exist: vector")
             ) {
               continue;
             }

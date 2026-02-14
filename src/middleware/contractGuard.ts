@@ -43,6 +43,9 @@ export function contractGuard(req: Request, res: Response, next: NextFunction): 
     const routePath = `${req.baseUrl}${req.route?.path ?? ""}`;
     const key = `${req.method.toUpperCase()} ${routePath}`;
     const validator = validators.get(key);
+    if (res.statusCode >= 400) {
+      return originalJson(body);
+    }
     if (validator?.validate && !validator.validate(body)) {
       throw new Error(
         `Contract guard response mismatch for ${key}: ${JSON.stringify(
