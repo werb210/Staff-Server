@@ -18,12 +18,62 @@ export type ChatMessageRecord = {
   createdAt: Date;
 };
 
+const tableColumnCache = new Map<string, Set<string>>();
+
+async function getTableColumns(table: string): Promise<Set<string>> {
+  const cached = tableColumnCache.get(table);
+  if (cached) {
+    return cached;
+  }
+
+  const { rows } = await pool.query<{ column_name: string }>(
+    `select column_name
+     from information_schema.columns
+     where table_schema = 'public' and table_name = $1`,
+    [table]
+  );
+
+  const columns = new Set(rows.map((row) => row.column_name));
+  tableColumnCache.set(table, columns);
+  return columns;
+}
+
 export async function createSession(params: {
   source: string;
   channel?: string;
   leadId?: string | null;
 }): Promise<ChatSessionRecord> {
-  const { rows } = await pool.query<{
+  const columns = await getTableColumns("chat_sessions");
+  const id = randomUUID();
+
+  if (columns.has("user_type") && !columns.has("channel")) {
+    const { rows } = await pool.query<{
+      id: string;
+      source: string | null;
+      status: string;
+      lead_id: string | null;
+    }>(
+      `insert into chat_sessions (id, user_type, status, source)
+       values ($1, 'guest', 'active', $2)
+       returning id, source, status, null::uuid as lead_id`,
+      [id, params.source]
+    );
+
+    const legacyCreated = rows[0];
+    if (!legacyCreated) {
+      throw new Error("Could not create chat session.");
+    }
+
+    return {
+      id: legacyCreated.id,
+      source: legacyCreated.source ?? params.source,
+      channel: params.channel ?? "text",
+      status: "ai",
+      leadId: legacyCreated.lead_id,
+    };
+  }
+
+  const rows = await pool.query<{
     id: string;
     source: string;
     channel: string;
@@ -33,8 +83,26 @@ export async function createSession(params: {
     `insert into chat_sessions (id, source, channel, status, lead_id)
      values ($1, $2, $3, 'ai', $4)
      returning id, source, channel, status, lead_id`,
-    [randomUUID(), params.source, params.channel ?? "text", params.leadId ?? null]
-  );
+    [id, params.source, params.channel ?? "text", params.leadId ?? null]
+  ).then((res) => res.rows).catch(async () => {
+    const legacy = await pool.query<{
+      id: string;
+      source: string | null;
+      status: string;
+    }>(
+      `insert into chat_sessions (id, user_type, status, source)
+       values ($1, 'guest', 'active', $2)
+       returning id, source, status`,
+      [id, params.source]
+    );
+    return legacy.rows.map((row) => ({
+      id: row.id,
+      source: row.source ?? params.source,
+      channel: params.channel ?? "text",
+      status: "ai" as const,
+      lead_id: null,
+    }));
+  });
 
   const created = rows[0];
   if (!created) {
@@ -81,10 +149,21 @@ export async function updateSessionStatus(
   sessionId: string,
   status: "ai" | "human" | "closed"
 ): Promise<void> {
-  await pool.query(
+  let result = await pool.query(
     `update chat_sessions set status = $2, updated_at = now() where id = $1`,
     [sessionId, status]
-  );
+  ).catch(() => null);
+
+  if (!result && status === "human") {
+    result = await pool.query(
+      `update chat_sessions set status = 'escalated', updated_at = now() where id = $1`,
+      [sessionId]
+    );
+  }
+
+  if (!result || (result.rowCount ?? 0) === 0) {
+    throw new Error("chat_session_not_found");
+  }
 }
 
 export async function addMessage(params: {
@@ -93,10 +172,21 @@ export async function addMessage(params: {
   message: string;
   metadata?: Record<string, unknown> | null;
 }): Promise<void> {
+  const columns = await getTableColumns("chat_messages");
   const payload = params.metadata ? JSON.stringify(params.metadata) : null;
+
+  if (columns.has("content")) {
+    await pool.query(
+      `insert into chat_messages (id, session_id, role, message, content, metadata)
+       values ($1, $2, $3, $4, $4, $5::jsonb)`,
+      [randomUUID(), params.sessionId, params.role, params.message, payload]
+    );
+    return;
+  }
+
   await pool.query(
-    `insert into chat_messages (id, session_id, role, message, content, metadata)
-     values ($1, $2, $3, $4, $4, $5::jsonb)`,
+    `insert into chat_messages (id, session_id, role, message, metadata)
+     values ($1, $2, $3, $4, $5::jsonb)`,
     [randomUUID(), params.sessionId, params.role, params.message, payload]
   );
 }
@@ -137,6 +227,7 @@ export async function getMessageCount(sessionId: string): Promise<number> {
 }
 
 export async function listSessionsByStatus(status: "human" | "ai" | "closed"): Promise<ChatSessionRecord[]> {
+  const mappedStatus = status === "human" ? ["human", "escalated"] : [status];
   const { rows } = await pool.query<{
     id: string;
     source: string;
@@ -146,9 +237,9 @@ export async function listSessionsByStatus(status: "human" | "ai" | "closed"): P
   }>(
     `select id, source, channel, status, lead_id
      from chat_sessions
-     where status = $1
+     where status = any($1)
      order by updated_at desc`,
-    [status]
+    [mappedStatus]
   );
 
   return rows.map((row) => ({

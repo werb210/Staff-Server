@@ -9,6 +9,22 @@ import { logger } from "../utils/logger";
 
 const router = Router();
 
+const tableColumnCache = new Map<string, Set<string>>();
+
+async function getTableColumns(table: string): Promise<Set<string>> {
+  const cached = tableColumnCache.get(table);
+  if (cached) {
+    return cached;
+  }
+  const { rows } = await dbQuery<{ column_name: string }>(
+    `select column_name from information_schema.columns where table_schema = 'public' and table_name = $1`,
+    [table]
+  );
+  const columns = new Set(rows.map((row) => row.column_name));
+  tableColumnCache.set(table, columns);
+  return columns;
+}
+
 router.post("/live", async (req, res) => {
   const { source, sessionId } = req.body as {
     source?: "website" | "client";
@@ -75,15 +91,37 @@ router.post("/report", async (req, res) => {
 
   const resolvedDescription = description ?? message;
 
+  const columns = await getTableColumns("issue_reports");
+
+  const insertColumns: string[] = [];
+  const placeholderParts: string[] = [];
+  const values: unknown[] = [];
+
+  if (columns.has("id")) {
+    insertColumns.push("id");
+    placeholderParts.push("gen_random_uuid()");
+  }
+
+  const pushValue = (column: string, value: unknown): void => {
+    if (!columns.has(column)) {
+      return;
+    }
+    insertColumns.push(column);
+    values.push(value);
+    placeholderParts.push(`$${values.length}`);
+  };
+
+  pushValue("description", resolvedDescription ?? "Issue reported");
+  pushValue("screenshot_base64", screenshot ?? null);
+  pushValue("user_agent", (req.headers["user-agent"] as string | undefined) ?? "unknown");
+  pushValue("page_url", route ?? "unknown");
+  pushValue("browser_info", (req.headers["user-agent"] as string | undefined) ?? "unknown");
+  pushValue("screenshot_path", screenshot ?? null);
+  pushValue("status", "open");
+
   await dbQuery(
-    `insert into issue_reports
-      (description, screenshot_base64, user_agent)
-     values ($1, $2, $3)`,
-    [
-      resolvedDescription ?? "Issue reported",
-      screenshot ?? null,
-      req.headers["user-agent"] ?? "",
-    ]
+    `insert into issue_reports (${insertColumns.join(", ")}) values (${placeholderParts.join(", ")})`,
+    values
   );
 
   await withRetry(async () => {
