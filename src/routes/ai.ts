@@ -10,6 +10,7 @@ import { loadKnowledge, saveKnowledge } from "../modules/ai/knowledge.service";
 import { AIKnowledgeController, upload as knowledgeUpload } from "../modules/ai/knowledge.controller";
 import { chatHandler } from "../modules/ai/ai.controller";
 import { logger } from "../utils/logger";
+import { generateAIResponse } from "../services/ai/aiService";
 
 const router = Router();
 const upload = multer({
@@ -90,7 +91,24 @@ async function tryStoreReport(payload: {
   return reportId;
 }
 
-router.post("/chat", safeHandler(chatHandler));
+router.post(
+  "/chat",
+  safeHandler(async (req, res) => {
+    if (req.body?.mode !== "core") {
+      await chatHandler(req, res);
+      return;
+    }
+
+    const message = typeof req.body?.message === "string" ? req.body.message.trim() : "";
+    if (!message) {
+      res.status(400).json({ error: "message is required" });
+      return;
+    }
+
+    const reply = await generateAIResponse(message);
+    res.json({ reply });
+  })
+);
 
 router.post(
   "/escalate",
