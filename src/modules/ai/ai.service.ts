@@ -1,4 +1,6 @@
 import OpenAI from "openai";
+import { v4 as uuid } from "uuid";
+import { AiMessage, AiSession } from "./ai.types";
 
 type AiReply = {
   reply: string;
@@ -7,7 +9,7 @@ type AiReply = {
 
 const LENDER_LANGUAGE = "We have lenders across different capital types, including Institutional lenders, Banking, and Private Capital sources as well as our own funding offerings.";
 
-const SYSTEM_PROMPT = [
+const LEGACY_SYSTEM_PROMPT = [
   "You are a financing assistant for Boreal Financial.",
   "Output only valid JSON with keys: reply (string), askIntakeQuestions (boolean).",
   "Never name lenders.",
@@ -22,6 +24,104 @@ const client = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   : null;
 
+const sessions = new Map<string, AiSession>();
+const messages: AiMessage[] = [];
+
+export function startSession(context: AiSession["context"]): AiSession {
+  const id = uuid();
+
+  const session: AiSession = {
+    id,
+    context,
+    escalated: false,
+    createdAt: new Date(),
+  };
+
+  sessions.set(id, session);
+
+  return session;
+}
+
+export async function handleMessage(sessionId: string, content: string): Promise<{ reply: string }> {
+  const session = sessions.get(sessionId);
+  if (!session) {
+    throw new Error("Session not found");
+  }
+
+  messages.push({
+    sessionId,
+    role: "user",
+    content,
+    createdAt: new Date(),
+  });
+
+  const systemPrompt = `
+You are Maya, Boreal Financial AI assistant.
+You are professional and friendly.
+Never mention lender names.
+Always show ranges only.
+Never promise approval.
+Never provide specific underwriting terms.
+If asked about startup funding, explain it is coming soon and offer to collect contact details.
+Use language: "We have lenders across Institutional, Banking, and Private Capital sources."
+`;
+
+  if (!client) {
+    const fallbackReply = `${LENDER_LANGUAGE} Startup funding programs are coming soon; I can collect your contact details so our team can follow up.`;
+    messages.push({
+      sessionId,
+      role: "assistant",
+      content: fallbackReply,
+      createdAt: new Date(),
+    });
+    return { reply: fallbackReply };
+  }
+
+  const response = await client.chat.completions.create({
+    model: process.env.AI_MODEL || "gpt-4o-mini",
+    messages: [
+      { role: "system", content: systemPrompt },
+      ...messages
+        .filter((messageItem) => messageItem.sessionId === sessionId)
+        .map((messageItem) => ({
+          role: messageItem.role,
+          content: messageItem.content,
+        })),
+    ],
+  });
+
+  const reply = response.choices[0]?.message?.content || "";
+
+  messages.push({
+    sessionId,
+    role: "assistant",
+    content: reply,
+    createdAt: new Date(),
+  });
+
+  return { reply };
+}
+
+export function escalate(sessionId: string): { success: true } {
+  const session = sessions.get(sessionId);
+  if (!session) {
+    throw new Error("Session not found");
+  }
+
+  session.escalated = true;
+
+  return { success: true };
+}
+
+export function reportIssue(
+  sessionId: string,
+  message: string,
+  screenshot?: string
+): { success: true } {
+  console.log("AI Issue Report", { sessionId, message, screenshot });
+  return { success: true };
+}
+
 export async function generateAIResponse(_sessionId: string, message: string): Promise<string> {
   if (!client) {
     return JSON.stringify({
@@ -35,13 +135,13 @@ export async function generateAIResponse(_sessionId: string, message: string): P
     temperature: 0.2,
     response_format: { type: "json_object" },
     messages: [
-      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: LEGACY_SYSTEM_PROMPT },
       { role: "user", content: message },
     ],
   });
 
-  const content = response.choices[0]?.message?.content ?? "{}";
-  const parsed = JSON.parse(content) as AiReply;
+  const responseContent = response.choices[0]?.message?.content ?? "{}";
+  const parsed = JSON.parse(responseContent) as AiReply;
 
   if (typeof parsed.reply !== "string") {
     throw new Error("AI response format invalid: missing reply.");

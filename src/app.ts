@@ -69,6 +69,7 @@ import liveChatRoutes from "./routes/liveChat";
 import aiPlaceholderRoutes from "./routes/aiPlaceholder";
 import aiRuleRoutes from "./modules/ai/rule.routes";
 import aiConfidenceRoutes from "./modules/ai/confidence.routes";
+import aiSessionRoutes from "./modules/ai/ai.routes";
 import { logger as serverLogger } from "./server/utils/logger";
 
 function assertRoutesMounted(app: express.Express): void {
@@ -305,6 +306,7 @@ export function registerApiRoutes(app: express.Express): void {
   app.use("/api", externalEndpointLimiter, aiCoreRoutes);
   app.use("/api", externalEndpointLimiter, aiRuleRoutes);
   app.use("/api", externalEndpointLimiter, aiConfidenceRoutes);
+  app.use("/api/ai", externalEndpointLimiter, aiSessionRoutes);
   app.use("/api/crm", crmRoutes);
   app.use("/api/healthz", healthRoute);
 
