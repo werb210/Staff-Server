@@ -323,6 +323,9 @@ export async function updateApplicationPipelineState(params: {
       `update applications
        set pipeline_state = $1,
            current_stage = $1,
+           application_status = lower($1),
+           is_completed = case when $1 = 'OFF_TO_LENDER' then true else is_completed end,
+           last_updated = now(),
            updated_at = now()
        where id = $2`,
       [params.pipelineState, params.applicationId]

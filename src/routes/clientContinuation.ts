@@ -1,10 +1,15 @@
 import { Router } from "express";
-import { getContinuation } from "../models/continuation";
+import { getContinuation, updateContinuationStep } from "../models/continuation";
 
 const router = Router();
 
 router.get("/:token", async (req, res) => {
   const token = req.params.token;
+  const stepParam = typeof req.query.step === "string" ? Number(req.query.step) : null;
+  const currentStep =
+    typeof stepParam === "number" && Number.isInteger(stepParam) && stepParam > 0
+      ? stepParam
+      : 2;
   const applicationId = await getContinuation(token);
 
   if (!applicationId) {
@@ -12,6 +17,7 @@ router.get("/:token", async (req, res) => {
     return;
   }
 
+  await updateContinuationStep(token, currentStep);
   res.json({ applicationId });
 });
 

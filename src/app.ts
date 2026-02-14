@@ -89,17 +89,14 @@ function assertRoutesMounted(app: express.Express): void {
   }
 }
 
-function getCorsAllowlist(): Set<string> {
-  const allowedOrigins = [
-    process.env.WEBSITE_URL,
-    process.env.PORTAL_URL,
+function getRequiredCorsOrigins(): string[] {
+  return [
     process.env.CLIENT_URL,
-    "http://localhost:5173",
+    process.env.PORTAL_URL,
+    process.env.WEBSITE_URL,
   ]
-    .filter(Boolean)
-    .map((origin) => String(origin).trim())
-    .filter(Boolean);
-  return new Set(allowedOrigins);
+    .map((origin) => (typeof origin === "string" ? origin.trim() : ""))
+    .filter((origin) => origin.length > 0);
 }
 
 export function shouldBlockInternalOriginRequest(
@@ -113,19 +110,9 @@ export function shouldBlockInternalOriginRequest(
 }
 
 function buildCorsOptions(): cors.CorsOptions {
-  const allowlist = getCorsAllowlist();
+  const allowlist = new Set(getRequiredCorsOrigins());
   return {
-    origin: (origin, callback) => {
-      if (!origin) {
-        callback(null, true);
-        return;
-      }
-      if (allowlist.has(origin)) {
-        callback(null, true);
-        return;
-      }
-      callback(new Error("CORS blocked"));
-    },
+    origin: [...allowlist],
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: [
@@ -139,8 +126,20 @@ function buildCorsOptions(): cors.CorsOptions {
 }
 
 export function assertCorsConfig(): void {
-  const allowlist = getCorsAllowlist();
-    const corsOptions = buildCorsOptions();
+  const requiredOrigins = {
+    CLIENT_URL: process.env.CLIENT_URL,
+    PORTAL_URL: process.env.PORTAL_URL,
+    WEBSITE_URL: process.env.WEBSITE_URL,
+  };
+  const missingOrigins = Object.entries(requiredOrigins)
+    .filter(([, value]) => typeof value !== "string" || value.trim().length === 0)
+    .map(([key]) => key);
+  if (missingOrigins.length > 0) {
+    serverLogger.warn("cors_origin_env_missing", { missingOrigins });
+  }
+
+  const allowlist = getRequiredCorsOrigins();
+  const corsOptions = buildCorsOptions();
   const allowedHeaders = Array.isArray(corsOptions.allowedHeaders)
     ? corsOptions.allowedHeaders
     : typeof corsOptions.allowedHeaders === "string"
@@ -156,7 +155,7 @@ export function assertCorsConfig(): void {
   const shouldAllowServer =
     !shouldBlockInternalOriginRequest("/api/_int/routes", undefined);
 
-  if (allowlist.size === 0) {
+  if (allowlist.length === 0) {
     throw new Error("At least one of WEBSITE_URL, PORTAL_URL, or CLIENT_URL must be configured for CORS.");
   }
   if (corsOptions.credentials !== true) {

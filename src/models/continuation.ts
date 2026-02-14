@@ -7,8 +7,16 @@ export async function createContinuation(applicationId: string): Promise<string>
 
   await db.query(
     `
-      insert into continuation_sessions (application_id, token, expires_at)
-      values ($1, $2, $3)
+      insert into continuation_sessions (
+        application_id,
+        token,
+        expires_at,
+        application_status,
+        current_step,
+        last_updated,
+        is_completed
+      )
+      values ($1, $2, $3, 'in_progress', 1, now(), false)
     `,
     [applicationId, token, expiresAt]
   );
@@ -21,10 +29,35 @@ export async function getContinuation(token: string): Promise<string | null> {
     `
       select application_id
       from continuation_sessions
-      where token = $1 and expires_at > now()
+      where token = $1 and expires_at > now() and is_completed = false
     `,
     [token]
   );
 
   return rows[0]?.application_id ?? null;
+}
+
+export async function updateContinuationStep(token: string, currentStep: number): Promise<void> {
+  await db.query(
+    `
+      update continuation_sessions
+      set current_step = $2,
+          last_updated = now()
+      where token = $1
+    `,
+    [token, currentStep]
+  );
+}
+
+export async function completeContinuation(token: string): Promise<void> {
+  await db.query(
+    `
+      update continuation_sessions
+      set is_completed = true,
+          application_status = 'completed',
+          last_updated = now()
+      where token = $1
+    `,
+    [token]
+  );
 }
