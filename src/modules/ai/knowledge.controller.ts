@@ -1,6 +1,8 @@
 import type { Request, Response } from "express";
 import multer from "multer";
 import { v4 as uuid } from "uuid";
+import { pool } from "../../db";
+import { embedAndStore } from "./knowledge.service";
 
 const storage = multer.memoryStorage();
 export const upload = multer({ storage });
@@ -13,7 +15,7 @@ const knowledgeDocs: Array<{
 }> = [];
 
 export const AIKnowledgeController = {
-  upload(req: Request, res: Response): void {
+  async upload(req: Request, res: Response): Promise<void> {
     const file = req.file;
 
     if (!file) {
@@ -21,14 +23,20 @@ export const AIKnowledgeController = {
       return;
     }
 
+    const sheetId = uuid();
     knowledgeDocs.push({
-      id: uuid(),
+      id: sheetId,
       filename: file.originalname,
       buffer: file.buffer,
       uploadedAt: Date.now(),
     });
 
-    res.json({ success: true });
+    const extractedText = file.buffer.toString("utf8").trim();
+    if (extractedText.length > 0) {
+      await embedAndStore(pool, extractedText, "sheet", sheetId);
+    }
+
+    res.json({ success: true, sheetId });
   },
 
   list(_req: Request, res: Response): void {

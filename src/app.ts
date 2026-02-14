@@ -67,6 +67,8 @@ import clientContinuationRoutes from "./routes/clientContinuation";
 import continuationRoutes from "./routes/continuation";
 import liveChatRoutes from "./routes/liveChat";
 import aiPlaceholderRoutes from "./routes/aiPlaceholder";
+import aiRuleRoutes from "./modules/ai/rule.routes";
+import aiConfidenceRoutes from "./modules/ai/confidence.routes";
 import { logger as serverLogger } from "./server/utils/logger";
 
 function assertRoutesMounted(app: express.Express): void {
@@ -301,6 +303,8 @@ export function registerApiRoutes(app: express.Express): void {
   app.use("/api/client/continuation", externalEndpointLimiter, clientContinuationRoutes);
   app.use("/api/application/continuation", applicationContinuationRoutes);
   app.use("/api", externalEndpointLimiter, aiCoreRoutes);
+  app.use("/api", externalEndpointLimiter, aiRuleRoutes);
+  app.use("/api", externalEndpointLimiter, aiConfidenceRoutes);
   app.use("/api/crm", crmRoutes);
   app.use("/api/healthz", healthRoute);
 
