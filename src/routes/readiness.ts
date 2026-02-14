@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { db } from "../db";
 
 const router = Router();
 
@@ -21,6 +22,57 @@ router.post("/", (req, res) => {
     "Needs Improvement";
 
   res.json({ score, rating });
+});
+
+router.post("/readiness", async (req, res) => {
+  const {
+    companyName,
+    fullName,
+    email,
+    phone,
+    industry,
+    yearsInBusiness,
+    monthlyRevenue,
+    annualRevenue,
+    arOutstanding,
+    existingDebt,
+  } = req.body as {
+    companyName?: string;
+    fullName?: string;
+    email?: string;
+    phone?: string;
+    industry?: string;
+    yearsInBusiness?: string;
+    monthlyRevenue?: string;
+    annualRevenue?: string;
+    arOutstanding?: string;
+    existingDebt?: string;
+  };
+
+  await db.query(
+    `
+      insert into crm_leads
+      (company_name, full_name, email, phone, industry, metadata)
+      values ($1, $2, $3, $4, $5, $6::jsonb)
+    `,
+    [
+      companyName ?? null,
+      fullName ?? null,
+      email ?? null,
+      phone ?? null,
+      industry ?? null,
+      JSON.stringify({
+        yearsInBusiness,
+        monthlyRevenue,
+        annualRevenue,
+        arOutstanding,
+        existingDebt,
+        source: "capital_readiness",
+      }),
+    ]
+  );
+
+  res.json({ status: "stored" });
 });
 
 export default router;

@@ -61,9 +61,12 @@ import productComparisonRoutes from "./routes/productComparison";
 import crmLeadRoutes from "./routes/leads";
 import aiCoreRoutes from "./routes/aiCore";
 import preApplicationRoutes from "./routes/preApplication";
-import continuationRoutes from "./modules/continuation/continuation.routes";
+import applicationContinuationRoutes from "./modules/continuation/continuation.routes";
 import creditReadinessRoutes from "./routes/creditReadiness";
 import clientContinuationRoutes from "./routes/clientContinuation";
+import continuationRoutes from "./routes/continuation";
+import liveChatRoutes from "./routes/liveChat";
+import aiPlaceholderRoutes from "./routes/aiPlaceholder";
 import { logger as serverLogger } from "./server/utils/logger";
 
 function assertRoutesMounted(app: express.Express): void {
@@ -285,6 +288,9 @@ export function registerApiRoutes(app: express.Express): void {
   app.use("/api/public", externalEndpointLimiter, publicRoutes);
   app.use("/api/analytics", analyticsRoutes);
   app.use("/api/readiness", readinessRoutes);
+  app.use("/api", externalEndpointLimiter, continuationRoutes);
+  app.use("/api", externalEndpointLimiter, liveChatRoutes);
+  app.use("/api", externalEndpointLimiter, aiPlaceholderRoutes);
   app.use("/api/scoring", readinessRoutes);
   app.use("/api/product-comparison", productComparisonRoutes);
   app.use("/api/comparison", productComparisonRoutes);
@@ -293,7 +299,7 @@ export function registerApiRoutes(app: express.Express): void {
   app.use("/api/preapp", externalEndpointLimiter, preApplicationRoutes);
   app.use("/api/credit-readiness", externalEndpointLimiter, creditReadinessRoutes);
   app.use("/api/client/continuation", externalEndpointLimiter, clientContinuationRoutes);
-  app.use("/api/application/continuation", continuationRoutes);
+  app.use("/api/application/continuation", applicationContinuationRoutes);
   app.use("/api", externalEndpointLimiter, aiCoreRoutes);
   app.use("/api/crm", crmRoutes);
   app.use("/api/healthz", healthRoute);
