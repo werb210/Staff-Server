@@ -2,13 +2,14 @@ import OpenAI from "openai";
 import { v4 as uuid } from "uuid";
 import { AiMessage, AiSession } from "./ai.types";
 import { dbQuery } from "../../db";
+import { applyAiGuardrails, CAPITAL_SOURCE_PHRASE } from "./guardrails";
 
 type AiReply = {
   reply: string;
   askIntakeQuestions?: boolean;
 };
 
-const LENDER_LANGUAGE = "We have lenders across different capital types, including Institutional lenders, Banking, and Private Capital sources as well as our own funding offerings.";
+const LENDER_LANGUAGE = CAPITAL_SOURCE_PHRASE;
 
 const LEGACY_SYSTEM_PROMPT = [
   "You are a financing assistant for Boreal Financial.",
@@ -92,7 +93,7 @@ You are professional and friendly.
 Never mention lender names.
 Always show ranges only.
 Never promise approval.
-Never use underwriting disclaimer language.
+Include: "All funding outcomes are subject to underwriting review."
 If asked about startup funding, explain it is coming soon and offer to collect contact details.
 Use exact capital language: "We have lenders across different capital types, including Institutional lenders, Banking, and Private Capital sources as well as our own funding offerings."
 ${aiRules.length > 0 ? `Admin override rules:
@@ -123,7 +124,7 @@ ${aiRules.join("\n")}` : ""}
     ],
   });
 
-  const reply = response.choices[0]?.message?.content || "";
+  const reply = applyAiGuardrails(response.choices[0]?.message?.content || "");
 
   messages.push({
     sessionId,
@@ -158,7 +159,7 @@ export function reportIssue(
 export async function generateAIResponse(_sessionId: string, message: string): Promise<string> {
   if (!client) {
     return JSON.stringify({
-      reply: `${LENDER_LANGUAGE} To guide qualification, could you share time in business, monthly revenue range, and existing obligations?`,
+      reply: applyAiGuardrails(`${LENDER_LANGUAGE} To guide qualification, could you share time in business, monthly revenue range, and existing obligations?`),
       askIntakeQuestions: true,
     } satisfies AiReply);
   }
@@ -177,6 +178,7 @@ export async function generateAIResponse(_sessionId: string, message: string): P
 
   const responseContent = response.choices[0]?.message?.content ?? "{}";
   const parsed = JSON.parse(responseContent) as AiReply;
+  parsed.reply = applyAiGuardrails(parsed.reply ?? "");
 
   if (typeof parsed.reply !== "string") {
     throw new Error("AI response format invalid: missing reply.");

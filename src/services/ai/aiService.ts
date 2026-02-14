@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { db } from "../../db";
 import { retrieveRelevantContext } from "./retrievalService";
+import { applyAiGuardrails, CAPITAL_SOURCE_PHRASE } from "../../modules/ai/guardrails";
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -27,7 +28,7 @@ async function loadSystemRules(): Promise<string> {
       "- Never give underwriting guarantees.",
       "- Never mention startup funding as available.",
       "- Use professional and friendly tone.",
-      '- Say: "We have lenders across different capital types, including Institutional lenders, Banking, and Private Capital sources as well as our own funding offerings."',
+      `- Say: "${CAPITAL_SOURCE_PHRASE}"`,
     ].join("\n");
   }
 
@@ -60,5 +61,5 @@ ${context}
     ],
   });
 
-  return response.choices[0]?.message?.content ?? "";
+  return applyAiGuardrails(response.choices[0]?.message?.content ?? "");
 }
