@@ -49,6 +49,7 @@ import requestLogMiddleware from "./middleware/logger";
 import envCheck from "./middleware/envCheck";
 import healthRoute from "./routes/health";
 import contactRoute from "./routes/contact";
+import applicationRoute from "./routes/application";
 import leadRoute from "./routes/lead";
 import crmRoutes from "./routes/crm";
 import issueRoutes from "./routes/issueReport";
@@ -279,6 +280,7 @@ export function registerApiRoutes(app: express.Express): void {
   });
 
   app.use("/api/contact", externalEndpointLimiter, contactRoute);
+  app.use("/api/application", externalEndpointLimiter, applicationRoute);
   app.use("/api/credit", externalEndpointLimiter, creditRoutes);
   app.use("/api/support/issues", externalEndpointLimiter, issueFoundationRoutes);
   app.use("/api/report", issueRoutes);

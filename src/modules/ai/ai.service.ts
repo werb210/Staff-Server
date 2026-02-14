@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { v4 as uuid } from "uuid";
 import { AiMessage, AiSession } from "./ai.types";
+import { dbQuery } from "../../db";
 
 type AiReply = {
   reply: string;
@@ -26,6 +27,35 @@ const client = process.env.OPENAI_API_KEY
 
 const sessions = new Map<string, AiSession>();
 const messages: AiMessage[] = [];
+
+
+async function loadActiveAiRules(): Promise<string[]> {
+  try {
+    const modern = await dbQuery<{ rule_content: string }>(
+      `select rule_content
+       from ai_rules
+       where active = true
+       order by priority desc, id asc`
+    );
+    if (modern.rows.length > 0) {
+      return modern.rows.map((row) => row.rule_content).filter(Boolean);
+    }
+  } catch {
+    // fallback to legacy schema
+  }
+
+  try {
+    const legacy = await dbQuery<{ rule_value: string }>(
+      `select rule_value
+       from ai_rules
+       where coalesce(rule_value, '') <> ''
+       order by updated_at desc`
+    );
+    return legacy.rows.map((row) => row.rule_value).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
 
 export function startSession(context: AiSession["context"]): AiSession {
   const id = uuid();
@@ -55,15 +85,18 @@ export async function handleMessage(sessionId: string, content: string): Promise
     createdAt: new Date(),
   });
 
+  const aiRules = await loadActiveAiRules();
   const systemPrompt = `
 You are Maya, Boreal Financial AI assistant.
 You are professional and friendly.
 Never mention lender names.
 Always show ranges only.
 Never promise approval.
-Never provide specific underwriting terms.
+Never use underwriting disclaimer language.
 If asked about startup funding, explain it is coming soon and offer to collect contact details.
-Use language: "We have lenders across Institutional, Banking, and Private Capital sources."
+Use exact capital language: "We have lenders across different capital types, including Institutional lenders, Banking, and Private Capital sources as well as our own funding offerings."
+${aiRules.length > 0 ? `Admin override rules:
+${aiRules.join("\n")}` : ""}
 `;
 
   if (!client) {
@@ -130,12 +163,14 @@ export async function generateAIResponse(_sessionId: string, message: string): P
     } satisfies AiReply);
   }
 
+  const aiRules = await loadActiveAiRules();
+
   const response = await client.chat.completions.create({
     model: process.env.OPENAI_CHAT_MODEL ?? "gpt-4.1-mini",
     temperature: 0.2,
     response_format: { type: "json_object" },
     messages: [
-      { role: "system", content: LEGACY_SYSTEM_PROMPT },
+      { role: "system", content: `${LEGACY_SYSTEM_PROMPT}\n${aiRules.length > 0 ? `Admin override rules:\n${aiRules.join("\n")}` : ""}` },
       { role: "user", content: message },
     ],
   });

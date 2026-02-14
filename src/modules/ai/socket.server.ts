@@ -59,6 +59,31 @@ function broadcast(sessionId: string, payload: Record<string, unknown>): void {
   }
 }
 
+async function ensureChatSessionExists(sessionId: string): Promise<void> {
+  try {
+    await pool.query(
+      `insert into chat_sessions (id, source, channel, status)
+       values ($1, 'website', 'text', 'ai')
+       on conflict (id) do nothing`,
+      [sessionId]
+    );
+    return;
+  } catch {
+    // continue to legacy fallback
+  }
+
+  try {
+    await pool.query(
+      `insert into chat_sessions (id, user_type, status, source)
+       values ($1, 'guest', 'active', 'website')
+       on conflict (id) do nothing`,
+      [sessionId]
+    );
+  } catch {
+    // Some deployments own session creation elsewhere; do not fail websocket join.
+  }
+}
+
 async function attachTranscriptToCrm(sessionId: string): Promise<void> {
   const sessionResult = await pool.query<{ lead_id: string | null }>(
     "select lead_id from chat_sessions where id = $1 limit 1",
@@ -99,7 +124,15 @@ async function setSessionState(sessionId: string, state: ChatSessionState): Prom
          updated_at = now()
      where id = $1`,
     [sessionId, state === "HUMAN_ACTIVE" ? "human" : "active", state === "HUMAN_ACTIVE"]
-  );
+  ).catch(async () => {
+    await pool.query(
+      `update chat_sessions
+       set status = $2,
+           updated_at = now()
+       where id = $1`,
+      [sessionId, state === "HUMAN_ACTIVE" ? "escalated" : "active"]
+    ).catch(() => undefined);
+  });
 
   logInfo("chat_session_state_changed", { sessionId, state });
 }
@@ -144,7 +177,9 @@ export function initChatSocket(server: Server): WebSocketServer {
           return;
         }
 
-        if (payload.type === "join_session" && payload.sessionId) {
+        const messageType = payload.type;
+
+        if ((messageType === "join_session" || messageType === "connect") && payload.sessionId) {
           if (!payload.userId || payload.userId.trim().length === 0) {
             ws.send(JSON.stringify({ type: "error", message: "unauthorized" }));
             return;
@@ -152,6 +187,8 @@ export function initChatSocket(server: Server): WebSocketServer {
           ws.sessionId = payload.sessionId;
           ws.role = "client";
           ws.userId = payload.userId;
+
+          await ensureChatSessionExists(payload.sessionId);
 
           const presence = getOrCreatePresence(payload.sessionId);
           presence.sockets.add(ws);
@@ -163,11 +200,18 @@ export function initChatSocket(server: Server): WebSocketServer {
             reconnect: true,
             state: presence.state,
           }));
+          if (presence.state === "HUMAN_ACTIVE") {
+            ws.send(JSON.stringify({
+              type: "transferring",
+              sessionId: payload.sessionId,
+              state: "HUMAN_ACTIVE",
+            }));
+          }
           logInfo("chat_ws_join", { sessionId: payload.sessionId, role: "client" });
           return;
         }
 
-        if (payload.type === "staff_join" && payload.sessionId) {
+        if ((messageType === "staff_join" || messageType === "staff_joined") && payload.sessionId) {
           if (!payload.userId || payload.userId.trim().length === 0) {
             ws.send(JSON.stringify({ type: "error", message: "unauthorized" }));
             return;
@@ -176,11 +220,19 @@ export function initChatSocket(server: Server): WebSocketServer {
           ws.role = "staff";
           ws.userId = payload.userId;
 
+          await ensureChatSessionExists(payload.sessionId);
+
           const presence = getOrCreatePresence(payload.sessionId);
           presence.sockets.add(ws);
 
           await setSessionState(payload.sessionId, "HUMAN_ACTIVE");
 
+          broadcast(payload.sessionId, {
+            type: "staff_joined",
+            sessionId: payload.sessionId,
+            state: "HUMAN_ACTIVE",
+            aiStopped: true,
+          });
           broadcast(payload.sessionId, {
             type: "transferring",
             sessionId: payload.sessionId,
@@ -191,39 +243,40 @@ export function initChatSocket(server: Server): WebSocketServer {
           return;
         }
 
-        if (payload.type === "staff_leave" && payload.sessionId) {
+        if ((messageType === "staff_leave" || messageType === "transfer") && payload.sessionId) {
           await setSessionState(payload.sessionId, "AI_ACTIVE");
           broadcast(payload.sessionId, {
-            type: "transferring",
+            type: "transfer",
             sessionId: payload.sessionId,
             state: "AI_ACTIVE",
           });
           return;
         }
 
-        if (payload.type === "staff_message" && payload.sessionId && payload.content) {
+        if ((messageType === "staff_message" || messageType === "user_message" || messageType === "ai_message") && payload.sessionId && payload.content) {
+          const role = messageType === "staff_message" ? "staff" : messageType === "ai_message" ? "ai" : "user";
           await pool.query(
             `insert into chat_messages (id, session_id, role, content)
-             values ($1, $2, 'staff', $3)`,
-            [randomUUID(), payload.sessionId, payload.content]
+             values ($1, $2, $3, $4)`,
+            [randomUUID(), payload.sessionId, role, payload.content]
           );
           broadcast(payload.sessionId, {
-            type: "message",
+            type: messageType,
             sessionId: payload.sessionId,
-            role: "staff",
+            role,
             content: payload.content,
           });
           return;
         }
 
-        if (payload.type === "close_chat" && payload.sessionId) {
+        if ((messageType === "close_chat" || messageType === "close_session") && payload.sessionId) {
           await pool.query(
             `update chat_sessions set status = 'closed', updated_at = now() where id = $1`,
             [payload.sessionId]
           );
           await attachTranscriptToCrm(payload.sessionId);
           broadcast(payload.sessionId, {
-            type: "closed",
+            type: "close_session",
             sessionId: payload.sessionId,
           });
           sessionMap.delete(payload.sessionId);

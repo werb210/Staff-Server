@@ -66,6 +66,8 @@ export async function createOrReuseReadinessSession(payload: ReadinessSessionInp
     [email, normalizedPhone]
   );
 
+  const startupInterest = String(payload.industry ?? "").toLowerCase().includes("startup");
+
   const crmLead = await upsertCrmLead({
     companyName: payload.companyName,
     fullName: payload.fullName,
@@ -78,7 +80,7 @@ export async function createOrReuseReadinessSession(payload: ReadinessSessionInp
     arOutstanding: payload.arOutstanding,
     existingDebt: payload.existingDebt,
     source: "credit_readiness",
-    tags: ["readiness"],
+    tags: startupInterest ? ["readiness", "startup_interest"] : ["readiness"],
     activityType: "readiness_submission",
     activityPayload: { email },
   });
@@ -137,6 +139,7 @@ export async function createOrReuseReadinessSession(payload: ReadinessSessionInp
 export async function getActiveReadinessSessionByToken(sessionId: string): Promise<null | {
   sessionId: string;
   readinessToken: string;
+  leadId: string | null;
   email: string;
   phone: string | null;
   companyName: string;
@@ -152,6 +155,7 @@ export async function getActiveReadinessSessionByToken(sessionId: string): Promi
   const result = await dbQuery<{
     id: string;
     token: string;
+    crm_lead_id: string | null;
     email: string;
     phone: string | null;
     company_name: string;
@@ -164,7 +168,7 @@ export async function getActiveReadinessSessionByToken(sessionId: string): Promi
     existing_debt: boolean | null;
     expires_at: Date;
   }>(
-    `select id, token, email, phone, company_name, full_name, industry,
+    `select id, token, crm_lead_id, email, phone, company_name, full_name, industry,
             years_in_business, monthly_revenue, annual_revenue, ar_outstanding, existing_debt,
             expires_at
      from readiness_sessions
@@ -181,6 +185,7 @@ export async function getActiveReadinessSessionByToken(sessionId: string): Promi
   return {
     sessionId: row.id,
     readinessToken: row.token,
+    leadId: row.crm_lead_id,
     email: row.email,
     phone: row.phone,
     companyName: row.company_name,

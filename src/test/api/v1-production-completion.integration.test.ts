@@ -38,6 +38,7 @@ describe("v1 production completion", () => {
     expect(tokenRes.status).toBe(200);
     expect(tokenRes.body?.data?.kyc?.email).toBe(payload.email);
     expect(Number(tokenRes.body?.data?.financial?.monthlyRevenue)).toBe(55000);
+    expect(tokenRes.body?.data?.leadId).toEqual(expect.any(String));
 
     const dupRes = await request(app).post("/api/readiness").send(payload);
     expect([200, 201]).toContain(dupRes.status);
@@ -51,6 +52,7 @@ describe("v1 production completion", () => {
     );
     expect(sessions.rowCount).toBe(1);
   });
+
 
   it("dedupes contact form entries by email/phone", async () => {
     const payload = {
