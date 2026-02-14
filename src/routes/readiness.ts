@@ -31,7 +31,7 @@ const readinessLookupParamsSchema = z.object({
   id: z.string().uuid(),
 });
 
-router.post("/", readinessLimiter, async (req, res) => {
+const submitReadinessHandler = async (req: Request, res: Response) => {
   try {
     const parsed = createReadinessLeadSchema.parse(req.body ?? {});
     const readinessSession = await createOrReuseReadinessSession(parsed);
@@ -50,6 +50,7 @@ router.post("/", readinessLimiter, async (req, res) => {
         sessionId: readinessSession.sessionId,
         readinessToken: readinessSession.token,
         reused: readinessSession.reused,
+        score: readinessSession.score,
       },
     });
   } catch (error) {
@@ -66,7 +67,10 @@ router.post("/", readinessLimiter, async (req, res) => {
     });
     res.status(500).json({ success: false, error: "Server error" });
   }
-});
+};
+
+router.post("/", readinessLimiter, submitReadinessHandler);
+router.post("/submit", readinessLimiter, submitReadinessHandler);
 
 const getReadinessSessionHandler = async (req: Request, res: Response) => {
   try {
@@ -85,7 +89,7 @@ const getReadinessSessionHandler = async (req: Request, res: Response) => {
         email: session.email,
         phone: session.phone,
         timestamp: session.createdAt,
-        score: null,
+        score: session.score,
         intakeData: {
           kyc: {
             companyName: session.companyName,

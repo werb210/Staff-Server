@@ -29,10 +29,11 @@ describe("v1 production completion", () => {
       existingDebt: false,
     };
 
-    const createRes = await request(app).post("/api/readiness").send(payload);
+    const createRes = await request(app).post("/api/readiness/submit").send(payload);
     expect([200, 201]).toContain(createRes.status);
     expect(createRes.body?.data?.readinessToken).toEqual(expect.any(String));
     expect(createRes.body?.data?.sessionId).toEqual(expect.any(String));
+    expect(typeof createRes.body?.data?.score).toBe("number");
 
     const tokenRes = await request(app).get(`/api/readiness/session/${createRes.body.data.sessionId}`);
     expect(tokenRes.status).toBe(200);
@@ -64,7 +65,7 @@ describe("v1 production completion", () => {
       source: "website_contact",
     };
 
-    const one = await request(app).post("/api/contact").send(payload);
+    const one = await request(app).post("/api/contact/submit").send(payload);
     const two = await request(app).post("/api/contact").send(payload);
 
     expect(one.status).toBe(200);
@@ -116,6 +117,16 @@ describe("v1 production completion", () => {
 
     expect(messages.some((entry) => entry.includes('"state":"HUMAN_ACTIVE"'))).toBe(true);
 
+    await new Promise<void>((resolve, reject) => {
+      client.on("message", (msg) => {
+        const event = msg.toString();
+        if (event.includes('"type":"suppressed"')) {
+          resolve();
+        }
+      });
+      client.send(JSON.stringify({ type: "ai_message", sessionId, content: "should_suppress" }));
+      setTimeout(() => reject(new Error("timeout waiting for suppression")), 2500);
+    });
 
     await new Promise<void>((resolve, reject) => {
       client.send(JSON.stringify({ type: "close_chat", sessionId }));

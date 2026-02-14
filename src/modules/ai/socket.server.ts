@@ -4,7 +4,7 @@ import { WebSocketServer, type RawData, type WebSocket } from "ws";
 import { pool } from "../../db";
 import { logError, logInfo } from "../../observability/logger";
 
-type SessionSocket = WebSocket & { sessionId?: string; isAlive?: boolean; role?: "client" | "staff"; userId?: string };
+type SessionSocket = WebSocket & { sessionId?: string; isAlive?: boolean; role?: "client" | "staff"; userId?: string; socketId?: string; crmLeadId?: string | null };
 
 type ChatSessionState = "AI_ACTIVE" | "HUMAN_ACTIVE";
 
@@ -28,6 +28,7 @@ const MAX_CONCURRENT_SESSIONS = Number(process.env.CHAT_MAX_CONCURRENT_SESSIONS 
 const IDLE_TIMEOUT_MS = Number(process.env.CHAT_IDLE_TIMEOUT_MS ?? 30 * 60 * 1000);
 const MAX_MESSAGES_PER_WINDOW = Number(process.env.CHAT_MAX_MESSAGES_PER_10S ?? 100);
 const RECONNECT_BACKOFF_MS = [500, 1000, 2000, 4000];
+const socketRegistry = new Map<string, { sessionId: string; crmLeadId: string | null; role: "client" | "staff" }>();
 
 function getAllowedOrigins(): Set<string> {
   return new Set([process.env.CLIENT_URL, process.env.PORTAL_URL, process.env.WEBSITE_URL]
@@ -161,6 +162,15 @@ async function setSessionState(sessionId: string, state: ChatSessionState): Prom
   logInfo("chat_session_state_changed", { sessionId, state });
 }
 
+
+async function getChatSessionLeadId(sessionId: string): Promise<string | null> {
+  const lead = await pool.query<{ lead_id: string | null }>(
+    "select lead_id from chat_sessions where id = $1 limit 1",
+    [sessionId]
+  );
+  return lead.rows[0]?.lead_id ?? null;
+}
+
 function detachSocket(socket: SessionSocket): void {
   if (!socket.sessionId) {
     return;
@@ -172,6 +182,10 @@ function detachSocket(socket: SessionSocket): void {
 
   presence.sockets.delete(socket);
   presence.updatedAt = Date.now();
+
+  if (socket.socketId) {
+    socketRegistry.delete(socket.socketId);
+  }
 
   if (presence.sockets.size === 0) {
     void attachTranscriptToCrm(socket.sessionId).catch((error) => {
@@ -260,8 +274,15 @@ export function initChatSocket(server: Server): WebSocketServer {
           ws.sessionId = payload.sessionId;
           ws.role = "client";
           ws.userId = payload.userId;
+          ws.socketId = randomUUID();
 
           await ensureChatSessionExists(payload.sessionId);
+          ws.crmLeadId = await getChatSessionLeadId(payload.sessionId);
+          socketRegistry.set(ws.socketId, {
+            sessionId: payload.sessionId,
+            crmLeadId: ws.crmLeadId ?? null,
+            role: "client",
+          });
 
           const presence = getOrCreatePresence(payload.sessionId);
           presence.sockets.add(ws);
@@ -273,6 +294,8 @@ export function initChatSocket(server: Server): WebSocketServer {
             reconnect: true,
             reconnectBackoffMs: RECONNECT_BACKOFF_MS,
             state: presence.state,
+            socketId: ws.socketId,
+            crmLeadId: ws.crmLeadId ?? null,
           }));
           if (presence.state === "HUMAN_ACTIVE") {
             ws.send(JSON.stringify({
@@ -300,8 +323,15 @@ export function initChatSocket(server: Server): WebSocketServer {
           ws.sessionId = payload.sessionId;
           ws.role = "staff";
           ws.userId = payload.userId;
+          ws.socketId = randomUUID();
 
           await ensureChatSessionExists(payload.sessionId);
+          ws.crmLeadId = await getChatSessionLeadId(payload.sessionId);
+          socketRegistry.set(ws.socketId, {
+            sessionId: payload.sessionId,
+            crmLeadId: ws.crmLeadId ?? null,
+            role: "staff",
+          });
 
           const presence = getOrCreatePresence(payload.sessionId);
           presence.sockets.add(ws);
@@ -347,6 +377,11 @@ export function initChatSocket(server: Server): WebSocketServer {
           }
 
           const role = messageType === "staff_message" ? "staff" : messageType === "ai_message" ? "ai" : "user";
+          const presence = getOrCreatePresence(payload.sessionId);
+          if (messageType === "ai_message" && presence.state === "HUMAN_ACTIVE") {
+            ws.send(JSON.stringify({ type: "suppressed", reason: "staff_active" }));
+            return;
+          }
           await pool.query(
             `insert into chat_messages (id, session_id, role, content)
              values ($1, $2, $3, $4)`,
@@ -387,6 +422,15 @@ export function initChatSocket(server: Server): WebSocketServer {
       detachSocket(ws);
       logInfo("chat_ws_close", { sessionId: ws.sessionId ?? null, role: ws.role ?? null });
     });
+
+    ws.on("error", (error) => {
+      logError("chat_ws_socket_error", {
+        sessionId: ws.sessionId ?? null,
+        role: ws.role ?? null,
+        message: error instanceof Error ? error.message : String(error),
+      });
+      detachSocket(ws);
+    });
   });
 
 
@@ -396,6 +440,11 @@ export function initChatSocket(server: Server): WebSocketServer {
       if (presence.sockets.size === 0 || now - presence.updatedAt > IDLE_TIMEOUT_MS) {
         sessionMap.delete(sessionId);
         messageWindowMap.delete(sessionId);
+        for (const [socketId, value] of socketRegistry.entries()) {
+          if (value.sessionId === sessionId) {
+            socketRegistry.delete(socketId);
+          }
+        }
       }
     }
   }, 30000);

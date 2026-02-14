@@ -34,6 +34,13 @@ function dedupeTags(tags: string[]): string[] {
   return [...new Set(tags.map((tag) => tag.trim()).filter(Boolean))];
 }
 
+function isUniqueViolation(error: unknown): boolean {
+  return typeof error === "object"
+    && error !== null
+    && "code" in error
+    && (error as { code?: string }).code === "23505";
+}
+
 export async function upsertCrmLead(input: CrmUpsertInput): Promise<{ id: string; created: boolean }> {
   const email = normalizeEmail(input.email);
   const phone = normalizePhone(input.phone);
@@ -96,33 +103,90 @@ export async function upsertCrmLead(input: CrmUpsertInput): Promise<{ id: string
   } else {
     leadId = randomUUID();
     created = true;
+    try {
+      await dbQuery(
+        `insert into crm_leads (
+          id, company_name, full_name, email, phone, industry,
+          years_in_business, monthly_revenue, annual_revenue,
+          ar_outstanding, existing_debt, source, tags
+        ) values (
+          $1, $2, $3, $4, $5, $6,
+          $7, $8, $9,
+          $10, $11, $12, $13::jsonb
+        )`,
+        [
+          leadId,
+          input.companyName ?? null,
+          input.fullName ?? null,
+          email,
+          phone,
+          input.industry ?? null,
+          input.yearsInBusiness != null ? String(input.yearsInBusiness) : null,
+          input.monthlyRevenue != null ? String(input.monthlyRevenue) : null,
+          input.annualRevenue != null ? String(input.annualRevenue) : null,
+          input.arOutstanding != null ? String(input.arOutstanding) : null,
+          input.existingDebt != null ? String(input.existingDebt) : null,
+          input.source,
+          JSON.stringify(normalizedTags),
+        ]
+      );
+    } catch (error) {
+      if (!isUniqueViolation(error)) {
+        throw error;
+      }
 
-    await dbQuery(
-      `insert into crm_leads (
-        id, company_name, full_name, email, phone, industry,
-        years_in_business, monthly_revenue, annual_revenue,
-        ar_outstanding, existing_debt, source, tags
-      ) values (
-        $1, $2, $3, $4, $5, $6,
-        $7, $8, $9,
-        $10, $11, $12, $13::jsonb
-      )`,
-      [
-        leadId,
-        input.companyName ?? null,
-        input.fullName ?? null,
-        email,
-        phone,
-        input.industry ?? null,
-        input.yearsInBusiness != null ? String(input.yearsInBusiness) : null,
-        input.monthlyRevenue != null ? String(input.monthlyRevenue) : null,
-        input.annualRevenue != null ? String(input.annualRevenue) : null,
-        input.arOutstanding != null ? String(input.arOutstanding) : null,
-        input.existingDebt != null ? String(input.existingDebt) : null,
-        input.source,
-        JSON.stringify(normalizedTags),
-      ]
-    );
+      const conflict = await dbQuery<{ id: string; tags: unknown }>(
+        `select id, tags
+         from crm_leads
+         where ($1::text is not null and lower(email) = $1)
+            or ($2::text is not null and regexp_replace(coalesce(phone, ''), '\\D', '', 'g') = regexp_replace($2, '\\D', '', 'g'))
+         order by created_at asc
+         limit 1`,
+        [email, phone]
+      );
+
+      const existingConflict = conflict.rows[0];
+      if (!existingConflict) {
+        throw error;
+      }
+
+      leadId = existingConflict.id;
+      created = false;
+      const existingTags = Array.isArray(existingConflict.tags) ? (existingConflict.tags as string[]) : [];
+      const mergedTags = dedupeTags([...existingTags, ...normalizedTags]);
+
+      await dbQuery(
+        `update crm_leads
+         set company_name = coalesce($2, company_name),
+             full_name = coalesce($3, full_name),
+             email = coalesce($4, email),
+             phone = coalesce($5, phone),
+             industry = coalesce($6, industry),
+             years_in_business = coalesce($7, years_in_business),
+             monthly_revenue = coalesce($8, monthly_revenue),
+             annual_revenue = coalesce($9, annual_revenue),
+             ar_outstanding = coalesce($10, ar_outstanding),
+             existing_debt = coalesce($11, existing_debt),
+             source = coalesce($12, source),
+             tags = $13::jsonb
+         where id = $1`,
+        [
+          leadId,
+          input.companyName ?? null,
+          input.fullName ?? null,
+          email,
+          phone,
+          input.industry ?? null,
+          input.yearsInBusiness != null ? String(input.yearsInBusiness) : null,
+          input.monthlyRevenue != null ? String(input.monthlyRevenue) : null,
+          input.annualRevenue != null ? String(input.annualRevenue) : null,
+          input.arOutstanding != null ? String(input.arOutstanding) : null,
+          input.existingDebt != null ? String(input.existingDebt) : null,
+          input.source,
+          JSON.stringify(mergedTags),
+        ]
+      );
+    }
   }
 
   await dbQuery(

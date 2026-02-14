@@ -40,7 +40,44 @@ function toBoolean(value: boolean | string | undefined): boolean | null {
   return null;
 }
 
-export async function createOrReuseReadinessSession(payload: ReadinessSessionInput): Promise<{ sessionId: string; token: string; reused: boolean; crmLeadId: string }> {
+
+function calculateReadinessScore(payload: ReadinessSessionInput): number {
+  let score = 50;
+  const years = toInteger(payload.yearsInBusiness);
+  const monthlyRevenue = toNumeric(payload.monthlyRevenue);
+  const annualRevenue = toNumeric(payload.annualRevenue);
+  const arOutstanding = toNumeric(payload.arOutstanding);
+  const hasDebt = toBoolean(payload.existingDebt);
+
+  if (years !== null) {
+    if (years >= 5) score += 15;
+    else if (years >= 2) score += 10;
+    else if (years >= 1) score += 5;
+  }
+
+  if (monthlyRevenue !== null) {
+    if (monthlyRevenue >= 100000) score += 20;
+    else if (monthlyRevenue >= 50000) score += 15;
+    else if (monthlyRevenue >= 20000) score += 8;
+    else if (monthlyRevenue >= 10000) score += 4;
+  }
+
+  if (annualRevenue !== null && annualRevenue >= 500000) {
+    score += 5;
+  }
+
+  if (arOutstanding !== null && arOutstanding >= 25000) {
+    score += 5;
+  }
+
+  if (hasDebt === true) {
+    score -= 5;
+  }
+
+  return Math.max(0, Math.min(100, score));
+}
+
+export async function createOrReuseReadinessSession(payload: ReadinessSessionInput): Promise<{ sessionId: string; token: string; reused: boolean; crmLeadId: string; score: number }> {
   const email = normalizeEmail(payload.email);
   const normalizedPhone = payload.phone.trim();
 
@@ -51,6 +88,7 @@ export async function createOrReuseReadinessSession(payload: ReadinessSessionInp
   );
 
   const startupInterest = String(payload.industry ?? "").toLowerCase().includes("startup");
+  const score = calculateReadinessScore(payload);
 
   const client = await getInstrumentedClient();
   try {
@@ -86,7 +124,7 @@ export async function createOrReuseReadinessSession(payload: ReadinessSessionInp
       source: "credit_readiness",
       tags: startupInterest ? ["readiness", "readiness_session", "startup_interest"] : ["readiness", "readiness_session"],
       activityType: "readiness_submission",
-      activityPayload: { email, sessionId: existing.rows[0]?.id ?? null },
+      activityPayload: { email, sessionId: existing.rows[0]?.id ?? null, score },
     });
 
     if (existing.rows[0]) {
@@ -128,6 +166,7 @@ export async function createOrReuseReadinessSession(payload: ReadinessSessionInp
         token: existing.rows[0].token,
         reused: true,
         crmLeadId: existing.rows[0].crm_lead_id ?? crmLead.id,
+        score,
       };
     }
 
@@ -169,7 +208,7 @@ export async function createOrReuseReadinessSession(payload: ReadinessSessionInp
        values ($1, $2, 'readiness_session_started', $3::jsonb)`,
       [randomUUID(), crmLead.id, JSON.stringify({ sessionId: id })]
     );
-    return { sessionId: id, token, reused: false, crmLeadId: crmLead.id };
+    return { sessionId: id, token, reused: false, crmLeadId: crmLead.id, score };
   } catch (error) {
     await client.query("rollback");
     throw error;
@@ -194,6 +233,7 @@ export async function getActiveReadinessSessionByToken(sessionId: string): Promi
   existingDebt: boolean | null;
   expiresAt: Date;
   createdAt: Date;
+  score: number;
 }> {
   const result = await dbQuery<{
     id: string;
@@ -242,5 +282,17 @@ export async function getActiveReadinessSessionByToken(sessionId: string): Promi
     existingDebt: row.existing_debt,
     expiresAt: row.expires_at,
     createdAt: row.created_at,
+    score: calculateReadinessScore({
+      companyName: row.company_name,
+      fullName: row.full_name,
+      email: row.email,
+      phone: row.phone ?? "",
+      industry: row.industry ?? undefined,
+      yearsInBusiness: row.years_in_business ?? undefined,
+      monthlyRevenue: row.monthly_revenue ?? undefined,
+      annualRevenue: row.annual_revenue ?? undefined,
+      arOutstanding: row.ar_outstanding ?? undefined,
+      existingDebt: row.existing_debt ?? undefined,
+    }),
   };
 }

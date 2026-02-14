@@ -50,7 +50,7 @@ const schema = Joi.object({
 
 const router = Router();
 
-router.post("/", contactRateLimiter, validateBody(schema), async (req, res) => {
+const submitContactHandler = async (req: import("express").Request, res: import("express").Response) => {
   try {
     const {
       company,
@@ -159,19 +159,23 @@ router.post("/", contactRateLimiter, validateBody(schema), async (req, res) => {
 
     const client = getTwilioClient();
 
-    await withTimeout(
-      retry(async () =>
-        client.messages.create({
-          body: `Lead type: contact_form | Name: ${resolvedFullName} | Phone: ${phone} | Company: ${resolvedCompany} | Email: ${email}`,
-          from: (process.env.TWILIO_NUMBER || process.env.TWILIO_PHONE || "+14155550000") as string,
-          to: "+15878881837",
-        })
-      )
-    ).catch((error) => {
-      logger.warn("contact_sms_failed", {
-        error: error instanceof Error ? error.message : String(error),
+    if (client?.messages?.create) {
+      await withTimeout(
+        retry(async () =>
+          client.messages.create({
+            body: `Lead type: contact_form | Name: ${resolvedFullName} | Phone: ${phone} | Company: ${resolvedCompany} | Email: ${email}`,
+            from: (process.env.TWILIO_NUMBER || process.env.TWILIO_PHONE || "+14155550000") as string,
+            to: "+15878881837",
+          })
+        )
+      ).catch((error) => {
+        logger.warn("contact_sms_failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
       });
-    });
+    } else {
+      logger.warn("contact_sms_skipped", { reason: "twilio_client_unavailable" });
+    }
 
     await withTimeout(pushLeadToCRM({
       type: "contact_form",
@@ -238,6 +242,9 @@ router.post("/", contactRateLimiter, validateBody(schema), async (req, res) => {
     logger.error("contact_error", { err });
     return errorResponse(res, 500, "could_not_submit_contact");
   }
-});
+};
+
+router.post("/", contactRateLimiter, validateBody(schema), submitContactHandler);
+router.post("/submit", contactRateLimiter, validateBody(schema), submitContactHandler);
 
 export default router;
