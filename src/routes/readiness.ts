@@ -6,6 +6,12 @@ import {
   createReadinessLead,
   createReadinessLeadSchema,
 } from "../modules/readiness/readiness.service";
+import {
+  createOrReuseReadinessSession,
+  getActiveReadinessSessionByToken,
+} from "../modules/readiness/readinessSession.service";
+import { sendSMS } from "../services/smsService";
+import { logError, logInfo } from "../observability/logger";
 
 const router = Router();
 
@@ -21,12 +27,40 @@ const continueSchema = z.object({
   email: z.string().trim().email(),
 });
 
+const readinessTokenParamsSchema = z.object({
+  token: z.string().uuid(),
+});
+
 router.post("/", readinessLimiter, async (req, res) => {
   try {
-    const { leadId } = await createReadinessLead(req.body ?? {});
-    res.status(201).json({
+    const parsed = createReadinessLeadSchema.parse(req.body ?? {});
+    const readinessSession = await createOrReuseReadinessSession(parsed);
+
+    await sendSMS(
+      "+15878881837",
+      `Readiness submission: ${parsed.companyName} | ${parsed.fullName} | ${parsed.phone}`
+    ).catch((error) => {
+      logError("readiness_sms_failed", {
+        message: error instanceof Error ? error.message : String(error),
+        email: parsed.email,
+      });
+    });
+
+    logInfo("readiness_session_upserted", {
+      sessionId: readinessSession.sessionId,
+      readinessToken: readinessSession.token,
+      reused: readinessSession.reused,
+      crmLeadId: readinessSession.crmLeadId,
+    });
+
+    res.status(readinessSession.reused ? 200 : 201).json({
       success: true,
-      data: { leadId, status: "created" },
+      data: {
+        leadId: readinessSession.crmLeadId,
+        sessionId: readinessSession.sessionId,
+        readinessToken: readinessSession.token,
+        reused: readinessSession.reused,
+      },
     });
   } catch (error) {
     if (
@@ -37,6 +71,54 @@ router.post("/", readinessLimiter, async (req, res) => {
       return;
     }
 
+    logError("readiness_create_failed", {
+      message: error instanceof Error ? error.message : String(error),
+    });
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+});
+
+router.get("/:token", readinessLimiter, async (req, res) => {
+  try {
+    const { token } = readinessTokenParamsSchema.parse(req.params);
+    const session = await getActiveReadinessSessionByToken(token);
+
+    if (!session) {
+      res.status(404).json({ success: false, error: "Not found" });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        sessionId: session.sessionId,
+        readinessToken: session.readinessToken,
+        kyc: {
+          companyName: session.companyName,
+          fullName: session.fullName,
+          email: session.email,
+          phone: session.phone,
+          industry: session.industry,
+        },
+        financial: {
+          yearsInBusiness: session.yearsInBusiness,
+          monthlyRevenue: session.monthlyRevenue,
+          annualRevenue: session.annualRevenue,
+          arOutstanding: session.arOutstanding,
+          existingDebt: session.existingDebt,
+        },
+        expiresAt: session.expiresAt,
+      },
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "ZodError") {
+      res.status(400).json({ success: false, error: "Invalid token" });
+      return;
+    }
+
+    logError("readiness_get_by_token_failed", {
+      message: error instanceof Error ? error.message : String(error),
+    });
     res.status(500).json({ success: false, error: "Server error" });
   }
 });
@@ -76,26 +158,10 @@ router.post("/readiness", readinessLimiter, async (req, res) => {
   try {
     const parsed = createReadinessLeadSchema.parse(req.body ?? {});
 
-    await db.query(
-      `insert into crm_leads
-         (company_name, full_name, email, phone, industry, metadata)
-       values ($1, $2, $3, $4, $5, $6::jsonb)`,
-      [
-        parsed.companyName,
-        parsed.fullName,
-        parsed.email,
-        parsed.phone,
-        parsed.industry ?? null,
-        JSON.stringify({
-          yearsInBusiness: parsed.yearsInBusiness ?? null,
-          monthlyRevenue: parsed.monthlyRevenue ?? null,
-          annualRevenue: parsed.annualRevenue ?? null,
-          arOutstanding: parsed.arOutstanding ?? null,
-          existingDebt: parsed.existingDebt ?? null,
-          source: "capital_readiness",
-        }),
-      ]
-    );
+    await createReadinessLead({
+      ...parsed,
+      source: "website",
+    });
 
     res.status(201).json({ success: true, data: { status: "stored" } });
   } catch (error) {
@@ -103,6 +169,9 @@ router.post("/readiness", readinessLimiter, async (req, res) => {
       res.status(400).json({ success: false, error: "Invalid payload" });
       return;
     }
+    logError("legacy_readiness_store_failed", {
+      message: error instanceof Error ? error.message : String(error),
+    });
     res.status(500).json({ success: false, error: "Server error" });
   }
 });

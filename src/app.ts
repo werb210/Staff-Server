@@ -65,6 +65,7 @@ import applicationContinuationRoutes from "./modules/continuation/continuation.r
 import creditReadinessRoutes from "./routes/creditReadiness";
 import clientContinuationRoutes from "./routes/clientContinuation";
 import continuationRoutes from "./routes/continuation";
+import productsRoutes from "./routes/products";
 import liveChatRoutes from "./routes/liveChat";
 import aiPlaceholderRoutes from "./routes/aiPlaceholder";
 import aiRuleRoutes from "./modules/ai/rule.routes";
@@ -291,6 +292,7 @@ export function registerApiRoutes(app: express.Express): void {
   app.use("/api/analytics", analyticsRoutes);
   app.use("/api/readiness", readinessRoutes);
   app.use("/api/continuation", externalEndpointLimiter, continuationRoutes);
+  app.use("/api/products", externalEndpointLimiter, productsRoutes);
   app.use("/api", externalEndpointLimiter, liveChatRoutes);
   app.use("/api", externalEndpointLimiter, aiPlaceholderRoutes);
   app.use("/api/scoring", readinessRoutes);
