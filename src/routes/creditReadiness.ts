@@ -6,6 +6,10 @@ import { getClientSubmissionOwnerUserId } from "../config";
 import { ApplicationStage } from "../modules/applications/pipelineState";
 import { sendSms } from "../modules/notifications/sms.service";
 import { createContinuation } from "../models/continuation";
+import { createOrReuseReadinessSession } from "../modules/readiness/readinessSession.service";
+import { upsertCrmLead } from "../modules/crm/leadUpsert.service";
+import { retry } from "../utils/retry";
+import { logError } from "../observability/logger";
 
 const router = Router();
 
@@ -71,46 +75,59 @@ router.post("/", async (req, res) => {
     ]
   );
 
-  await db.query(
-    `
-      insert into crm_leads (
-        id, company_name, full_name, phone, email, industry,
-        years_in_business, monthly_revenue, annual_revenue,
-        ar_outstanding, existing_debt, source, tags, application_id, tag
-      )
-      values (
-        $1, $2, $3, $4, $5, $6,
-        $7, $8, $9,
-        $10, $11, $12, $13::jsonb, $14, $15
-      )
-    `,
-    [
-      randomUUID(),
-      companyName,
-      fullName,
-      phone,
-      email,
-      industry ?? null,
-      yearsInBusiness ? String(yearsInBusiness) : null,
-      monthlyRevenue ? String(monthlyRevenue) : null,
-      annualRevenue ? String(annualRevenue) : null,
-      arOutstanding ? String(arOutstanding) : null,
-      existingDebt !== undefined ? String(existingDebt) : null,
-      "website_credit_readiness",
-      JSON.stringify(["credit_readiness"]),
-      applicationId,
-      "credit_readiness",
-    ]
-  );
+  const crmLead = await upsertCrmLead({
+    companyName,
+    fullName,
+    phone,
+    email,
+    industry,
+    yearsInBusiness,
+    monthlyRevenue,
+    annualRevenue,
+    arOutstanding,
+    existingDebt,
+    source: "website_credit_readiness",
+    tags: ["readiness"],
+    activityType: "credit_readiness_submission",
+    activityPayload: { applicationId },
+  });
+
+  const readinessSession = await createOrReuseReadinessSession({
+    companyName,
+    fullName,
+    phone,
+    email,
+    industry,
+    yearsInBusiness,
+    monthlyRevenue,
+    annualRevenue,
+    arOutstanding,
+    existingDebt,
+  });
 
   const continuationToken = await createContinuation(applicationId);
 
-  await sendSms({
-    to: "+15878881837",
-    message: `New Credit Readiness Lead: ${companyName} - ${fullName}`,
+  await retry(
+    () =>
+      sendSms({
+        to: "+15878881837",
+        message: `Credit Readiness: ${fullName} | ${phone} | ${industry ?? "N/A"} | Monthly ${monthlyRevenue ?? "N/A"} / Annual ${annualRevenue ?? "N/A"}`,
+      }),
+    2
+  ).catch((error) => {
+    logError("credit_readiness_sms_failed", {
+      message: error instanceof Error ? error.message : String(error),
+      email,
+    });
   });
 
-  res.json({ success: true, continuationToken });
+  res.json({
+    success: true,
+    continuationToken,
+    sessionId: readinessSession.sessionId,
+    token: readinessSession.token,
+    crmLeadId: crmLead.id,
+  });
 });
 
 export default router;

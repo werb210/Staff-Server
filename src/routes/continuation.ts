@@ -3,6 +3,7 @@ import { Router } from "express";
 import { db } from "../db";
 import { sendSMS } from "../services/smsService";
 import { type ContinuationRecord } from "../db/schema/continuation";
+import { upsertCrmLead } from "../modules/crm/leadUpsert.service";
 
 const router = Router();
 
@@ -61,31 +62,21 @@ router.post("/", async (req, res) => {
     ]
   );
 
-  await db.query(
-    `
-      insert into crm_leads (
-        id,
-        company_name,
-        full_name,
-        email,
-        phone,
-        source,
-        tag,
-        tags
-      )
-      values ($1,$2,$3,$4,$5,$6,$7,$8::jsonb)
-    `,
-    [
-      randomUUID(),
-      data.companyName,
-      data.fullName,
-      data.email,
-      data.phone,
-      "capital_readiness",
-      "readiness",
-      JSON.stringify(["readiness"]),
-    ]
-  );
+  await upsertCrmLead({
+    companyName: data.companyName,
+    fullName: data.fullName,
+    email: data.email,
+    phone: data.phone,
+    industry: data.industry,
+    yearsInBusiness: data.yearsInBusiness,
+    monthlyRevenue: data.monthlyRevenue,
+    annualRevenue: data.annualRevenue,
+    arOutstanding: data.arOutstanding,
+    existingDebt: data.existingDebt,
+    source: "capital_readiness",
+    tags: ["readiness"],
+    activityType: "capital_readiness_submission",
+  });
 
   await sendSMS(
     "+15878881837",

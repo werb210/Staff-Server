@@ -3,6 +3,7 @@ import { v4 as uuid } from "uuid";
 import { pool } from "../db";
 import { openai } from "../services/ai/openai.service";
 import { retrieveContext } from "../modules/ai/knowledge.service";
+import { upsertCrmLead } from "../modules/crm/leadUpsert.service";
 
 const SYSTEM_PROMPT = `
 You are Maya, AI assistant for Boreal Financial.
@@ -110,20 +111,18 @@ export async function closeSession(req: Request, res: Response): Promise<void> {
 
   const session = sessionResult.rows[0];
   if (session) {
-    await pool.query(
-      `insert into crm_leads (id, company_name, full_name, phone, email, source, notes, tags)
-       values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)`,
-      [
-        uuid(),
-        session.company_name,
-        session.full_name,
-        session.phone,
-        session.email,
-        "ai_session",
-        JSON.stringify({ transcript: transcriptResult.rows }),
-        JSON.stringify(session.startup_interest_tags ?? ["ai_session_closed"]),
-      ]
-    );
+    await upsertCrmLead({
+      companyName: session.company_name ?? undefined,
+      fullName: session.full_name ?? undefined,
+      phone: session.phone ?? undefined,
+      email: session.email ?? undefined,
+      source: "ai_session",
+      tags: Array.isArray(session.startup_interest_tags)
+        ? (session.startup_interest_tags as string[])
+        : ["ai_session_closed"],
+      activityType: "ai_session_closed",
+      activityPayload: { transcript: transcriptResult.rows },
+    });
   }
 
   res.json({ success: true });
@@ -156,7 +155,14 @@ export async function tagStartupInterest(req: Request, res: Response): Promise<v
     return;
   }
 
+  let leadContext: { company_name: string | null; full_name: string | null; email: string | null; phone: string | null } | null = null;
   try {
+    const contextResult = await pool.query<{ company_name: string | null; full_name: string | null; email: string | null; phone: string | null }>(
+      `select company_name, full_name, email, phone from ai_sessions where id = $1 limit 1`,
+      [sessionId]
+    );
+    leadContext = contextResult.rows[0] ?? null;
+
     await pool.query(
       `update ai_sessions set startup_interest_tags = $2::jsonb where id = $1`,
       [sessionId, JSON.stringify(tags)]
@@ -171,6 +177,19 @@ export async function tagStartupInterest(req: Request, res: Response): Promise<v
     return;
   }
 
+
+  if (leadContext) {
+    await upsertCrmLead({
+      companyName: leadContext.company_name ?? undefined,
+      fullName: leadContext.full_name ?? undefined,
+      email: leadContext.email ?? undefined,
+      phone: leadContext.phone ?? undefined,
+      source: "startup_interest",
+      tags: ["startup_interest"],
+      activityType: "startup_interest",
+      activityPayload: { sessionId, tags },
+    });
+  }
   try {
     await saveMessage(sessionId, "system", `startup_interest:${tags.join(",")}`);
   } catch {
