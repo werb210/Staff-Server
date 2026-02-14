@@ -134,6 +134,7 @@ export const ROUTES: ApiRoute[] = [
   { method: "POST", path: "/api/referrals", roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.REFERRER] },
   { method: "POST", path: "/api/website/credit-readiness", roles: [] },
   { method: "POST", path: "/api/website/contact", roles: [] },
+  { method: "POST", path: "/api/public/application/start", roles: [] },
 ];
 
 export function registerApiRouteMounts(router: Router): void {
