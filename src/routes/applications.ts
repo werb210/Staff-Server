@@ -4,6 +4,7 @@ import { CAPABILITIES } from "../auth/capabilities";
 import applicationRoutes from "../modules/applications/applications.routes";
 import { AppError } from "../middleware/errors";
 import { getClientSubmissionOwnerUserId } from "../config";
+import { db } from "../db";
 import {
   createApplication,
   listApplications,
@@ -186,6 +187,9 @@ router.post(
       const continuationToken = typeof body.continuationToken === "string"
         ? body.continuationToken
         : undefined;
+      const continuationId = typeof body.continuationId === "string"
+        ? body.continuationId
+        : undefined;
       const missingFields: string[] = [];
 
       if (!payload.source) missingFields.push("source");
@@ -249,6 +253,17 @@ router.post(
 
       if (continuationToken) {
         await convertContinuation(continuationToken, created.id);
+      }
+
+      if (continuationId) {
+        await db.query(
+          `
+            update continuation
+            set used_in_application = true
+            where id = $1
+          `,
+          [continuationId]
+        );
       }
 
       await pushLeadToCRM({

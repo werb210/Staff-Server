@@ -288,7 +288,7 @@ export function registerApiRoutes(app: express.Express): void {
   app.use("/api/public", externalEndpointLimiter, publicRoutes);
   app.use("/api/analytics", analyticsRoutes);
   app.use("/api/readiness", readinessRoutes);
-  app.use("/api", externalEndpointLimiter, continuationRoutes);
+  app.use("/api/continuation", externalEndpointLimiter, continuationRoutes);
   app.use("/api", externalEndpointLimiter, liveChatRoutes);
   app.use("/api", externalEndpointLimiter, aiPlaceholderRoutes);
   app.use("/api/scoring", readinessRoutes);

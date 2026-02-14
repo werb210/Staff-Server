@@ -1,42 +1,111 @@
+import { randomUUID } from "node:crypto";
 import { Router } from "express";
 import { db } from "../db";
+import { sendSMS } from "../services/smsService";
+import { type ContinuationRecord } from "../db/schema/continuation";
 
 const router = Router();
 
-router.post("/continuation", async (req, res) => {
-  const { email, phone, fullName, companyName, prefill } = req.body as {
-    email?: string;
-    phone?: string;
-    fullName?: string;
-    companyName?: string;
-    prefill?: Record<string, unknown>;
-  };
+type ContinuationPayload = {
+  companyName?: string;
+  fullName?: string;
+  email?: string;
+  phone?: string;
+  industry?: string;
+  yearsInBusiness?: string;
+  monthlyRevenue?: string;
+  annualRevenue?: string;
+  arOutstanding?: string;
+  existingDebt?: string;
+};
 
-  const result = await db.query(
-    `
-      insert into continuation_sessions (email, phone, full_name, company_name, prefill)
-      values ($1, $2, $3, $4, $5::jsonb)
-      returning *
-    `,
-    [email ?? null, phone ?? null, fullName ?? null, companyName ?? null, JSON.stringify(prefill ?? {})]
-  );
+router.post("/", async (req, res) => {
+  const data = (req.body ?? {}) as ContinuationPayload;
 
-  res.json(result.rows[0]);
-});
-
-router.get("/continuation/session", async (req, res) => {
-  const emailHeader = req.headers["x-user-email"];
-  const email = Array.isArray(emailHeader) ? emailHeader[0] : emailHeader;
-
-  if (!email) {
-    res.json(null);
+  if (!data.companyName || !data.fullName || !data.email || !data.phone || !data.industry) {
+    res.status(400).json({ error: "Missing required fields" });
     return;
   }
 
-  const result = await db.query(
+  const continuationId = randomUUID();
+  const { rows } = await db.query<ContinuationRecord>(
+    `
+      insert into continuation (
+        id,
+        company_name,
+        full_name,
+        email,
+        phone,
+        industry,
+        years_in_business,
+        monthly_revenue,
+        annual_revenue,
+        ar_outstanding,
+        existing_debt
+      )
+      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+      returning *
+    `,
+    [
+      continuationId,
+      data.companyName,
+      data.fullName,
+      data.email,
+      data.phone,
+      data.industry,
+      data.yearsInBusiness ?? null,
+      data.monthlyRevenue ?? null,
+      data.annualRevenue ?? null,
+      data.arOutstanding ?? null,
+      data.existingDebt ?? null,
+    ]
+  );
+
+  await db.query(
+    `
+      insert into crm_leads (
+        id,
+        company_name,
+        full_name,
+        email,
+        phone,
+        source,
+        tag,
+        tags
+      )
+      values ($1,$2,$3,$4,$5,$6,$7,$8::jsonb)
+    `,
+    [
+      randomUUID(),
+      data.companyName,
+      data.fullName,
+      data.email,
+      data.phone,
+      "capital_readiness",
+      "readiness",
+      JSON.stringify(["readiness"]),
+    ]
+  );
+
+  await sendSMS(
+    "+15878881837",
+    `New Capital Readiness Lead: ${data.companyName} (${data.fullName})`
+  );
+
+  res.json(rows[0]);
+});
+
+router.get("/by-email", async (req, res) => {
+  const email = req.query.email;
+  if (typeof email !== "string" || !email.trim()) {
+    res.status(400).json({ error: "Missing email" });
+    return;
+  }
+
+  const { rows } = await db.query<ContinuationRecord>(
     `
       select *
-      from continuation_sessions
+      from continuation
       where email = $1
       order by created_at desc
       limit 1
@@ -44,7 +113,43 @@ router.get("/continuation/session", async (req, res) => {
     [email]
   );
 
-  res.json(result.rows[0] ?? null);
+  if (!rows[0]) {
+    res.status(404).json({});
+    return;
+  }
+
+  res.json(rows[0]);
+});
+
+router.get("/:id", async (req, res) => {
+  const { id } = req.params;
+
+  const { rows } = await db.query<ContinuationRecord>(
+    `select * from continuation where id = $1 limit 1`,
+    [id]
+  );
+
+  if (!rows[0]) {
+    res.status(404).json({});
+    return;
+  }
+
+  res.json(rows[0]);
+});
+
+router.patch("/:id/mark-used", async (req, res) => {
+  const { id } = req.params;
+
+  await db.query(
+    `
+      update continuation
+      set used_in_application = true
+      where id = $1
+    `,
+    [id]
+  );
+
+  res.json({ success: true });
 });
 
 export default router;
