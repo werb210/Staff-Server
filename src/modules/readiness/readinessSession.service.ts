@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { dbQuery, getInstrumentedClient } from "../../db";
+import { dbQuery, getInstrumentedClient, pool } from "../../db";
 import { upsertCrmLead } from "../crm/leadUpsert.service";
 
 type ReadinessSessionInput = {
@@ -84,19 +84,42 @@ export async function createOrReuseReadinessSession(payload: ReadinessSessionInp
       arOutstanding: payload.arOutstanding,
       existingDebt: payload.existingDebt,
       source: "credit_readiness",
-      tags: startupInterest ? ["readiness", "startup_interest"] : ["readiness"],
+      tags: startupInterest ? ["readiness", "readiness_session", "startup_interest"] : ["readiness", "readiness_session"],
       activityType: "readiness_submission",
-      activityPayload: { email },
+      activityPayload: { email, sessionId: existing.rows[0]?.id ?? null },
     });
 
     if (existing.rows[0]) {
       await client.query(
         `update readiness_sessions
          set crm_lead_id = coalesce(crm_lead_id, $2),
+             email = $3,
+             phone = $4,
+             company_name = $5,
+             full_name = $6,
+             industry = $7,
+             years_in_business = $8,
+             monthly_revenue = $9,
+             annual_revenue = $10,
+             ar_outstanding = $11,
+             existing_debt = $12,
              status = 'open',
              updated_at = now()
          where id = $1`,
-        [existing.rows[0].id, crmLead.id]
+        [
+          existing.rows[0].id,
+          crmLead.id,
+          email,
+          payload.phone,
+          payload.companyName,
+          payload.fullName,
+          payload.industry ?? null,
+          toInteger(payload.yearsInBusiness),
+          toNumeric(payload.monthlyRevenue),
+          toNumeric(payload.annualRevenue),
+          toNumeric(payload.arOutstanding),
+          toBoolean(payload.existingDebt),
+        ]
       );
 
       await client.query("commit");
@@ -141,6 +164,11 @@ export async function createOrReuseReadinessSession(payload: ReadinessSessionInp
     );
 
     await client.query("commit");
+    await pool.query(
+      `insert into crm_lead_activities (id, lead_id, activity_type, payload)
+       values ($1, $2, 'readiness_session_started', $3::jsonb)`,
+      [randomUUID(), crmLead.id, JSON.stringify({ sessionId: id })]
+    );
     return { sessionId: id, token, reused: false, crmLeadId: crmLead.id };
   } catch (error) {
     await client.query("rollback");
