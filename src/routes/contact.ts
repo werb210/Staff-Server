@@ -7,12 +7,12 @@ import { successResponse, errorResponse } from "../middleware/response";
 import { validateBody } from "../middleware/validate";
 import { getTwilioClient } from "../services/twilio";
 import { pushLeadToCRM } from "../services/crmWebhook";
-import { createCRMLead } from "../services/crmService";
 import { sendSMS } from "../services/smsService";
 import { createContinuation } from "../modules/continuation/continuation.service";
 import { retry } from "../utils/retry";
 import { withTimeout } from "../utils/withTimeout";
 import { logger } from "../utils/logger";
+import { upsertCrmLead } from "../modules/crm/leadUpsert.service";
 
 const schema = Joi.object({
   company: Joi.string().trim().min(2),
@@ -111,13 +111,15 @@ router.post("/", contactRateLimiter, validateBody(schema), async (req, res) => {
       source,
       utm: utm ?? null,
     }));
-    const crmLead = await createCRMLead({
+    const crmLead = await upsertCrmLead({
       companyName: resolvedCompany,
       fullName: resolvedFullName,
       email,
       phone,
       source: source || "website_contact",
-      metadata: { utm: utm ?? null },
+      tags: ["contact_form"],
+      activityType: "contact_form_submission",
+      activityPayload: { utm: utm ?? null },
     });
 
     const token = await createContinuation({

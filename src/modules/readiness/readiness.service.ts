@@ -4,6 +4,7 @@ import { dbQuery } from "../../db";
 import { normalizePhoneNumber } from "../auth/phone";
 import { sendSMS } from "../../services/smsService";
 import { createApplication } from "../applications/applications.repo";
+import { upsertCrmLead } from "../crm/leadUpsert.service";
 
 const readinessSourceSchema = z.enum(["website", "client"]);
 
@@ -178,6 +179,23 @@ export async function createReadinessLead(input: CreateReadinessLeadInput): Prom
     phone,
   });
 
+  await upsertCrmLead({
+    companyName: parsed.companyName,
+    fullName: parsed.fullName,
+    email,
+    phone,
+    industry: parsed.industry,
+    yearsInBusiness: parsed.yearsInBusiness,
+    monthlyRevenue: parsed.monthlyRevenue,
+    annualRevenue: parsed.annualRevenue,
+    arOutstanding: parsed.arOutstanding,
+    existingDebt: parsed.existingDebt,
+    source: `readiness_${source}`,
+    tags: ["readiness"],
+    activityType: "readiness_submission",
+    activityPayload: { source },
+  });
+
   await dbQuery(
     `insert into readiness_leads (
       id,
@@ -285,6 +303,37 @@ export async function convertReadinessLeadToApplication(id: string, ownerUserId:
      where id = $1`,
     [lead.id, app.id]
   );
+
+  try {
+    await dbQuery(
+      `with matched_session as (
+         select id
+         from readiness_sessions
+         where lower(email) = lower($1)
+           and is_active = true
+         order by created_at desc
+         limit 1
+       )
+       update readiness_sessions
+       set converted_application_id = $2,
+           is_active = false,
+           updated_at = now()
+       where id in (select id from matched_session)`,
+      [lead.email, app.id]
+    );
+
+    await dbQuery(
+      `insert into readiness_application_mappings (readiness_session_id, application_id)
+       select id, $2
+       from readiness_sessions
+       where lower(email) = lower($1)
+         and converted_application_id = $2
+       on conflict (readiness_session_id) do nothing`,
+      [lead.email, app.id]
+    );
+  } catch {
+    // Backward-compatible in environments where readiness session mapping tables are not yet present.
+  }
 
   return { applicationId: app.id };
 }
