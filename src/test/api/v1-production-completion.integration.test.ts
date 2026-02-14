@@ -134,4 +134,16 @@ describe("v1 production completion", () => {
     wss.close();
     await new Promise<void>((resolve) => server.close(() => resolve()));
   });
+
+  it("rejects malformed payloads on readiness and chat endpoints", async () => {
+    const readinessBad = await request(app).post("/api/readiness").send({ email: "bad" });
+    expect(readinessBad.status).toBe(400);
+
+    const startBad = await request(app).post("/api/chat/start").send({ source: "<script>x</script>" });
+    expect(startBad.status).toBe(201);
+
+    const messageBad = await request(app).post("/api/chat/message").send({ sessionId: "bad", message: "x" });
+    expect(messageBad.status).toBe(400);
+  });
+
 });

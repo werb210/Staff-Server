@@ -12,6 +12,7 @@ type SessionPresence = {
   state: ChatSessionState;
   sockets: Set<SessionSocket>;
   updatedAt: number;
+  transferNotified: boolean;
 };
 
 type SocketPayload = {
@@ -26,6 +27,21 @@ const messageWindowMap = new Map<string, { count: number; resetAt: number }>();
 const MAX_CONCURRENT_SESSIONS = Number(process.env.CHAT_MAX_CONCURRENT_SESSIONS ?? 1000);
 const IDLE_TIMEOUT_MS = Number(process.env.CHAT_IDLE_TIMEOUT_MS ?? 30 * 60 * 1000);
 const MAX_MESSAGES_PER_WINDOW = Number(process.env.CHAT_MAX_MESSAGES_PER_10S ?? 100);
+const RECONNECT_BACKOFF_MS = [500, 1000, 2000, 4000];
+
+function getAllowedOrigins(): Set<string> {
+  return new Set([process.env.CLIENT_URL, process.env.PORTAL_URL, process.env.WEBSITE_URL]
+    .filter((value): value is string => typeof value === "string")
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0));
+}
+
+function isAllowedWsOrigin(origin?: string): boolean {
+  if (!origin) {
+    return true;
+  }
+  return getAllowedOrigins().has(origin);
+}
 
 let shutdownHookInstalled = false;
 let activeServer: WebSocketServer | null = null;
@@ -47,6 +63,7 @@ function getOrCreatePresence(sessionId: string): SessionPresence {
     state: "AI_ACTIVE",
     sockets: new Set<SessionSocket>(),
     updatedAt: Date.now(),
+    transferNotified: false,
   };
   sessionMap.set(sessionId, created);
   return created;
@@ -203,8 +220,18 @@ export function initChatSocket(server: Server): WebSocketServer {
   activeServer = wss;
   installShutdownHooks();
 
-  wss.on("connection", (ws: SessionSocket) => {
+  wss.on("connection", (ws: SessionSocket, req) => {
+    if (!isAllowedWsOrigin(req.headers.origin)) {
+      ws.close(1008, "forbidden_origin");
+      return;
+    }
     ws.isAlive = true;
+    const url = new URL(req.url ?? "", "http://localhost");
+    const handshakeSessionId = url.searchParams.get("sessionId");
+    if (handshakeSessionId && !/^[0-9a-fA-F-]{36}$/.test(handshakeSessionId)) {
+      ws.close(1008, "invalid_session");
+      return;
+    }
     ws.on("pong", () => {
       ws.isAlive = true;
     });
@@ -244,6 +271,7 @@ export function initChatSocket(server: Server): WebSocketServer {
             type: "joined",
             sessionId: payload.sessionId,
             reconnect: true,
+            reconnectBackoffMs: RECONNECT_BACKOFF_MS,
             state: presence.state,
           }));
           if (presence.state === "HUMAN_ACTIVE") {
@@ -286,12 +314,15 @@ export function initChatSocket(server: Server): WebSocketServer {
             state: "HUMAN_ACTIVE",
             aiStopped: true,
           });
-          broadcast(payload.sessionId, {
-            type: "transferring",
-            sessionId: payload.sessionId,
-            state: "HUMAN_ACTIVE",
-            message: "Transferring you…",
-          });
+          if (!presence.transferNotified) {
+            presence.transferNotified = true;
+            broadcast(payload.sessionId, {
+              type: "transferring",
+              sessionId: payload.sessionId,
+              state: "HUMAN_ACTIVE",
+              message: "Transferring you…",
+            });
+          }
 
           logInfo("chat_ws_join", { sessionId: payload.sessionId, role: "staff" });
           return;
@@ -299,6 +330,8 @@ export function initChatSocket(server: Server): WebSocketServer {
 
         if ((messageType === "staff_leave" || messageType === "transfer") && payload.sessionId) {
           await setSessionState(payload.sessionId, "AI_ACTIVE");
+          const presence = getOrCreatePresence(payload.sessionId);
+          presence.transferNotified = false;
           broadcast(payload.sessionId, {
             type: "transfer",
             sessionId: payload.sessionId,

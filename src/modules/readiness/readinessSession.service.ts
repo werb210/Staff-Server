@@ -133,7 +133,7 @@ export async function createOrReuseReadinessSession(payload: ReadinessSessionInp
 
     const id = randomUUID();
     const token = randomUUID();
-    const expiresAt = new Date(Date.now() + 1000 * 60 * 30);
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7);
 
     await client.query(
       `insert into readiness_sessions (
@@ -193,6 +193,7 @@ export async function getActiveReadinessSessionByToken(sessionId: string): Promi
   arOutstanding: string | null;
   existingDebt: boolean | null;
   expiresAt: Date;
+  createdAt: Date;
 }> {
   const result = await dbQuery<{
     id: string;
@@ -209,10 +210,11 @@ export async function getActiveReadinessSessionByToken(sessionId: string): Promi
     ar_outstanding: string | null;
     existing_debt: boolean | null;
     expires_at: Date;
+    created_at: Date;
   }>(
     `select id, token, crm_lead_id, email, phone, company_name, full_name, industry,
             years_in_business, monthly_revenue, annual_revenue, ar_outstanding, existing_debt,
-            expires_at
+            expires_at, created_at
      from readiness_sessions
      where id = $1 and is_active = true and expires_at > now()
      limit 1`,
@@ -239,5 +241,6 @@ export async function getActiveReadinessSessionByToken(sessionId: string): Promi
     arOutstanding: row.ar_outstanding,
     existingDebt: row.existing_debt,
     expiresAt: row.expires_at,
+    createdAt: row.created_at,
   };
 }

@@ -12,12 +12,13 @@ function makeLimiter(max: number, windowMs = oneMinute): RateLimitRequestHandler
     max,
     standardHeaders: true,
     legacyHeaders: false,
+    message: { success: false, error: "rate_limited", code: 429 },
     skip: () => !isEnabled() || process.env.NODE_ENV === "test",
   });
 }
 
-const loginLimiter = makeLimiter(20);
-const otpLimiter = makeLimiter(20);
+const loginLimiter = makeLimiter(10);
+const otpLimiter = makeLimiter(10);
 
 export const apiLimiter = makeLimiter(200, 15 * 60 * 1000);
 export const publicLimiter = makeLimiter(200, 15 * 60 * 1000);

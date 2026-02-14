@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Router } from "express";
 import { db } from "../db";
-import { sendSMS } from "../services/smsService";
 import { type ContinuationRecord } from "../db/schema/continuation";
 import { upsertCrmLead } from "../modules/crm/leadUpsert.service";
 
@@ -77,11 +76,6 @@ router.post("/", async (req, res) => {
     tags: ["readiness"],
     activityType: "capital_readiness_submission",
   });
-
-  await sendSMS(
-    "+15878881837",
-    `New Capital Readiness Lead: ${data.companyName} (${data.fullName})`
-  );
 
   res.json(rows[0]);
 });

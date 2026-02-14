@@ -70,4 +70,41 @@ describe("server v1 hardening flows", () => {
     );
     expect(activities.rowCount).toBe(2);
   });
+
+  it("dedupes CRM lead when email/phone combinations vary", async () => {
+    const base = {
+      companyName: "Blend Works",
+      fullName: "Casey Blend",
+      source: "website_contact",
+    };
+
+    const sameEmailNewPhone = await request(app).post("/api/contact").send({
+      ...base,
+      email: "casey.blend@example.com",
+      phone: "+14155550011",
+    });
+    const samePhoneNewEmail = await request(app).post("/api/contact").send({
+      ...base,
+      email: "casey.alt@example.com",
+      phone: "+14155550011",
+    });
+    const sameBoth = await request(app).post("/api/contact").send({
+      ...base,
+      email: "casey.blend@example.com",
+      phone: "+14155550011",
+    });
+
+    expect(sameEmailNewPhone.status).toBe(200);
+    expect(samePhoneNewEmail.status).toBe(200);
+    expect(sameBoth.status).toBe(200);
+
+    const leads = await pool.query(
+      `select id from crm_leads where lower(email) in (lower($1), lower($2))
+         or regexp_replace(phone, '\D','','g') = regexp_replace($3, '\D','','g')`,
+      ["casey.blend@example.com", "casey.alt@example.com", "+14155550011"]
+    );
+
+    expect(leads.rowCount).toBe(1);
+  });
+
 });
