@@ -28,7 +28,7 @@ describe("production readiness endpoint verification", () => {
     sendSMSMock.mockClear();
   });
 
-  it("validates and persists POST /api/readiness with SMS trigger", async () => {
+  it("validates and persists POST /api/readiness without SMS side effect", async () => {
     const invalid = await request(app).post("/api/readiness").send({
       companyName: "",
       email: "invalid",
@@ -47,9 +47,9 @@ describe("production readiness endpoint verification", () => {
     expect(response.body.success).toBe(true);
     expect(response.body.data.leadId).toEqual(expect.any(String));
 
-    const lead = await pool.query("select id from readiness_leads where id = $1", [response.body.data.leadId]);
-    expect(lead.rowCount).toBe(1);
-    expect(sendSMSMock).toHaveBeenCalledTimes(1);
+    const session = await pool.query("select id from readiness_sessions where id = $1", [response.body.data.sessionId]);
+    expect(session.rowCount).toBe(1);
+    expect(sendSMSMock).toHaveBeenCalledTimes(0);
   });
 
   it("supports POST /api/readiness/continue and returns latest continuation session", async () => {

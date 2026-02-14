@@ -34,7 +34,7 @@ describe("v1 production completion", () => {
     expect(createRes.body?.data?.readinessToken).toEqual(expect.any(String));
     expect(createRes.body?.data?.sessionId).toEqual(expect.any(String));
 
-    const tokenRes = await request(app).get(`/api/readiness/${createRes.body.data.readinessToken}`);
+    const tokenRes = await request(app).get(`/api/readiness/${createRes.body.data.sessionId}`);
     expect(tokenRes.status).toBe(200);
     expect(tokenRes.body?.data?.kyc?.email).toBe(payload.email);
     expect(Number(tokenRes.body?.data?.financial?.monthlyRevenue)).toBe(55000);
@@ -97,10 +97,10 @@ describe("v1 production completion", () => {
 
     await new Promise<void>((resolve, reject) => {
       client.once("open", () => {
-        client.send(JSON.stringify({ type: "join_session", sessionId }));
+        client.send(JSON.stringify({ type: "join_session", sessionId, userId: "u-client" }));
       });
       staff.once("open", () => {
-        staff.send(JSON.stringify({ type: "staff_join", sessionId }));
+        staff.send(JSON.stringify({ type: "staff_join", sessionId, userId: "u-staff" }));
       });
       client.on("message", (msg) => {
         messages.push(msg.toString());

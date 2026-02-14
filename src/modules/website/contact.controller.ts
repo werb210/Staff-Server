@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { createCrmLead } from "../crm/crm.service";
 import { sendSms } from "../notifications/sms.service";
 import { createContinuation } from "../continuation/continuation.service";
+import { logError } from "../../observability/logger";
 
 export async function submitContactForm(req: Request, res: Response) {
   try {
@@ -39,7 +40,7 @@ export async function submitContactForm(req: Request, res: Response) {
       redirect: `https://client.boreal.financial/apply?continue=${token}`,
     });
   } catch (err) {
-    console.error("Contact form error:", err);
+    logError("website_contact_form_failed", { message: err instanceof Error ? err.message : String(err) });
     return res.status(500).json({ error: "Server error" });
   }
 }

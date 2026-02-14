@@ -36,7 +36,7 @@ describe("readiness lead integration", () => {
     sendSMSMock.mockClear();
   });
 
-  it("creates a readiness lead, links CRM contact, and triggers SMS", async () => {
+  it("creates a readiness lead and links CRM contact without SMS", async () => {
     const response = await request(app)
       .post("/api/public/readiness")
       .send({
@@ -64,11 +64,7 @@ describe("readiness lead integration", () => {
     ]);
     expect(contact.rows[0]?.status).toBe("readiness_v1");
 
-    expect(sendSMSMock).toHaveBeenCalledTimes(1);
-    expect(sendSMSMock).toHaveBeenCalledWith(
-      "+15878881837",
-      expect.stringContaining("New Readiness Lead: Acme Co")
-    );
+    expect(sendSMSMock).not.toHaveBeenCalled();
   });
 
   it("rejects invalid readiness payloads", async () => {
