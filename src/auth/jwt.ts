@@ -42,45 +42,47 @@ function requireJwtSecret(): string {
   return secret;
 }
 
-function validatePayload(payload: any): asserts payload is AccessTokenPayload {
+function validatePayload(payload: unknown): asserts payload is AccessTokenPayload {
   if (!payload || typeof payload !== "object") {
     throw new AccessTokenVerificationError("Token payload is not an object");
   }
 
-  if (typeof payload.sub !== "string" || payload.sub.length === 0) {
+  const raw = payload as Partial<AccessTokenPayload> & { capabilities?: unknown };
+
+  if (typeof raw.sub !== "string" || raw.sub.length === 0) {
     throw new AccessTokenVerificationError("Token subject (sub) is invalid");
   }
 
-  if (!isRole(payload.role)) {
+  if (!isRole(raw.role)) {
     throw new AccessTokenVerificationError("Token role is invalid");
   }
 
   if (
-    typeof payload.tokenVersion !== "number" ||
-    !Number.isInteger(payload.tokenVersion)
+    typeof raw.tokenVersion !== "number" ||
+    !Number.isInteger(raw.tokenVersion)
   ) {
     throw new AccessTokenVerificationError("Token version is invalid");
   }
 
   if (
-    payload.phone !== undefined &&
-    payload.phone !== null &&
-    typeof payload.phone !== "string"
+    raw.phone !== undefined &&
+    raw.phone !== null &&
+    typeof raw.phone !== "string"
   ) {
     throw new AccessTokenVerificationError("Token phone claim is invalid");
   }
 
   if (
-    payload.silo !== undefined &&
-    (typeof payload.silo !== "string" || payload.silo.trim().length === 0)
+    raw.silo !== undefined &&
+    (typeof raw.silo !== "string" || raw.silo.trim().length === 0)
   ) {
     throw new AccessTokenVerificationError("Token silo claim is invalid");
   }
 
   if (
-    payload.capabilities !== undefined &&
-    (!Array.isArray(payload.capabilities) ||
-      payload.capabilities.some((cap: string) => !isCapability(cap)))
+    raw.capabilities !== undefined &&
+    (!Array.isArray(raw.capabilities) ||
+      raw.capabilities.some((cap) => typeof cap !== "string" || !isCapability(cap)))
   ) {
     throw new AccessTokenVerificationError(
       "Token capabilities claim is invalid"

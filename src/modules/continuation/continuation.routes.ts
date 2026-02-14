@@ -1,29 +1,57 @@
 import { Router } from "express";
-import { getContinuation } from "./continuation.service";
+import { db } from "../../db";
+import { requireAuth } from "../../middleware/auth";
+import { logWarn } from "../../observability/logger";
+
+type ContinuationApplicationRow = {
+  id: string;
+  current_step: number | null;
+  metadata: Record<string, unknown> | null;
+};
 
 const router = Router();
 
-router.get("/:token", async (req, res) => {
-  const token = req.params.token;
-  const record = await getContinuation(token);
-
-  if (!record) {
-    res.status(404).json({ error: "Not found" });
+router.get("/", requireAuth, async (req, res) => {
+  if (!req.user?.userId) {
+    res.status(401).json({ ok: false, error: "invalid_token" });
     return;
   }
 
-  res.json({
-    companyName: record.company_name,
-    fullName: record.full_name,
-    email: record.email,
-    phone: record.phone,
-    industry: record.industry,
-    yearsInBusiness: record.years_in_business,
-    monthlyRevenue: record.monthly_revenue,
-    annualRevenue: record.annual_revenue,
-    arOutstanding: record.ar_outstanding,
-    existingDebt: record.existing_debt,
-  });
+  try {
+    const { rows } = await db.query<ContinuationApplicationRow>(
+      `
+        select id, current_step, metadata
+        from applications
+        where owner_user_id = $1
+          and is_completed = false
+        order by last_updated desc nulls last, updated_at desc
+        limit 1
+      `,
+      [req.user.userId]
+    );
+
+    const latest = rows[0];
+    if (!latest) {
+      res.status(200).json({ exists: false });
+      return;
+    }
+
+    res.status(200).json({
+      exists: true,
+      applicationId: latest.id,
+      step: latest.current_step ?? 1,
+      data: latest.metadata ?? {},
+    });
+  } catch (error) {
+    logWarn("application_continuation_lookup_failed", {
+      message: error instanceof Error ? error.message : "unknown_error",
+    });
+    res.status(500).json({
+      ok: false,
+      error: "internal_error",
+      message: "Failed to load continuation session",
+    });
+  }
 });
 
 export default router;
