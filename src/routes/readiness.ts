@@ -96,6 +96,7 @@ router.get("/:sessionId", readinessLimiter, async (req, res) => {
           arOutstanding: session.arOutstanding,
           existingDebt: session.existingDebt,
         },
+        leadId: session.leadId,
         expiresAt: session.expiresAt,
       },
     });
