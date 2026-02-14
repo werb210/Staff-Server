@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { Router } from "express";
 import Joi from "joi";
+import { sanitizePlainText } from "../validation/public.validation";
 import { dbQuery } from "../db";
 import { contactRateLimiter } from "../middleware/rateLimiter";
 import { successResponse, errorResponse } from "../middleware/response";
@@ -14,15 +15,26 @@ import { withTimeout } from "../utils/withTimeout";
 import { logger } from "../utils/logger";
 import { upsertCrmLead } from "../modules/crm/leadUpsert.service";
 
+const sanitizeString = (value: unknown, helpers: Joi.CustomHelpers) => {
+  if (typeof value !== "string") {
+    return value;
+  }
+  const sanitized = sanitizePlainText(value);
+  if (!sanitized) {
+    return helpers.error("string.empty");
+  }
+  return sanitized;
+};
+
 const schema = Joi.object({
-  company: Joi.string().trim().min(2),
-  companyName: Joi.string().trim().min(2),
-  firstName: Joi.string().trim().min(2),
-  lastName: Joi.string().trim().min(2),
-  fullName: Joi.string().trim().min(2),
-  email: Joi.string().email().required(),
-  phone: Joi.string().pattern(/^[0-9+]*$/).required(),
-  source: Joi.string().trim().default("website_contact"),
+  company: Joi.string().trim().min(2).max(120).custom(sanitizeString),
+  companyName: Joi.string().trim().min(2).max(120).custom(sanitizeString),
+  firstName: Joi.string().trim().min(2).max(80).custom(sanitizeString),
+  lastName: Joi.string().trim().min(2).max(80).custom(sanitizeString),
+  fullName: Joi.string().trim().min(2).max(120).custom(sanitizeString),
+  email: Joi.string().trim().email().max(254).custom(sanitizeString).required(),
+  phone: Joi.string().trim().max(32).pattern(/^\+?[0-9\s().-]{7,32}$/).custom(sanitizeString).required(),
+  source: Joi.string().trim().max(64).custom(sanitizeString).default("website_contact"),
   utm: Joi.object().optional(),
 }).custom((value, helpers) => {
   const company = value.company ?? value.companyName;

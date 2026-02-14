@@ -4,7 +4,7 @@ import { errorResponse } from "./response";
 
 export function validateBody(schema: ObjectSchema): RequestHandler {
   return (req: Request, res: Response, next: NextFunction) => {
-    const { error } = schema.validate(req.body, { abortEarly: false });
+    const { error, value } = schema.validate(req.body, { abortEarly: false, stripUnknown: true });
     if (error) {
       return errorResponse(
         res,
@@ -12,6 +12,7 @@ export function validateBody(schema: ObjectSchema): RequestHandler {
         error.details.map((detail) => detail.message).join("; ")
       );
     }
+    req.body = value;
     next();
   };
 }

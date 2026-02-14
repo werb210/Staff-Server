@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
+import { sanitizedEmail, sanitizedPhone, sanitizedString } from "../../validation/public.validation";
 import { dbQuery } from "../../db";
 import { normalizePhoneNumber } from "../auth/phone";
 import { createApplication } from "../applications/applications.repo";
@@ -55,11 +56,11 @@ const booleanFromUnknown = z.preprocess((value) => {
 }, z.boolean().optional());
 
 export const createReadinessLeadSchema = z.object({
-  companyName: z.string().trim().min(2),
-  fullName: z.string().trim().min(2),
-  phone: z.string().trim().min(7),
-  email: z.string().trim().email(),
-  industry: z.string().trim().min(2).optional(),
+  companyName: sanitizedString(120, 2),
+  fullName: sanitizedString(120, 2),
+  phone: sanitizedPhone,
+  email: sanitizedEmail,
+  industry: sanitizedString(120, 2).optional(),
   yearsInBusiness: integerFromUnknown,
   monthlyRevenue: numericFromUnknown,
   annualRevenue: numericFromUnknown,

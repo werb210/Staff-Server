@@ -34,9 +34,11 @@ router.post("/", async (req, res) => {
       annual_revenue: string | null;
       ar_outstanding: string | null;
       existing_debt: boolean | null;
+      expires_at: Date | null;
+      is_active: boolean | null;
     }>(
       `select id, crm_lead_id, converted_application_id, company_name, full_name, email, phone, industry, years_in_business,
-              monthly_revenue, annual_revenue, ar_outstanding, existing_debt
+              monthly_revenue, annual_revenue, ar_outstanding, existing_debt, expires_at, is_active
        from readiness_sessions
        where id = $1
        limit 1
@@ -51,6 +53,18 @@ router.post("/", async (req, res) => {
       return;
     }
 
+
+    if (!readiness.is_active || (readiness.expires_at && new Date(readiness.expires_at).getTime() <= Date.now())) {
+      await client.query(
+        `update readiness_sessions
+         set is_active = false, status = 'expired', updated_at = now()
+         where id = $1`,
+        [readiness.id]
+      ).catch(() => undefined);
+      await client.query("rollback");
+      res.status(410).json({ success: false, error: "readiness_session_expired" });
+      return;
+    }
     if (readiness.converted_application_id) {
       await client.query("commit");
       res.status(200).json({ success: true, applicationId: readiness.converted_application_id, reused: true });

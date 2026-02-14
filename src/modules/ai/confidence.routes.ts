@@ -1,6 +1,5 @@
 import { Router } from "express";
 import { upsertCrmLead } from "../crm/leadUpsert.service";
-import { sendSMS } from "../../services/smsService";
 import { logWarn } from "../../observability/logger";
 
 const router = Router();
@@ -40,16 +39,7 @@ router.post("/ai/confidence", async (req, res) => {
     activityPayload: { score },
   });
 
-  await sendSMS(
-    "+15878881837",
-    `Lead type: confidence_check | Name: ${fullName ?? "unknown"} | Phone: ${phone ?? "unknown"}`
-  ).catch((error) => {
-    logWarn("confidence_sms_failed", {
-      message: error instanceof Error ? error.message : String(error),
-      email,
-      phone,
-    });
-  });
+  logWarn("confidence_sms_suppressed", { email, phone });
 
   res.json({
     score,

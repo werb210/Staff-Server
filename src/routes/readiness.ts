@@ -16,14 +16,15 @@ const router = Router();
 
 const readinessLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 20,
+  max: 10,
   standardHeaders: true,
   legacyHeaders: false,
+  message: { success: false, error: "rate_limited", code: 429 },
   skip: () => process.env.NODE_ENV === "test",
 });
 
 const continueSchema = z.object({
-  email: z.string().trim().email(),
+  email: z.string().trim().email().max(254),
 });
 
 const readinessLookupParamsSchema = z.object({
@@ -81,6 +82,26 @@ const getReadinessSessionHandler = async (req: Request, res: Response) => {
       success: true,
       data: {
         sessionId: session.sessionId,
+        email: session.email,
+        phone: session.phone,
+        timestamp: session.createdAt,
+        score: null,
+        intakeData: {
+          kyc: {
+            companyName: session.companyName,
+            fullName: session.fullName,
+            email: session.email,
+            phone: session.phone,
+            industry: session.industry,
+          },
+          financial: {
+            yearsInBusiness: session.yearsInBusiness,
+            monthlyRevenue: session.monthlyRevenue,
+            annualRevenue: session.annualRevenue,
+            arOutstanding: session.arOutstanding,
+            existingDebt: session.existingDebt,
+          },
+        },
         kyc: {
           companyName: session.companyName,
           fullName: session.fullName,

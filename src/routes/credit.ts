@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
 import { createCRMLead } from "../services/crmService";
-import { sendSMS } from "../services/smsService";
 
 const router = Router();
 
@@ -62,13 +61,6 @@ router.post("/score", async (req, res) => {
       score,
     },
   });
-
-  if (process.env.INTAKE_SMS_NUMBER) {
-    await sendSMS(
-      process.env.INTAKE_SMS_NUMBER,
-      `New Credit Check Lead: ${companyName} (${score})`
-    );
-  }
 
   res.json({
     score,

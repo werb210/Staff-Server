@@ -1,14 +1,18 @@
-import rateLimit from "express-rate-limit";
+import rateLimit, { type RateLimitRequestHandler } from "express-rate-limit";
 
-export const publicLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 30,
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+function buildPublicLimiter(max = 10): RateLimitRequestHandler {
+  return rateLimit({
+    windowMs: 60 * 1000,
+    max,
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: () => process.env.NODE_ENV === "test",
+    message: { success: false, error: "rate_limited", code: 429 },
+  });
+}
 
-export const contactRateLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 10,
-  message: "Too many requests, try again later",
-});
+export const publicLimiter = buildPublicLimiter();
+export const contactRateLimiter = buildPublicLimiter();
+export const readinessRateLimiter = buildPublicLimiter();
+export const chatPublicRateLimiter = buildPublicLimiter();
+export const otpPublicRateLimiter = buildPublicLimiter();
