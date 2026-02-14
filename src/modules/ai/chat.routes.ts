@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
 import rateLimit from "express-rate-limit";
 import {
   closeChatSession,
@@ -20,7 +20,7 @@ const chatLimiter = rateLimit({
   skip: () => process.env.NODE_ENV === "test",
 });
 
-router.post("/chat/start", chatLimiter, async (req, res) => {
+async function createSessionHandler(req: Request, res: Response): Promise<void> {
   const source = typeof req.body?.source === "string" ? req.body.source : "website";
 
   const session = await startChatSession({
@@ -29,8 +29,11 @@ router.post("/chat/start", chatLimiter, async (req, res) => {
     lead: req.body?.lead,
   });
 
-  res.json({ sessionId: session.id, status: session.status });
-});
+  res.status(201).json({ success: true, data: { sessionId: session.id, status: session.status } });
+}
+
+router.post("/chat/start", chatLimiter, createSessionHandler);
+router.post("/chat/session", chatLimiter, createSessionHandler);
 
 router.post("/chat/message", chatLimiter, async (req, res) => {
   const { sessionId, message, source } = req.body as {
@@ -49,15 +52,26 @@ router.post("/chat/message", chatLimiter, async (req, res) => {
   res.json({ status: result.status, response: result.response });
 });
 
-router.post("/chat/human", chatLimiter, async (req, res) => {
+async function transferChatHandler(req: Request, res: Response): Promise<void> {
   const { sessionId } = req.body as { sessionId?: string };
   if (!sessionId) {
     res.status(400).json({ error: "sessionId is required" });
     return;
   }
-  await requestHumanTakeover(sessionId);
+  try {
+    await requestHumanTakeover(sessionId);
+  } catch (error) {
+    if (error instanceof Error && error.message === "chat_session_not_found") {
+      res.status(404).json({ error: "Session not found" });
+      return;
+    }
+    throw error;
+  }
   res.json({ status: "human" });
-});
+}
+
+router.post("/chat/human", chatLimiter, transferChatHandler);
+router.post("/chat/transfer", chatLimiter, transferChatHandler);
 
 router.post("/chat/close", chatLimiter, async (req, res) => {
   const { sessionId } = req.body as { sessionId?: string };

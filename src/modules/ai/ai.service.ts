@@ -118,7 +118,7 @@ export function reportIssue(
   message: string,
   screenshot?: string
 ): { success: true } {
-  console.log("AI Issue Report", { sessionId, message, screenshot });
+  void { sessionId, message, screenshot };
   return { success: true };
 }
 

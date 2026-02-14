@@ -12,6 +12,7 @@ const router = Router();
 router.post("/ai/chat", chat);
 router.post("/ai/escalate", escalate);
 router.post("/ai/startup-interest", tagStartupInterest);
+router.post("/startup-interest", tagStartupInterest);
 router.post("/ai/continuation", createContinuation);
 router.post("/ai/session/:sessionId/close", closeSession);
 

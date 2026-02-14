@@ -156,12 +156,26 @@ export async function tagStartupInterest(req: Request, res: Response): Promise<v
     return;
   }
 
-  await pool.query(
-    `update ai_sessions set startup_interest_tags = $2::jsonb where id = $1`,
-    [sessionId, JSON.stringify(tags)]
-  );
+  try {
+    await pool.query(
+      `update ai_sessions set startup_interest_tags = $2::jsonb where id = $1`,
+      [sessionId, JSON.stringify(tags)]
+    );
+  } catch {
+    try {
+      await saveMessage(sessionId, "system", `startup_interest:${tags.join(",")}`);
+    } catch {
+      // Legacy schemas may not support system role in ai_messages.
+    }
+    res.json({ success: true, tags, persistedToSession: false });
+    return;
+  }
 
-  await saveMessage(sessionId, "system", `startup_interest:${tags.join(",")}`);
+  try {
+    await saveMessage(sessionId, "system", `startup_interest:${tags.join(",")}`);
+  } catch {
+    // Legacy schemas may not support system role in ai_messages.
+  }
 
-  res.json({ success: true, tags });
+  res.json({ success: true, tags, persistedToSession: true });
 }
