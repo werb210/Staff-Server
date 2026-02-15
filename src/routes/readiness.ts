@@ -9,6 +9,7 @@ import {
 import {
   createOrReuseReadinessSession,
   getActiveReadinessSessionByToken,
+  getReadinessSessionByIdAndToken,
 } from "../modules/readiness/readinessSession.service";
 import { logError, logInfo } from "../observability/logger";
 
@@ -28,7 +29,7 @@ const continueSchema = z.object({
 });
 
 const readinessLookupParamsSchema = z.object({
-  id: z.string().uuid(),
+  sessionId: z.string().uuid(),
 });
 
 const submitReadinessHandler = async (req: Request, res: Response) => {
@@ -72,57 +73,72 @@ const submitReadinessHandler = async (req: Request, res: Response) => {
 router.post("/", readinessLimiter, submitReadinessHandler);
 router.post("/submit", readinessLimiter, submitReadinessHandler);
 
+function formatReadinessSession(session: NonNullable<Awaited<ReturnType<typeof getActiveReadinessSessionByToken>>>) {
+  return {
+    sessionId: session.sessionId,
+    email: session.email,
+    phone: session.phone,
+    timestamp: session.createdAt,
+    score: session.score,
+    intakeData: {
+      kyc: {
+        companyName: session.companyName,
+        fullName: session.fullName,
+        email: session.email,
+        phone: session.phone,
+        industry: session.industry,
+      },
+      financial: {
+        yearsInBusiness: session.yearsInBusiness,
+        monthlyRevenue: session.monthlyRevenue,
+        annualRevenue: session.annualRevenue,
+        arOutstanding: session.arOutstanding,
+        existingDebt: session.existingDebt,
+      },
+    },
+    kyc: {
+      companyName: session.companyName,
+      fullName: session.fullName,
+      email: session.email,
+      phone: session.phone,
+      industry: session.industry,
+    },
+    financial: {
+      yearsInBusiness: session.yearsInBusiness,
+      monthlyRevenue: session.monthlyRevenue,
+      annualRevenue: session.annualRevenue,
+      arOutstanding: session.arOutstanding,
+      existingDebt: session.existingDebt,
+    },
+    expiresAt: session.expiresAt,
+  };
+}
+
 const getReadinessSessionHandler = async (req: Request, res: Response) => {
   try {
-    const { id } = readinessLookupParamsSchema.parse(req.params);
-    const session = await getActiveReadinessSessionByToken(id);
+    const { sessionId } = readinessLookupParamsSchema.parse(req.params);
+    const token = typeof req.query.token === "string" ? req.query.token.trim() : "";
 
-    if (!session) {
-      res.status(404).json({ success: false, error: "Not found" });
+    if (!token) {
+      res.status(400).json({ success: false, error: "Missing token" });
       return;
     }
 
-    res.status(200).json({
-      success: true,
-      data: {
-        sessionId: session.sessionId,
-        email: session.email,
-        phone: session.phone,
-        timestamp: session.createdAt,
-        score: session.score,
-        intakeData: {
-          kyc: {
-            companyName: session.companyName,
-            fullName: session.fullName,
-            email: session.email,
-            phone: session.phone,
-            industry: session.industry,
-          },
-          financial: {
-            yearsInBusiness: session.yearsInBusiness,
-            monthlyRevenue: session.monthlyRevenue,
-            annualRevenue: session.annualRevenue,
-            arOutstanding: session.arOutstanding,
-            existingDebt: session.existingDebt,
-          },
-        },
-        kyc: {
-          companyName: session.companyName,
-          fullName: session.fullName,
-          email: session.email,
-          phone: session.phone,
-          industry: session.industry,
-        },
-        financial: {
-          yearsInBusiness: session.yearsInBusiness,
-          monthlyRevenue: session.monthlyRevenue,
-          annualRevenue: session.annualRevenue,
-          arOutstanding: session.arOutstanding,
-          existingDebt: session.existingDebt,
-        },
-        expiresAt: session.expiresAt,
-      },
-    });
+    const lookup = await getReadinessSessionByIdAndToken(sessionId, token);
+    if (lookup.status === "not_found") {
+      res.status(404).json({ success: false, error: "Not found" });
+      return;
+    }
+    if (lookup.status === "invalid_token") {
+      res.status(401).json({ success: false, error: "Invalid token" });
+      return;
+    }
+    if (lookup.status === "expired") {
+      res.status(410).json({ success: false, error: "Session expired" });
+      return;
+    }
+
+    res.status(200).json({ success: true, data: formatReadinessSession(lookup.session) });
   } catch (error) {
     if (error instanceof Error && error.name === "ZodError") {
       res.status(400).json({ success: false, error: "Invalid session id" });
@@ -136,8 +152,31 @@ const getReadinessSessionHandler = async (req: Request, res: Response) => {
   }
 };
 
-router.get("/session/:id", readinessLimiter, getReadinessSessionHandler);
-router.get("/:id", readinessLimiter, getReadinessSessionHandler);
+router.get("/session/:sessionId", readinessLimiter, getReadinessSessionHandler);
+
+router.get("/:sessionId", readinessLimiter, async (req, res) => {
+  try {
+    const { sessionId } = readinessLookupParamsSchema.parse(req.params);
+    const session = await getActiveReadinessSessionByToken(sessionId);
+
+    if (!session) {
+      res.status(404).json({ success: false, error: "Not found" });
+      return;
+    }
+
+    res.status(200).json({ success: true, data: formatReadinessSession(session) });
+  } catch (error) {
+    if (error instanceof Error && error.name === "ZodError") {
+      res.status(400).json({ success: false, error: "Invalid session id" });
+      return;
+    }
+
+    logError("readiness_get_by_token_failed", {
+      message: error instanceof Error ? error.message : String(error),
+    });
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+});
 
 router.post("/continue", readinessLimiter, async (req, res) => {
   try {

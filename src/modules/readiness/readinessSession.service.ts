@@ -296,3 +296,46 @@ export async function getActiveReadinessSessionByToken(sessionId: string): Promi
     }),
   };
 }
+
+export async function getReadinessSessionByIdAndToken(
+  sessionId: string,
+  token: string
+): Promise<
+  | { status: "ok"; session: NonNullable<Awaited<ReturnType<typeof getActiveReadinessSessionByToken>>> }
+  | { status: "invalid_token" }
+  | { status: "expired" }
+  | { status: "not_found" }
+> {
+  const lookup = await dbQuery<{
+    id: string;
+    token: string;
+    is_active: boolean;
+    expires_at: Date;
+  }>(
+    `select id, token, is_active, expires_at
+     from readiness_sessions
+     where id = $1
+     limit 1`,
+    [sessionId]
+  );
+
+  const row = lookup.rows[0];
+  if (!row) {
+    return { status: "not_found" };
+  }
+
+  if (row.token !== token) {
+    return { status: "invalid_token" };
+  }
+
+  if (!row.is_active || row.expires_at <= new Date()) {
+    return { status: "expired" };
+  }
+
+  const session = await getActiveReadinessSessionByToken(sessionId);
+  if (!session) {
+    return { status: "expired" };
+  }
+
+  return { status: "ok", session };
+}
