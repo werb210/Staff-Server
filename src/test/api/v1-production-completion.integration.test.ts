@@ -36,10 +36,18 @@ describe("v1 production completion", () => {
     expect(createRes.body?.data?.sessionId).toEqual(expect.any(String));
     expect(typeof createRes.body?.data?.score).toBe("number");
 
-    const tokenRes = await request(app).get(`/api/readiness/session/${createRes.body.data.sessionId}`);
+    const tokenRes = await request(app).get(`/api/readiness/session/${createRes.body.data.sessionId}`).query({ token: createRes.body.data.readinessToken });
     expect(tokenRes.status).toBe(200);
     expect(tokenRes.body?.data?.kyc?.email).toBe(payload.email);
     expect(Number(tokenRes.body?.data?.financial?.monthlyRevenue)).toBe(55000);
+
+    const missingToken = await request(app).get(`/api/readiness/session/${createRes.body.data.sessionId}`);
+    expect(missingToken.status).toBe(400);
+
+    const wrongToken = await request(app)
+      .get(`/api/readiness/session/${createRes.body.data.sessionId}`)
+      .query({ token: "00000000-0000-4000-8000-000000000000" });
+    expect(wrongToken.status).toBe(401);
 
     const dupRes = await request(app).post("/api/readiness").send(payload);
     expect([200, 201]).toContain(dupRes.status);
