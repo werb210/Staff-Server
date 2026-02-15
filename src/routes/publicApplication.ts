@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { Router } from "express";
+import { logger } from "../utils/logger";
 import { getClientSubmissionOwnerUserId } from "../config";
 import { pool } from "../db";
 import { ApplicationStage } from "../modules/applications/pipelineState";
@@ -80,7 +81,7 @@ router.post("/application/start", async (req, res) => {
 
     return res.status(200).json({ applicationId });
   } catch (error) {
-    console.error("Error creating draft application:", error);
+    logger.error("public_application_draft_error", { err: error instanceof Error ? error.message : String(error) });
     return res.status(500).json({ error: "Internal server error" });
   }
 });

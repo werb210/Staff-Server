@@ -10,6 +10,7 @@ import { createOrReuseReadinessSession } from "../modules/readiness/readinessSes
 import { upsertCrmLead } from "../modules/crm/leadUpsert.service";
 import { retry } from "../utils/retry";
 import { logError } from "../observability/logger";
+import { tryBeginSmsDispatch } from "../modules/notifications/smsDispatch.service";
 
 const router = Router();
 
@@ -107,19 +108,22 @@ router.post("/", async (req, res) => {
 
   const continuationToken = await createContinuation(applicationId);
 
-  await retry(
-    () =>
-      sendSms({
-        to: "+15878881837",
-        message: `Credit Readiness: ${fullName} | ${phone} | ${industry ?? "N/A"} | Monthly ${monthlyRevenue ?? "N/A"} / Annual ${annualRevenue ?? "N/A"}`,
-      }),
-    2
-  ).catch((error) => {
-    logError("credit_readiness_sms_failed", {
-      message: error instanceof Error ? error.message : String(error),
-      email,
+  const shouldSendSms = await tryBeginSmsDispatch(`credit_readiness:${email.toLowerCase()}:${phone}`);
+  if (shouldSendSms) {
+    await retry(
+      () =>
+        sendSms({
+          to: "+15878881837",
+          message: `Credit Readiness: ${fullName} | ${phone} | ${industry ?? "N/A"} | Monthly ${monthlyRevenue ?? "N/A"} / Annual ${annualRevenue ?? "N/A"}`,
+        }),
+      2
+    ).catch((error) => {
+      logError("credit_readiness_sms_failed", {
+        message: error instanceof Error ? error.message : String(error),
+        email,
+      });
     });
-  });
+  }
 
   res.json({
     success: true,

@@ -1,4 +1,5 @@
 import { createServer as createHttpServer } from "http";
+import { createHash } from "crypto";
 import type { AddressInfo } from "net";
 import request from "supertest";
 import { WebSocket } from "ws";
@@ -144,6 +145,66 @@ describe("v1 production completion", () => {
     staff.close();
     wss.close();
     await new Promise<void>((resolve) => server.close(() => resolve()));
+  });
+
+
+  it("supports websocket query handshake with sessionId/userId/context", async () => {
+    const server = createHttpServer(app);
+    const wss = initChatSocket(server);
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
+
+    const address = server.address() as AddressInfo;
+    const sessionId = "22222222-2222-4222-8222-222222222222";
+
+    const client = new WebSocket(`ws://127.0.0.1:${address.port}/ws/chat?sessionId=${sessionId}&userId=query-user&context=website`);
+
+    await new Promise<void>((resolve, reject) => {
+      client.once("open", () => {
+        client.send(JSON.stringify({ type: "connect" }));
+      });
+      client.on("message", (msg) => {
+        const text = msg.toString();
+        if (text.includes('"type":"joined"')) {
+          resolve();
+        }
+      });
+      setTimeout(() => reject(new Error("timeout waiting for joined handshake")), 2500);
+    });
+
+    client.close();
+    wss.close();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  });
+
+  it("is SMS idempotent for duplicate contact submissions", async () => {
+    const payload = {
+      companyName: "SMS Guard Inc",
+      fullName: "Sky Ramos",
+      email: "sky.ramos@example.com",
+      phone: "+14155550999",
+      source: "website_contact",
+    };
+
+    const one = await request(app).post("/api/contact/submit").send(payload);
+    const two = await request(app).post("/api/contact/submit").send(payload);
+
+    expect(one.status).toBe(200);
+    expect(two.status).toBe(200);
+
+    const primaryKey = createHash("sha256")
+      .update(`contact_form:${payload.email.toLowerCase()}:${payload.phone}`)
+      .digest("hex");
+    const intakeKey = createHash("sha256")
+      .update(`contact_form:intake:${payload.email.toLowerCase()}:${payload.phone}`)
+      .digest("hex");
+
+    const dispatches = await pool.query(
+      "select id from sms_dispatches where dispatch_key = $1 or dispatch_key = $2",
+      [primaryKey, intakeKey]
+    );
+
+    expect(dispatches.rowCount).toBeGreaterThanOrEqual(1);
+    expect(dispatches.rowCount).toBeLessThanOrEqual(2);
   });
 
   it("rejects malformed payloads on readiness and chat endpoints", async () => {
