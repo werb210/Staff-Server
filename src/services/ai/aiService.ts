@@ -1,11 +1,7 @@
-import OpenAI from "openai";
 import { db } from "../../db";
 import { retrieveRelevantContext } from "./retrievalService";
 import { applyAiGuardrails, CAPITAL_SOURCE_PHRASE } from "../../modules/ai/guardrails";
-
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { getOpenAIClient } from "./openai.service";
 
 type RuleRow = {
   rule_key: string;
@@ -53,7 +49,7 @@ Knowledge:
 ${context}
 `;
 
-  const response = await client.chat.completions.create({
+  const response = await getOpenAIClient().chat.completions.create({
     model: process.env.OPENAI_MODEL ?? process.env.AI_MODEL ?? "gpt-4o-mini",
     messages: [
       { role: "system", content: systemPrompt },

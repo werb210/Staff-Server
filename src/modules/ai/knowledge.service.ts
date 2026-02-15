@@ -11,9 +11,17 @@ type KnowledgeEntry = {
 
 const KNOWLEDGE_PATH = path.resolve("storage/knowledge.json");
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+let openaiClient: OpenAI | null = null;
+
+function getOpenAiClient(): OpenAI {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY is required for embeddings.");
+  }
+  if (!openaiClient) {
+    openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+  return openaiClient;
+}
 
 function toVectorLiteral(values: number[]): string {
   return `[${values.join(",")}]`;
@@ -45,7 +53,7 @@ export async function embedAndStore(
   sourceType: string,
   sourceId?: string
 ): Promise<void> {
-  const embedding = await openai.embeddings.create({
+  const embedding = await getOpenAiClient().embeddings.create({
     model: "text-embedding-3-small",
     input: content,
   });
@@ -67,7 +75,7 @@ export async function retrieveContext(
   db: Queryable,
   question: string
 ): Promise<string> {
-  const embedding = await openai.embeddings.create({
+  const embedding = await getOpenAiClient().embeddings.create({
     model: "text-embedding-3-small",
     input: question,
   });
