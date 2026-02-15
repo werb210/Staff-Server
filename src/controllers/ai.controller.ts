@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { v4 as uuid } from "uuid";
 import { pool } from "../db";
-import { openai } from "../services/ai/openai.service";
+import { getOpenAIClient } from "../services/ai/openai.service";
 import { retrieveContext } from "../modules/ai/knowledge.service";
 import { upsertCrmLead } from "../modules/crm/leadUpsert.service";
 
@@ -57,7 +57,7 @@ export async function chat(req: Request, res: Response): Promise<void> {
 
   const contextText = await retrieveContext(pool, message);
 
-  const completion = await openai.chat.completions.create({
+  const completion = await getOpenAIClient().chat.completions.create({
     model: process.env.OPENAI_CHAT_MODEL ?? "gpt-4o-mini",
     messages: [
       { role: "system", content: SYSTEM_PROMPT },

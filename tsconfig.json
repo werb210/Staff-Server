@@ -6,6 +6,7 @@
     "rootDir": "src",
     "strict": true,
     "noImplicitAny": true,
+    "noImplicitOverride": true,
     "exactOptionalPropertyTypes": false,
     "noUncheckedIndexedAccess": true,
     "esModuleInterop": true,

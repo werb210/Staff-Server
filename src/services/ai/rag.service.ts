@@ -1,12 +1,12 @@
 import { pool } from "../../db";
-import { openai } from "./openai.service";
+import { getOpenAIClient } from "./openai.service";
 
 function toVectorLiteral(values: number[]): string {
   return `[${values.join(",")}]`;
 }
 
 export async function embedText(text: string): Promise<number[]> {
-  const response = await openai.embeddings.create({
+  const response = await getOpenAIClient().embeddings.create({
     model: process.env.OPENAI_EMBED_MODEL ?? "text-embedding-3-small",
     input: text,
   });
