@@ -14,6 +14,7 @@ import { retry } from "../utils/retry";
 import { withTimeout } from "../utils/withTimeout";
 import { logger } from "../utils/logger";
 import { upsertCrmLead } from "../modules/crm/leadUpsert.service";
+import { tryBeginSmsDispatch } from "../modules/notifications/smsDispatch.service";
 
 const sanitizeString = (value: unknown, helpers: Joi.CustomHelpers) => {
   if (typeof value !== "string") {
@@ -157,24 +158,29 @@ const submitContactHandler = async (req: import("express").Request, res: import(
       );
     }
 
-    const client = getTwilioClient();
+    const shouldSendPrimarySms = await tryBeginSmsDispatch(`contact_form:${email.toLowerCase()}:${phone}`);
+    if (shouldSendPrimarySms) {
+      const client = getTwilioClient();
 
-    if (client?.messages?.create) {
-      await withTimeout(
-        retry(async () =>
-          client.messages.create({
-            body: `Lead type: contact_form | Name: ${resolvedFullName} | Phone: ${phone} | Company: ${resolvedCompany} | Email: ${email}`,
-            from: (process.env.TWILIO_NUMBER || process.env.TWILIO_PHONE || "+14155550000") as string,
-            to: "+15878881837",
-          })
-        )
-      ).catch((error) => {
-        logger.warn("contact_sms_failed", {
-          error: error instanceof Error ? error.message : String(error),
+      if (client?.messages?.create) {
+        await withTimeout(
+          retry(async () =>
+            client.messages.create({
+              body: `Lead type: contact_form | Name: ${resolvedFullName} | Phone: ${phone} | Company: ${resolvedCompany} | Email: ${email}`,
+              from: (process.env.TWILIO_NUMBER || process.env.TWILIO_PHONE || "+14155550000") as string,
+              to: "+15878881837",
+            })
+          )
+        ).catch((error) => {
+          logger.warn("contact_sms_failed", {
+            error: error instanceof Error ? error.message : String(error),
+          });
         });
-      });
+      } else {
+        logger.warn("contact_sms_skipped", { reason: "twilio_client_unavailable" });
+      }
     } else {
-      logger.warn("contact_sms_skipped", { reason: "twilio_client_unavailable" });
+      logger.info("contact_sms_deduped", { email, phone });
     }
 
     await withTimeout(pushLeadToCRM({
@@ -203,16 +209,18 @@ const submitContactHandler = async (req: import("express").Request, res: import(
       activityPayload: { utm: utm ?? null },
     });
 
-    try {
-      await dbQuery(
-        `insert into communications_messages (id, type, direction, status, contact_id, body, created_at)
-         values ($1, 'sms', 'outbound', 'queued', $2, $3, now())`,
-        [randomUUID(), contactId, `Contact form submitted by ${resolvedFullName} (${email}, ${phone})`]
-      );
-    } catch (error) {
-      logger.warn("communications_log_insert_failed", {
-        error: error instanceof Error ? error.message : String(error),
-      });
+    if (shouldSendPrimarySms) {
+      try {
+        await dbQuery(
+          `insert into communications_messages (id, type, direction, status, contact_id, body, created_at)
+           values ($1, 'sms', 'outbound', 'queued', $2, $3, now())`,
+          [randomUUID(), contactId, `Contact form submitted by ${resolvedFullName} (${email}, ${phone})`]
+        );
+      } catch (error) {
+        logger.warn("communications_log_insert_failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
 
     let token = "";
@@ -230,7 +238,10 @@ const submitContactHandler = async (req: import("express").Request, res: import(
     }
 
     if (process.env.INTAKE_SMS_NUMBER) {
-      await sendSMS(process.env.INTAKE_SMS_NUMBER, `Lead type: contact_form | Name: ${resolvedFullName} | Phone: ${phone} | Company: ${resolvedCompany}`);
+      const shouldSendIntakeSms = await tryBeginSmsDispatch(`contact_form:intake:${email.toLowerCase()}:${phone}`);
+      if (shouldSendIntakeSms) {
+        await sendSMS(process.env.INTAKE_SMS_NUMBER, `Lead type: contact_form | Name: ${resolvedFullName} | Phone: ${phone} | Company: ${resolvedCompany}`);
+      }
     }
 
     logger.info("contact_request", { company: resolvedCompany, email, phone, source, utm: utm ?? null, deduped: existingContactLead.rows.length > 0 });

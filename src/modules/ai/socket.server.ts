@@ -20,6 +20,7 @@ type SocketPayload = {
   sessionId?: string;
   content?: string;
   userId?: string;
+  context?: string;
 };
 
 const sessionMap = new Map<string, SessionPresence>();
@@ -84,13 +85,13 @@ function broadcast(sessionId: string, payload: Record<string, unknown>): void {
   }
 }
 
-async function ensureChatSessionExists(sessionId: string): Promise<void> {
+async function ensureChatSessionExists(sessionId: string, context?: string): Promise<void> {
   try {
     await pool.query(
-      `insert into chat_sessions (id, source, channel, status)
-       values ($1, 'website', 'text', 'ai')
+      `insert into chat_sessions (id, source, channel, status, context)
+       values ($1, 'website', 'text', 'ai', $2)
        on conflict (id) do nothing`,
-      [sessionId]
+      [sessionId, context ?? "website"]
     );
     return;
   } catch {
@@ -242,6 +243,8 @@ export function initChatSocket(server: Server): WebSocketServer {
     ws.isAlive = true;
     const url = new URL(req.url ?? "", "http://localhost");
     const handshakeSessionId = url.searchParams.get("sessionId");
+    const handshakeUserId = url.searchParams.get("userId");
+    const handshakeContext = url.searchParams.get("context") ?? undefined;
     if (handshakeSessionId && !/^[0-9a-fA-F-]{36}$/.test(handshakeSessionId)) {
       ws.close(1008, "invalid_session");
       return;
@@ -260,37 +263,38 @@ export function initChatSocket(server: Server): WebSocketServer {
 
         const messageType = payload.type;
 
-        if ((messageType === "join_session" || messageType === "connect") && payload.sessionId) {
-          if (!payload.userId || payload.userId.trim().length === 0) {
-            ws.send(JSON.stringify({ type: "error", message: "unauthorized" }));
+        if ((messageType === "join_session" || messageType === "connect") && (payload.sessionId || handshakeSessionId)) {
+          const effectiveSessionId = payload.sessionId ?? handshakeSessionId;
+          if (!effectiveSessionId) {
+            ws.send(JSON.stringify({ type: "error", message: "invalid_session" }));
             return;
           }
-          if (sessionMap.size >= MAX_CONCURRENT_SESSIONS && !sessionMap.has(payload.sessionId)) {
+          if (sessionMap.size >= MAX_CONCURRENT_SESSIONS && !sessionMap.has(effectiveSessionId)) {
             ws.send(JSON.stringify({ type: "error", message: "session_capacity_reached" }));
             ws.close(1013, "over_capacity");
             return;
           }
 
-          ws.sessionId = payload.sessionId;
+          ws.sessionId = effectiveSessionId;
           ws.role = "client";
-          ws.userId = payload.userId;
+          ws.userId = payload.userId?.trim() || handshakeUserId?.trim() || `guest_${randomUUID()}`;
           ws.socketId = randomUUID();
 
-          await ensureChatSessionExists(payload.sessionId);
-          ws.crmLeadId = await getChatSessionLeadId(payload.sessionId);
+          await ensureChatSessionExists(effectiveSessionId, payload.context ?? handshakeContext);
+          ws.crmLeadId = await getChatSessionLeadId(effectiveSessionId);
           socketRegistry.set(ws.socketId, {
-            sessionId: payload.sessionId,
+            sessionId: effectiveSessionId,
             crmLeadId: ws.crmLeadId ?? null,
             role: "client",
           });
 
-          const presence = getOrCreatePresence(payload.sessionId);
+          const presence = getOrCreatePresence(effectiveSessionId);
           presence.sockets.add(ws);
           presence.updatedAt = Date.now();
 
           ws.send(JSON.stringify({
             type: "joined",
-            sessionId: payload.sessionId,
+            sessionId: effectiveSessionId,
             reconnect: true,
             reconnectBackoffMs: RECONNECT_BACKOFF_MS,
             state: presence.state,
@@ -300,12 +304,12 @@ export function initChatSocket(server: Server): WebSocketServer {
           if (presence.state === "HUMAN_ACTIVE") {
             ws.send(JSON.stringify({
               type: "transferring",
-              sessionId: payload.sessionId,
+              sessionId: effectiveSessionId,
               state: "HUMAN_ACTIVE",
               message: "Transferring you…",
             }));
           }
-          logInfo("chat_ws_join", { sessionId: payload.sessionId, role: "client" });
+          logInfo("chat_ws_join", { sessionId: effectiveSessionId, role: "client" });
           return;
         }
 

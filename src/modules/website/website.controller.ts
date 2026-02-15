@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { createCrmLead } from "../crm/crm.service";
 import { sendSms } from "../notifications/sms.service";
 import { createContinuation } from "../continuation/continuation.service";
+import { logger } from "../../utils/logger";
 
 export async function submitCreditReadiness(req: Request, res: Response) {
   try {
@@ -58,7 +59,7 @@ export async function submitCreditReadiness(req: Request, res: Response) {
       redirect: `https://client.boreal.financial/apply?continue=${token}`,
     });
   } catch (err) {
-    console.error("Credit readiness error:", err);
+    logger.error("credit_readiness_error", { err: err instanceof Error ? err.message : String(err) });
     return res.status(500).json({ error: "Server error" });
   }
 }

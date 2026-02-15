@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { logger } from "../utils/logger";
 import jwt from "jsonwebtoken";
 import { dbQuery } from "../db";
 
@@ -64,7 +65,7 @@ router.post("/continue-application", async (req, res) => {
 
     return res.json({ continuationToken: token });
   } catch (err) {
-    console.error(err);
+    logger.error("pre_application_error", { err: err instanceof Error ? err.message : String(err) });
     return res.status(500).json({ error: "Failed to create pre-application" });
   }
 });

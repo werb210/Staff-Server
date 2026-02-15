@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getInstrumentedClient } from "../db";
 import { createApplication } from "../modules/applications/applications.repo";
 import { getClientSubmissionOwnerUserId } from "../config";
+import { upsertCrmLead } from "../modules/crm/leadUpsert.service";
 
 const router = Router();
 
@@ -125,6 +126,24 @@ router.post("/", async (req, res) => {
        values ($1, $2, $3)`,
       [randomUUID(), readiness.id, created.id]
     ).catch(() => undefined);
+
+    await upsertCrmLead({
+      companyName: readiness.company_name,
+      fullName: readiness.full_name,
+      email: readiness.email,
+      phone: readiness.phone ?? undefined,
+      industry: readiness.industry ?? undefined,
+      yearsInBusiness: readiness.years_in_business,
+      monthlyRevenue: readiness.monthly_revenue,
+      annualRevenue: readiness.annual_revenue,
+      arOutstanding: readiness.ar_outstanding,
+      existingDebt: readiness.existing_debt,
+      source: source ?? "readiness_continuation",
+      tags: ["application"],
+      activityType: "application_submission",
+      activityPayload: { applicationId: created.id, readinessSessionId: readiness.id },
+    });
+
 
     await client.query(
       `update readiness_sessions
