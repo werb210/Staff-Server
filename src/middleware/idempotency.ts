@@ -122,7 +122,7 @@ export function idempotencyMiddleware(
   const lockKey = advisoryLockKey(`${route}:${rawKey}`);
   const shouldLock = !isTestEnvironment();
 
-  (async () => {
+  void (async () => {
     try {
       const client = await pool.connect();
       try {

@@ -17,7 +17,8 @@
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "test:runtime": "npm run build && node scripts/runtime-verify.js",
     "test:codex:server": "node scripts/codex-server-test.js",
-    "user:set-role": "tsx scripts/set-user-role.ts"
+    "user:set-role": "tsx scripts/set-user-role.ts",
+    "lint": "eslint \"src/**/*.{ts,tsx}\" --max-warnings=0"
   },
   "dependencies": {
     "@azure/storage-blob": "^12.29.1",
@@ -62,8 +63,13 @@
     "@types/uuid": "^10.0.0",
     "@types/web-push": "^3.6.4",
     "@types/ws": "^8.18.1",
+    "@typescript-eslint/eslint-plugin": "^8.55.0",
+    "@typescript-eslint/parser": "^8.55.0",
     "@vitest/coverage-v8": "^4.0.18",
     "cross-env": "^7.0.3",
+    "eslint": "^8.57.1",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-promise": "^7.2.1",
     "jest": "^30.0.5",
     "pg-mem": "^3.0.5",
     "supertest": "^7.1.4",
