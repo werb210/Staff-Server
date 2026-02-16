@@ -1,108 +1,115 @@
 import { type Request, type Response, Router } from "express";
+import { z } from "zod";
 import {
-  createCreditReadinessLead,
+  createCapitalReadinessLead,
+  findCapitalReadinessBySession,
   findCreditReadinessById,
-  findCreditReadinessByToken,
 } from "../modules/readiness/creditReadiness.storage";
-import type { CreditReadinessDTO } from "../modules/creditReadiness/dto";
 
-export type ReadinessPayload = CreditReadinessDTO;
+const CreditReadinessSchema = z
+  .object({
+    companyName: z.string().min(1),
+    fullName: z.string().min(1),
+    email: z.string().email(),
+    phone: z.string().min(5),
+    industry: z.string().min(1),
+    yearsInBusiness: z.enum([
+      "Zero",
+      "Under 1 Year",
+      "1 to 3 Years",
+      "Over 3 Years",
+    ]),
+    annualRevenue: z.enum([
+      "Zero to $150,000",
+      "$150,001 to $500,000",
+      "$500,001 to $1,000,000",
+      "$1,000,001 to $3,000,000",
+      "Over $3,000,000",
+    ]),
+    monthlyRevenue: z.enum([
+      "Under $10,000",
+      "$10,001 to $30,000",
+      "$30,001 to $100,000",
+      "Over $100,000",
+    ]),
+    arBalance: z.enum([
+      "No Account Receivables",
+      "Zero to $100,000",
+      "$100,000 to $250,000",
+      "$250,000 to $500,000",
+      "$500,000 to $1,000,000",
+      "$1,000,000 to $3,000,000",
+      "Over $3,000,000",
+    ]),
+    collateralAvailable: z.enum([
+      "No Collateral Available",
+      "$1 to $100,000",
+      "$100,001 to $250,000",
+      "$250,001 to $500,000",
+      "$500,001 to $1 million",
+      "Over $1 million",
+    ]),
+  })
+  .strict();
 
-type LegacyReadinessPayload = ReadinessPayload & {
-  contactName?: string;
-  collateralAvailable?: string;
-};
-
-
-function scoreReadiness(data: ReadinessPayload) {
+function calculateScore(input: z.infer<typeof CreditReadinessSchema>) {
   let score = 40;
 
-  if (data.yearsInBusiness === "Over 3 Years") score += 20;
-  else if (data.yearsInBusiness === "1 to 3 Years") score += 12;
-  else if (data.yearsInBusiness === "Under 1 Year") score += 6;
-  else score += 2;
+  const revenueWeight = {
+    "Zero to $150,000": 5,
+    "$150,001 to $500,000": 10,
+    "$500,001 to $1,000,000": 18,
+    "$1,000,001 to $3,000,000": 25,
+    "Over $3,000,000": 35,
+  } as const;
 
-  if (data.annualRevenue === "Over $3,000,000") score += 25;
-  else if (data.annualRevenue === "$1,000,001 to $3,000,000") score += 20;
-  else if (data.annualRevenue === "$500,001 to $1,000,000") score += 14;
-  else if (data.annualRevenue === "$150,001 to $500,000") score += 8;
-  else score += 3;
+  const yearsWeight = {
+    Zero: 5,
+    "Under 1 Year": 8,
+    "1 to 3 Years": 15,
+    "Over 3 Years": 25,
+  } as const;
 
-  if (data.arBalance.includes("Over")) score += 12;
-  else if (data.arBalance.includes("$500,000")) score += 10;
-  else if (data.arBalance.includes("$100,000")) score += 6;
+  const collateralWeight = {
+    "No Collateral Available": 5,
+    "$1 to $100,000": 10,
+    "$100,001 to $250,000": 18,
+    "$250,001 to $500,000": 25,
+    "$500,001 to $1 million": 30,
+    "Over $1 million": 35,
+  } as const;
 
-  if (data.availableCollateral.includes("Over")) score += 15;
-  else if (data.availableCollateral.includes("$500,000")) score += 12;
-  else if (data.availableCollateral.includes("$100,000")) score += 6;
+  score += revenueWeight[input.annualRevenue];
+  score += yearsWeight[input.yearsInBusiness];
+  score += collateralWeight[input.collateralAvailable];
 
   return Math.min(100, score);
-}
-
-function tierFromScore(score: number) {
-  if (score >= 85) return "Institutional Profile";
-  if (score >= 70) return "Strong Non-Bank Profile";
-  if (score >= 55) return "Structured Opportunity";
-  return "Early Stage";
-}
-
-function normalizePayload(raw: LegacyReadinessPayload): ReadinessPayload {
-  return {
-    companyName: raw.companyName,
-    fullName: raw.fullName ?? raw.contactName ?? "",
-    email: raw.email,
-    phone: raw.phone,
-    industry: raw.industry,
-    yearsInBusiness: raw.yearsInBusiness,
-    annualRevenue: raw.annualRevenue,
-    monthlyRevenue: raw.monthlyRevenue,
-    arBalance: raw.arBalance,
-    availableCollateral: raw.availableCollateral ?? raw.collateralAvailable ?? "",
-  };
 }
 
 const router = Router();
 
 router.post("/", async (req: Request, res: Response) => {
   try {
-    const payload = normalizePayload((req.body ?? {}) as LegacyReadinessPayload);
+    const parsed = CreditReadinessSchema.parse(req.body);
+    const score = calculateScore(parsed);
+    const tier = score >= 85 ? "Growth Ready" : score >= 65 ? "Near Ready" : "Foundation Stage";
 
-    const requiredFields: Array<keyof ReadinessPayload> = [
-      "companyName",
-      "fullName",
-      "email",
-      "phone",
-      "industry",
-      "yearsInBusiness",
-      "annualRevenue",
-      "monthlyRevenue",
-      "arBalance",
-      "availableCollateral",
-    ];
-
-    for (const field of requiredFields) {
-      if (!payload[field]) {
-        return res.status(400).json({ error: `${field} is required` });
-      }
-    }
-
-    const score = scoreReadiness(payload);
-    const tier = tierFromScore(score);
-    const lead = await createCreditReadinessLead(payload);
-
-    const readinessToken = lead.id;
+    const lead = await createCapitalReadinessLead({
+      ...parsed,
+      score,
+      tier,
+      tag: "credit_readiness",
+    });
 
     return res.status(201).json({
       success: true,
-      creditReadinessId: lead.id,
-      readinessToken,
+      leadId: lead.id,
+      sessionToken: lead.sessionToken,
       score,
       tier,
-      leadId: lead.id,
-      sessionToken: readinessToken,
     });
-  } catch (_err) {
-    return res.status(500).json({ error: "Credit readiness failed" });
+  } catch (err) {
+    return res.status(400).json({ error: err instanceof Error ? err.message : "Invalid input" });
   }
 });
 
@@ -113,7 +120,7 @@ router.get("/session/:token", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "token is required" });
     }
 
-    const lead = await findCreditReadinessByToken(token);
+    const lead = await findCapitalReadinessBySession(token);
 
     if (!lead) {
       return res.status(404).json({ error: "Session not found" });
@@ -125,7 +132,7 @@ router.get("/session/:token", async (req: Request, res: Response) => {
       annualRevenue: lead.annualRevenue,
       monthlyRevenue: lead.monthlyRevenue,
       arBalance: lead.arBalance,
-      availableCollateral: lead.availableCollateral,
+      collateralAvailable: lead.collateralAvailable,
       companyName: lead.companyName,
       fullName: lead.fullName,
       email: lead.email,
@@ -160,7 +167,10 @@ router.get("/:id", async (req: Request, res: Response) => {
       annualRevenue: lead.annualRevenue,
       monthlyRevenue: lead.monthlyRevenue,
       arBalance: lead.arBalance,
-      availableCollateral: lead.availableCollateral,
+      collateralAvailable: lead.collateralAvailable,
+      score: lead.score,
+      tier: lead.tier,
+      sessionToken: lead.sessionToken,
     });
   } catch {
     return res.status(500).json({ error: "Session lookup failed" });

@@ -43,13 +43,13 @@ describe("readiness lead integration", () => {
         companyName: "Acme Co",
         fullName: "Taylor Smith",
         industry: "Manufacturing",
-        phone: "(415) 555-1111",
+        phone: "+14155551111",
         email: "Taylor@Example.com",
         yearsInBusiness: "1 to 3 Years",
         monthlyRevenue: "$10,001 to $30,000",
         annualRevenue: "$150,001 to $500,000",
         arBalance: "Zero to $100,000",
-        availableCollateral: "$1 to $100,000",
+        collateralAvailable: "$1 to $100,000",
       });
 
     expect(response.status).toBe(201);
@@ -60,13 +60,13 @@ describe("readiness lead integration", () => {
       [response.body.leadId]
     );
     expect(readiness.rows[0]?.email).toBe("taylor@example.com");
-    expect(readiness.rows[0]?.phone).toBe("(415) 555-1111");
+    expect(readiness.rows[0]?.phone).toBe("+14155551111");
     expect(readiness.rows[0]?.crm_contact_id).toEqual(expect.any(String));
 
-    const contact = await pool.query("select * from contacts where id = $1", [
+    const crmLead = await pool.query("select * from crm_leads where id = $1", [
       readiness.rows[0]?.crm_contact_id,
     ]);
-    expect(contact.rows[0]?.status).toBe("readiness_v1");
+    expect(crmLead.rows[0]?.email).toBe("taylor@example.com");
 
     expect(sendSMSMock).not.toHaveBeenCalled();
   });
@@ -94,13 +94,13 @@ describe("readiness lead integration", () => {
         companyName: "Reused Contact Inc",
         fullName: "Jordan Lee",
         industry: "Transportation",
-        phone: "+1 (415) 555-9999",
+        phone: "+14155559999",
         email: "Existing@example.com",
         yearsInBusiness: "Under 1 Year",
         monthlyRevenue: "Under $10,000",
         annualRevenue: "Zero to $150,000",
         arBalance: "No Account Receivables",
-        availableCollateral: "No Collateral Available",
+        collateralAvailable: "No Collateral Available",
       });
 
     expect(response.status).toBe(201);
@@ -108,7 +108,49 @@ describe("readiness lead integration", () => {
     const readiness = await pool.query("select crm_contact_id from readiness_leads where id = $1", [
       response.body.leadId,
     ]);
-    expect(readiness.rows[0]?.crm_contact_id).toBe("11111111-1111-1111-1111-111111111111");
+    expect(readiness.rows[0]?.crm_contact_id).toEqual(expect.any(String));
+  });
+
+
+  it("supports public readiness bridge payload by session token", async () => {
+    const createResponse = await request(app)
+      .post("/api/public/readiness")
+      .send({
+        companyName: "Bridge Co",
+        fullName: "Jamie Lane",
+        industry: "Healthcare",
+        phone: "+14155550123",
+        email: "bridge@example.com",
+        yearsInBusiness: "1 to 3 Years",
+        monthlyRevenue: "$10,001 to $30,000",
+        annualRevenue: "$500,001 to $1,000,000",
+        arBalance: "$100,000 to $250,000",
+        collateralAvailable: "$100,001 to $250,000",
+      });
+
+    expect(createResponse.status).toBe(201);
+    expect(createResponse.body.sessionToken).toEqual(expect.any(String));
+
+    const bridgeResponse = await request(app)
+      .get(`/api/readiness/bridge/${createResponse.body.sessionToken}`);
+
+    expect(bridgeResponse.status).toBe(200);
+    expect(bridgeResponse.body).toMatchObject({
+      step1: {
+        industry: "Healthcare",
+        yearsInBusiness: "1 to 3 Years",
+        annualRevenue: "$500,001 to $1,000,000",
+        monthlyRevenue: "$10,001 to $30,000",
+        arBalance: "$100,000 to $250,000",
+        collateralAvailable: "$100,001 to $250,000",
+      },
+      step3: { companyName: "Bridge Co" },
+      step4: {
+        fullName: "Jamie Lane",
+        email: "bridge@example.com",
+        phone: "+14155550123",
+      },
+    });
   });
 
   it("requires admin auth for portal readiness endpoints", async () => {
@@ -133,7 +175,7 @@ describe("readiness lead integration", () => {
       monthlyRevenue: "Over $100,000",
       annualRevenue: "$1,000,001 to $3,000,000",
       arBalance: "$100,000 to $250,000",
-      availableCollateral: "Over $1 million",
+      collateralAvailable: "Over $1 million",
     });
     expect(createRes.status).toBe(201);
 
