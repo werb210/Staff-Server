@@ -15,8 +15,8 @@ type ContinuationPayload = {
   yearsInBusiness?: string;
   monthlyRevenue?: string;
   annualRevenue?: string;
-  arOutstanding?: string;
-  existingDebt?: string;
+  arBalance?: string;
+  collateralAvailable?: string;
 };
 
 router.post("/", async (req, res) => {
@@ -40,8 +40,8 @@ router.post("/", async (req, res) => {
         years_in_business,
         monthly_revenue,
         annual_revenue,
-        ar_outstanding,
-        existing_debt
+        ar_balance,
+        collateral_available
       )
       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
       returning *
@@ -56,8 +56,8 @@ router.post("/", async (req, res) => {
       data.yearsInBusiness ?? null,
       data.monthlyRevenue ?? null,
       data.annualRevenue ?? null,
-      data.arOutstanding ?? null,
-      data.existingDebt ?? null,
+      data.arBalance ?? null,
+      data.collateralAvailable ?? null,
     ]
   );
 
@@ -70,8 +70,8 @@ router.post("/", async (req, res) => {
     yearsInBusiness: data.yearsInBusiness,
     monthlyRevenue: data.monthlyRevenue,
     annualRevenue: data.annualRevenue,
-    arOutstanding: data.arOutstanding,
-    existingDebt: data.existingDebt,
+    arBalance: data.arBalance,
+    collateralAvailable: data.collateralAvailable,
     source: "capital_readiness",
     tags: ["readiness"],
     activityType: "capital_readiness_submission",

@@ -92,8 +92,8 @@ function formatReadinessSession(session: NonNullable<Awaited<ReturnType<typeof g
         yearsInBusiness: session.yearsInBusiness,
         monthlyRevenue: session.monthlyRevenue,
         annualRevenue: session.annualRevenue,
-        arOutstanding: session.arOutstanding,
-        existingDebt: session.existingDebt,
+        arBalance: session.arBalance,
+        collateralAvailable: session.collateralAvailable,
       },
     },
     kyc: {
@@ -107,8 +107,8 @@ function formatReadinessSession(session: NonNullable<Awaited<ReturnType<typeof g
       yearsInBusiness: session.yearsInBusiness,
       monthlyRevenue: session.monthlyRevenue,
       annualRevenue: session.annualRevenue,
-      arOutstanding: session.arOutstanding,
-      existingDebt: session.existingDebt,
+      arBalance: session.arBalance,
+      collateralAvailable: session.collateralAvailable,
     },
     expiresAt: session.expiresAt,
   };
@@ -185,7 +185,7 @@ router.post("/continue", readinessLimiter, async (req, res) => {
     const { rows } = await db.query(
       `select id, company_name, full_name, email, phone, industry,
               years_in_business, monthly_revenue, annual_revenue,
-              ar_outstanding, existing_debt, created_at, used_in_application
+              ar_balance, collateral_available, created_at, used_in_application
        from continuation
        where lower(email) = lower($1)
        order by created_at desc

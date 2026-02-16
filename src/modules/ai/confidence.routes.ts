@@ -14,8 +14,8 @@ router.post("/ai/confidence", async (req, res) => {
     yearsInBusiness,
     monthlyRevenue,
     annualRevenue,
-    arOutstanding,
-    existingDebt,
+    arBalance,
+    collateralAvailable,
   } = req.body ?? {};
 
   const years = Number(yearsInBusiness ?? 0);
@@ -31,8 +31,8 @@ router.post("/ai/confidence", async (req, res) => {
     yearsInBusiness,
     monthlyRevenue,
     annualRevenue,
-    arOutstanding,
-    existingDebt,
+    arBalance,
+    collateralAvailable,
     source: "confidence_check",
     tags: ["startup_interest"],
     activityType: "confidence_check",

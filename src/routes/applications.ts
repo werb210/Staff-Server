@@ -21,6 +21,7 @@ import { logAnalyticsEvent } from "../services/analyticsService";
 import { pushLeadToCRM } from "../services/crmWebhook";
 import { convertContinuation } from "../modules/continuation/continuation.service";
 import { upsertCrmLead } from "../modules/crm/leadUpsert.service";
+import { createApplicationSchema } from "../validation/application.schema";
 
 const applicationSubmissionSchema = z.object({
   business: z.object({
@@ -29,11 +30,11 @@ const applicationSubmissionSchema = z.object({
     country: z.string().trim().min(1),
   }),
   financialProfile: z.object({
-    yearsInBusiness: z.coerce.number().finite().min(0),
-    monthlyRevenue: z.coerce.number().finite().min(0),
-    annualRevenue: z.coerce.number().finite().min(0),
-    arOutstanding: z.coerce.number().finite().min(0),
-    existingDebt: z.boolean(),
+    yearsInBusiness: createApplicationSchema.shape.yearsInBusiness,
+    monthlyRevenue: createApplicationSchema.shape.monthlyRevenue,
+    annualRevenue: createApplicationSchema.shape.annualRevenue,
+    arBalance: createApplicationSchema.shape.arBalance,
+    collateralAvailable: createApplicationSchema.shape.collateralAvailable,
   }),
   productSelection: z.object({
     requestedProductType: z.string().trim().min(1),
@@ -275,8 +276,8 @@ router.post(
         yearsInBusiness: payload.financialProfile.yearsInBusiness,
         monthlyRevenue: payload.financialProfile.monthlyRevenue,
         annualRevenue: payload.financialProfile.annualRevenue,
-        arOutstanding: payload.financialProfile.arOutstanding,
-        existingDebt: payload.financialProfile.existingDebt,
+        arBalance: payload.financialProfile.arBalance,
+        collateralAvailable: payload.financialProfile.collateralAvailable,
         source: payload.source,
         tags: ["application_started"],
         activityType: "application_submission",

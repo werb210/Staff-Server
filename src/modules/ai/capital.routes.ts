@@ -24,8 +24,8 @@ type ReadinessPayload = {
   yearsInBusiness: string;
   annualRevenue: string;
   monthlyRevenue: string;
-  arOutstanding: string;
-  existingDebt: string;
+  arBalance: string;
+  collateralAvailable: string;
 };
 
 function toAmount(raw: string): number {
@@ -39,8 +39,8 @@ function calculateScore(payload: ReadinessPayload): number {
   const years = Number(payload.yearsInBusiness);
   const annual = toAmount(payload.annualRevenue);
   const monthly = toAmount(payload.monthlyRevenue);
-  const ar = toAmount(payload.arOutstanding);
-  const debt = toAmount(payload.existingDebt);
+  const ar = toAmount(payload.arBalance);
+  const debt = toAmount(payload.collateralAvailable);
 
   if (years >= 5) score += 25;
   else if (years >= 2) score += 15;

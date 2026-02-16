@@ -10,8 +10,8 @@ export type CrmUpsertInput = {
   yearsInBusiness?: string | number | null;
   monthlyRevenue?: string | number | null;
   annualRevenue?: string | number | null;
-  arOutstanding?: string | number | null;
-  existingDebt?: string | boolean | null;
+  arBalance?: string | number | null;
+  collateralAvailable?: string | boolean | null;
   source: string;
   tags?: string[];
   activityType: string;
@@ -79,8 +79,8 @@ export async function upsertCrmLead(input: CrmUpsertInput): Promise<{ id: string
            years_in_business = coalesce($7, years_in_business),
            monthly_revenue = coalesce($8, monthly_revenue),
            annual_revenue = coalesce($9, annual_revenue),
-           ar_outstanding = coalesce($10, ar_outstanding),
-           existing_debt = coalesce($11, existing_debt),
+           ar_balance = coalesce($10, ar_balance),
+           collateral_available = coalesce($11, collateral_available),
            source = coalesce($12, source),
            tags = $13::jsonb
        where id = $1`,
@@ -94,8 +94,8 @@ export async function upsertCrmLead(input: CrmUpsertInput): Promise<{ id: string
         input.yearsInBusiness != null ? String(input.yearsInBusiness) : null,
         input.monthlyRevenue != null ? String(input.monthlyRevenue) : null,
         input.annualRevenue != null ? String(input.annualRevenue) : null,
-        input.arOutstanding != null ? String(input.arOutstanding) : null,
-        input.existingDebt != null ? String(input.existingDebt) : null,
+        input.arBalance != null ? String(input.arBalance) : null,
+        input.collateralAvailable != null ? String(input.collateralAvailable) : null,
         input.source,
         JSON.stringify(mergedTags),
       ]
@@ -108,7 +108,7 @@ export async function upsertCrmLead(input: CrmUpsertInput): Promise<{ id: string
         `insert into crm_leads (
           id, company_name, full_name, email, phone, industry,
           years_in_business, monthly_revenue, annual_revenue,
-          ar_outstanding, existing_debt, source, tags
+          ar_balance, collateral_available, source, tags
         ) values (
           $1, $2, $3, $4, $5, $6,
           $7, $8, $9,
@@ -124,8 +124,8 @@ export async function upsertCrmLead(input: CrmUpsertInput): Promise<{ id: string
           input.yearsInBusiness != null ? String(input.yearsInBusiness) : null,
           input.monthlyRevenue != null ? String(input.monthlyRevenue) : null,
           input.annualRevenue != null ? String(input.annualRevenue) : null,
-          input.arOutstanding != null ? String(input.arOutstanding) : null,
-          input.existingDebt != null ? String(input.existingDebt) : null,
+          input.arBalance != null ? String(input.arBalance) : null,
+          input.collateralAvailable != null ? String(input.collateralAvailable) : null,
           input.source,
           JSON.stringify(normalizedTags),
         ]
@@ -165,8 +165,8 @@ export async function upsertCrmLead(input: CrmUpsertInput): Promise<{ id: string
              years_in_business = coalesce($7, years_in_business),
              monthly_revenue = coalesce($8, monthly_revenue),
              annual_revenue = coalesce($9, annual_revenue),
-             ar_outstanding = coalesce($10, ar_outstanding),
-             existing_debt = coalesce($11, existing_debt),
+             ar_balance = coalesce($10, ar_balance),
+             collateral_available = coalesce($11, collateral_available),
              source = coalesce($12, source),
              tags = $13::jsonb
          where id = $1`,
@@ -180,8 +180,8 @@ export async function upsertCrmLead(input: CrmUpsertInput): Promise<{ id: string
           input.yearsInBusiness != null ? String(input.yearsInBusiness) : null,
           input.monthlyRevenue != null ? String(input.monthlyRevenue) : null,
           input.annualRevenue != null ? String(input.annualRevenue) : null,
-          input.arOutstanding != null ? String(input.arOutstanding) : null,
-          input.existingDebt != null ? String(input.existingDebt) : null,
+          input.arBalance != null ? String(input.arBalance) : null,
+          input.collateralAvailable != null ? String(input.collateralAvailable) : null,
           input.source,
           JSON.stringify(mergedTags),
         ]

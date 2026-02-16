@@ -8,8 +8,8 @@ export type ContinuationRecord = {
   years_in_business: string | null;
   monthly_revenue: string | null;
   annual_revenue: string | null;
-  ar_outstanding: string | null;
-  existing_debt: string | null;
+  ar_balance: string | null;
+  collateral_available: string | null;
   used_in_application: boolean;
   created_at: Date;
 };

@@ -8,71 +8,41 @@ type ReadinessSessionInput = {
   phone: string;
   email: string;
   industry?: string;
-  yearsInBusiness?: number | string;
-  monthlyRevenue?: number | string;
-  annualRevenue?: number | string;
-  arOutstanding?: number | string;
-  existingDebt?: boolean | string;
+  yearsInBusiness?: string;
+  monthlyRevenue?: string;
+  annualRevenue?: string;
+  arBalance?: string;
+  collateralAvailable?: string;
 };
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
-function toInteger(value: number | string | undefined): number | null {
-  if (value === undefined || value === null || value === "") return null;
-  const n = Number(value);
-  return Number.isFinite(n) ? Math.trunc(n) : null;
+function toNullableText(value: string | undefined): string | null {
+  if (value === undefined || value === null) return null;
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : null;
 }
-
-function toNumeric(value: number | string | undefined): number | null {
-  if (value === undefined || value === null || value === "") return null;
-  const n = Number(typeof value === "string" ? value.replace(/,/g, "") : value);
-  return Number.isFinite(n) ? n : null;
-}
-
-function toBoolean(value: boolean | string | undefined): boolean | null {
-  if (value === undefined || value === null || value === "") return null;
-  if (typeof value === "boolean") return value;
-  const normalized = value.trim().toLowerCase();
-  if (["true", "1", "yes"].includes(normalized)) return true;
-  if (["false", "0", "no"].includes(normalized)) return false;
-  return null;
-}
-
 
 function calculateReadinessScore(payload: ReadinessSessionInput): number {
   let score = 50;
-  const years = toInteger(payload.yearsInBusiness);
-  const monthlyRevenue = toNumeric(payload.monthlyRevenue);
-  const annualRevenue = toNumeric(payload.annualRevenue);
-  const arOutstanding = toNumeric(payload.arOutstanding);
-  const hasDebt = toBoolean(payload.existingDebt);
+  if (payload.yearsInBusiness === "Over 3 Years") score += 15;
+  else if (payload.yearsInBusiness === "1 to 3 Years") score += 10;
+  else if (payload.yearsInBusiness === "Under 1 Year") score += 5;
 
-  if (years !== null) {
-    if (years >= 5) score += 15;
-    else if (years >= 2) score += 10;
-    else if (years >= 1) score += 5;
+  if (payload.monthlyRevenue === "Over $100,000") score += 20;
+  else if (payload.monthlyRevenue === "$30,001 to $100,000") score += 12;
+  else if (payload.monthlyRevenue === "$10,001 to $30,000") score += 6;
+
+  if (payload.annualRevenue === "Over $3,000,000" || payload.annualRevenue === "$1,000,001 to $3,000,000") {
+    score += 8;
+  } else if (payload.annualRevenue === "$500,001 to $1,000,000") {
+    score += 4;
   }
 
-  if (monthlyRevenue !== null) {
-    if (monthlyRevenue >= 100000) score += 20;
-    else if (monthlyRevenue >= 50000) score += 15;
-    else if (monthlyRevenue >= 20000) score += 8;
-    else if (monthlyRevenue >= 10000) score += 4;
-  }
-
-  if (annualRevenue !== null && annualRevenue >= 500000) {
-    score += 5;
-  }
-
-  if (arOutstanding !== null && arOutstanding >= 25000) {
-    score += 5;
-  }
-
-  if (hasDebt === true) {
-    score -= 5;
-  }
+  if (payload.arBalance && payload.arBalance !== "No Account Receivables") score += 5;
+  if (payload.collateralAvailable === "No Collateral Available") score -= 5;
 
   return Math.max(0, Math.min(100, score));
 }
@@ -119,8 +89,8 @@ export async function createOrReuseReadinessSession(payload: ReadinessSessionInp
       yearsInBusiness: payload.yearsInBusiness,
       monthlyRevenue: payload.monthlyRevenue,
       annualRevenue: payload.annualRevenue,
-      arOutstanding: payload.arOutstanding,
-      existingDebt: payload.existingDebt,
+      arBalance: payload.arBalance,
+      collateralAvailable: payload.collateralAvailable,
       source: "credit_readiness",
       tags: startupInterest ? ["readiness", "readiness_session", "startup_interest"] : ["readiness", "readiness_session"],
       activityType: "readiness_submission",
@@ -139,8 +109,8 @@ export async function createOrReuseReadinessSession(payload: ReadinessSessionInp
              years_in_business = $8,
              monthly_revenue = $9,
              annual_revenue = $10,
-             ar_outstanding = $11,
-             existing_debt = $12,
+             ar_balance = $11,
+             collateral_available = $12,
              status = 'open',
              updated_at = now()
          where id = $1`,
@@ -152,11 +122,11 @@ export async function createOrReuseReadinessSession(payload: ReadinessSessionInp
           payload.companyName,
           payload.fullName,
           payload.industry ?? null,
-          toInteger(payload.yearsInBusiness),
-          toNumeric(payload.monthlyRevenue),
-          toNumeric(payload.annualRevenue),
-          toNumeric(payload.arOutstanding),
-          toBoolean(payload.existingDebt),
+          toNullableText(payload.yearsInBusiness),
+          toNullableText(payload.monthlyRevenue),
+          toNullableText(payload.annualRevenue),
+          toNullableText(payload.arBalance),
+          toNullableText(payload.collateralAvailable),
         ]
       );
 
@@ -177,7 +147,7 @@ export async function createOrReuseReadinessSession(payload: ReadinessSessionInp
     await client.query(
       `insert into readiness_sessions (
         id, token, email, phone, company_name, full_name, industry,
-        years_in_business, monthly_revenue, annual_revenue, ar_outstanding, existing_debt,
+        years_in_business, monthly_revenue, annual_revenue, ar_balance, collateral_available,
         crm_lead_id, expires_at, status
       ) values (
         $1, $2, $3, $4, $5, $6, $7,
@@ -192,11 +162,11 @@ export async function createOrReuseReadinessSession(payload: ReadinessSessionInp
         payload.companyName,
         payload.fullName,
         payload.industry ?? null,
-        toInteger(payload.yearsInBusiness),
-        toNumeric(payload.monthlyRevenue),
-        toNumeric(payload.annualRevenue),
-        toNumeric(payload.arOutstanding),
-        toBoolean(payload.existingDebt),
+        toNullableText(payload.yearsInBusiness),
+        toNullableText(payload.monthlyRevenue),
+        toNullableText(payload.annualRevenue),
+        toNullableText(payload.arBalance),
+        toNullableText(payload.collateralAvailable),
         crmLead.id,
         expiresAt,
       ]
@@ -226,11 +196,11 @@ export async function getActiveReadinessSessionByToken(sessionId: string): Promi
   companyName: string;
   fullName: string;
   industry: string | null;
-  yearsInBusiness: number | null;
+  yearsInBusiness: string | null;
   monthlyRevenue: string | null;
   annualRevenue: string | null;
-  arOutstanding: string | null;
-  existingDebt: boolean | null;
+  arBalance: string | null;
+  collateralAvailable: string | null;
   expiresAt: Date;
   createdAt: Date;
   score: number;
@@ -244,16 +214,16 @@ export async function getActiveReadinessSessionByToken(sessionId: string): Promi
     company_name: string;
     full_name: string;
     industry: string | null;
-    years_in_business: number | null;
+    years_in_business: string | null;
     monthly_revenue: string | null;
     annual_revenue: string | null;
-    ar_outstanding: string | null;
-    existing_debt: boolean | null;
+    ar_balance: string | null;
+    collateral_available: string | null;
     expires_at: Date;
     created_at: Date;
   }>(
     `select id, token, crm_lead_id, email, phone, company_name, full_name, industry,
-            years_in_business, monthly_revenue, annual_revenue, ar_outstanding, existing_debt,
+            years_in_business, monthly_revenue, annual_revenue, ar_balance, collateral_available,
             expires_at, created_at
      from readiness_sessions
      where id = $1 and is_active = true and expires_at > now()
@@ -278,8 +248,8 @@ export async function getActiveReadinessSessionByToken(sessionId: string): Promi
     yearsInBusiness: row.years_in_business,
     monthlyRevenue: row.monthly_revenue,
     annualRevenue: row.annual_revenue,
-    arOutstanding: row.ar_outstanding,
-    existingDebt: row.existing_debt,
+    arBalance: row.ar_balance,
+    collateralAvailable: row.collateral_available,
     expiresAt: row.expires_at,
     createdAt: row.created_at,
     score: calculateReadinessScore({
@@ -291,8 +261,8 @@ export async function getActiveReadinessSessionByToken(sessionId: string): Promi
       yearsInBusiness: row.years_in_business ?? undefined,
       monthlyRevenue: row.monthly_revenue ?? undefined,
       annualRevenue: row.annual_revenue ?? undefined,
-      arOutstanding: row.ar_outstanding ?? undefined,
-      existingDebt: row.existing_debt ?? undefined,
+      arBalance: row.ar_balance ?? undefined,
+      collateralAvailable: row.collateral_available ?? undefined,
     }),
   };
 }

@@ -10,8 +10,8 @@ export type ContinuationPayload = {
   yearsInBusiness?: number | string;
   monthlyRevenue?: number | string;
   annualRevenue?: number | string;
-  arOutstanding?: number | string;
-  existingDebt?: boolean | string;
+  arBalance?: number | string;
+  collateralAvailable?: boolean | string;
 };
 
 function toNullableNumber(value: number | string | undefined): number | null {
@@ -65,8 +65,8 @@ export async function createContinuation(
       years_in_business,
       monthly_revenue,
       annual_revenue,
-      ar_outstanding,
-      existing_debt,
+      ar_balance,
+      collateral_available,
       crm_lead_id
     )
     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
@@ -81,8 +81,8 @@ export async function createContinuation(
       toNullableInteger(payload.yearsInBusiness),
       toNullableNumber(payload.monthlyRevenue),
       toNullableNumber(payload.annualRevenue),
-      toNullableNumber(payload.arOutstanding),
-      toNullableBoolean(payload.existingDebt),
+      toNullableNumber(payload.arBalance),
+      toNullableBoolean(payload.collateralAvailable),
       crmLeadId,
     ]
   );

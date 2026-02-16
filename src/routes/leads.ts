@@ -21,8 +21,8 @@ const createLeadSchema = z.object({
   creditScoreRange: z.string().trim().optional(),
   productInterest: z.string().trim().optional(),
   industryInterest: z.string().trim().optional(),
-  arOutstanding: z.union([z.string(), z.number()]).optional(),
-  existingDebt: z.union([z.string(), z.boolean()]).optional(),
+  arBalance: z.union([z.string(), z.number()]).optional(),
+  collateralAvailable: z.union([z.string(), z.boolean()]).optional(),
   notes: z.string().trim().optional(),
 });
 
@@ -51,8 +51,8 @@ router.post("/", async (req, res) => {
       creditScoreRange: payload.creditScoreRange,
       productInterest: payload.productInterest,
       industryInterest: payload.industryInterest,
-      arOutstanding: payload.arOutstanding != null ? String(payload.arOutstanding) : undefined,
-      existingDebt: payload.existingDebt != null ? String(payload.existingDebt) : undefined,
+      arBalance: payload.arBalance != null ? String(payload.arBalance) : undefined,
+      collateralAvailable: payload.collateralAvailable != null ? String(payload.collateralAvailable) : undefined,
       source: payload.source,
       notes: payload.notes,
       tags: [...payload.tags, payload.stage],

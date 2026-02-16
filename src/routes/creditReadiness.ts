@@ -1,29 +1,16 @@
 import { Router } from "express";
-import { z } from "zod";
 import { sendSms } from "../modules/notifications/sms.service";
 import { createOrReuseReadinessSession } from "../modules/readiness/readinessSession.service";
 import { upsertCrmLead } from "../modules/crm/leadUpsert.service";
 import { retry } from "../utils/retry";
 import { logError } from "../observability/logger";
 import { tryBeginSmsDispatch } from "../modules/notifications/smsDispatch.service";
+import { createApplicationSchema } from "../validation/application.schema";
 
 const router = Router();
 
-const payloadSchema = z.object({
-  companyName: z.string().min(1),
-  fullName: z.string().min(1),
-  phone: z.string().min(1),
-  email: z.string().email(),
-  industry: z.string().optional(),
-  yearsInBusiness: z.union([z.string(), z.number()]).optional(),
-  monthlyRevenue: z.union([z.string(), z.number()]).optional(),
-  annualRevenue: z.union([z.string(), z.number()]).optional(),
-  arOutstanding: z.union([z.string(), z.number()]).optional(),
-  existingDebt: z.union([z.string(), z.boolean()]).optional(),
-});
-
 router.post("/", async (req, res) => {
-  const parsed = payloadSchema.safeParse(req.body);
+  const parsed = createApplicationSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid payload" });
     return;
@@ -38,8 +25,8 @@ router.post("/", async (req, res) => {
     yearsInBusiness,
     monthlyRevenue,
     annualRevenue,
-    arOutstanding,
-    existingDebt,
+    arBalance,
+    collateralAvailable,
   } = parsed.data;
 
   const crmLead = await upsertCrmLead({
@@ -51,8 +38,8 @@ router.post("/", async (req, res) => {
     yearsInBusiness,
     monthlyRevenue,
     annualRevenue,
-    arOutstanding,
-    existingDebt,
+    arBalance,
+    collateralAvailable,
     source: "website_credit_readiness",
     tags: ["credit_readiness"],
     activityType: "credit_readiness_submission",
@@ -68,8 +55,8 @@ router.post("/", async (req, res) => {
     yearsInBusiness,
     monthlyRevenue,
     annualRevenue,
-    arOutstanding,
-    existingDebt,
+    arBalance,
+    collateralAvailable,
   });
 
   const shouldSendSms = await tryBeginSmsDispatch(`credit_readiness:${email.toLowerCase()}:${phone}`);
