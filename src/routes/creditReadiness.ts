@@ -1,87 +1,135 @@
-import { Router } from "express";
-import { sendSms } from "../modules/notifications/sms.service";
-import { createOrReuseReadinessSession } from "../modules/readiness/readinessSession.service";
-import { upsertCrmLead } from "../modules/crm/leadUpsert.service";
-import { retry } from "../utils/retry";
-import { logError } from "../observability/logger";
-import { tryBeginSmsDispatch } from "../modules/notifications/smsDispatch.service";
-import { createApplicationSchema } from "../validation/application.schema";
+import crypto from "crypto";
+import { type Request, type Response, Router } from "express";
+import {
+  createCreditReadinessLead,
+  findCreditReadinessByToken,
+} from "../modules/readiness/creditReadiness.storage";
+
+export type ReadinessPayload = {
+  companyName: string;
+  contactName: string;
+  email: string;
+  phone: string;
+  industry: string;
+  yearsInBusiness: string;
+  annualRevenue: string;
+  monthlyRevenue: string;
+  arBalance: string;
+  collateralAvailable: string;
+};
+
+function generateSessionToken() {
+  return crypto.randomBytes(32).toString("hex");
+}
+
+function scoreReadiness(data: ReadinessPayload) {
+  let score = 40;
+
+  if (data.yearsInBusiness === "Over 3 Years") score += 20;
+  else if (data.yearsInBusiness === "1 to 3 Years") score += 12;
+  else if (data.yearsInBusiness === "Under 1 Year") score += 6;
+  else score += 2;
+
+  if (data.annualRevenue === "Over $3,000,000") score += 25;
+  else if (data.annualRevenue === "$1,000,001 to $3,000,000") score += 20;
+  else if (data.annualRevenue === "$500,001 to $1,000,000") score += 14;
+  else if (data.annualRevenue === "$150,001 to $500,000") score += 8;
+  else score += 3;
+
+  if (data.arBalance.includes("Over")) score += 12;
+  else if (data.arBalance.includes("$500,000")) score += 10;
+  else if (data.arBalance.includes("$100,000")) score += 6;
+
+  if (data.collateralAvailable.includes("Over")) score += 15;
+  else if (data.collateralAvailable.includes("$500,000")) score += 12;
+  else if (data.collateralAvailable.includes("$100,000")) score += 6;
+
+  return Math.min(100, score);
+}
+
+function tierFromScore(score: number) {
+  if (score >= 85) return "Institutional Profile";
+  if (score >= 70) return "Strong Non-Bank Profile";
+  if (score >= 55) return "Structured Opportunity";
+  return "Early Stage";
+}
 
 const router = Router();
 
-router.post("/", async (req, res) => {
-  const parsed = createApplicationSchema.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "Invalid payload" });
-    return;
-  }
+router.post("/", async (req: Request, res: Response) => {
+  try {
+    const payload = req.body as ReadinessPayload;
 
-  const {
-    companyName,
-    fullName,
-    phone,
-    email,
-    industry,
-    yearsInBusiness,
-    monthlyRevenue,
-    annualRevenue,
-    arBalance,
-    collateralAvailable,
-  } = parsed.data;
+    const requiredFields: Array<keyof ReadinessPayload> = [
+      "companyName",
+      "contactName",
+      "email",
+      "phone",
+      "industry",
+      "yearsInBusiness",
+      "annualRevenue",
+      "monthlyRevenue",
+      "arBalance",
+      "collateralAvailable",
+    ];
 
-  const crmLead = await upsertCrmLead({
-    companyName,
-    fullName,
-    phone,
-    email,
-    industry,
-    yearsInBusiness,
-    monthlyRevenue,
-    annualRevenue,
-    arBalance,
-    collateralAvailable,
-    source: "website_credit_readiness",
-    tags: ["credit_readiness"],
-    activityType: "credit_readiness_submission",
-    activityPayload: { stage: "credit_readiness" },
-  });
+    for (const field of requiredFields) {
+      if (!payload[field]) {
+        return res.status(400).json({ error: `${field} is required` });
+      }
+    }
 
-  const readinessSession = await createOrReuseReadinessSession({
-    companyName,
-    fullName,
-    phone,
-    email,
-    industry,
-    yearsInBusiness,
-    monthlyRevenue,
-    annualRevenue,
-    arBalance,
-    collateralAvailable,
-  });
+    const score = scoreReadiness(payload);
+    const tier = tierFromScore(score);
+    const sessionToken = generateSessionToken();
 
-  const shouldSendSms = await tryBeginSmsDispatch(`credit_readiness:${email.toLowerCase()}:${phone}`);
-  if (shouldSendSms) {
-    await retry(
-      () =>
-        sendSms({
-          to: "+15878881837",
-          message: `Credit Readiness: ${fullName} | ${phone} | ${industry ?? "N/A"} | Monthly ${monthlyRevenue ?? "N/A"} / Annual ${annualRevenue ?? "N/A"}`,
-        }),
-      2
-    ).catch((error) => {
-      logError("credit_readiness_sms_failed", {
-        message: error instanceof Error ? error.message : String(error),
-        email,
-      });
+    const lead = await createCreditReadinessLead({
+      ...payload,
+      score,
+      tier,
+      sessionToken,
+      createdAt: new Date(),
     });
-  }
 
-  res.json({
-    success: true,
-    sessionId: readinessSession.sessionId,
-    token: readinessSession.token,
-    crmLeadId: crmLead.id,
-  });
+    return res.status(201).json({
+      sessionToken,
+      score,
+      tier,
+      leadId: lead.id,
+    });
+  } catch (_err) {
+    return res.status(500).json({ error: "Credit readiness failed" });
+  }
+});
+
+router.get("/session/:token", async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+    if (!token) {
+      return res.status(400).json({ error: "token is required" });
+    }
+
+    const lead = await findCreditReadinessByToken(token);
+
+    if (!lead) {
+      return res.status(404).json({ error: "Session not found" });
+    }
+
+    return res.json({
+      industry: lead.industry,
+      yearsInBusiness: lead.yearsInBusiness,
+      annualRevenue: lead.annualRevenue,
+      monthlyRevenue: lead.monthlyRevenue,
+      arBalance: lead.arBalance,
+      collateralAvailable: lead.collateralAvailable,
+      companyName: lead.companyName,
+      contactName: lead.contactName,
+      email: lead.email,
+      phone: lead.phone,
+    });
+  } catch {
+    return res.status(500).json({ error: "Session lookup failed" });
+  }
 });
 
 export default router;

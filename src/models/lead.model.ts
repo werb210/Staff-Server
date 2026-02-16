@@ -10,7 +10,7 @@ export interface CreateLeadDTO {
   requestedAmount?: string;
   creditScoreRange?: string;
 
-  source?: string; // capital-readiness | contact | product-page
+  source?: string; // credit-readiness | contact | product-page
   productInterest?: string;
   industryInterest?: string;
 }
