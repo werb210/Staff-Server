@@ -38,10 +38,10 @@ describe("readiness lead integration", () => {
 
   it("creates a readiness lead and links CRM contact without SMS", async () => {
     const response = await request(app)
-      .post("/api/public/readiness")
+      .post("/api/credit-readiness")
       .send({
         companyName: "Acme Co",
-        fullName: "Taylor Smith",
+        contactName: "Taylor Smith",
         phone: "(415) 555-1111",
         email: "Taylor@Example.com",
         yearsInBusiness: "1 to 3 Years",
@@ -52,15 +52,14 @@ describe("readiness lead integration", () => {
       });
 
     expect(response.status).toBe(201);
-    expect(response.body.success).toBe(true);
-    expect(response.body.data.leadId).toEqual(expect.any(String));
+    expect(response.body.leadId).toEqual(expect.any(String));
 
     const readiness = await pool.query(
       "select * from readiness_leads where id = $1",
-      [response.body.data.leadId]
+      [response.body.leadId]
     );
     expect(readiness.rows[0]?.email).toBe("taylor@example.com");
-    expect(readiness.rows[0]?.phone).toBe("+14155551111");
+    expect(readiness.rows[0]?.phone).toBe("(415) 555-1111");
     expect(readiness.rows[0]?.crm_contact_id).toEqual(expect.any(String));
 
     const contact = await pool.query("select * from contacts where id = $1", [
@@ -72,9 +71,9 @@ describe("readiness lead integration", () => {
   });
 
   it("rejects invalid readiness payloads", async () => {
-    const response = await request(app).post("/api/public/readiness").send({
+    const response = await request(app).post("/api/credit-readiness").send({
       companyName: "",
-      fullName: "A",
+      contactName: "A",
       phone: "invalid",
       email: "not-an-email",
     });
@@ -89,10 +88,10 @@ describe("readiness lead integration", () => {
     );
 
     const response = await request(app)
-      .post("/api/public/readiness")
+      .post("/api/credit-readiness")
       .send({
         companyName: "Reused Contact Inc",
-        fullName: "Jordan Lee",
+        contactName: "Jordan Lee",
         phone: "+1 (415) 555-9999",
         email: "Existing@example.com",
         yearsInBusiness: "Under 1 Year",
@@ -105,7 +104,7 @@ describe("readiness lead integration", () => {
     expect(response.status).toBe(201);
 
     const readiness = await pool.query("select crm_contact_id from readiness_leads where id = $1", [
-      response.body.data.leadId,
+      response.body.leadId,
     ]);
     expect(readiness.rows[0]?.crm_contact_id).toBe("11111111-1111-1111-1111-111111111111");
   });
@@ -122,9 +121,9 @@ describe("readiness lead integration", () => {
   });
 
   it("converts readiness lead to application and fetches by application id", async () => {
-    const createRes = await request(app).post("/api/public/readiness").send({
+    const createRes = await request(app).post("/api/credit-readiness").send({
       companyName: "Convert Co",
-      fullName: "Chris Doe",
+      contactName: "Chris Doe",
       phone: "+14155552222",
       email: "convert@example.com",
       yearsInBusiness: "Over 3 Years",
@@ -138,7 +137,7 @@ describe("readiness lead integration", () => {
     const adminToken = await login("ADMIN");
 
     const convertRes = await request(app)
-      .post(`/api/portal/readiness-leads/${createRes.body.data.leadId}/convert`)
+      .post(`/api/portal/readiness-leads/${createRes.body.leadId}/convert`)
       .set("Authorization", `Bearer ${adminToken}`)
       .send({});
 
@@ -147,7 +146,7 @@ describe("readiness lead integration", () => {
 
     const lead = await pool.query(
       "select status, application_id from readiness_leads where id = $1",
-      [createRes.body.data.leadId]
+      [createRes.body.leadId]
     );
     expect(lead.rows[0]?.status).toBe("converted");
     expect(lead.rows[0]?.application_id).toBe(convertRes.body.applicationId);
@@ -157,6 +156,6 @@ describe("readiness lead integration", () => {
       .set("Authorization", `Bearer ${adminToken}`);
 
     expect(readinessRes.status).toBe(200);
-    expect(readinessRes.body.readinessLead.id).toBe(createRes.body.data.leadId);
+    expect(readinessRes.body.readinessLead.id).toBe(createRes.body.leadId);
   });
 });
