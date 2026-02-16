@@ -44,16 +44,20 @@ describe("readiness lead integration", () => {
         fullName: "Taylor Smith",
         phone: "(415) 555-1111",
         email: "Taylor@Example.com",
-        yearsInBusiness: "3",
+        yearsInBusiness: "1 to 3 Years",
+        monthlyRevenue: "$10,001 to $30,000",
+        annualRevenue: "$150,001 to $500,000",
+        arBalance: "Zero to $100,000",
+        collateralAvailable: "$1 to $100,000",
       });
 
     expect(response.status).toBe(201);
-    expect(response.body.status).toBe("created");
-    expect(response.body.leadId).toEqual(expect.any(String));
+    expect(response.body.success).toBe(true);
+    expect(response.body.data.leadId).toEqual(expect.any(String));
 
     const readiness = await pool.query(
       "select * from readiness_leads where id = $1",
-      [response.body.leadId]
+      [response.body.data.leadId]
     );
     expect(readiness.rows[0]?.email).toBe("taylor@example.com");
     expect(readiness.rows[0]?.phone).toBe("+14155551111");
@@ -91,12 +95,17 @@ describe("readiness lead integration", () => {
         fullName: "Jordan Lee",
         phone: "+1 (415) 555-9999",
         email: "Existing@example.com",
+        yearsInBusiness: "Under 1 Year",
+        monthlyRevenue: "Under $10,000",
+        annualRevenue: "Zero to $150,000",
+        arBalance: "No Account Receivables",
+        collateralAvailable: "No Collateral Available",
       });
 
     expect(response.status).toBe(201);
 
     const readiness = await pool.query("select crm_contact_id from readiness_leads where id = $1", [
-      response.body.leadId,
+      response.body.data.leadId,
     ]);
     expect(readiness.rows[0]?.crm_contact_id).toBe("11111111-1111-1111-1111-111111111111");
   });
@@ -118,14 +127,18 @@ describe("readiness lead integration", () => {
       fullName: "Chris Doe",
       phone: "+14155552222",
       email: "convert@example.com",
-      monthlyRevenue: 120000,
+      yearsInBusiness: "Over 3 Years",
+      monthlyRevenue: "Over $100,000",
+      annualRevenue: "$1,000,001 to $3,000,000",
+      arBalance: "$100,000 to $250,000",
+      collateralAvailable: "Over $1 million",
     });
     expect(createRes.status).toBe(201);
 
     const adminToken = await login("ADMIN");
 
     const convertRes = await request(app)
-      .post(`/api/portal/readiness-leads/${createRes.body.leadId}/convert`)
+      .post(`/api/portal/readiness-leads/${createRes.body.data.leadId}/convert`)
       .set("Authorization", `Bearer ${adminToken}`)
       .send({});
 
@@ -134,7 +147,7 @@ describe("readiness lead integration", () => {
 
     const lead = await pool.query(
       "select status, application_id from readiness_leads where id = $1",
-      [createRes.body.leadId]
+      [createRes.body.data.leadId]
     );
     expect(lead.rows[0]?.status).toBe("converted");
     expect(lead.rows[0]?.application_id).toBe(convertRes.body.applicationId);
@@ -144,6 +157,6 @@ describe("readiness lead integration", () => {
       .set("Authorization", `Bearer ${adminToken}`);
 
     expect(readinessRes.status).toBe(200);
-    expect(readinessRes.body.readinessLead.id).toBe(createRes.body.leadId);
+    expect(readinessRes.body.readinessLead.id).toBe(createRes.body.data.leadId);
   });
 });

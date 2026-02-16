@@ -19,8 +19,8 @@ export async function submitCreditReadiness(req: Request, res: Response) {
       creditScoreRange,
       productInterest,
       industryInterest,
-      arOutstanding,
-      existingDebt,
+      arBalance,
+      collateralAvailable,
     } = req.body as Record<string, string | undefined>;
 
     if (!companyName || !fullName || !phone || !email) {
@@ -40,8 +40,8 @@ export async function submitCreditReadiness(req: Request, res: Response) {
       creditScoreRange,
       productInterest,
       industryInterest,
-      arOutstanding,
-      existingDebt,
+      arBalance,
+      collateralAvailable,
       source: "website_credit_readiness",
       tags: ["credit_readiness"],
     });

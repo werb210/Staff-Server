@@ -14,8 +14,8 @@ export interface CreateLeadInput {
   creditScoreRange?: string;
   productInterest?: string;
   industryInterest?: string;
-  arOutstanding?: string;
-  existingDebt?: string;
+  arBalance?: string;
+  collateralAvailable?: string;
   notes?: string;
   source: string;
   tags?: string[];
@@ -35,8 +35,8 @@ export interface CrmLeadRecord {
   creditScoreRange: string | null;
   productInterest: string | null;
   industryInterest: string | null;
-  arOutstanding: string | null;
-  existingDebt: string | null;
+  arBalance: string | null;
+  collateralAvailable: string | null;
   notes: string | null;
   source: string;
   tags: string[];
@@ -84,8 +84,8 @@ export async function createOrUpdateCrmLead(input: CreateLeadInput): Promise<{ i
            credit_score_range = coalesce($9, credit_score_range),
            product_interest = coalesce($10, product_interest),
            industry_interest = coalesce($11, industry_interest),
-           ar_outstanding = coalesce($12, ar_outstanding),
-           existing_debt = coalesce($13, existing_debt),
+           ar_balance = coalesce($12, ar_balance),
+           collateral_available = coalesce($13, collateral_available),
            notes = coalesce($14, notes),
            source = coalesce($15, source),
            tags = $16::jsonb
@@ -102,8 +102,8 @@ export async function createOrUpdateCrmLead(input: CreateLeadInput): Promise<{ i
         input.creditScoreRange ?? null,
         input.productInterest ?? null,
         input.industryInterest ?? null,
-        input.arOutstanding ?? null,
-        input.existingDebt ?? null,
+        input.arBalance ?? null,
+        input.collateralAvailable ?? null,
         input.notes ?? null,
         input.source,
         JSON.stringify(nextTags),
@@ -129,8 +129,8 @@ export async function createOrUpdateCrmLead(input: CreateLeadInput): Promise<{ i
       credit_score_range,
       product_interest,
       industry_interest,
-      ar_outstanding,
-      existing_debt,
+      ar_balance,
+      collateral_available,
       notes,
       source,
       tags
@@ -151,8 +151,8 @@ export async function createOrUpdateCrmLead(input: CreateLeadInput): Promise<{ i
       input.creditScoreRange ?? null,
       input.productInterest ?? null,
       input.industryInterest ?? null,
-      input.arOutstanding ?? null,
-      input.existingDebt ?? null,
+      input.arBalance ?? null,
+      input.collateralAvailable ?? null,
       input.notes ?? null,
       input.source,
       JSON.stringify(mergedInputTags),
@@ -182,8 +182,8 @@ export async function listCrmLeads(): Promise<CrmLeadRecord[]> {
     credit_score_range: string | null;
     product_interest: string | null;
     industry_interest: string | null;
-    ar_outstanding: string | null;
-    existing_debt: string | null;
+    ar_balance: string | null;
+    collateral_available: string | null;
     notes: string | null;
     source: string;
     tags: unknown;
@@ -203,8 +203,8 @@ export async function listCrmLeads(): Promise<CrmLeadRecord[]> {
       credit_score_range,
       product_interest,
       industry_interest,
-      ar_outstanding,
-      existing_debt,
+      ar_balance,
+      collateral_available,
       notes,
       source,
       tags,
@@ -227,8 +227,8 @@ export async function listCrmLeads(): Promise<CrmLeadRecord[]> {
     creditScoreRange: row.credit_score_range,
     productInterest: row.product_interest,
     industryInterest: row.industry_interest,
-    arOutstanding: row.ar_outstanding,
-    existingDebt: row.existing_debt,
+    arBalance: row.ar_balance,
+    collateralAvailable: row.collateral_available,
     notes: row.notes,
     source: row.source,
     tags: Array.isArray(row.tags) ? (row.tags as string[]) : [],

@@ -33,13 +33,13 @@ router.post("/", async (req, res) => {
       years_in_business: number | null;
       monthly_revenue: string | null;
       annual_revenue: string | null;
-      ar_outstanding: string | null;
-      existing_debt: boolean | null;
+      ar_balance: string | null;
+      collateral_available: boolean | null;
       expires_at: Date | null;
       is_active: boolean | null;
     }>(
       `select id, crm_lead_id, converted_application_id, company_name, full_name, email, phone, industry, years_in_business,
-              monthly_revenue, annual_revenue, ar_outstanding, existing_debt, expires_at, is_active
+              monthly_revenue, annual_revenue, ar_balance, collateral_available, expires_at, is_active
        from readiness_sessions
        where id = $1
        limit 1
@@ -111,8 +111,8 @@ router.post("/", async (req, res) => {
           yearsInBusiness: readiness.years_in_business,
           monthlyRevenue: readiness.monthly_revenue,
           annualRevenue: readiness.annual_revenue,
-          arOutstanding: readiness.ar_outstanding,
-          existingDebt: readiness.existing_debt,
+          arBalance: readiness.ar_balance,
+          collateralAvailable: readiness.collateral_available,
         },
       },
       productType: "standard",
@@ -136,8 +136,8 @@ router.post("/", async (req, res) => {
       yearsInBusiness: readiness.years_in_business,
       monthlyRevenue: readiness.monthly_revenue,
       annualRevenue: readiness.annual_revenue,
-      arOutstanding: readiness.ar_outstanding,
-      existingDebt: readiness.existing_debt,
+      arBalance: readiness.ar_balance,
+      collateralAvailable: readiness.collateral_available,
       source: source ?? "readiness_continuation",
       tags: ["application"],
       activityType: "application_submission",

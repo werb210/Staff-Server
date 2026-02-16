@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { sanitizedEmail, sanitizedPhone, sanitizedString } from "../../validation/public.validation";
+import { createApplicationSchema } from "../../validation/application.schema";
 import { dbQuery } from "../../db";
 import { normalizePhoneNumber } from "../auth/phone";
 import { createApplication } from "../applications/applications.repo";
@@ -8,64 +9,17 @@ import { upsertCrmLead } from "../crm/leadUpsert.service";
 
 const readinessSourceSchema = z.enum(["website", "client"]);
 
-const numericFromUnknown = z.preprocess((value) => {
-  if (value === null || value === undefined || value === "") {
-    return undefined;
-  }
-  if (typeof value === "number") {
-    return value;
-  }
-  if (typeof value === "string") {
-    const parsed = Number(value.replace(/,/g, ""));
-    return Number.isFinite(parsed) ? parsed : value;
-  }
-  return value;
-}, z.number().finite().nonnegative().optional());
-
-const integerFromUnknown = z.preprocess((value) => {
-  if (value === null || value === undefined || value === "") {
-    return undefined;
-  }
-  if (typeof value === "number") {
-    return value;
-  }
-  if (typeof value === "string") {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : value;
-  }
-  return value;
-}, z.number().int().nonnegative().optional());
-
-const booleanFromUnknown = z.preprocess((value) => {
-  if (value === null || value === undefined || value === "") {
-    return undefined;
-  }
-  if (typeof value === "boolean") {
-    return value;
-  }
-  if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase();
-    if (["true", "yes", "1"].includes(normalized)) {
-      return true;
-    }
-    if (["false", "no", "0"].includes(normalized)) {
-      return false;
-    }
-  }
-  return value;
-}, z.boolean().optional());
-
 export const createReadinessLeadSchema = z.object({
   companyName: sanitizedString(120, 2),
   fullName: sanitizedString(120, 2),
   phone: sanitizedPhone,
   email: sanitizedEmail,
   industry: sanitizedString(120, 2).optional(),
-  yearsInBusiness: integerFromUnknown,
-  monthlyRevenue: numericFromUnknown,
-  annualRevenue: numericFromUnknown,
-  arOutstanding: numericFromUnknown,
-  existingDebt: booleanFromUnknown,
+  yearsInBusiness: createApplicationSchema.shape.yearsInBusiness,
+  monthlyRevenue: createApplicationSchema.shape.monthlyRevenue,
+  annualRevenue: createApplicationSchema.shape.annualRevenue,
+  arBalance: createApplicationSchema.shape.arBalance,
+  collateralAvailable: createApplicationSchema.shape.collateralAvailable,
 });
 
 export type CreateReadinessLeadInput = z.infer<typeof createReadinessLeadSchema> & {
@@ -79,11 +33,11 @@ type ReadinessLeadRow = {
   phone: string;
   email: string;
   industry: string | null;
-  years_in_business: number | null;
+  years_in_business: string | null;
   monthly_revenue: string | null;
   annual_revenue: string | null;
-  ar_outstanding: string | null;
-  existing_debt: boolean | null;
+  ar_balance: string | null;
+  collateral_available: string | null;
   source: string;
   status: string;
   crm_contact_id: string | null;
@@ -188,8 +142,8 @@ export async function createReadinessLead(input: CreateReadinessLeadInput): Prom
     yearsInBusiness: parsed.yearsInBusiness,
     monthlyRevenue: parsed.monthlyRevenue,
     annualRevenue: parsed.annualRevenue,
-    arOutstanding: parsed.arOutstanding,
-    existingDebt: parsed.existingDebt,
+    arBalance: parsed.arBalance,
+    collateralAvailable: parsed.collateralAvailable,
     source: `readiness_${source}`,
     tags: ["readiness"],
     activityType: "readiness_submission",
@@ -207,8 +161,8 @@ export async function createReadinessLead(input: CreateReadinessLeadInput): Prom
       years_in_business,
       monthly_revenue,
       annual_revenue,
-      ar_outstanding,
-      existing_debt,
+      ar_balance,
+      collateral_available,
       source,
       status,
       crm_contact_id,
@@ -227,8 +181,8 @@ export async function createReadinessLead(input: CreateReadinessLeadInput): Prom
       parsed.yearsInBusiness ?? null,
       parsed.monthlyRevenue ?? null,
       parsed.annualRevenue ?? null,
-      parsed.arOutstanding ?? null,
-      parsed.existingDebt ?? null,
+      parsed.arBalance ?? null,
+      parsed.collateralAvailable ?? null,
       source,
       crmContactId,
     ]
@@ -240,7 +194,7 @@ export async function createReadinessLead(input: CreateReadinessLeadInput): Prom
 export async function listReadinessLeads(): Promise<ReadinessLeadRow[]> {
   const result = await dbQuery<ReadinessLeadRow>(
     `select id, company_name, full_name, phone, email, industry, years_in_business,
-            monthly_revenue, annual_revenue, ar_outstanding, existing_debt, source,
+            monthly_revenue, annual_revenue, ar_balance, collateral_available, source,
             status, crm_contact_id, application_id, created_at, updated_at
      from readiness_leads
      order by created_at desc`
@@ -251,7 +205,7 @@ export async function listReadinessLeads(): Promise<ReadinessLeadRow[]> {
 export async function convertReadinessLeadToApplication(id: string, ownerUserId: string): Promise<{ applicationId: string }> {
   const leadResult = await dbQuery<ReadinessLeadRow>(
     `select id, company_name, full_name, phone, email, industry, years_in_business,
-            monthly_revenue, annual_revenue, ar_outstanding, existing_debt, source,
+            monthly_revenue, annual_revenue, ar_balance, collateral_available, source,
             status, crm_contact_id, application_id, created_at, updated_at
      from readiness_leads
      where id = $1
@@ -281,8 +235,8 @@ export async function convertReadinessLeadToApplication(id: string, ownerUserId:
         yearsInBusiness: lead.years_in_business,
         monthlyRevenue: lead.monthly_revenue,
         annualRevenue: lead.annual_revenue,
-        arOutstanding: lead.ar_outstanding,
-        existingDebt: lead.existing_debt,
+        arBalance: lead.ar_balance,
+        collateralAvailable: lead.collateral_available,
       },
     },
     productType: "readiness",
@@ -336,7 +290,7 @@ export async function convertReadinessLeadToApplication(id: string, ownerUserId:
 export async function getReadinessLeadByApplicationId(applicationId: string): Promise<ReadinessLeadRow | null> {
   const result = await dbQuery<ReadinessLeadRow>(
     `select id, company_name, full_name, phone, email, industry, years_in_business,
-            monthly_revenue, annual_revenue, ar_outstanding, existing_debt, source,
+            monthly_revenue, annual_revenue, ar_balance, collateral_available, source,
             status, crm_contact_id, application_id, created_at, updated_at
      from readiness_leads
      where application_id = $1

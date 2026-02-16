@@ -38,8 +38,8 @@ describe("feature toggles integration", () => {
           yearsInBusiness: 4,
           monthlyRevenue: 10000,
           annualRevenue: 100000,
-          arOutstanding: 5000,
-          existingDebt: false,
+          arBalance: 5000,
+          collateralAvailable: false,
         },
         productSelection: {
           requestedProductType: "LOC",

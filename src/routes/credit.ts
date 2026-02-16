@@ -13,8 +13,8 @@ const creditSchema = z.object({
   yearsInBusiness: z.number().nonnegative().default(0),
   monthlyRevenue: z.number().nonnegative().optional(),
   annualRevenue: z.number().nonnegative().default(0),
-  arOutstanding: z.number().nonnegative().optional(),
-  existingDebt: z.boolean().default(false),
+  arBalance: z.number().nonnegative().optional(),
+  collateralAvailable: z.boolean().default(false),
 });
 
 router.post("/score", async (req, res) => {
@@ -33,15 +33,15 @@ router.post("/score", async (req, res) => {
     yearsInBusiness,
     monthlyRevenue,
     annualRevenue,
-    arOutstanding,
-    existingDebt,
+    arBalance,
+    collateralAvailable,
   } = parsed.data;
 
   let score = 50;
 
   if (yearsInBusiness > 2) score += 10;
   if (annualRevenue > 500000) score += 15;
-  if (!existingDebt) score += 10;
+  if (!collateralAvailable) score += 10;
 
   score = Math.min(score, 85);
 
@@ -56,8 +56,8 @@ router.post("/score", async (req, res) => {
       yearsInBusiness,
       monthlyRevenue,
       annualRevenue,
-      arOutstanding,
-      existingDebt,
+      arBalance,
+      collateralAvailable,
       score,
     },
   });

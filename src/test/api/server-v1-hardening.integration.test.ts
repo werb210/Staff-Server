@@ -23,8 +23,8 @@ describe("server v1 hardening flows", () => {
       yearsInBusiness: 5,
       monthlyRevenue: 120000,
       annualRevenue: 1440000,
-      arOutstanding: 40000,
-      existingDebt: true,
+      arBalance: 40000,
+      collateralAvailable: true,
     };
 
     const first = await createOrReuseReadinessSession(payload);

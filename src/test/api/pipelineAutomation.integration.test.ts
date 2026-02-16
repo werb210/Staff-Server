@@ -46,8 +46,8 @@ async function createApplication(params: {
         yearsInBusiness: 3,
         monthlyRevenue: 10000,
         annualRevenue: 250000,
-        arOutstanding: 2500,
-        existingDebt: false,
+        arBalance: 2500,
+        collateralAvailable: false,
       },
       productSelection: {
         requestedProductType: params.productCategory,

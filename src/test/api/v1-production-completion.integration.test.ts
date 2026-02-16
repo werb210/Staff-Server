@@ -26,8 +26,8 @@ describe("v1 production completion", () => {
       yearsInBusiness: 4,
       monthlyRevenue: 55000,
       annualRevenue: 660000,
-      arOutstanding: 25000,
-      existingDebt: false,
+      arBalance: 25000,
+      collateralAvailable: false,
     };
 
     const createRes = await request(app).post("/api/readiness/submit").send(payload);

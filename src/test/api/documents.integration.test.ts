@@ -35,8 +35,8 @@ async function createApplication(token: string): Promise<string> {
         yearsInBusiness: 3,
         monthlyRevenue: 10000,
         annualRevenue: 120000,
-        arOutstanding: 5000,
-        existingDebt: false,
+        arBalance: 5000,
+        collateralAvailable: false,
       },
       productSelection: {
         requestedProductType: "LOC",
