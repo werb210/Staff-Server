@@ -36,16 +36,21 @@ async function createApplication(token: string): Promise<string> {
     .set("Authorization", `Bearer ${token}`)
     .send({
       source: "client",
-      country: "US",
-      productCategory: "LOC",
-      business: { legalName: "Control Plane Co" },
-      applicant: {
-        firstName: "Alex",
-        lastName: "Lee",
-        email: "alex.lee@example.com",
+      business: { legalName: "Control Plane Co", industry: "Services", country: "US" },
+      contact: { fullName: "Alex Lee", email: "alex.lee@example.com", phone: "+14155550000" },
+      financialProfile: {
+        yearsInBusiness: 3,
+        monthlyRevenue: 10000,
+        annualRevenue: 150000,
+        arOutstanding: 2500,
+        existingDebt: false,
       },
-      financialProfile: { revenue: 150000 },
-      match: { partner: "direct" },
+      productSelection: {
+        requestedProductType: "LOC",
+        useOfFunds: "Working capital",
+        capitalRequested: 50000,
+        equipmentAmount: 0,
+      },
     });
   return res.body.applicationId as string;
 }

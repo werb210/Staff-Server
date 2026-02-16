@@ -1,38 +1,66 @@
 import { Router } from "express";
+import { z } from "zod";
 import { requireAuth, requireCapability } from "../middleware/auth";
 import { CAPABILITIES } from "../auth/capabilities";
-import { createCrmLead, listCrmLeads } from "../modules/crm/crm.service";
+import { createOrUpdateCrmLead, listCrmLeads } from "../modules/crm/crm.service";
 
 const router = Router();
 
+const createLeadSchema = z.object({
+  source: z.enum(["website", "client"]),
+  stage: z.enum(["credit_readiness", "application_started"]),
+  tags: z.array(z.string().trim().min(1)).optional().default([]),
+  companyName: z.string().trim().optional(),
+  fullName: z.string().trim().optional(),
+  email: z.string().trim().email(),
+  phone: z.string().trim().min(1),
+  yearsInBusiness: z.union([z.string(), z.number()]).optional(),
+  annualRevenue: z.union([z.string(), z.number()]).optional(),
+  monthlyRevenue: z.union([z.string(), z.number()]).optional(),
+  requestedAmount: z.union([z.string(), z.number()]).optional(),
+  creditScoreRange: z.string().trim().optional(),
+  productInterest: z.string().trim().optional(),
+  industryInterest: z.string().trim().optional(),
+  arOutstanding: z.union([z.string(), z.number()]).optional(),
+  existingDebt: z.union([z.string(), z.boolean()]).optional(),
+  notes: z.string().trim().optional(),
+});
+
 router.post("/", async (req, res) => {
   try {
-    const source = typeof req.body?.source === "string" ? req.body.source.trim() : "";
-    if (!source) {
-      res.status(400).json({ message: "source is required" });
+    const parsed = createLeadSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({
+        code: "validation_error",
+        message: "Invalid lead payload.",
+        details: parsed.error.flatten(),
+      });
       return;
     }
 
-    const lead = await createCrmLead({
-      companyName: req.body?.companyName ?? "",
-      fullName: req.body?.fullName ?? "",
-      email: req.body?.email ?? "",
-      phone: req.body?.phone ?? "",
-      yearsInBusiness: req.body?.yearsInBusiness,
-      annualRevenue: req.body?.annualRevenue,
-      monthlyRevenue: req.body?.monthlyRevenue,
-      requestedAmount: req.body?.requestedAmount,
-      creditScoreRange: req.body?.creditScoreRange,
-      productInterest: req.body?.productInterest,
-      industryInterest: req.body?.industryInterest,
-      source,
-      notes: req.body?.notes,
-      tags: Array.isArray(req.body?.tags) ? req.body.tags : [],
+    const payload = parsed.data;
+    const lead = await createOrUpdateCrmLead({
+      companyName: payload.companyName ?? "",
+      fullName: payload.fullName ?? "",
+      email: payload.email,
+      phone: payload.phone,
+      yearsInBusiness: payload.yearsInBusiness != null ? String(payload.yearsInBusiness) : undefined,
+      annualRevenue: payload.annualRevenue != null ? String(payload.annualRevenue) : undefined,
+      monthlyRevenue: payload.monthlyRevenue != null ? String(payload.monthlyRevenue) : undefined,
+      requestedAmount: payload.requestedAmount != null ? String(payload.requestedAmount) : undefined,
+      creditScoreRange: payload.creditScoreRange,
+      productInterest: payload.productInterest,
+      industryInterest: payload.industryInterest,
+      arOutstanding: payload.arOutstanding != null ? String(payload.arOutstanding) : undefined,
+      existingDebt: payload.existingDebt != null ? String(payload.existingDebt) : undefined,
+      source: payload.source,
+      notes: payload.notes,
+      tags: [...payload.tags, payload.stage],
     });
 
-    res.status(201).json(lead);
+    res.status(lead.created ? 201 : 200).json({ id: lead.id, created: lead.created });
   } catch (_err) {
-    res.status(500).json({ message: "Failed to create lead" });
+    res.status(500).json({ code: "internal_error", message: "Failed to create lead" });
   }
 });
 
@@ -44,7 +72,7 @@ router.get("/", async (_req, res) => {
     const leads = await listCrmLeads();
     res.json(leads);
   } catch (_err) {
-    res.status(500).json({ message: "Failed to fetch leads" });
+    res.status(500).json({ code: "internal_error", message: "Failed to fetch leads" });
   }
 });
 

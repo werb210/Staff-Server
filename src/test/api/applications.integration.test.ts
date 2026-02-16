@@ -55,16 +55,21 @@ describe("applications integration", () => {
       .set("Authorization", `Bearer ${token}`)
       .send({
         source: "client",
-        country: "US",
-        productCategory: "LOC",
-        business: { legalName: "Acme Inc" },
-        applicant: {
-          firstName: "Ava",
-          lastName: "Lee",
-          email: "ava.lee@example.com",
+        business: { legalName: "Acme Inc", industry: "Retail", country: "US" },
+        financialProfile: {
+          yearsInBusiness: 4,
+          monthlyRevenue: 10000,
+          annualRevenue: 100000,
+          arOutstanding: 5000,
+          existingDebt: false,
         },
-        financialProfile: { revenue: 100000 },
-        match: { partner: "direct" },
+        productSelection: {
+          requestedProductType: "LOC",
+          useOfFunds: "Working capital",
+          capitalRequested: 50000,
+          equipmentAmount: 0,
+        },
+        contact: { fullName: "Ava Lee", email: "ava.lee@example.com", phone: "+14155550001" },
       });
 
     expect(createRes.status).toBe(201);
@@ -99,16 +104,21 @@ describe("applications integration", () => {
       .set("Authorization", "Bearer not-a-token")
       .send({
         source: "client",
-        country: "US",
-        productCategory: "LOC",
-        business: { legalName: "Invalid Token LLC" },
-        applicant: {
-          firstName: "Ivy",
-          lastName: "Ng",
-          email: "ivy.ng@example.com",
+        business: { legalName: "Invalid Token LLC", industry: "Retail", country: "US" },
+        financialProfile: {
+          yearsInBusiness: 2,
+          monthlyRevenue: 5000,
+          annualRevenue: 50000,
+          arOutstanding: 2000,
+          existingDebt: false,
         },
-        financialProfile: { revenue: 50000 },
-        match: { partner: "direct" },
+        productSelection: {
+          requestedProductType: "LOC",
+          useOfFunds: "Working capital",
+          capitalRequested: 20000,
+          equipmentAmount: 0,
+        },
+        contact: { fullName: "Ivy Ng", email: "ivy.ng@example.com", phone: "+14155550002" },
       });
 
     expect(res.status).toBe(401);
@@ -123,16 +133,21 @@ describe("applications integration", () => {
       .set("Authorization", `Bearer ${token}`)
       .send({
         source: "client",
-        country: "US",
-        productCategory: "LOC",
-        business: { legalName: "Lender Access LLC" },
-        applicant: {
-          firstName: "Leo",
-          lastName: "Kim",
-          email: "leo.kim@example.com",
+        business: { legalName: "Lender Access LLC", industry: "Retail", country: "US" },
+        financialProfile: {
+          yearsInBusiness: 3,
+          monthlyRevenue: 8000,
+          annualRevenue: 80000,
+          arOutstanding: 1000,
+          existingDebt: false,
         },
-        financialProfile: { revenue: 80000 },
-        match: { partner: "direct" },
+        productSelection: {
+          requestedProductType: "LOC",
+          useOfFunds: "Working capital",
+          capitalRequested: 35000,
+          equipmentAmount: 0,
+        },
+        contact: { fullName: "Leo Kim", email: "leo.kim@example.com", phone: "+14155550003" },
       });
 
     expect(res.status).toBe(403);

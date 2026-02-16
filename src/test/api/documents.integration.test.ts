@@ -30,16 +30,21 @@ async function createApplication(token: string): Promise<string> {
     .set("Authorization", `Bearer ${token}`)
     .send({
       source: "client",
-      country: "US",
-      productCategory: "LOC",
-      business: { legalName: "Doc Test Inc" },
-      applicant: {
-        firstName: "Dana",
-        lastName: "Yu",
-        email: "dana.yu@example.com",
+      business: { legalName: "Doc Test Inc", industry: "Retail", country: "US" },
+      financialProfile: {
+        yearsInBusiness: 3,
+        monthlyRevenue: 10000,
+        annualRevenue: 120000,
+        arOutstanding: 5000,
+        existingDebt: false,
       },
-      financialProfile: { revenue: 120000 },
-      match: { partner: "direct" },
+      productSelection: {
+        requestedProductType: "LOC",
+        useOfFunds: "Working capital",
+        capitalRequested: 50000,
+        equipmentAmount: 0,
+      },
+      contact: { fullName: "Dana Yu", email: "dana.yu@example.com", phone: "+14155559999" },
     });
   return res.body.applicationId as string;
 }
