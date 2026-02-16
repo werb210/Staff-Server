@@ -1,26 +1,18 @@
-import crypto from "crypto";
 import { type Request, type Response, Router } from "express";
 import {
   createCreditReadinessLead,
+  findCreditReadinessById,
   findCreditReadinessByToken,
 } from "../modules/readiness/creditReadiness.storage";
+import type { CreditReadinessDTO } from "../modules/creditReadiness/dto";
 
-export type ReadinessPayload = {
-  companyName: string;
-  contactName: string;
-  email: string;
-  phone: string;
-  industry: string;
-  yearsInBusiness: string;
-  annualRevenue: string;
-  monthlyRevenue: string;
-  arBalance: string;
-  collateralAvailable: string;
+export type ReadinessPayload = CreditReadinessDTO;
+
+type LegacyReadinessPayload = ReadinessPayload & {
+  contactName?: string;
+  collateralAvailable?: string;
 };
 
-function generateSessionToken() {
-  return crypto.randomBytes(32).toString("hex");
-}
 
 function scoreReadiness(data: ReadinessPayload) {
   let score = 40;
@@ -40,9 +32,9 @@ function scoreReadiness(data: ReadinessPayload) {
   else if (data.arBalance.includes("$500,000")) score += 10;
   else if (data.arBalance.includes("$100,000")) score += 6;
 
-  if (data.collateralAvailable.includes("Over")) score += 15;
-  else if (data.collateralAvailable.includes("$500,000")) score += 12;
-  else if (data.collateralAvailable.includes("$100,000")) score += 6;
+  if (data.availableCollateral.includes("Over")) score += 15;
+  else if (data.availableCollateral.includes("$500,000")) score += 12;
+  else if (data.availableCollateral.includes("$100,000")) score += 6;
 
   return Math.min(100, score);
 }
@@ -54,15 +46,30 @@ function tierFromScore(score: number) {
   return "Early Stage";
 }
 
+function normalizePayload(raw: LegacyReadinessPayload): ReadinessPayload {
+  return {
+    companyName: raw.companyName,
+    fullName: raw.fullName ?? raw.contactName ?? "",
+    email: raw.email,
+    phone: raw.phone,
+    industry: raw.industry,
+    yearsInBusiness: raw.yearsInBusiness,
+    annualRevenue: raw.annualRevenue,
+    monthlyRevenue: raw.monthlyRevenue,
+    arBalance: raw.arBalance,
+    availableCollateral: raw.availableCollateral ?? raw.collateralAvailable ?? "",
+  };
+}
+
 const router = Router();
 
 router.post("/", async (req: Request, res: Response) => {
   try {
-    const payload = req.body as ReadinessPayload;
+    const payload = normalizePayload((req.body ?? {}) as LegacyReadinessPayload);
 
     const requiredFields: Array<keyof ReadinessPayload> = [
       "companyName",
-      "contactName",
+      "fullName",
       "email",
       "phone",
       "industry",
@@ -70,7 +77,7 @@ router.post("/", async (req: Request, res: Response) => {
       "annualRevenue",
       "monthlyRevenue",
       "arBalance",
-      "collateralAvailable",
+      "availableCollateral",
     ];
 
     for (const field of requiredFields) {
@@ -81,21 +88,18 @@ router.post("/", async (req: Request, res: Response) => {
 
     const score = scoreReadiness(payload);
     const tier = tierFromScore(score);
-    const sessionToken = generateSessionToken();
+    const lead = await createCreditReadinessLead(payload);
 
-    const lead = await createCreditReadinessLead({
-      ...payload,
-      score,
-      tier,
-      sessionToken,
-      createdAt: new Date(),
-    });
+    const readinessToken = lead.id;
 
     return res.status(201).json({
-      sessionToken,
+      success: true,
+      creditReadinessId: lead.id,
+      readinessToken,
       score,
       tier,
       leadId: lead.id,
+      sessionToken: readinessToken,
     });
   } catch (_err) {
     return res.status(500).json({ error: "Credit readiness failed" });
@@ -121,11 +125,42 @@ router.get("/session/:token", async (req: Request, res: Response) => {
       annualRevenue: lead.annualRevenue,
       monthlyRevenue: lead.monthlyRevenue,
       arBalance: lead.arBalance,
-      collateralAvailable: lead.collateralAvailable,
+      availableCollateral: lead.availableCollateral,
       companyName: lead.companyName,
-      contactName: lead.contactName,
+      fullName: lead.fullName,
       email: lead.email,
       phone: lead.phone,
+    });
+  } catch {
+    return res.status(500).json({ error: "Session lookup failed" });
+  }
+});
+
+router.get("/:id", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({ error: "id is required" });
+    }
+
+    const lead = await findCreditReadinessById(id);
+
+    if (!lead) {
+      return res.status(404).json({ error: "Not found" });
+    }
+
+    return res.json({
+      id: lead.id,
+      companyName: lead.companyName,
+      fullName: lead.fullName,
+      email: lead.email,
+      phone: lead.phone,
+      industry: lead.industry,
+      yearsInBusiness: lead.yearsInBusiness,
+      annualRevenue: lead.annualRevenue,
+      monthlyRevenue: lead.monthlyRevenue,
+      arBalance: lead.arBalance,
+      availableCollateral: lead.availableCollateral,
     });
   } catch {
     return res.status(500).json({ error: "Session lookup failed" });
