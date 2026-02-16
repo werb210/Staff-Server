@@ -33,16 +33,21 @@ describe("feature toggles integration", () => {
       .set("Authorization", `Bearer ${token}`)
       .send({
         source: "client",
-        country: "US",
-        productCategory: "LOC",
-        business: { legalName: `Toggle ${randomUUID()}` },
-        applicant: {
-          firstName: "Sam",
-          lastName: "Toggle",
-          email: "sam.toggle@example.com",
+        business: { legalName: `Toggle ${randomUUID()}`, industry: "Retail", country: "US" },
+        financialProfile: {
+          yearsInBusiness: 4,
+          monthlyRevenue: 10000,
+          annualRevenue: 100000,
+          arOutstanding: 5000,
+          existingDebt: false,
         },
-        financialProfile: { revenue: 100000 },
-        match: { partner: "direct" },
+        productSelection: {
+          requestedProductType: "LOC",
+          useOfFunds: "Working capital",
+          capitalRequested: 50000,
+          equipmentAmount: 0,
+        },
+        contact: { fullName: "Sam Toggle", email: "sam.toggle@example.com", phone: "+14155550004" },
       });
     expect(res.status).toBe(201);
     delete process.env.ENABLE_IDEMPOTENCY;

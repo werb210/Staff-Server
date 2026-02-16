@@ -40,16 +40,21 @@ async function createApplication(params: {
     .set("Authorization", `Bearer ${params.token}`)
     .send({
       source: "client",
-      country: "US",
-      productCategory: params.productCategory,
-      business: { legalName: "Automation Test Co" },
-      applicant: {
-        firstName: "Tara",
-        lastName: "Ng",
-        email: "tara.ng@example.com",
+      business: { legalName: "Automation Test Co", industry: "Tech", country: "US" },
+      contact: { fullName: "Tara Ng", email: "tara.ng@example.com", phone: "+14155550000" },
+      financialProfile: {
+        yearsInBusiness: 3,
+        monthlyRevenue: 10000,
+        annualRevenue: 250000,
+        arOutstanding: 2500,
+        existingDebt: false,
       },
-      financialProfile: { revenue: 250000 },
-      match: { partner: "direct" },
+      productSelection: {
+        requestedProductType: params.productCategory,
+        useOfFunds: "Working capital",
+        capitalRequested: 50000,
+        equipmentAmount: 0,
+      },
     });
 
   return {

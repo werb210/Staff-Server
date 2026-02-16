@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from "express";
+import { z } from "zod";
 import { requireAuth, requireCapability } from "../middleware/auth";
 import { CAPABILITIES } from "../auth/capabilities";
 import applicationRoutes from "../modules/applications/applications.routes";
@@ -19,17 +20,36 @@ import { logError } from "../observability/logger";
 import { logAnalyticsEvent } from "../services/analyticsService";
 import { pushLeadToCRM } from "../services/crmWebhook";
 import { convertContinuation } from "../modules/continuation/continuation.service";
+import { upsertCrmLead } from "../modules/crm/leadUpsert.service";
 
-type ApplicationPayload = {
-  country?: string;
-  productCategory?: string;
-  source?: string;
-  continuationToken?: string;
-  business?: { legalName?: string };
-  applicant?: { firstName?: string; lastName?: string; email?: string };
-  financialProfile?: unknown;
-  match?: unknown;
-};
+const applicationSubmissionSchema = z.object({
+  business: z.object({
+    legalName: z.string().trim().min(1),
+    industry: z.string().trim().min(1),
+    country: z.string().trim().min(1),
+  }),
+  financialProfile: z.object({
+    yearsInBusiness: z.coerce.number().finite().min(0),
+    monthlyRevenue: z.coerce.number().finite().min(0),
+    annualRevenue: z.coerce.number().finite().min(0),
+    arOutstanding: z.coerce.number().finite().min(0),
+    existingDebt: z.boolean(),
+  }),
+  productSelection: z.object({
+    requestedProductType: z.string().trim().min(1),
+    useOfFunds: z.string().trim().min(1),
+    capitalRequested: z.coerce.number().finite().min(0),
+    equipmentAmount: z.coerce.number().finite().min(0),
+  }),
+  contact: z.object({
+    fullName: z.string().trim().min(1),
+    email: z.string().trim().email(),
+    phone: z.string().trim().min(1),
+  }),
+  source: z.enum(["website", "client"]).default("client"),
+  continuationToken: z.string().trim().min(1).optional(),
+  continuationId: z.string().trim().min(1).optional(),
+});
 
 const EMPTY_OCR_INSIGHTS: ApplicationResponse["ocrInsights"] = {
   fields: {},
@@ -42,15 +62,7 @@ const EMPTY_OCR_INSIGHTS: ApplicationResponse["ocrInsights"] = {
 
 const router = Router();
 
-const intakeFields = [
-  "source",
-  "country",
-  "productCategory",
-  "business",
-  "applicant",
-  "financialProfile",
-  "match",
-];
+const intakeFields = ["business", "financialProfile", "productSelection", "contact"];
 
 const legacyFields = ["name", "metadata", "productType"];
 const DEFAULT_PIPELINE_STAGE = ApplicationStage.RECEIVED;
@@ -183,39 +195,15 @@ router.post(
         return;
       }
 
-      const payload = body as ApplicationPayload;
-      const continuationToken = typeof body.continuationToken === "string"
-        ? body.continuationToken
-        : undefined;
-      const continuationId = typeof body.continuationId === "string"
-        ? body.continuationId
-        : undefined;
-      const missingFields: string[] = [];
-
-      if (!payload.source) missingFields.push("source");
-      if (!payload.country) missingFields.push("country");
-      if (!payload.productCategory) missingFields.push("productCategory");
-      if (!payload.business?.legalName)
-        missingFields.push("business.legalName");
-      if (!payload.applicant?.firstName)
-        missingFields.push("applicant.firstName");
-      if (!payload.applicant?.lastName)
-        missingFields.push("applicant.lastName");
-      if (!payload.applicant?.email)
-        missingFields.push("applicant.email");
-      if (!payload.financialProfile)
-        missingFields.push("financialProfile");
-      if (!payload.match) missingFields.push("match");
-
-      if (missingFields.length > 0) {
-        const err = new AppError(
-          "validation_error",
-          "Missing required fields.",
-          400
-        );
-        (err as { details?: unknown }).details = { fields: missingFields };
+      const parsedPayload = applicationSubmissionSchema.safeParse(body);
+      if (!parsedPayload.success) {
+        const err = new AppError("validation_error", "Invalid or missing required application fields.", 400);
+        (err as { details?: unknown }).details = parsedPayload.error.flatten();
         throw err;
       }
+      const payload = parsedPayload.data;
+      const continuationToken = payload.continuationToken;
+      const continuationId = payload.continuationId;
 
       const ownerUserId =
         req.user?.userId ?? getClientSubmissionOwnerUserId();
@@ -225,15 +213,15 @@ router.post(
         name: payload.business?.legalName ?? "New application",
         metadata: {
           source: payload.source ?? null,
-          country: payload.country ?? null,
-          productCategory: payload.productCategory ?? null,
+          country: payload.business.country,
+          productCategory: payload.productSelection.requestedProductType,
           business: payload.business ?? null,
-          applicant: payload.applicant ?? null,
+          contact: payload.contact,
+          productSelection: payload.productSelection,
           financialProfile: payload.financialProfile ?? null,
-          match: payload.match ?? null,
         },
-        productType: payload.productCategory ?? "standard",
-        productCategory: payload.productCategory ?? null,
+        productType: payload.productSelection.requestedProductType,
+        productCategory: payload.productSelection.requestedProductType,
         trigger: "application_created",
         triggeredBy: req.user?.userId ?? "system",
       });
@@ -266,17 +254,39 @@ router.post(
         );
       }
 
+      const [firstName, ...restNames] = payload.contact.fullName.split(" ");
       await pushLeadToCRM({
         type: "application_submitted",
         applicationId: created.id,
         source: payload.source ?? null,
-        applicant: payload.applicant ?? null,
+        applicant: {
+          firstName,
+          lastName: restNames.join(" "),
+          email: payload.contact.email,
+        },
       });
+
+      await upsertCrmLead({
+        companyName: payload.business.legalName,
+        fullName: payload.contact.fullName,
+        email: payload.contact.email,
+        phone: payload.contact.phone,
+        industry: payload.business.industry,
+        yearsInBusiness: payload.financialProfile.yearsInBusiness,
+        monthlyRevenue: payload.financialProfile.monthlyRevenue,
+        annualRevenue: payload.financialProfile.annualRevenue,
+        arOutstanding: payload.financialProfile.arOutstanding,
+        existingDebt: payload.financialProfile.existingDebt,
+        source: payload.source,
+        tags: ["application_started"],
+        activityType: "application_submission",
+        activityPayload: { applicationId: created.id },
+      });
+
       res.status(201).json({
         applicationId: created.id,
         createdAt: created.created_at,
         pipelineState: normalizePipelineStage(created.pipeline_state),
-        match: payload.match ?? null,
       });
     } catch (err) {
       logError("applications_intake_create_failed", {

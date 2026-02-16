@@ -301,6 +301,7 @@ export function registerApiRoutes(app: express.Express): void {
   app.use("/api/product-comparison", productComparisonRoutes);
   app.use("/api/comparison", productComparisonRoutes);
   app.use("/api/lead", strictLimiter, leadRoute);
+  app.use("/api/leads", externalEndpointLimiter, crmLeadRoutes);
   app.use("/api/crm/leads", externalEndpointLimiter, crmLeadRoutes);
   app.use("/api/preapp", externalEndpointLimiter, preApplicationRoutes);
   app.use("/api/credit-readiness", externalEndpointLimiter, creditReadinessRoutes);
