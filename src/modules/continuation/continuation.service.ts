@@ -12,6 +12,7 @@ export type ContinuationPayload = {
   annualRevenue?: number | string;
   arBalance?: number | string;
   collateralAvailable?: boolean | string;
+  prefillToken?: string;
 };
 
 function toNullableNumber(value: number | string | undefined): number | null {
@@ -30,23 +31,6 @@ function toNullableInteger(value: number | string | undefined): number | null {
   return Math.trunc(parsed);
 }
 
-function toNullableBoolean(value: boolean | string | undefined): boolean | null {
-  if (value === undefined || value === null || value === "") {
-    return null;
-  }
-  if (typeof value === "boolean") {
-    return value;
-  }
-  const normalized = value.trim().toLowerCase();
-  if (["true", "1", "yes", "y"].includes(normalized)) {
-    return true;
-  }
-  if (["false", "0", "no", "n"].includes(normalized)) {
-    return false;
-  }
-  return null;
-}
-
 export async function createContinuation(
   payload: ContinuationPayload,
   crmLeadId: string
@@ -57,6 +41,7 @@ export async function createContinuation(
     `
     INSERT INTO application_continuations (
       token,
+      prefill_json,
       company_name,
       full_name,
       email,
@@ -65,14 +50,13 @@ export async function createContinuation(
       years_in_business,
       monthly_revenue,
       annual_revenue,
-      ar_balance,
-      collateral_available,
       crm_lead_id
     )
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+    VALUES ($1,$2::jsonb,$3,$4,$5,$6,$7,$8,$9,$10,$11)
     `,
     [
       token,
+      JSON.stringify(payload),
       payload.companyName ?? null,
       payload.fullName ?? null,
       payload.email ?? null,
@@ -81,8 +65,6 @@ export async function createContinuation(
       toNullableInteger(payload.yearsInBusiness),
       toNullableNumber(payload.monthlyRevenue),
       toNullableNumber(payload.annualRevenue),
-      toNullableNumber(payload.arBalance),
-      toNullableBoolean(payload.collateralAvailable),
       crmLeadId,
     ]
   );

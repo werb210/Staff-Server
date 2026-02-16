@@ -1,9 +1,18 @@
 import type { Express } from "express";
 import request from "supertest";
 import { createOrReuseReadinessSession } from "../../modules/readiness/readinessSession.service";
-import { beforeAll, describe, expect, it } from "vitest";
+import jwt from "jsonwebtoken";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { pool } from "../../db";
 import { createTestApp } from "../helpers/testApp";
+
+const { sendSmsMock } = vi.hoisted(() => ({
+  sendSmsMock: vi.fn(async () => undefined),
+}));
+
+vi.mock("../../modules/notifications/sms.service", () => ({
+  sendSms: sendSmsMock,
+}));
 
 
 let app: Express;
@@ -105,6 +114,72 @@ describe("server v1 hardening flows", () => {
     );
 
     expect(leads.rowCount).toBe(1);
+  });
+
+  it("hardens website credit readiness bridge with enum validation, snapshots, prefill token, idempotency, and audit logging", async () => {
+    const payload = {
+      companyName: "Bridge Safe LLC",
+      fullName: "Morgan Bridge",
+      phone: "+14155553333",
+      email: "bridge.safe@example.com",
+      industry: "Logistics",
+      yearsInBusiness: "1 to 3 Years",
+      monthlyRevenue: "$10,001 to $30,000",
+      annualRevenue: "$150,001 to $500,000",
+      arBalance: "Zero to $100,000",
+      availableCollateral: "$1 to $100,000",
+    };
+
+    const invalid = await request(app)
+      .post("/api/website/credit-readiness")
+      .set("Idempotency-Key", "website-credit-invalid")
+      .send({ ...payload, yearsInBusiness: "Twenty years" });
+
+    expect(invalid.status).toBe(400);
+
+    const first = await request(app)
+      .post("/api/website/credit-readiness")
+      .set("Idempotency-Key", "website-credit-first")
+      .send(payload);
+    const second = await request(app)
+      .post("/api/website/credit-readiness")
+      .set("Idempotency-Key", "website-credit-second")
+      .send({ ...payload, phone: "+14155554444" });
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(typeof first.body.redirect).toBe("string");
+    expect(first.body.redirect).toContain("prefill=");
+    expect(first.body.prefillToken).toEqual(expect.any(String));
+
+    const secret = process.env.JWT_SECRET;
+    expect(secret).toBeTruthy();
+    const decoded = jwt.verify(first.body.prefillToken as string, String(secret), {
+      audience: "boreal-client-application",
+      issuer: "boreal-staff-server",
+    }) as Record<string, unknown>;
+
+    expect(decoded.companyName).toBe(payload.companyName);
+    expect(decoded.contactName).toBe(payload.fullName);
+    expect(decoded.yearsInBusiness).toBe(payload.yearsInBusiness);
+    expect(decoded.availableCollateral).toBe(payload.availableCollateral);
+
+    const leads = await pool.query(
+      `select id from crm_leads where lower(email)=lower($1)`,
+      [payload.email]
+    );
+    expect(leads.rowCount).toBe(1);
+
+    const activities = await pool.query(
+      `select payload from crm_lead_activities where lead_id = $1 and activity_type = 'credit_readiness_submission' order by created_at asc`,
+      [leads.rows[0].id]
+    );
+
+    expect(activities.rowCount).toBe(2);
+    expect(activities.rows[0].payload?.source).toBe("website_credit_readiness");
+    expect(activities.rows[0].payload?.snapshot?.annualRevenue).toBe(payload.annualRevenue);
+
+    expect(sendSmsMock).toHaveBeenCalledTimes(2);
   });
 
 });
