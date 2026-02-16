@@ -21,11 +21,14 @@ export async function submitCreditReadiness(req: Request, res: Response) {
       industryInterest,
       arBalance,
       collateralAvailable,
+      availableCollateral,
     } = req.body as Record<string, string | undefined>;
 
     if (!companyName || !fullName || !phone || !email) {
       return res.status(400).json({ error: "Missing required fields" });
     }
+
+    const normalizedCollateral = availableCollateral ?? collateralAvailable;
 
     const lead = await createCrmLead({
       companyName,
@@ -41,12 +44,18 @@ export async function submitCreditReadiness(req: Request, res: Response) {
       productInterest,
       industryInterest,
       arBalance,
-      collateralAvailable,
+      collateralAvailable: normalizedCollateral,
       source: "website_credit_readiness",
       tags: ["credit_readiness"],
     });
 
-    const token = await createContinuation(req.body, lead.id);
+    const token = await createContinuation(
+      {
+        ...req.body,
+        collateralAvailable: normalizedCollateral,
+      },
+      lead.id
+    );
 
     await sendSms({
       to: "+15878881837",

@@ -41,14 +41,15 @@ describe("readiness lead integration", () => {
       .post("/api/credit-readiness")
       .send({
         companyName: "Acme Co",
-        contactName: "Taylor Smith",
+        fullName: "Taylor Smith",
+        industry: "Manufacturing",
         phone: "(415) 555-1111",
         email: "Taylor@Example.com",
         yearsInBusiness: "1 to 3 Years",
         monthlyRevenue: "$10,001 to $30,000",
         annualRevenue: "$150,001 to $500,000",
         arBalance: "Zero to $100,000",
-        collateralAvailable: "$1 to $100,000",
+        availableCollateral: "$1 to $100,000",
       });
 
     expect(response.status).toBe(201);
@@ -73,7 +74,7 @@ describe("readiness lead integration", () => {
   it("rejects invalid readiness payloads", async () => {
     const response = await request(app).post("/api/credit-readiness").send({
       companyName: "",
-      contactName: "A",
+      fullName: "A",
       phone: "invalid",
       email: "not-an-email",
     });
@@ -91,14 +92,15 @@ describe("readiness lead integration", () => {
       .post("/api/credit-readiness")
       .send({
         companyName: "Reused Contact Inc",
-        contactName: "Jordan Lee",
+        fullName: "Jordan Lee",
+        industry: "Transportation",
         phone: "+1 (415) 555-9999",
         email: "Existing@example.com",
         yearsInBusiness: "Under 1 Year",
         monthlyRevenue: "Under $10,000",
         annualRevenue: "Zero to $150,000",
         arBalance: "No Account Receivables",
-        collateralAvailable: "No Collateral Available",
+        availableCollateral: "No Collateral Available",
       });
 
     expect(response.status).toBe(201);
@@ -123,14 +125,15 @@ describe("readiness lead integration", () => {
   it("converts readiness lead to application and fetches by application id", async () => {
     const createRes = await request(app).post("/api/credit-readiness").send({
       companyName: "Convert Co",
-      contactName: "Chris Doe",
+      fullName: "Chris Doe",
+      industry: "Construction",
       phone: "+14155552222",
       email: "convert@example.com",
       yearsInBusiness: "Over 3 Years",
       monthlyRevenue: "Over $100,000",
       annualRevenue: "$1,000,001 to $3,000,000",
       arBalance: "$100,000 to $250,000",
-      collateralAvailable: "Over $1 million",
+      availableCollateral: "Over $1 million",
     });
     expect(createRes.status).toBe(201);
 
