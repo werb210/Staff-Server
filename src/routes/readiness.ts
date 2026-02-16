@@ -12,6 +12,7 @@ import {
   getReadinessSessionByIdAndToken,
 } from "../modules/readiness/readinessSession.service";
 import { logError, logInfo } from "../observability/logger";
+import { findCapitalReadinessBySession } from "../modules/readiness/creditReadiness.storage";
 
 const router = Router();
 
@@ -176,6 +177,39 @@ router.get("/:sessionId", readinessLimiter, async (req, res) => {
     });
     res.status(500).json({ success: false, error: "Server error" });
   }
+});
+
+
+router.get("/bridge/:sessionToken", readinessLimiter, async (req, res) => {
+  const sessionToken = req.params.sessionToken?.trim();
+  if (!sessionToken) {
+    return res.status(400).json({ error: "Session token is required" });
+  }
+
+  const lead = await findCapitalReadinessBySession(sessionToken);
+
+  if (!lead) {
+    return res.status(404).json({ error: "Session not found" });
+  }
+
+  res.json({
+    step1: {
+      industry: lead.industry,
+      yearsInBusiness: lead.yearsInBusiness,
+      annualRevenue: lead.annualRevenue,
+      monthlyRevenue: lead.monthlyRevenue,
+      arBalance: lead.arBalance,
+      collateralAvailable: lead.collateralAvailable,
+    },
+    step3: {
+      companyName: lead.companyName,
+    },
+    step4: {
+      fullName: lead.fullName,
+      email: lead.email,
+      phone: lead.phone,
+    },
+  });
 });
 
 router.post("/continue", readinessLimiter, async (req, res) => {
