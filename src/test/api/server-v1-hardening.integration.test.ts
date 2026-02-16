@@ -1,7 +1,6 @@
 import type { Express } from "express";
 import request from "supertest";
 import { createOrReuseReadinessSession } from "../../modules/readiness/readinessSession.service";
-import jwt from "jsonwebtoken";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { pool } from "../../db";
 import { createTestApp } from "../helpers/testApp";
@@ -116,7 +115,7 @@ describe("server v1 hardening flows", () => {
     expect(leads.rowCount).toBe(1);
   });
 
-  it("hardens website credit readiness bridge with enum validation, snapshots, prefill token, idempotency, and audit logging", async () => {
+  it("hardens website credit readiness bridge with enum validation and bridge token payload", async () => {
     const payload = {
       companyName: "Bridge Safe LLC",
       fullName: "Morgan Bridge",
@@ -148,21 +147,16 @@ describe("server v1 hardening flows", () => {
 
     expect(first.status).toBe(200);
     expect(second.status).toBe(200);
-    expect(typeof first.body.redirect).toBe("string");
-    expect(first.body.redirect).toContain("prefill=");
-    expect(first.body.prefillToken).toEqual(expect.any(String));
+    expect(first.body.success).toBe(true);
+    expect(first.body.leadId).toEqual(expect.any(String));
+    expect(first.body.continuationToken).toEqual(expect.any(String));
+    expect(first.body.bridgeToken).toEqual(expect.any(String));
 
-    const secret = process.env.JWT_SECRET;
-    expect(secret).toBeTruthy();
-    const decoded = jwt.verify(first.body.prefillToken as string, String(secret), {
-      audience: "boreal-client-application",
-      issuer: "boreal-staff-server",
-    }) as Record<string, unknown>;
-
+    const decoded = JSON.parse(Buffer.from(first.body.bridgeToken as string, "base64").toString("utf-8")) as Record<string, unknown>;
     expect(decoded.companyName).toBe(payload.companyName);
-    expect(decoded.contactName).toBe(payload.fullName);
     expect(decoded.yearsInBusiness).toBe(payload.yearsInBusiness);
-    expect(decoded.availableCollateral).toBe(payload.availableCollateral);
+    expect(decoded.collateral).toBe(payload.availableCollateral);
+    expect(decoded.continuationToken).toBe(first.body.continuationToken);
 
     const leads = await pool.query(
       `select id from crm_leads where lower(email)=lower($1)`,
@@ -176,10 +170,10 @@ describe("server v1 hardening flows", () => {
     );
 
     expect(activities.rowCount).toBe(2);
-    expect(activities.rows[0].payload?.source).toBe("website_credit_readiness");
-    expect(activities.rows[0].payload?.snapshot?.annualRevenue).toBe(payload.annualRevenue);
+    expect(activities.rows[0].payload?.status).toBe("Pre-Application");
+    expect(activities.rows[0].payload?.normalizedCollateral).toBe(payload.availableCollateral);
 
-    expect(sendSmsMock).toHaveBeenCalledTimes(2);
+    expect(sendSmsMock).toHaveBeenCalledTimes(0);
   });
 
 });
