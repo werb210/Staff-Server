@@ -44,10 +44,14 @@ describe("production readiness endpoint verification", () => {
     });
 
     expect(response.status).toBe(201);
-    expect(response.body.success).toBe(true);
-    expect(response.body.data.leadId).toEqual(expect.any(String));
+    expect(response.body).toMatchObject({
+      status: "success",
+      sessionId: expect.any(String),
+      score: expect.any(Number),
+      tier: expect.stringMatching(/^(green|yellow|red)$/),
+    });
 
-    const session = await pool.query("select id from readiness_sessions where id = $1", [response.body.data.sessionId]);
+    const session = await pool.query("select id from readiness_sessions where id = $1", [response.body.sessionId]);
     expect(session.rowCount).toBe(1);
     expect(sendSMSMock).toHaveBeenCalledTimes(0);
   });

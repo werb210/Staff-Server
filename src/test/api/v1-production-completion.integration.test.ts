@@ -51,7 +51,7 @@ describe("v1 production completion", () => {
 
     const dupRes = await request(app).post("/api/readiness").send(payload);
     expect([200, 201]).toContain(dupRes.status);
-    expect(dupRes.body.data.sessionId).toBe(createRes.body.data.sessionId);
+    expect(dupRes.body.sessionId).toBe(createRes.body.data.sessionId);
 
     const sessions = await pool.query(
       `select id from readiness_sessions

@@ -18,7 +18,7 @@ export default function envCheck(req: Request, res: Response, next: NextFunction
 
     if (missing.length) {
       logger.error("env_missing", { missing, route: req.path, service: "twilio" });
-      res.status(503).json({ error: "Twilio service not configured" });
+      res.status(503).json({ error: "Service temporarily unavailable" });
       return;
     }
   }

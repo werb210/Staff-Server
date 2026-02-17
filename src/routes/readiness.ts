@@ -13,6 +13,7 @@ import {
 } from "../modules/readiness/readinessSession.service";
 import { logError, logInfo } from "../observability/logger";
 import { findCapitalReadinessBySession } from "../modules/readiness/creditReadiness.storage";
+import { mapReadinessTier } from "../modules/readiness/readinessScoring.service";
 
 const router = Router();
 
@@ -33,9 +34,22 @@ const readinessLookupParamsSchema = z.object({
   sessionId: z.string().uuid(),
 });
 
+const readinessSessionSchema = z.object({
+  companyName: z.string().trim().min(1),
+  fullName: z.string().trim().min(1),
+  phone: z.string().trim().min(5),
+  email: z.string().trim().email(),
+  industry: z.string().trim().min(1).optional(),
+  yearsInBusiness: z.coerce.string().trim().min(1).optional(),
+  monthlyRevenue: z.coerce.string().trim().min(1).optional(),
+  annualRevenue: z.coerce.string().trim().min(1).optional(),
+  arBalance: z.coerce.string().trim().min(1).optional(),
+  collateralAvailable: z.coerce.string().trim().min(1).optional(),
+});
+
 const submitReadinessHandler = async (req: Request, res: Response) => {
   try {
-    const parsed = createReadinessLeadSchema.parse(req.body ?? {});
+    const parsed = readinessSessionSchema.parse(req.body ?? {});
     const readinessSession = await createOrReuseReadinessSession(parsed);
 
     logInfo("readiness_session_upserted", {
@@ -44,6 +58,35 @@ const submitReadinessHandler = async (req: Request, res: Response) => {
       reused: readinessSession.reused,
       crmLeadId: readinessSession.crmLeadId,
     });
+
+    const responseBody = {
+      status: "success",
+      sessionId: readinessSession.sessionId,
+      score: readinessSession.score,
+      tier: mapReadinessTier(readinessSession.score),
+    } as const;
+
+    res.status(readinessSession.reused ? 200 : 201).json(responseBody);
+  } catch (error) {
+    if (
+      error instanceof Error
+      && (error.message === "invalid_phone" || error.name === "ZodError")
+    ) {
+      res.status(400).json({ success: false, error: "Invalid payload" });
+      return;
+    }
+
+    logError("readiness_create_failed", {
+      message: error instanceof Error ? error.message : String(error),
+    });
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+};
+
+const submitReadinessLegacyHandler = async (req: Request, res: Response) => {
+  try {
+    const parsed = createReadinessLeadSchema.parse(req.body ?? {});
+    const readinessSession = await createOrReuseReadinessSession(parsed);
 
     res.status(readinessSession.reused ? 200 : 201).json({
       success: true,
@@ -72,7 +115,7 @@ const submitReadinessHandler = async (req: Request, res: Response) => {
 };
 
 router.post("/", readinessLimiter, submitReadinessHandler);
-router.post("/submit", readinessLimiter, submitReadinessHandler);
+router.post("/submit", readinessLimiter, submitReadinessLegacyHandler);
 
 function formatReadinessSession(session: NonNullable<Awaited<ReturnType<typeof getActiveReadinessSessionByToken>>>) {
   return {

@@ -2,7 +2,7 @@ module.exports = {
   root: true,
   parser: '@typescript-eslint/parser',
   parserOptions: {
-    project: './tsconfig.json',
+    project: './tsconfig.eslint.json',
     tsconfigRootDir: __dirname,
     sourceType: 'module',
   },
@@ -16,7 +16,7 @@ module.exports = {
     node: true,
     es2022: true,
   },
-  ignorePatterns: ['dist/', 'node_modules/', '**/__tests__/**', '**/*.test.ts', 'src/test/**', 'src/tests/**'],
+  ignorePatterns: ['dist/', 'node_modules/', '**/__tests__/**', '**/*.test.ts', 'src/test/**', 'src/tests/**', 'scripts/**/*.js'],
   rules: {
     // Safety
     '@typescript-eslint/no-floating-promises': 'error',

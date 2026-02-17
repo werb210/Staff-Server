@@ -5,6 +5,7 @@ import {
   findCapitalReadinessBySession,
   findCreditReadinessById,
 } from "../modules/readiness/creditReadiness.storage";
+import { mapReadinessTier } from "../modules/readiness/readinessScoring.service";
 
 const CreditReadinessSchema = z
   .object({
@@ -92,7 +93,7 @@ router.post("/", async (req: Request, res: Response) => {
   try {
     const parsed = CreditReadinessSchema.parse(req.body);
     const score = calculateScore(parsed);
-    const tier = score >= 85 ? "Growth Ready" : score >= 65 ? "Near Ready" : "Foundation Stage";
+    const tier = mapReadinessTier(score);
 
     const lead = await createCapitalReadinessLead({
       ...parsed,
