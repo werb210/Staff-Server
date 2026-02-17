@@ -6,10 +6,12 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "lint": "eslint . --ext .ts",
+    "lint": "eslint .",
     "check": "tsc --noEmit",
     "build": "tsc",
-    "test": "vitest --run"
+    "test": "vitest --run",
+    "audit:prod": "npm audit --omit=dev",
+    "verify": "npm run lint && npm run check && npm run build && npm run audit:prod"
   },
   "dependencies": {
     "@azure/storage-blob": "^12.19.0",
@@ -39,6 +41,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@eslint/js": "^9.21.0",
     "@types/cors": "^2.8.19",
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.10",
@@ -54,8 +57,7 @@
     "pg-mem": "^3.0.5",
     "supertest": "^7.1.4",
     "typescript": "^5.3.3",
-    "vitest": "^4.0.17",
-    "@eslint/js": "^9.21.0"
+    "vitest": "^4.0.17"
   },
   "overrides": {
     "fast-xml-parser": "^4.4.1",
