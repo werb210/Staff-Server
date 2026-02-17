@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const { execSync } = require('child_process');
+const { execSync, spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
@@ -32,12 +32,14 @@ const results = {
     moderate: 0,
     low: 0,
     details: '',
+    warning: '',
   },
   depcheck: {
     status: 'SKIPPED',
     unusedDependencies: [],
     unusedDevDependencies: [],
     details: '',
+    warning: '',
   },
   madge: { status: 'SKIPPED', circularCount: 0, circularChains: [], details: '' },
   build: { status: 'SKIPPED', details: '' },
@@ -181,11 +183,11 @@ if (!hasTsConfig) {
 
 printSection('CHECK 3: VULNERABILITY SCAN');
 {
-  const response = runCommand('npm audit --json');
-  const jsonPayload = response.stdout || response.stderr;
+  const audit = spawnSync('npm', ['audit', '--omit=dev', '--json'], { encoding: 'utf-8' });
+  const jsonPayload = audit.stdout || audit.stderr;
 
   try {
-    const parsed = JSON.parse(jsonPayload);
+    const parsed = JSON.parse(jsonPayload || '{}');
     const vulnerabilities =
       parsed.metadata && parsed.metadata.vulnerabilities
         ? parsed.metadata.vulnerabilities
@@ -195,14 +197,34 @@ printSection('CHECK 3: VULNERABILITY SCAN');
     results.audit.high = vulnerabilities.high || 0;
     results.audit.moderate = vulnerabilities.moderate || 0;
     results.audit.low = vulnerabilities.low || 0;
-    results.audit.status =
-      results.audit.critical + results.audit.high + results.audit.moderate + results.audit.low > 0
-        ? 'FAIL'
-        : 'PASS';
+
+    const prodVulnCount =
+      results.audit.critical + results.audit.high + results.audit.moderate + results.audit.low;
+    results.audit.status = prodVulnCount > 0 ? 'FAIL' : 'PASS';
     results.audit.details = jsonPayload;
+
+    const fullAudit = spawnSync('npm', ['audit', '--json'], { encoding: 'utf-8' });
+    try {
+      const fullParsed = JSON.parse(fullAudit.stdout || fullAudit.stderr || '{}');
+      const fullVulnerabilities =
+        fullParsed.metadata && fullParsed.metadata.vulnerabilities
+          ? fullParsed.metadata.vulnerabilities
+          : { critical: 0, high: 0, moderate: 0, low: 0 };
+      const allVulnCount =
+        (fullVulnerabilities.critical || 0) +
+        (fullVulnerabilities.high || 0) +
+        (fullVulnerabilities.moderate || 0) +
+        (fullVulnerabilities.low || 0);
+
+      if (prodVulnCount === 0 && allVulnCount > 0) {
+        results.audit.warning = `Dev-only vulnerabilities detected (${allVulnCount}) and ignored for production scoring.`;
+      }
+    } catch {
+      // Ignore parse failures of full audit since production audit is authoritative for scoring.
+    }
   } catch {
     results.audit.status = 'FAIL';
-    results.audit.details = jsonPayload || response.message || 'Unable to parse npm audit output.';
+    results.audit.details = jsonPayload || audit.error?.message || 'Unable to parse npm audit output.';
   }
 
   console.log(`Status: ${results.audit.status}`);
@@ -210,11 +232,14 @@ printSection('CHECK 3: VULNERABILITY SCAN');
   console.log(`High: ${results.audit.high}`);
   console.log(`Moderate: ${results.audit.moderate}`);
   console.log(`Low: ${results.audit.low}`);
+  if (results.audit.warning) {
+    console.log(`Warning: ${results.audit.warning}`);
+  }
 }
 
 printSection('CHECK 4: UNUSED DEPENDENCIES');
 {
-  const response = runCommand('npx depcheck --json');
+  const response = runCommand('npx --yes depcheck --json');
   const output = response.stdout || response.stderr;
 
   try {
@@ -250,7 +275,7 @@ printSection('CHECK 4: UNUSED DEPENDENCIES');
 
 printSection('CHECK 5: CIRCULAR DEPENDENCIES');
 {
-  const response = runCommand('npx madge --circular --json .');
+  const response = runCommand('npx --yes madge --circular --json .');
   const output = response.stdout || response.stderr;
 
   try {
