@@ -19,7 +19,8 @@
     "test:runtime": "npm run build && node scripts/runtime-verify.js",
     "test:codex:server": "node scripts/codex-server-test.js",
     "user:set-role": "tsx scripts/set-user-role.ts",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "audit:enterprise": "node scripts/enterprise-audit.js"
   },
   "dependencies": {
     "@azure/storage-blob": "^12.19.0",
@@ -27,6 +28,7 @@
     "ajv": "^8.18.0",
     "ajv-formats": "^3.0.1",
     "applicationinsights": "^3.12.1",
+    "axios": "^1.13.5",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
@@ -49,8 +51,7 @@
     "web-push": "^3.6.7",
     "winston": "^3.19.0",
     "ws": "^8.19.0",
-    "zod": "^3.25.76",
-    "axios": "^1.13.5"
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -65,14 +66,19 @@
     "@types/uuid": "^10.0.0",
     "@types/web-push": "^3.6.4",
     "@types/ws": "^8.18.1",
-    "@typescript-eslint/eslint-plugin": "^8.55.0",
-    "@typescript-eslint/parser": "^8.55.0",
+    "@typescript-eslint/eslint-plugin": "^8.56.0",
+    "@typescript-eslint/parser": "^8.56.0",
     "@vitest/coverage-v8": "^4.0.18",
     "cross-env": "^7.0.3",
+    "depcheck": "^1.4.7",
     "eslint": "^8.57.1",
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-promise": "^7.2.1",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.0.1",
     "jest": "^30.0.5",
+    "madge": "^8.0.0",
+    "npm-check-updates": "^19.3.2",
     "pg-mem": "^3.0.5",
     "supertest": "^7.1.4",
     "ts-jest": "^29.4.0",
