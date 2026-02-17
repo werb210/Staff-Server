@@ -1,6 +1,5 @@
 import express from "express";
 import cors from "cors";
-import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 
 import { readyHandler } from "./routes/ready";
@@ -91,12 +90,10 @@ function assertRoutesMounted(app: express.Express): void {
 }
 
 function getRequiredCorsOrigins(): string[] {
-  return [
-    process.env.CLIENT_URL,
-    process.env.PORTAL_URL,
-    process.env.WEBSITE_URL,
-  ]
-    .map((origin) => (typeof origin === "string" ? origin.trim() : ""))
+  const rawOrigins = process.env.CORS_ALLOWED_ORIGINS ?? "";
+  return rawOrigins
+    .split(",")
+    .map((origin) => origin.trim())
     .filter((origin) => origin.length > 0);
 }
 
@@ -127,19 +124,10 @@ function buildCorsOptions(): cors.CorsOptions {
 }
 
 export function assertCorsConfig(): void {
-  const requiredOrigins = {
-    CLIENT_URL: process.env.CLIENT_URL,
-    PORTAL_URL: process.env.PORTAL_URL,
-    WEBSITE_URL: process.env.WEBSITE_URL,
-  };
-  const missingOrigins = Object.entries(requiredOrigins)
-    .filter(([, value]) => typeof value !== "string" || value.trim().length === 0)
-    .map(([key]) => key);
-  if (missingOrigins.length > 0) {
-    serverLogger.warn("cors_origin_env_missing", { missingOrigins });
-  }
-
   const allowlist = getRequiredCorsOrigins();
+  if (allowlist.length === 0) {
+    serverLogger.warn("cors_origin_env_missing", { missingOrigins: ["CORS_ALLOWED_ORIGINS"] });
+  }
   const corsOptions = buildCorsOptions();
   const allowedHeaders = Array.isArray(corsOptions.allowedHeaders)
     ? corsOptions.allowedHeaders
@@ -157,7 +145,7 @@ export function assertCorsConfig(): void {
     !shouldBlockInternalOriginRequest("/api/_int/routes", undefined);
 
   if (allowlist.length === 0) {
-    throw new Error("At least one of WEBSITE_URL, PORTAL_URL, or CLIENT_URL must be configured for CORS.");
+    throw new Error("CORS_ALLOWED_ORIGINS must include at least one origin.");
   }
   if (corsOptions.credentials !== true) {
     throw new Error("CORS credentials must be enabled.");
@@ -188,11 +176,6 @@ export function buildApp(): express.Express {
   app.use(express.urlencoded({ extended: true, limit: "10mb" }));
   const corsOptions = buildCorsOptions();
   app.use(cors(corsOptions));
-  app.use(
-    helmet({
-      contentSecurityPolicy: false,
-    })
-  );
   app.use((req, res, next) => {
     res.vary("Origin");
     next();
@@ -259,14 +242,6 @@ export async function initializeServer(): Promise<void> {
 export function registerApiRoutes(app: express.Express): void {
   assertApiV1Frozen();
   app.use(envCheck);
-  const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 500,
-    standardHeaders: true,
-    legacyHeaders: false,
-  });
-
-  app.use("/api", limiter);
   const externalEndpointLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 100,

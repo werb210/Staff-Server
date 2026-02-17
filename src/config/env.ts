@@ -190,7 +190,7 @@ export function assertEnv(): void {
   });
 
   const allowlist = parseCsv(
-    getEnvValue("CORS_ALLOWED_ORIGINS") ?? getEnvValue("CORS_ALLOWLIST"),
+    getEnvValue("CORS_ALLOWED_ORIGINS"),
     []
   );
   if (allowlist.length === 0) {
@@ -235,7 +235,7 @@ export function getEnvConfig(): EnvConfig {
   const jwtRefreshSecret =
     getRefreshTokenSecret() ?? (treatAsTest ? "test-refresh" : "");
   const corsAllowlist = parseCsv(
-    getEnvValue("CORS_ALLOWED_ORIGINS") ?? getEnvValue("CORS_ALLOWLIST"),
+    getEnvValue("CORS_ALLOWED_ORIGINS"),
     testDefaults.corsAllowlist
   );
   if (!treatAsTest && corsAllowlist.includes("*")) {

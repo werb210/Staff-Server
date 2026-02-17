@@ -4,15 +4,10 @@
 
 1. Install dependencies:
    ```bash
-   npm ci
+   npm install
    ```
 2. Create a `.env` from `.env.example` and fill in required values.
-3. Run migrations:
-   ```bash
-   npm run build
-   node dist/migrationsCheck.js
-   ```
-4. Start the server:
+3. Start the server:
    ```bash
    npm start
    ```
@@ -32,10 +27,11 @@ Additional configuration is optional but recommended (rate limits, lockout polic
 
 ## Common commands
 
+- `npm install` – install dependencies
+- `npm run check` – run TypeScript type-checking
+- `npm run lint` – run lint checks
+- `npm test` – run Vitest test suite
 - `npm run build` – compile TypeScript into `dist/`
-- `npm test` – run Jest tests
-- `npm run migrate:check` – validate migrations and schema
-- `npm start` – run the compiled server
 
 ## Azure App Service startup
 
