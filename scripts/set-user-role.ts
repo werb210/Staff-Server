@@ -99,12 +99,16 @@ async function main(): Promise<void> {
   }
 }
 
-main()
-  .catch((err: unknown) => {
+async function run(): Promise<void> {
+  try {
+    await main();
+  } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error.";
     console.error(message);
     process.exitCode = 1;
-  })
-  .finally(async () => {
+  } finally {
     await pool.end();
-  });
+  }
+}
+
+void run();

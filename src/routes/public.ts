@@ -5,6 +5,7 @@ import {
   createCapitalReadinessLead,
   findCapitalReadinessBySession,
 } from "../modules/readiness/creditReadiness.storage";
+import { mapReadinessTier } from "../modules/readiness/readinessScoring.service";
 import publicApplicationRoutes from "./publicApplication";
 
 const router = Router();
@@ -101,7 +102,7 @@ router.post("/readiness", async (req, res) => {
 
     const score = calculateScore(parsed);
 
-    const tier = score >= 85 ? "Growth Ready" : score >= 65 ? "Near Ready" : "Foundation Stage";
+    const tier = mapReadinessTier(score);
 
     const lead = await createCapitalReadinessLead({
       companyName: parsed.companyName,

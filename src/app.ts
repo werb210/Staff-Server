@@ -172,8 +172,8 @@ export function buildApp(): express.Express {
     }
     next();
   });
-  app.use(express.json({ limit: "10mb" }));
-  app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+  app.use(express.json({ limit: "200kb" }));
+  app.use(express.urlencoded({ extended: false, limit: "200kb" }));
   const corsOptions = buildCorsOptions();
   app.use(cors(corsOptions));
   app.use((req, res, next) => {

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { dbQuery, getInstrumentedClient, pool } from "../../db";
 import { upsertCrmLead } from "../crm/leadUpsert.service";
+import { normalizePhoneNumber } from "../auth/phone";
 
 type ReadinessSessionInput = {
   companyName: string;
@@ -17,6 +18,14 @@ type ReadinessSessionInput = {
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
+}
+
+function normalizeRequiredPhone(phone: string): string {
+  const normalized = normalizePhoneNumber(phone);
+  if (!normalized) {
+    throw new Error("invalid_phone");
+  }
+  return normalized;
 }
 
 function toNullableText(value: unknown): string | null {
@@ -52,7 +61,7 @@ function calculateReadinessScore(payload: ReadinessSessionInput): number {
 
 export async function createOrReuseReadinessSession(payload: ReadinessSessionInput): Promise<{ sessionId: string; token: string; reused: boolean; crmLeadId: string; score: number }> {
   const email = normalizeEmail(payload.email);
-  const normalizedPhone = payload.phone.trim();
+  const normalizedPhone = normalizeRequiredPhone(payload.phone);
 
   await dbQuery(
     `update readiness_sessions
@@ -87,7 +96,7 @@ export async function createOrReuseReadinessSession(payload: ReadinessSessionInp
       companyName: payload.companyName,
       fullName: payload.fullName,
       email,
-      phone: payload.phone,
+      phone: normalizedPhone,
       industry: payload.industry,
       yearsInBusiness: payload.yearsInBusiness,
       monthlyRevenue: payload.monthlyRevenue,
@@ -121,7 +130,7 @@ export async function createOrReuseReadinessSession(payload: ReadinessSessionInp
           existing.rows[0].id,
           crmLead.id,
           email,
-          payload.phone,
+          normalizedPhone,
           payload.companyName,
           payload.fullName,
           payload.industry ?? null,
@@ -161,7 +170,7 @@ export async function createOrReuseReadinessSession(payload: ReadinessSessionInp
         id,
         token,
         email,
-        payload.phone,
+        normalizedPhone,
         payload.companyName,
         payload.fullName,
         payload.industry ?? null,

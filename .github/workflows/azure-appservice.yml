@@ -34,6 +34,9 @@ jobs:
       - name: Test
         run: npm test
 
+      - name: Audit production dependencies (high only)
+        run: npm audit --omit=dev --audit-level=high
+
       - name: Install dependencies before deploy package
         run: npm ci
 
