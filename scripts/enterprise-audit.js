@@ -1,364 +1,241 @@
 #!/usr/bin/env node
 
-const { execSync, spawnSync } = require('child_process');
+const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-const rootDir = process.cwd();
-const packageJsonPath = path.join(rootDir, 'package.json');
-const tsConfigPath = path.join(rootDir, 'tsconfig.json');
-
-const hasTsConfig = fs.existsSync(tsConfigPath);
-const hasViteConfig = [
-  'vite.config.ts',
-  'vite.config.js',
-  'vite.config.mts',
-  'vite.config.mjs',
-  'vite.config.cjs',
-].some((fileName) => fs.existsSync(path.join(rootDir, fileName)));
-
-const packageJson = fs.existsSync(packageJsonPath)
-  ? JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'))
-  : {};
-const hasBuildScript = Boolean(packageJson.scripts && packageJson.scripts.build);
-
-const results = {
-  eslint: { status: 'SKIPPED', warnings: 0, errors: 0, details: '' },
-  typecheck: { status: 'SKIPPED', errors: 0, details: '' },
-  audit: {
-    status: 'SKIPPED',
-    critical: 0,
-    high: 0,
-    moderate: 0,
-    low: 0,
-    details: '',
-    warning: '',
-  },
-  depcheck: {
-    status: 'SKIPPED',
-    unusedDependencies: [],
-    unusedDevDependencies: [],
-    details: '',
-    warning: '',
-  },
-  madge: { status: 'SKIPPED', circularCount: 0, circularChains: [], details: '' },
-  build: { status: 'SKIPPED', details: '' },
-  bundle: { status: 'SKIPPED', sizeSummary: [], details: '' },
-};
-
-function printSection(title) {
+function section(title) {
   console.log(`\n--- ${title} ---`);
 }
 
 function runCommand(command, options = {}) {
   try {
-    const stdout = execSync(command, {
-      encoding: 'utf8',
-      stdio: ['pipe', 'pipe', 'pipe'],
+    const output = execSync(command, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      encoding: 'utf-8',
+      maxBuffer: 20 * 1024 * 1024,
       ...options,
     });
-    return { success: true, stdout, stderr: '' };
+    return { ok: true, output };
   } catch (error) {
     return {
-      success: false,
-      stdout: error.stdout ? String(error.stdout) : '',
-      stderr: error.stderr ? String(error.stderr) : '',
-      message: error.message,
+      ok: false,
+      output: error.stdout ? String(error.stdout) : '',
+      error: error.stderr ? String(error.stderr) : error.message,
     };
   }
 }
 
-function extractEslintCounts(rawText) {
-  const warningMatch = rawText.match(/(\d+)\s+warnings?/i);
-  const errorMatch = rawText.match(/(\d+)\s+errors?/i);
-  return {
-    warnings: warningMatch ? Number(warningMatch[1]) : 0,
-    errors: errorMatch ? Number(errorMatch[1]) : 0,
-  };
+function fileExists(...parts) {
+  return fs.existsSync(path.join(process.cwd(), ...parts));
 }
 
-function collectDistSizes(dirPath, accum = []) {
-  if (!fs.existsSync(dirPath)) return accum;
-  const entries = fs.readdirSync(dirPath, { withFileTypes: true });
-
-  for (const entry of entries) {
-    const fullPath = path.join(dirPath, entry.name);
-    if (entry.isDirectory()) {
-      collectDistSizes(fullPath, accum);
-      continue;
-    }
-
-    const stat = fs.statSync(fullPath);
-    const relative = path.relative(rootDir, fullPath);
-    accum.push({
-      file: relative,
-      sizeBytes: stat.size,
-      sizeKB: (stat.size / 1024).toFixed(2),
-    });
-  }
-
-  return accum;
-}
-
-function formatRiskLevel() {
-  if (results.audit.critical > 0) return 'Critical';
-  if (results.audit.high > 0 || results.build.status === 'FAIL') return 'High';
-  if (
-    results.audit.moderate > 0 ||
-    results.eslint.errors > 0 ||
-    results.typecheck.errors > 0 ||
-    results.madge.circularCount > 0
-  ) {
-    return 'Medium';
-  }
-  return 'Low';
-}
-
-function computeSecurityScore() {
-  const totalWeighted =
-    results.audit.critical * 40 +
-    results.audit.high * 20 +
-    results.audit.moderate * 10 +
-    results.audit.low * 5;
-  return Math.max(0, 100 - totalWeighted);
-}
-
-function computeCodeQualityScore() {
-  let penalty = 0;
-  penalty += results.eslint.errors * 5;
-  penalty += results.eslint.warnings * 2;
-  penalty += results.typecheck.errors * 5;
-  penalty += results.madge.circularCount * 8;
-  return Math.max(0, 100 - penalty);
-}
-
-function computeDependencyHealth() {
-  const unusedCount =
-    results.depcheck.unusedDependencies.length +
-    results.depcheck.unusedDevDependencies.length;
-  const penalty =
-    unusedCount * 3 +
-    results.audit.low * 1 +
-    results.audit.moderate * 2 +
-    results.audit.high * 4 +
-    results.audit.critical * 8;
-  return Math.max(0, 100 - penalty);
+function getRiskLevel(score) {
+  if (score >= 85) return 'Low';
+  if (score >= 70) return 'Medium';
+  if (score >= 50) return 'High';
+  return 'Critical';
 }
 
 console.log('=== ENTERPRISE REPOSITORY AUDIT ===');
 
-printSection('CHECK 1: ESLINT');
-{
-  const response = runCommand('npx eslint . --ext .ts');
-  const mergedOutput = `${response.stdout}\n${response.stderr}`;
-  const counts = extractEslintCounts(mergedOutput);
+const summary = {
+  eslint: { status: 'SKIPPED', warnings: 0, errors: 0 },
+  typescript: { status: 'SKIPPED', errors: 0 },
+  security: { critical: 0, high: 0, moderate: 0, low: 0 },
+  depcheck: { status: 'SKIPPED', unusedDependencies: [], unusedDevDependencies: [] },
+  circular: { status: 'SKIPPED', chains: [] },
+  build: { status: 'SKIPPED' },
+  bundle: { status: 'SKIPPED', sizeInfo: 'N/A' },
+};
 
-  results.eslint.warnings = counts.warnings;
-  results.eslint.errors = counts.errors;
-  results.eslint.details = mergedOutput.trim();
-  results.eslint.status = response.success && counts.errors === 0 ? 'PASS' : 'FAIL';
-
-  console.log(`Status: ${results.eslint.status}`);
-  console.log(`Warnings: ${results.eslint.warnings}`);
-  console.log(`Errors: ${results.eslint.errors}`);
-}
-
-printSection('CHECK 2: TYPESCRIPT STRICT CHECK');
-if (!hasTsConfig) {
-  console.log('Skipped: tsconfig.json not found.');
-} else {
-  const response = runCommand('npx tsc --noEmit');
-  const mergedOutput = `${response.stdout}\n${response.stderr}`;
-  const diagnostics = mergedOutput
-    .split('\n')
-    .filter((line) => line.includes('error TS'));
-
-  results.typecheck.errors = diagnostics.length;
-  results.typecheck.details = mergedOutput.trim();
-  results.typecheck.status = response.success ? 'PASS' : 'FAIL';
-
-  console.log(`Status: ${results.typecheck.status}`);
-  console.log(`TypeScript errors: ${results.typecheck.errors}`);
-}
-
-printSection('CHECK 3: VULNERABILITY SCAN');
-{
-  const audit = spawnSync('npm', ['audit', '--omit=dev', '--json'], { encoding: 'utf-8' });
-  const jsonPayload = audit.stdout || audit.stderr;
-
+section('CHECK 1: ESLINT');
+const eslintResult = runCommand('npx eslint . --ext .ts,.tsx,.js,.jsx -f json');
+if (eslintResult.output) {
   try {
-    const parsed = JSON.parse(jsonPayload || '{}');
-    const vulnerabilities =
-      parsed.metadata && parsed.metadata.vulnerabilities
-        ? parsed.metadata.vulnerabilities
-        : { critical: 0, high: 0, moderate: 0, low: 0 };
-
-    results.audit.critical = vulnerabilities.critical || 0;
-    results.audit.high = vulnerabilities.high || 0;
-    results.audit.moderate = vulnerabilities.moderate || 0;
-    results.audit.low = vulnerabilities.low || 0;
-
-    const prodVulnCount =
-      results.audit.critical + results.audit.high + results.audit.moderate + results.audit.low;
-    results.audit.status = prodVulnCount > 0 ? 'FAIL' : 'PASS';
-    results.audit.details = jsonPayload;
-
-    const fullAudit = spawnSync('npm', ['audit', '--json'], { encoding: 'utf-8' });
-    try {
-      const fullParsed = JSON.parse(fullAudit.stdout || fullAudit.stderr || '{}');
-      const fullVulnerabilities =
-        fullParsed.metadata && fullParsed.metadata.vulnerabilities
-          ? fullParsed.metadata.vulnerabilities
-          : { critical: 0, high: 0, moderate: 0, low: 0 };
-      const allVulnCount =
-        (fullVulnerabilities.critical || 0) +
-        (fullVulnerabilities.high || 0) +
-        (fullVulnerabilities.moderate || 0) +
-        (fullVulnerabilities.low || 0);
-
-      if (prodVulnCount === 0 && allVulnCount > 0) {
-        results.audit.warning = `Dev-only vulnerabilities detected (${allVulnCount}) and ignored for production scoring.`;
-      }
-    } catch {
-      // Ignore parse failures of full audit since production audit is authoritative for scoring.
+    const report = JSON.parse(eslintResult.output);
+    let warnings = 0;
+    let errors = 0;
+    for (const fileReport of report) {
+      warnings += fileReport.warningCount || 0;
+      errors += fileReport.errorCount || 0;
     }
+    summary.eslint = {
+      status: eslintResult.ok ? 'PASS' : 'FAIL',
+      warnings,
+      errors,
+    };
+    console.log(`Status: ${summary.eslint.status}`);
+    console.log(`Warnings: ${warnings}`);
+    console.log(`Errors: ${errors}`);
   } catch {
-    results.audit.status = 'FAIL';
-    results.audit.details = jsonPayload || audit.error?.message || 'Unable to parse npm audit output.';
+    summary.eslint = { status: eslintResult.ok ? 'PASS' : 'FAIL', warnings: 0, errors: 0 };
+    console.log('Unable to parse ESLint JSON output.');
+    if (eslintResult.error) console.log(eslintResult.error.trim());
   }
-
-  console.log(`Status: ${results.audit.status}`);
-  console.log(`Critical: ${results.audit.critical}`);
-  console.log(`High: ${results.audit.high}`);
-  console.log(`Moderate: ${results.audit.moderate}`);
-  console.log(`Low: ${results.audit.low}`);
-  if (results.audit.warning) {
-    console.log(`Warning: ${results.audit.warning}`);
-  }
+} else {
+  summary.eslint = { status: eslintResult.ok ? 'PASS' : 'FAIL', warnings: 0, errors: 0 };
+  console.log('No ESLint output received.');
+  if (eslintResult.error) console.log(eslintResult.error.trim());
 }
 
-printSection('CHECK 4: UNUSED DEPENDENCIES');
-{
-  const response = runCommand('npx --yes depcheck --json');
-  const output = response.stdout || response.stderr;
-
-  try {
-    const parsed = JSON.parse(output || '{}');
-    results.depcheck.unusedDependencies = parsed.dependencies || [];
-    results.depcheck.unusedDevDependencies = parsed.devDependencies || [];
-    results.depcheck.status =
-      results.depcheck.unusedDependencies.length || results.depcheck.unusedDevDependencies.length
-        ? 'FAIL'
-        : 'PASS';
-    results.depcheck.details = output;
-  } catch {
-    results.depcheck.status = 'FAIL';
-    results.depcheck.details = output || response.message || 'Unable to parse depcheck output.';
+section('CHECK 2: TYPESCRIPT STRICT CHECK');
+if (fileExists('tsconfig.json')) {
+  const tscResult = runCommand('npx tsc --noEmit');
+  const errorLines = (tscResult.output + '\n' + (tscResult.error || ''))
+    .split('\n')
+    .filter((line) => /error TS\d+/.test(line));
+  summary.typescript = {
+    status: tscResult.ok ? 'PASS' : 'FAIL',
+    errors: errorLines.length,
+  };
+  console.log(`Status: ${summary.typescript.status}`);
+  console.log(`Errors: ${summary.typescript.errors}`);
+  if (!tscResult.ok && tscResult.error) {
+    console.log(tscResult.error.trim());
   }
-
-  console.log(`Status: ${results.depcheck.status}`);
-  console.log(
-    `Unused dependencies: ${
-      results.depcheck.unusedDependencies.length
-        ? results.depcheck.unusedDependencies.join(', ')
-        : 'None'
-    }`
-  );
-  console.log(
-    `Unused devDependencies: ${
-      results.depcheck.unusedDevDependencies.length
-        ? results.depcheck.unusedDevDependencies.join(', ')
-        : 'None'
-    }`
-  );
+} else {
+  console.log('tsconfig.json not found. Skipping TypeScript strict check.');
 }
 
-printSection('CHECK 5: CIRCULAR DEPENDENCIES');
-{
-  const response = runCommand('npx --yes madge --circular --json .');
-  const output = response.stdout || response.stderr;
-
+section('CHECK 3: VULNERABILITY SCAN');
+const auditResult = runCommand('npm audit --json');
+const combinedAuditOutput = auditResult.output || auditResult.error;
+if (combinedAuditOutput) {
   try {
-    const parsed = JSON.parse(output || '{}');
-    const circularChains = Object.entries(parsed)
-      .filter(([, deps]) => Array.isArray(deps) && deps.length > 0)
-      .map(([file, deps]) => [file, ...deps]);
-
-    results.madge.circularChains = circularChains;
-    results.madge.circularCount = circularChains.length;
-    results.madge.status = circularChains.length ? 'FAIL' : 'PASS';
-    results.madge.details = output;
+    const auditReport = JSON.parse(combinedAuditOutput);
+    const vulnerabilities = (auditReport.metadata && auditReport.metadata.vulnerabilities) || {};
+    summary.security = {
+      critical: vulnerabilities.critical || 0,
+      high: vulnerabilities.high || 0,
+      moderate: vulnerabilities.moderate || 0,
+      low: vulnerabilities.low || 0,
+    };
   } catch {
-    const chainLines = output
+    console.log('Unable to parse npm audit JSON output.');
+  }
+}
+console.log(`Critical: ${summary.security.critical}`);
+console.log(`High: ${summary.security.high}`);
+console.log(`Moderate: ${summary.security.moderate}`);
+console.log(`Low: ${summary.security.low}`);
+
+section('CHECK 4: UNUSED DEPENDENCIES');
+const depcheckResult = runCommand('npx depcheck --json');
+if (depcheckResult.output) {
+  try {
+    const depcheckReport = JSON.parse(depcheckResult.output);
+    summary.depcheck = {
+      status: depcheckResult.ok ? 'PASS' : 'FAIL',
+      unusedDependencies: depcheckReport.dependencies || [],
+      unusedDevDependencies: depcheckReport.devDependencies || [],
+    };
+  } catch {
+    summary.depcheck.status = depcheckResult.ok ? 'PASS' : 'FAIL';
+  }
+} else {
+  summary.depcheck.status = depcheckResult.ok ? 'PASS' : 'FAIL';
+}
+console.log(`Status: ${summary.depcheck.status}`);
+console.log(`Unused dependencies: ${summary.depcheck.unusedDependencies.join(', ') || 'None'}`);
+console.log(`Unused devDependencies: ${summary.depcheck.unusedDevDependencies.join(', ') || 'None'}`);
+if (!depcheckResult.ok && depcheckResult.error) {
+  console.log(depcheckResult.error.trim());
+}
+
+section('CHECK 5: CIRCULAR DEPENDENCIES');
+const madgeResult = runCommand('npx madge --circular --json .');
+if (madgeResult.output) {
+  try {
+    const madgeReport = JSON.parse(madgeResult.output);
+    const chains = Array.isArray(madgeReport) ? madgeReport : [];
+    summary.circular = {
+      status: madgeResult.ok ? 'PASS' : 'FAIL',
+      chains,
+    };
+  } catch {
+    summary.circular.status = madgeResult.ok ? 'PASS' : 'FAIL';
+  }
+} else {
+  summary.circular.status = madgeResult.ok ? 'PASS' : 'FAIL';
+}
+if (summary.circular.chains.length > 0) {
+  console.log('Circular dependencies found:');
+  for (const chain of summary.circular.chains) {
+    if (Array.isArray(chain)) {
+      console.log(`- ${chain.join(' -> ')}`);
+    } else {
+      console.log(`- ${String(chain)}`);
+    }
+  }
+} else {
+  console.log('No circular dependencies detected.');
+}
+
+section('CHECK 6: BUILD VERIFICATION');
+const packageJsonPath = path.join(process.cwd(), 'package.json');
+const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+if (packageJson.scripts && packageJson.scripts.build) {
+  const buildResult = runCommand('npm run build');
+  summary.build.status = buildResult.ok ? 'PASS' : 'FAIL';
+  console.log(`Status: ${summary.build.status}`);
+  if (!buildResult.ok && buildResult.error) {
+    console.log(buildResult.error.trim());
+  }
+} else {
+  console.log('No build script found. Skipping build verification.');
+}
+
+section('CHECK 7: BUNDLE SIZE (if Vite detected)');
+if (fileExists('vite.config.ts') || fileExists('vite.config.js') || fileExists('vite.config.mjs') || fileExists('vite.config.cjs')) {
+  const viteBuildResult = runCommand('npx vite build --mode production');
+  summary.bundle.status = viteBuildResult.ok ? 'PASS' : 'FAIL';
+  if (viteBuildResult.output) {
+    const sizeLines = viteBuildResult.output
       .split('\n')
       .map((line) => line.trim())
-      .filter((line) => line && line.includes('>'));
-    results.madge.circularChains = chainLines;
-    results.madge.circularCount = chainLines.length;
-    results.madge.status = chainLines.length ? 'FAIL' : response.success ? 'PASS' : 'FAIL';
-    results.madge.details = output || response.message || 'Unable to parse madge output.';
+      .filter((line) => /dist\/.*\s+\d+(\.\d+)?\s*(B|kB|MB)/.test(line));
+    summary.bundle.sizeInfo = sizeLines.join('\n') || 'Bundle size details unavailable from output.';
   }
-
-  console.log(`Status: ${results.madge.status}`);
-  if (results.madge.circularCount > 0) {
-    console.log('Circular dependency chains found:');
-    results.madge.circularChains.forEach((chain, index) => {
-      if (Array.isArray(chain)) {
-        console.log(`  ${index + 1}. ${chain.join(' -> ')}`);
-      } else {
-        console.log(`  ${index + 1}. ${chain}`);
-      }
-    });
-  } else {
-    console.log('No circular dependencies detected.');
+  console.log(`Status: ${summary.bundle.status}`);
+  console.log(`Bundle size:\n${summary.bundle.sizeInfo}`);
+  if (!viteBuildResult.ok && viteBuildResult.error) {
+    console.log(viteBuildResult.error.trim());
   }
-}
-
-printSection('CHECK 6: BUILD VERIFICATION');
-if (!hasBuildScript) {
-  console.log('Skipped: no "build" script found in package.json.');
 } else {
-  const response = runCommand('npm run build');
-  results.build.status = response.success ? 'PASS' : 'FAIL';
-  results.build.details = `${response.stdout}\n${response.stderr}`.trim();
-
-  console.log(`Status: ${results.build.status}`);
+  console.log('Vite config not found. Skipping bundle size inspection.');
 }
 
-printSection('CHECK 7: BUNDLE SIZE (VITE)');
-if (!hasViteConfig) {
-  console.log('Skipped: Vite config not found.');
-} else {
-  const response = runCommand('npx vite build --mode production');
-  const distPath = path.join(rootDir, 'dist');
-  const files = collectDistSizes(distPath).sort((a, b) => b.sizeBytes - a.sizeBytes);
+const securityPenalty =
+  summary.security.critical * 30 +
+  summary.security.high * 15 +
+  summary.security.moderate * 5 +
+  summary.security.low * 2;
+const securityScore = Math.max(0, 100 - securityPenalty);
 
-  results.bundle.status = response.success ? 'PASS' : 'FAIL';
-  results.bundle.sizeSummary = files;
-  results.bundle.details = `${response.stdout}\n${response.stderr}`.trim();
+const qualityPenalty =
+  summary.eslint.errors * 5 +
+  summary.eslint.warnings * 2 +
+  summary.typescript.errors * 5 +
+  summary.circular.chains.length * 10;
+const codeQualityScore = Math.max(0, 100 - qualityPenalty);
 
-  console.log(`Status: ${results.bundle.status}`);
-  if (files.length === 0) {
-    console.log('No dist files found for size analysis.');
-  } else {
-    console.log('Top bundle files by size:');
-    files.slice(0, 10).forEach((file) => {
-      console.log(`  - ${file.file}: ${file.sizeKB} KB`);
-    });
-  }
-}
+const dependencyPenalty =
+  summary.depcheck.unusedDependencies.length * 5 +
+  summary.depcheck.unusedDevDependencies.length * 2;
+const dependencyHealthScore = Math.max(0, 100 - dependencyPenalty);
 
-printSection('FINAL SUMMARY');
-const securityScore = computeSecurityScore();
-const codeQualityScore = computeCodeQualityScore();
-const dependencyHealth = computeDependencyHealth();
-const buildStatus = results.build.status;
-const riskLevel = formatRiskLevel();
+const buildStatus =
+  summary.build.status === 'FAIL' || summary.bundle.status === 'FAIL' ? 'FAIL' : 'PASS';
 
+const overallScore = Math.round(
+  (securityScore + codeQualityScore + dependencyHealthScore + (buildStatus === 'PASS' ? 100 : 30)) / 4,
+);
+const overallRisk = getRiskLevel(overallScore);
+
+section('FINAL SUMMARY');
 console.log(`Security Score: ${securityScore}/100`);
 console.log(`Code Quality Score: ${codeQualityScore}/100`);
-console.log(`Dependency Health: ${dependencyHealth}/100`);
+console.log(`Dependency Health: ${dependencyHealthScore}/100`);
 console.log(`Build Status: ${buildStatus}`);
-console.log(`Overall Risk Level: ${riskLevel}`);
-
-console.log('\nAudit completed.');
+console.log(`Overall Risk Level: ${overallRisk}`);

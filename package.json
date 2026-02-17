@@ -11,7 +11,8 @@
     "build": "tsc",
     "test": "vitest --run",
     "audit:prod": "npm audit --omit=dev",
-    "verify": "npm run lint && npm run check && npm run build && npm run audit:prod"
+    "verify": "npm run lint && npm run check && npm run build && npm run audit:prod",
+    "audit:enterprise": "node scripts/enterprise-audit.js"
   },
   "dependencies": {
     "@azure/storage-blob": "^12.19.0",
@@ -53,7 +54,13 @@
     "@types/ws": "^8.18.1",
     "@typescript-eslint/eslint-plugin": "^8.56.0",
     "@typescript-eslint/parser": "^8.56.0",
+    "depcheck": "^1.4.7",
     "eslint": "^9.21.0",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "madge": "^8.0.0",
+    "npm-check-updates": "^19.3.2",
     "pg-mem": "^3.0.5",
     "supertest": "^7.1.4",
     "typescript": "^5.3.3",
