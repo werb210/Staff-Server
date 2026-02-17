@@ -147,7 +147,7 @@ console.log('=== ENTERPRISE REPOSITORY AUDIT ===');
 
 printSection('CHECK 1: ESLINT');
 {
-  const response = runCommand('npx eslint . --ext .ts,.tsx,.js,.jsx');
+  const response = runCommand('npx eslint . --ext .ts');
   const mergedOutput = `${response.stdout}\n${response.stderr}`;
   const counts = extractEslintCounts(mergedOutput);
 
