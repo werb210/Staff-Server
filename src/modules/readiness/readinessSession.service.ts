@@ -19,10 +19,13 @@ function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
-function toNullableText(value: string | undefined): string | null {
-  if (value === undefined || value === null) return null;
-  const normalized = value.trim();
-  return normalized.length > 0 ? normalized : null;
+function toNullableText(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string") return value.trim() || null;
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  return null;
 }
 
 function calculateReadinessScore(payload: ReadinessSessionInput): number {
