@@ -31,6 +31,11 @@ const requiredRuntimeEnv = [
   "JWT_REFRESH_SECRET",
   "JWT_EXPIRES_IN",
   "JWT_REFRESH_EXPIRES_IN",
+  "TWILIO_ACCOUNT_SID",
+  "TWILIO_API_KEY",
+  "TWILIO_API_SECRET",
+  "TWILIO_TWIML_APP_SID",
+  "TWILIO_PHONE_NUMBER",
 ] as const;
 
 type EnvConfig = {
@@ -165,17 +170,6 @@ export function assertEnv(): void {
     {
       name: "twilio_verify",
       keys: ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_VERIFY_SERVICE_SID"],
-    },
-    {
-      name: "twilio_voice",
-      keys: [
-        "TWILIO_ACCOUNT_SID",
-        "TWILIO_AUTH_TOKEN",
-        "TWILIO_API_KEY",
-        "TWILIO_API_SECRET",
-        "TWILIO_VOICE_APP_SID",
-        "TWILIO_VOICE_CALLER_ID",
-      ],
     },
   ];
 

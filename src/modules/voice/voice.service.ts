@@ -18,8 +18,8 @@ const VOICE_ENV_KEYS = [
   "TWILIO_AUTH_TOKEN",
   "TWILIO_API_KEY",
   "TWILIO_API_SECRET",
-  "TWILIO_VOICE_APP_SID",
-  "TWILIO_VOICE_CALLER_ID",
+  "TWILIO_TWIML_APP_SID",
+  "TWILIO_PHONE_NUMBER",
 ] as const;
 
 const TERMINAL_STATUSES: CallStatus[] = [
@@ -86,8 +86,8 @@ function getVoiceConfig(): {
     accountSid: requireVoiceEnv("TWILIO_ACCOUNT_SID"),
     apiKey: requireVoiceEnv("TWILIO_API_KEY"),
     apiSecret: requireVoiceEnv("TWILIO_API_SECRET"),
-    applicationSid: requireVoiceEnv("TWILIO_VOICE_APP_SID"),
-    callerId: requireVoiceEnv("TWILIO_VOICE_CALLER_ID"),
+    applicationSid: requireVoiceEnv("TWILIO_TWIML_APP_SID"),
+    callerId: requireVoiceEnv("TWILIO_PHONE_NUMBER"),
   };
 }
 
