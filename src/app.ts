@@ -71,6 +71,7 @@ import aiRuleRoutes from "./modules/ai/rule.routes";
 import aiConfidenceRoutes from "./modules/ai/confidence.routes";
 import aiSessionRoutes from "./modules/ai/ai.routes";
 import { logger as serverLogger } from "./server/utils/logger";
+import twilioRoutes from "./routes/twilio";
 
 function assertRoutesMounted(app: express.Express): void {
   const mountedRoutes = listRoutes(app);
@@ -241,6 +242,7 @@ export async function initializeServer(): Promise<void> {
 
 export function registerApiRoutes(app: express.Express): void {
   assertApiV1Frozen();
+  app.use("/api/twilio", twilioRoutes);
   app.use(envCheck);
   const externalEndpointLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,

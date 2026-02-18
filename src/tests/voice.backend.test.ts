@@ -76,8 +76,8 @@ describe("voice endpoints", () => {
       TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN,
       TWILIO_API_KEY: process.env.TWILIO_API_KEY,
       TWILIO_API_SECRET: process.env.TWILIO_API_SECRET,
-      TWILIO_VOICE_APP_SID: process.env.TWILIO_VOICE_APP_SID,
-      TWILIO_VOICE_CALLER_ID: process.env.TWILIO_VOICE_CALLER_ID,
+      TWILIO_TWIML_APP_SID: process.env.TWILIO_TWIML_APP_SID,
+      TWILIO_PHONE_NUMBER: process.env.TWILIO_PHONE_NUMBER,
     };
 
     try {
@@ -85,8 +85,8 @@ describe("voice endpoints", () => {
       delete process.env.TWILIO_AUTH_TOKEN;
       delete process.env.TWILIO_API_KEY;
       delete process.env.TWILIO_API_SECRET;
-      delete process.env.TWILIO_VOICE_APP_SID;
-      delete process.env.TWILIO_VOICE_CALLER_ID;
+      delete process.env.TWILIO_TWIML_APP_SID;
+      delete process.env.TWILIO_PHONE_NUMBER;
 
       const res = await request(app)
         .post("/api/voice/token")
@@ -100,8 +100,8 @@ describe("voice endpoints", () => {
       process.env.TWILIO_AUTH_TOKEN = originalEnv.TWILIO_AUTH_TOKEN;
       process.env.TWILIO_API_KEY = originalEnv.TWILIO_API_KEY;
       process.env.TWILIO_API_SECRET = originalEnv.TWILIO_API_SECRET;
-      process.env.TWILIO_VOICE_APP_SID = originalEnv.TWILIO_VOICE_APP_SID;
-      process.env.TWILIO_VOICE_CALLER_ID = originalEnv.TWILIO_VOICE_CALLER_ID;
+      process.env.TWILIO_TWIML_APP_SID = originalEnv.TWILIO_TWIML_APP_SID;
+      process.env.TWILIO_PHONE_NUMBER = originalEnv.TWILIO_PHONE_NUMBER;
     }
   });
 
