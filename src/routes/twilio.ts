@@ -2,6 +2,7 @@ import { Router } from "express";
 import jwt from "jsonwebtoken";
 import AccessToken from "twilio/lib/jwt/AccessToken";
 import VoiceResponse from "twilio/lib/twiml/VoiceResponse";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
@@ -60,7 +61,7 @@ router.get("/token", (req, res) => {
   });
   token.addGrant(voiceGrant);
 
-  console.log(`Twilio token issued for identity: ${identity}`);
+  logger.info({ identity }, "Twilio token issued");
   res.status(200).json({ token: token.toJwt() });
 });
 
@@ -84,11 +85,11 @@ router.post("/status", (req, res) => {
   const callStatus = typeof payload.CallStatus === "string" ? payload.CallStatus : "";
   const direction = typeof payload.Direction === "string" ? payload.Direction : "";
 
-  console.log("Twilio status callback", {
+  logger.info({
     CallSid: callSid,
     CallStatus: callStatus,
     Direction: direction,
-  });
+  }, "Twilio status callback");
 
   res.sendStatus(200);
 });
