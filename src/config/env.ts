@@ -3,6 +3,29 @@ import { logError, logWarn } from "../observability/logger";
 
 dotenv.config();
 
+const strictRequiredEnv = ["PORT", "JWT_SECRET", "TWILIO_MODE"] as const;
+
+function validateRequiredBootEnv(): void {
+  const missing = strictRequiredEnv.filter((key) => !getEnvValue(key));
+  if (missing.length === 0) {
+    return;
+  }
+  missing.forEach((key) => {
+    process.stderr.write(`❌ Missing required env var: ${key}\n`);
+  });
+  process.exit(1);
+}
+
+if (process.env.NODE_ENV !== "test") {
+  validateRequiredBootEnv();
+}
+
+export const ENV = {
+  PORT: Number(process.env.PORT),
+  JWT_SECRET: process.env.JWT_SECRET as string,
+  TWILIO_MODE: process.env.TWILIO_MODE as string,
+};
+
 const REQUIRED = [
   "DATABASE_URL",
   "JWT_SECRET",
