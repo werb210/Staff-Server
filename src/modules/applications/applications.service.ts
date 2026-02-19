@@ -17,6 +17,7 @@ import {
   listApplicationRequiredDocuments,
   listDocumentsWithLatestVersion,
   updateApplicationFirstOpenedAt,
+  updateApplicationFundingScore,
   updateApplicationPipelineState,
   upsertApplicationRequiredDocument,
   updateDocumentStatus,
@@ -57,6 +58,7 @@ import {
 import { pushToGA4, serverTrack } from "../../services/serverTracking";
 import { GoogleAdsApi } from "google-ads-api";
 import axios from "axios";
+import { calculateFundingScore } from "./fundingScore";
 
 const googleAdsClient = new GoogleAdsApi({
   client_id: process.env.GOOGLE_ADS_CLIENT_ID!,
@@ -699,6 +701,14 @@ export async function createApplicationForUser(params: {
       triggeredBy: params.actorUserId ?? "system",
       client,
     });
+    const fundingScore = calculateFundingScore(application);
+    await updateApplicationFundingScore({
+      applicationId: application.id,
+      fundingProbability: fundingScore.probability,
+      expectedCommission: fundingScore.expectedCommission,
+      priorityTier: fundingScore.priorityTier,
+      client,
+    });
     serverTrack({
       event: "application_created",
       application_id: application.id,
@@ -1262,6 +1272,18 @@ export async function uploadDocument(params: {
       status: "uploaded",
       client,
     });
+
+    const refreshedApplication = await findApplicationById(params.applicationId, client);
+    if (refreshedApplication) {
+      const newScore = calculateFundingScore(refreshedApplication);
+      await updateApplicationFundingScore({
+        applicationId: params.applicationId,
+        fundingProbability: newScore.probability,
+        expectedCommission: newScore.expectedCommission,
+        priorityTier: newScore.priorityTier,
+        client,
+      });
+    }
 
     const response: DocumentUploadResponse = {
       documentId,

@@ -16,6 +16,9 @@ export type ApplicationRecord = {
   lender_id: string | null;
   lender_product_id: string | null;
   requested_amount: number | null;
+  funding_probability: number | null;
+  expected_commission: number | null;
+  priority_tier: "high" | "medium" | "low" | null;
   source: string | null;
   submission_key: string | null;
   external_id: string | null;
