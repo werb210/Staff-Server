@@ -54,7 +54,7 @@ import {
   createBankingAnalysisJob,
   createDocumentProcessingJob,
 } from "../processing/processing.service";
-import { serverTrack } from "../../services/serverTracking";
+import { pushToGA4, serverTrack } from "../../services/serverTracking";
 
 const BANK_STATEMENT_CATEGORY = "bank_statements_6_months";
 
@@ -458,6 +458,17 @@ export async function transitionPipelineState(params: {
         projected_commission: projectedCommission,
       },
     });
+
+    await pushToGA4(
+      application.attribution?.client_id || "unknown",
+      "deal_funded",
+      {
+        funded_amount: fundedAmount,
+        projected_commission: projectedCommission,
+        utm_source: application.attribution?.utm_source,
+        utm_campaign: application.attribution?.utm_campaign,
+      }
+    );
   }
   const auditStagePayload = {
     action: "pipeline_stage_changed",

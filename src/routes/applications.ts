@@ -22,11 +22,12 @@ import { pushLeadToCRM } from "../services/crmWebhook";
 import { convertContinuation } from "../modules/continuation/continuation.service";
 import { upsertCrmLead } from "../modules/crm/leadUpsert.service";
 import { createApplicationSchema } from "../validation/application.schema";
-import { serverTrack, type AttributionData } from "../services/serverTracking";
+import { pushToGA4, serverTrack, type AttributionData } from "../services/serverTracking";
 
 
 
 const attributionSchema = z.object({
+  client_id: z.string().trim().optional(),
   utm_source: z.string().trim().optional(),
   utm_medium: z.string().trim().optional(),
   utm_campaign: z.string().trim().optional(),
@@ -253,6 +254,16 @@ router.post(
         },
       });
 
+      await pushToGA4(
+        attribution?.client_id || "unknown",
+        "application_submitted",
+        {
+          requested_amount: created.requested_amount,
+          product_type: created.product_type,
+          utm_source: attribution?.utm_source,
+          utm_campaign: attribution?.utm_campaign,
+        }
+      );
 
       if (typeof body.readinessScore === "number") {
         await logAnalyticsEvent({
