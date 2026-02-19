@@ -1,14 +1,16 @@
-// ---- Server Revenue Tracking Layer ----
-export interface ServerTrackingEvent {
+// ---- Server Revenue Intelligence Layer ----
+export interface AnalyticsEvent {
   event: string;
   payload?: Record<string, any>;
 }
 
-export const serverTrack = (data: ServerTrackingEvent): void => {
-  // eslint-disable-next-line no-console
-  console.log("SERVER_TRACK:", JSON.stringify({
+export const serverAnalytics = (data: AnalyticsEvent): void => {
+  const structuredEvent = {
     timestamp: Date.now(),
+    source: "server",
     ...data,
-  }));
-};
+  };
 
+  // eslint-disable-next-line no-console
+  console.log("ANALYTICS_EVENT:", JSON.stringify(structuredEvent));
+};

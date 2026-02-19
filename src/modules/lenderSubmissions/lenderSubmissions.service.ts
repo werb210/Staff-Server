@@ -1,7 +1,7 @@
 import { AppError } from "../../middleware/errors";
 import { findApplicationById } from "../applications/applications.repo";
 import { submitApplication } from "../lender/lender.service";
-import { serverTrack } from "../../services/serverTracking";
+import { serverAnalytics } from "../../services/serverTracking";
 
 export async function submitLenderSubmission(params: {
   applicationId: string;
@@ -36,8 +36,8 @@ export async function submitLenderSubmission(params: {
   };
   const result = await submitApplication(submitPayload);
 
-  serverTrack({
-    event: "sent_to_lender",
+  serverAnalytics({
+    event: "lender_send",
     payload: {
       application_id: params.applicationId,
       lenders_count: 1,
