@@ -159,6 +159,48 @@ export function assertCorsConfig(): void {
   }
 }
 
+const eventCache = new Map<string, number>();
+
+function basicBotFilter(
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction
+): void {
+  const userAgent = req.headers["user-agent"] ?? "";
+  if (userAgent.toLowerCase().includes("bot") || userAgent === "") {
+    res.status(403).json({ error: "Bot traffic blocked" });
+    return;
+  }
+  next();
+}
+
+function dedupeEvent(
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction
+): void {
+  const eventId =
+    req.body && typeof req.body === "object" && "eventId" in req.body
+      ? (req.body.eventId as string | undefined)
+      : undefined;
+
+  if (!eventId) {
+    next();
+    return;
+  }
+
+  const now = Date.now();
+  const existing = eventCache.get(eventId);
+
+  if (existing && now - existing < 60_000) {
+    res.status(200).json({ status: "duplicate ignored" });
+    return;
+  }
+
+  eventCache.set(eventId, now);
+  next();
+}
+
 export function buildApp(): express.Express {
   const app = express();
 
@@ -173,8 +215,8 @@ export function buildApp(): express.Express {
     }
     next();
   });
-  app.use(express.json({ limit: "200kb" }));
-  app.use(express.urlencoded({ extended: false, limit: "200kb" }));
+  app.use(express.json({ limit: "1mb" }));
+  app.use(express.urlencoded({ extended: false, limit: "1mb" }));
   const corsOptions = buildCorsOptions();
   app.use(cors(corsOptions));
   app.use((req, res, next) => {
@@ -297,6 +339,30 @@ export function registerApiRoutes(app: express.Express): void {
   app.use("/api/ai", externalEndpointLimiter, aiSessionRoutes);
   app.use("/api/crm", crmRoutes);
   app.use("/api/healthz", healthRoute);
+
+  app.use("/api/tracking", basicBotFilter);
+  app.use("/api/drafts", basicBotFilter);
+
+  app.post("/api/tracking", dedupeEvent, async (_req, res) => {
+    res.status(200).json({ status: "ok" });
+  });
+
+  app.post("/api/drafts/save", async (req, res) => {
+    const draft = req.body;
+
+    if (!draft || typeof draft !== "object" || !("resumeToken" in draft) || !draft.resumeToken) {
+      res.status(400).json({ error: "Missing resume token" });
+      return;
+    }
+
+    if (JSON.stringify(draft).length > 500_000) {
+      res.status(400).json({ error: "Draft too large" });
+      return;
+    }
+
+    res.json({ status: "saved" });
+  });
+
 
   app.use((req, res, next) => {
     if (req.path.startsWith("/api/_int")) {
