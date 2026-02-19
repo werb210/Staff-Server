@@ -37,6 +37,7 @@ export type ApplicationRecord = {
   gclid: string | null;
   msclkid: string | null;
   ga_client_id: string | null;
+  idempotency_token: string | null;
   product_type: string;
   product_category: string | null;
   pipeline_state: string;
@@ -136,6 +137,7 @@ export async function createApplication(params: {
   lenderProductId?: string | null;
   requestedAmount?: number | null;
   source?: string | null;
+  idempotencyToken?: string | null;
   client?: Queryable;
 }): Promise<ApplicationRecord> {
   const runner = params.client ?? pool;
@@ -146,9 +148,9 @@ export async function createApplication(params: {
   try {
     res = await runner.query<ApplicationRecord>(
       `insert into applications
-       (id, owner_user_id, name, metadata, attribution, utm_source, utm_medium, utm_campaign, utm_term, utm_content, gclid, msclkid, ga_client_id, product_type, product_category, pipeline_state, current_stage, lender_id, lender_product_id, requested_amount, source, startup_flag, created_at, updated_at)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $16, $17, $18, $19, $20, $21, now(), now())
-       returning id, owner_user_id, name, metadata, attribution, utm_source, utm_medium, utm_campaign, utm_term, utm_content, gclid, msclkid, ga_client_id, product_type, product_category, pipeline_state, current_stage, processing_stage, lender_id, lender_product_id, requested_amount, funding_probability, expected_commission, priority_tier, first_opened_at, ocr_completed_at, banking_completed_at, credit_summary_completed_at, startup_flag, created_at, updated_at`,
+       (id, owner_user_id, name, metadata, attribution, utm_source, utm_medium, utm_campaign, utm_term, utm_content, gclid, msclkid, ga_client_id, idempotency_token, product_type, product_category, pipeline_state, current_stage, lender_id, lender_product_id, requested_amount, source, startup_flag, created_at, updated_at)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $17, $18, $19, $20, $21, $22, now(), now())
+       returning id, owner_user_id, name, metadata, attribution, utm_source, utm_medium, utm_campaign, utm_term, utm_content, gclid, msclkid, ga_client_id, idempotency_token, product_type, product_category, pipeline_state, current_stage, processing_stage, lender_id, lender_product_id, requested_amount, funding_probability, expected_commission, priority_tier, first_opened_at, ocr_completed_at, banking_completed_at, credit_summary_completed_at, startup_flag, created_at, updated_at`,
       [
         randomUUID(),
         params.ownerUserId,
@@ -163,6 +165,7 @@ export async function createApplication(params: {
         params.attribution?.gclid ?? null,
         params.attribution?.msclkid ?? null,
         params.attribution?.ga_client_id ?? params.attribution?.client_id ?? null,
+        params.idempotencyToken ?? null,
         params.productType,
         productCategory,
         pipelineState,
@@ -194,6 +197,22 @@ export async function createApplication(params: {
     client: runner,
   });
   return record;
+}
+
+export async function findApplicationByIdempotencyToken(
+  idempotencyToken: string,
+  client?: Queryable
+): Promise<ApplicationRecord | null> {
+  const runner = client ?? pool;
+  const result = await runner.query<ApplicationRecord>(
+    `select id, owner_user_id, name, metadata, attribution, utm_source, utm_medium, utm_campaign, utm_term, utm_content, gclid, msclkid, ga_client_id, idempotency_token, product_type, product_category, pipeline_state, current_stage, processing_stage, lender_id, lender_product_id, requested_amount, funding_probability, expected_commission, priority_tier, first_opened_at, ocr_completed_at, banking_completed_at, credit_summary_completed_at, startup_flag, created_at, updated_at
+     from applications
+     where idempotency_token = $1
+     order by created_at desc
+     limit 1`,
+    [idempotencyToken]
+  );
+  return result.rows[0] ?? null;
 }
 
 export async function listApplications(params?: {

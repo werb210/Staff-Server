@@ -183,6 +183,13 @@ export function buildApp(): express.Express {
   });
   app.options("*", cors(corsOptions));
   app.use(securityHeaders);
+  app.use((req, _res, next) => {
+    if (req.headers["x-forwarded-for"]) {
+      // eslint-disable-next-line no-console
+      console.log("Incoming IP:", req.headers["x-forwarded-for"]);
+    }
+    next();
+  });
   app.use("/api/", apiLimiter);
   app.use(routeResolutionLogger);
   app.use(requestTimeout);
