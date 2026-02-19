@@ -10,13 +10,23 @@ import { type AttributionData } from "../services/serverTracking";
 const router = Router();
 
 
+function warnOnSuspiciousAttribution(attribution: AttributionData): void {
+  if (attribution.gclid && attribution.gclid.length > 200) {
+    // eslint-disable-next-line no-console
+    console.warn("Suspicious gclid length");
+  }
+}
 
 const attributionSchema = z.object({
+  client_id: z.string().trim().optional(),
+  ga_client_id: z.string().trim().optional(),
   utm_source: z.string().trim().optional(),
   utm_medium: z.string().trim().optional(),
   utm_campaign: z.string().trim().optional(),
   utm_term: z.string().trim().optional(),
   utm_content: z.string().trim().optional(),
+  gclid: z.string().trim().optional(),
+  msclkid: z.string().trim().optional(),
   landing_page: z.string().trim().optional(),
   first_visit_timestamp: z.coerce.number().int().optional(),
 });
@@ -32,6 +42,7 @@ router.post("/", async (req, res) => {
   try {
     const { sessionId, source, attribution } = createApplicationSchema.parse(req.body ?? {});
     const applicationAttribution: AttributionData = attribution ?? {};
+    warnOnSuspiciousAttribution(applicationAttribution);
 
     client = await getInstrumentedClient();
     await client.query("begin");
