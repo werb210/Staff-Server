@@ -49,9 +49,17 @@ export async function startServer() {
   if (process.env.NODE_ENV === "production") {
     await verifyDatabase();
   }
-  app = await createServer();
+  const isMockRuntime = process.env.TWILIO_MODE === "mock";
+  app = await createServer({
+    config: {
+      skipWarmup: isMockRuntime,
+      skipSchemaCheck: isMockRuntime,
+      skipSeed: isMockRuntime,
+      skipCorsCheck: isMockRuntime,
+    },
+  });
 
-  const port = ENV.PORT;
+  const port = Number(ENV.PORT);
   server = await new Promise((resolve) => {
     if (!app) {
       throw new Error("Server failed to initialize.");

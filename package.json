@@ -15,7 +15,7 @@
     "audit:enterprise": "node scripts/enterprise-audit.js",
     "twilio:test": "node scripts/test-twilio.js",
     "prestart": "node ./scripts/verify-node-version.js",
-    "start": "node dist/server/index.js",
+    "start": "node dist/index.js",
     "smoke": "node ./scripts/smoke-test.js"
   },
   "dependencies": {

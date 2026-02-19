@@ -2,20 +2,27 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-function required(name: string): string {
-  const value = process.env[name];
+type RequiredEnv = {
+  NODE_ENV: string;
+  PORT: string;
+  JWT_SECRET: string;
+  TWILIO_MODE: string;
+};
+
+function requireEnv(key: keyof RequiredEnv): string {
+  const value = process.env[key];
   if (!value) {
-    process.stderr.write(`❌ Missing required ENV variable: ${name}\n`);
+    console.error(`❌ Missing required environment variable: ${key}`);
     process.exit(1);
   }
   return value;
 }
 
 export const ENV = {
-  NODE_ENV: process.env.NODE_ENV || "development",
-  PORT: Number(process.env.PORT || 8080),
-  JWT_SECRET: required("JWT_SECRET"),
-  TWILIO_MODE: process.env.TWILIO_MODE || "live",
+  NODE_ENV: requireEnv("NODE_ENV"),
+  PORT: requireEnv("PORT"),
+  JWT_SECRET: requireEnv("JWT_SECRET"),
+  TWILIO_MODE: requireEnv("TWILIO_MODE"),
 };
 
 export function isTestEnv(): boolean {
@@ -66,14 +73,14 @@ function parseDurationToMs(value: string | undefined, fallbackMs: number): numbe
 }
 
 export function assertEnv(): void {
-  required("JWT_SECRET");
-  required("CORS_ALLOWED_ORIGINS");
-  required("RATE_LIMIT_WINDOW_MS");
-  required("RATE_LIMIT_MAX");
+  requireEnv("NODE_ENV");
+  requireEnv("PORT");
+  requireEnv("JWT_SECRET");
+  requireEnv("TWILIO_MODE");
 }
 
 export function validateEnv(): void {
-  required("JWT_SECRET");
+  assertEnv();
 }
 
 export function getCorsAllowlist(): string[] {
