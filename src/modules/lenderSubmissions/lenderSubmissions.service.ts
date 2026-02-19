@@ -1,6 +1,7 @@
 import { AppError } from "../../middleware/errors";
 import { findApplicationById } from "../applications/applications.repo";
 import { submitApplication } from "../lender/lender.service";
+import { serverTrack } from "../../services/serverTracking";
 
 export async function submitLenderSubmission(params: {
   applicationId: string;
@@ -34,6 +35,14 @@ export async function submitLenderSubmission(params: {
     ...(params.userAgent ? { userAgent: params.userAgent } : {}),
   };
   const result = await submitApplication(submitPayload);
+
+  serverTrack({
+    event: "sent_to_lender",
+    payload: {
+      application_id: params.applicationId,
+      lenders_count: 1,
+    },
+  });
 
   return { statusCode: result.statusCode, value: result.value };
 }
