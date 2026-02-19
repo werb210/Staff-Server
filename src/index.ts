@@ -2,13 +2,13 @@ import { ENV } from "./config/env";
 import { logger } from "./lib/logger";
 import { startServer } from "./server/index";
 
-process.on("unhandledRejection", (reason) => {
-  logger.fatal({ reason }, "Unhandled Promise Rejection");
+process.on("unhandledRejection", (err) => {
+  logger.error({ err }, "Unhandled Promise Rejection");
   process.exit(1);
 });
 
-process.on("uncaughtException", (error) => {
-  logger.fatal({ error }, "Uncaught Exception");
+process.on("uncaughtException", (err) => {
+  logger.fatal({ err }, "Uncaught Exception");
   process.exit(1);
 });
 

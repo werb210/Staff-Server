@@ -7,9 +7,9 @@ export function errorHandler(
   res: Response,
   _next: NextFunction
 ) {
-  logger.error({ err }, "Unhandled server error");
+  logger.error({ err }, "Request failed");
 
-  res.status(500).json({
+  return res.status(500).json({
     error: "Internal Server Error",
   });
 }

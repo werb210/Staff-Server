@@ -60,8 +60,10 @@ export async function createServer(
 
   if (!config.skipServicesInit) {
     services.initializePushService?.();
-    services.getTwilioClient?.();
-    services.getVerifyServiceSid?.();
+    if (process.env.TWILIO_MODE !== "mock") {
+      services.getTwilioClient?.();
+      services.getVerifyServiceSid?.();
+    }
   }
 
   if (!config.skipWarmup) {
