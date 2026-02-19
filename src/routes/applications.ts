@@ -10,6 +10,7 @@ import {
   createApplication,
   listApplications,
   findApplicationById,
+  updateApplicationFundingScore,
   type ApplicationRecord,
 } from "../modules/applications/applications.repo";
 import { ApplicationStage } from "../modules/applications/pipelineState";
@@ -23,6 +24,7 @@ import { convertContinuation } from "../modules/continuation/continuation.servic
 import { upsertCrmLead } from "../modules/crm/leadUpsert.service";
 import { createApplicationSchema } from "../validation/application.schema";
 import { pushToGA4, serverTrack, type AttributionData } from "../services/serverTracking";
+import { calculateFundingScore } from "../modules/applications/fundingScore";
 
 
 
@@ -254,6 +256,14 @@ router.post(
         attribution,
         trigger: "application_created",
         triggeredBy: req.user?.userId ?? "system",
+      });
+
+      const fundingScore = calculateFundingScore(created);
+      await updateApplicationFundingScore({
+        applicationId: created.id,
+        fundingProbability: fundingScore.probability,
+        expectedCommission: fundingScore.expectedCommission,
+        priorityTier: fundingScore.priorityTier,
       });
 
       serverTrack({

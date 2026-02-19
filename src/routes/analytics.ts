@@ -1,5 +1,7 @@
 import { Router } from "express";
 import { dbQuery } from "../db";
+import { requireAuth } from "../middleware/auth";
+import { listPriorityLeads } from "../modules/applications/applications.repo";
 
 const router = Router();
 
@@ -21,6 +23,11 @@ router.post("/", async (req, res) => {
   );
 
   res.json({ success: true });
+});
+
+router.get("/priority-leads", requireAuth, async (_req, res) => {
+  const leads = await listPriorityLeads();
+  res.json(leads);
 });
 
 export default router;
