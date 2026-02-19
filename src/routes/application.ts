@@ -5,18 +5,33 @@ import { getInstrumentedClient } from "../db";
 import { createApplication } from "../modules/applications/applications.repo";
 import { getClientSubmissionOwnerUserId } from "../config";
 import { upsertCrmLead } from "../modules/crm/leadUpsert.service";
+import { type AttributionData } from "../services/serverTracking";
 
 const router = Router();
+
+
+
+const attributionSchema = z.object({
+  utm_source: z.string().trim().optional(),
+  utm_medium: z.string().trim().optional(),
+  utm_campaign: z.string().trim().optional(),
+  utm_term: z.string().trim().optional(),
+  utm_content: z.string().trim().optional(),
+  landing_page: z.string().trim().optional(),
+  first_visit_timestamp: z.coerce.number().int().optional(),
+});
 
 const createApplicationSchema = z.object({
   sessionId: z.string().uuid(),
   source: z.string().trim().optional(),
+  attribution: attributionSchema.optional(),
 });
 
 router.post("/", async (req, res) => {
   let client: Awaited<ReturnType<typeof getInstrumentedClient>> | null = null;
   try {
-    const { sessionId, source } = createApplicationSchema.parse(req.body ?? {});
+    const { sessionId, source, attribution } = createApplicationSchema.parse(req.body ?? {});
+    const applicationAttribution: AttributionData = attribution ?? {};
 
     client = await getInstrumentedClient();
     await client.query("begin");
@@ -118,6 +133,7 @@ router.post("/", async (req, res) => {
       productType: "standard",
       productCategory: "standard",
       source: source ?? "readiness_continuation",
+      attribution: applicationAttribution,
       client,
     });
 

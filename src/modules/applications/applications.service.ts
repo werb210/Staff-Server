@@ -54,7 +54,7 @@ import {
   createBankingAnalysisJob,
   createDocumentProcessingJob,
 } from "../processing/processing.service";
-import { serverAnalytics } from "../../services/serverTracking";
+import { serverTrack } from "../../services/serverTracking";
 
 const BANK_STATEMENT_CATEGORY = "bank_statements_6_months";
 
@@ -412,30 +412,33 @@ export async function transitionPipelineState(params: {
   };
   await recordAuditEvent(auditSuccessPayload);
 
-  serverAnalytics({
+  serverTrack({
     event: "lead_status_updated",
+    application_id: params.applicationId,
+    attribution: application.attribution,
     payload: {
-      application_id: params.applicationId,
       previous_status: currentStage,
       status: params.nextState,
     },
   });
 
   if (params.nextState === ApplicationStage.OFF_TO_LENDER) {
-    serverAnalytics({
+    serverTrack({
       event: "lender_send",
+      application_id: params.applicationId,
+      attribution: application.attribution,
       payload: {
-        application_id: params.applicationId,
         lenders_count: application.lender_id ? 1 : 0,
       },
     });
   }
 
   if (params.nextState === ApplicationStage.OFFER) {
-    serverAnalytics({
+    serverTrack({
       event: "offer_received",
+      application_id: params.applicationId,
+      attribution: application.attribution,
       payload: {
-        application_id: params.applicationId,
         lender_id: application.lender_id,
       },
     });
@@ -446,10 +449,11 @@ export async function transitionPipelineState(params: {
     const fundedAmount = application.requested_amount ?? 0;
     const projectedCommission = fundedAmount * COMMISSION_RATE;
 
-    serverAnalytics({
+    serverTrack({
       event: "deal_funded",
+      application_id: params.applicationId,
+      attribution: application.attribution,
       payload: {
-        application_id: params.applicationId,
         funded_amount: fundedAmount,
         projected_commission: projectedCommission,
       },
@@ -553,10 +557,11 @@ export async function createApplicationForUser(params: {
       triggeredBy: params.actorUserId ?? "system",
       client,
     });
-    serverAnalytics({
+    serverTrack({
       event: "application_created",
+      application_id: application.id,
+      attribution: application.attribution,
       payload: {
-        application_id: application.id,
         requested_amount: application.requested_amount,
         product_type: application.product_type,
       },
@@ -1259,11 +1264,10 @@ export async function acceptDocumentVersion(params: {
       return entry.status === "accepted";
     });
     if (allRequiredAccepted) {
-      serverAnalytics({
+      serverTrack({
         event: "application_docs_complete",
-        payload: {
-          application_id: params.applicationId,
-        },
+        application_id: params.applicationId,
+        attribution: application.attribution,
       });
     }
 

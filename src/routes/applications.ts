@@ -22,7 +22,19 @@ import { pushLeadToCRM } from "../services/crmWebhook";
 import { convertContinuation } from "../modules/continuation/continuation.service";
 import { upsertCrmLead } from "../modules/crm/leadUpsert.service";
 import { createApplicationSchema } from "../validation/application.schema";
-import { serverAnalytics } from "../services/serverTracking";
+import { serverTrack, type AttributionData } from "../services/serverTracking";
+
+
+
+const attributionSchema = z.object({
+  utm_source: z.string().trim().optional(),
+  utm_medium: z.string().trim().optional(),
+  utm_campaign: z.string().trim().optional(),
+  utm_term: z.string().trim().optional(),
+  utm_content: z.string().trim().optional(),
+  landing_page: z.string().trim().optional(),
+  first_visit_timestamp: z.coerce.number().int().optional(),
+});
 
 const applicationSubmissionSchema = z.object({
   business: z.object({
@@ -51,6 +63,7 @@ const applicationSubmissionSchema = z.object({
   source: z.enum(["website", "client"]).default("client"),
   continuationToken: z.string().trim().min(1).optional(),
   continuationId: z.string().trim().min(1).optional(),
+  attribution: attributionSchema.optional(),
 });
 
 const EMPTY_OCR_INSIGHTS: ApplicationResponse["ocrInsights"] = {
@@ -206,6 +219,7 @@ router.post(
       const payload = parsedPayload.data;
       const continuationToken = payload.continuationToken;
       const continuationId = payload.continuationId;
+      const attribution: AttributionData = payload.attribution ?? {};
 
       const ownerUserId =
         req.user?.userId ?? getClientSubmissionOwnerUserId();
@@ -224,14 +238,16 @@ router.post(
         },
         productType: payload.productSelection.requestedProductType,
         productCategory: payload.productSelection.requestedProductType,
+        attribution,
         trigger: "application_created",
         triggeredBy: req.user?.userId ?? "system",
       });
 
-      serverAnalytics({
+      serverTrack({
         event: "application_created",
+        application_id: created.id,
+        attribution,
         payload: {
-          application_id: created.id,
           requested_amount: payload.productSelection.capitalRequested,
           product_type: payload.productSelection.requestedProductType,
         },
