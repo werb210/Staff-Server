@@ -10,6 +10,7 @@ import {
   createApplication,
   listApplications,
   findApplicationById,
+  findApplicationByIdempotencyToken,
   updateApplicationFundingScore,
   type ApplicationRecord,
 } from "../modules/applications/applications.repo";
@@ -70,6 +71,7 @@ const applicationSubmissionSchema = z.object({
   continuationToken: z.string().trim().min(1).optional(),
   continuationId: z.string().trim().min(1).optional(),
   attribution: attributionSchema.optional(),
+  idempotencyToken: z.string().trim().min(1),
 });
 
 const EMPTY_OCR_INSIGHTS: ApplicationResponse["ocrInsights"] = {
@@ -234,7 +236,15 @@ router.post(
       const continuationToken = payload.continuationToken;
       const continuationId = payload.continuationId;
       const attribution: AttributionData = payload.attribution ?? {};
+      const idempotencyToken = payload.idempotencyToken;
       warnOnSuspiciousAttribution(attribution);
+
+      const existing = await findApplicationByIdempotencyToken(idempotencyToken);
+      if (existing) {
+        const existingResponse = await toApplicationResponse(existing);
+        res.status(200).json(existingResponse);
+        return;
+      }
 
       const ownerUserId =
         req.user?.userId ?? getClientSubmissionOwnerUserId();
@@ -256,6 +266,7 @@ router.post(
         attribution,
         trigger: "application_created",
         triggeredBy: req.user?.userId ?? "system",
+        idempotencyToken,
       });
 
       const fundingScore = calculateFundingScore(created);

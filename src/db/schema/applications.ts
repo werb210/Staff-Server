@@ -23,6 +23,7 @@ export type ApplicationRecord = {
   submission_key: string | null;
   external_id: string | null;
   client_submission_id: string | null;
+  idempotency_token: string | null;
   first_opened_at: Date | null;
   ocr_completed_at: Date | null;
   banking_completed_at: Date | null;

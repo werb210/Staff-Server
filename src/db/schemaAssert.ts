@@ -27,6 +27,7 @@ const requiredColumns: RequiredColumn[] = [
   { table: "issue_reports", column: "id" },
   { table: "ai_prequal_sessions", column: "id" },
   { table: "pre_applications", column: "id" },
+  { table: "applications", column: "idempotency_token" },
 ];
 
 export async function assertRequiredSchema(): Promise<void> {
