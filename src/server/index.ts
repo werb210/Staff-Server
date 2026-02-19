@@ -19,11 +19,12 @@ function installProcessHandlers(): void {
   processHandlersInstalled = true;
 
   process.on("unhandledRejection", (err) => {
-    logger.error({ err }, "unhandled_rejection");
+    logger.fatal({ reason: err }, "Unhandled Promise Rejection");
+    process.exit(1);
   });
 
   process.on("uncaughtException", (err) => {
-    logger.error({ err }, "uncaught_exception");
+    logger.fatal({ error: err }, "Uncaught Exception");
     process.exit(1);
   });
 }
@@ -90,7 +91,8 @@ process.on("SIGTERM", async () => {
 
 if (require.main === module && process.env.NODE_ENV !== "test") {
   startServer().catch((err) => {
-    logger.error({ err }, "server_start_failed");
+    logger.fatal({ err }, "server_start_failed");
+    process.exit(1);
   });
 }
 

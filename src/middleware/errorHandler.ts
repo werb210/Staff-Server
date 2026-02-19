@@ -3,17 +3,13 @@ import { logger } from "../lib/logger";
 
 export function errorHandler(
   err: any,
-  req: Request,
+  _req: Request,
   res: Response,
   _next: NextFunction
 ) {
-  logger.error({
-    message: err?.message,
-    stack: err?.stack,
-    path: req.path,
-  });
+  logger.error({ err }, "Unhandled server error");
 
-  res.status(err?.status || err?.statusCode || 500).json({
+  res.status(500).json({
     error: "Internal Server Error",
   });
 }

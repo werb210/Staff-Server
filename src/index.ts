@@ -3,11 +3,12 @@ import { logger } from "./lib/logger";
 import { startServer } from "./server/index";
 
 process.on("unhandledRejection", (reason) => {
-  logger.error({ reason }, "Unhandled Rejection");
+  logger.fatal({ reason }, "Unhandled Promise Rejection");
+  process.exit(1);
 });
 
-process.on("uncaughtException", (err) => {
-  logger.error(err, "Uncaught Exception");
+process.on("uncaughtException", (error) => {
+  logger.fatal({ error }, "Uncaught Exception");
   process.exit(1);
 });
 
@@ -18,7 +19,7 @@ if (require.main === module && process.env.NODE_ENV !== "test") {
       logger.info(`🚀 Server running on port ${ENV.PORT}`);
     })
     .catch((err) => {
-      logger.error(err);
+      logger.fatal({ err }, "Server startup failed");
       process.exit(1);
     });
 }
