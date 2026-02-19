@@ -19,6 +19,12 @@ const envSchema = z.object({
   FRONTEND_URL: z.string().url().optional(),
   GA_ID: z.string().min(1).optional(),
   SENTRY_DSN: z.string().min(1).optional(),
+  MICROSOFT_ADS_CLIENT_ID: z.string().min(1).optional(),
+  MICROSOFT_ADS_CLIENT_SECRET: z.string().min(1).optional(),
+  MICROSOFT_ADS_REFRESH_TOKEN: z.string().min(1).optional(),
+  MICROSOFT_ADS_CUSTOMER_ID: z.string().min(1).optional(),
+  MICROSOFT_ADS_ACCOUNT_ID: z.string().min(1).optional(),
+  MICROSOFT_ADS_CONVERSION_NAME: z.string().min(1).optional(),
 });
 
 export type ServerEnv = z.infer<typeof envSchema>;

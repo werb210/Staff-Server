@@ -56,6 +56,7 @@ import {
 } from "../processing/processing.service";
 import { pushToGA4, serverTrack } from "../../services/serverTracking";
 import { GoogleAdsApi } from "google-ads-api";
+import axios from "axios";
 
 const googleAdsClient = new GoogleAdsApi({
   client_id: process.env.GOOGLE_ADS_CLIENT_ID!,
@@ -179,6 +180,66 @@ const pushOfflineConversionToGoogle = async (
     } as any);
   } catch (err) {
     console.error("Google Ads conversion push failed:", err);
+  }
+};
+
+const getMicrosoftAccessToken = async () => {
+  try {
+    const response = await axios.post(
+      "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+      new URLSearchParams({
+        client_id: process.env.MICROSOFT_ADS_CLIENT_ID!,
+        client_secret: process.env.MICROSOFT_ADS_CLIENT_SECRET!,
+        refresh_token: process.env.MICROSOFT_ADS_REFRESH_TOKEN!,
+        grant_type: "refresh_token",
+        scope: "https://ads.microsoft.com/msads.manage",
+      }),
+      {
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      }
+    );
+
+    return response.data.access_token;
+  } catch (err) {
+    console.error("Microsoft token error:", err);
+    return null;
+  }
+};
+
+const pushOfflineConversionToMicrosoft = async (
+  msclkid: string,
+  conversionValue: number
+) => {
+  if (!msclkid) return;
+
+  const accessToken = await getMicrosoftAccessToken();
+  if (!accessToken) return;
+
+  try {
+    await axios.post(
+      "https://api.ads.microsoft.com/v13/conversionmanagement/ApplyOfflineConversions",
+      {
+        OfflineConversions: [
+          {
+            ConversionName: process.env.MICROSOFT_ADS_CONVERSION_NAME,
+            MicrosoftClickId: msclkid,
+            ConversionTime: new Date().toISOString(),
+            ConversionValue: conversionValue,
+            CurrencyCode: "CAD",
+          },
+        ],
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    console.log("Microsoft offline conversion pushed:", msclkid);
+  } catch (err) {
+    console.error("Microsoft Ads conversion push failed:", err);
   }
 };
 
@@ -531,6 +592,13 @@ export async function transitionPipelineState(params: {
     if (application.gclid) {
       await pushOfflineConversionToGoogle(application.gclid, projectedCommission);
       console.log("Offline conversion pushed for gclid:", application.gclid);
+    }
+
+    if (application.msclkid) {
+      await pushOfflineConversionToMicrosoft(
+        application.msclkid,
+        projectedCommission
+      );
     }
   }
   const auditStagePayload = {
