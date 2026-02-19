@@ -5,11 +5,14 @@ const GA4_API_SECRET = process.env.GA4_API_SECRET || "";
 
 export interface AttributionData {
   client_id?: string;
+  ga_client_id?: string;
   utm_source?: string;
   utm_medium?: string;
   utm_campaign?: string;
   utm_term?: string;
   utm_content?: string;
+  gclid?: string;
+  msclkid?: string;
   landing_page?: string;
   first_visit_timestamp?: number;
 }

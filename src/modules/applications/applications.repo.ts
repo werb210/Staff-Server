@@ -29,6 +29,14 @@ export type ApplicationRecord = {
   name: string;
   metadata: unknown | null;
   attribution: AttributionData | null;
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  utm_term: string | null;
+  utm_content: string | null;
+  gclid: string | null;
+  msclkid: string | null;
+  ga_client_id: string | null;
   product_type: string;
   product_category: string | null;
   pipeline_state: string;
@@ -135,15 +143,23 @@ export async function createApplication(params: {
   try {
     res = await runner.query<ApplicationRecord>(
       `insert into applications
-       (id, owner_user_id, name, metadata, attribution, product_type, product_category, pipeline_state, current_stage, lender_id, lender_product_id, requested_amount, source, startup_flag, created_at, updated_at)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $8, $9, $10, $11, $12, $13, now(), now())
-       returning id, owner_user_id, name, metadata, attribution, product_type, product_category, pipeline_state, current_stage, processing_stage, lender_id, lender_product_id, requested_amount, first_opened_at, ocr_completed_at, banking_completed_at, credit_summary_completed_at, startup_flag, created_at, updated_at`,
+       (id, owner_user_id, name, metadata, attribution, utm_source, utm_medium, utm_campaign, utm_term, utm_content, gclid, msclkid, ga_client_id, product_type, product_category, pipeline_state, current_stage, lender_id, lender_product_id, requested_amount, source, startup_flag, created_at, updated_at)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $16, $17, $18, $19, $20, $21, now(), now())
+       returning id, owner_user_id, name, metadata, attribution, utm_source, utm_medium, utm_campaign, utm_term, utm_content, gclid, msclkid, ga_client_id, product_type, product_category, pipeline_state, current_stage, processing_stage, lender_id, lender_product_id, requested_amount, first_opened_at, ocr_completed_at, banking_completed_at, credit_summary_completed_at, startup_flag, created_at, updated_at`,
       [
         randomUUID(),
         params.ownerUserId,
         params.name,
         params.metadata,
         params.attribution ?? null,
+        params.attribution?.utm_source ?? null,
+        params.attribution?.utm_medium ?? null,
+        params.attribution?.utm_campaign ?? null,
+        params.attribution?.utm_term ?? null,
+        params.attribution?.utm_content ?? null,
+        params.attribution?.gclid ?? null,
+        params.attribution?.msclkid ?? null,
+        params.attribution?.ga_client_id ?? params.attribution?.client_id ?? null,
         params.productType,
         productCategory,
         pipelineState,
@@ -195,7 +211,7 @@ export async function listApplications(params?: {
     values.push(stage);
   }
   const res = await runner.query<ApplicationRecord>(
-    `select id, owner_user_id, name, metadata, attribution, product_type, product_category, pipeline_state, current_stage, processing_stage, lender_id, lender_product_id, requested_amount, first_opened_at, ocr_completed_at, banking_completed_at, credit_summary_completed_at, startup_flag, created_at, updated_at
+    `select id, owner_user_id, name, metadata, attribution, utm_source, utm_medium, utm_campaign, utm_term, utm_content, gclid, msclkid, ga_client_id, product_type, product_category, pipeline_state, current_stage, processing_stage, lender_id, lender_product_id, requested_amount, first_opened_at, ocr_completed_at, banking_completed_at, credit_summary_completed_at, startup_flag, created_at, updated_at
      from applications
      ${stageClause}
      order by created_at desc
@@ -244,7 +260,7 @@ export async function findApplicationById(
 ): Promise<ApplicationRecord | null> {
   const runner = client ?? pool;
   const res = await runner.query<ApplicationRecord>(
-    `select id, owner_user_id, name, metadata, attribution, product_type, product_category, pipeline_state, current_stage, status, processing_stage, lender_id, lender_product_id, requested_amount, first_opened_at, ocr_completed_at, banking_completed_at, credit_summary_completed_at, startup_flag, created_at, updated_at
+    `select id, owner_user_id, name, metadata, attribution, utm_source, utm_medium, utm_campaign, utm_term, utm_content, gclid, msclkid, ga_client_id, product_type, product_category, pipeline_state, current_stage, status, processing_stage, lender_id, lender_product_id, requested_amount, first_opened_at, ocr_completed_at, banking_completed_at, credit_summary_completed_at, startup_flag, created_at, updated_at
      from applications
      where id = $1
      limit 1`,

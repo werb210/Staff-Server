@@ -111,6 +111,23 @@ type IdempotentResult<T> = {
 
 type Queryable = Pick<PoolClient, "query">;
 
+function buildAttributionObject(application: ApplicationRecord): Record<string, string | null> {
+  return {
+    utm_source: application.utm_source || application.attribution?.utm_source || null,
+    utm_medium: application.utm_medium || application.attribution?.utm_medium || null,
+    utm_campaign: application.utm_campaign || application.attribution?.utm_campaign || null,
+    utm_term: application.utm_term || application.attribution?.utm_term || null,
+    utm_content: application.utm_content || application.attribution?.utm_content || null,
+    gclid: application.gclid || application.attribution?.gclid || null,
+    msclkid: application.msclkid || application.attribution?.msclkid || null,
+    ga_client_id:
+      application.ga_client_id ||
+      application.attribution?.ga_client_id ||
+      application.attribution?.client_id ||
+      null,
+  };
+}
+
 function buildRequestMetadata(params: {
   ip?: string;
   userAgent?: string;
@@ -459,14 +476,15 @@ export async function transitionPipelineState(params: {
       },
     });
 
+    const attribution = buildAttributionObject(application);
+
     await pushToGA4(
-      application.attribution?.client_id || "unknown",
+      attribution.ga_client_id || "unknown",
       "deal_funded",
       {
         funded_amount: fundedAmount,
         projected_commission: projectedCommission,
-        utm_source: application.attribution?.utm_source,
-        utm_campaign: application.attribution?.utm_campaign,
+        ...attribution,
       }
     );
   }

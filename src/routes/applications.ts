@@ -28,11 +28,14 @@ import { pushToGA4, serverTrack, type AttributionData } from "../services/server
 
 const attributionSchema = z.object({
   client_id: z.string().trim().optional(),
+  ga_client_id: z.string().trim().optional(),
   utm_source: z.string().trim().optional(),
   utm_medium: z.string().trim().optional(),
   utm_campaign: z.string().trim().optional(),
   utm_term: z.string().trim().optional(),
   utm_content: z.string().trim().optional(),
+  gclid: z.string().trim().optional(),
+  msclkid: z.string().trim().optional(),
   landing_page: z.string().trim().optional(),
   first_visit_timestamp: z.coerce.number().int().optional(),
 });
@@ -81,6 +84,14 @@ const router = Router();
 const intakeFields = ["business", "financialProfile", "productSelection", "contact"];
 
 const legacyFields = ["name", "metadata", "productType"];
+
+function warnOnSuspiciousAttribution(attribution: AttributionData): void {
+  if (attribution.gclid && attribution.gclid.length > 200) {
+    // eslint-disable-next-line no-console
+    console.warn("Suspicious gclid length");
+  }
+}
+
 const DEFAULT_PIPELINE_STAGE = ApplicationStage.RECEIVED;
 
 function normalizePipelineStage(stage: string | null): string {
@@ -221,6 +232,7 @@ router.post(
       const continuationToken = payload.continuationToken;
       const continuationId = payload.continuationId;
       const attribution: AttributionData = payload.attribution ?? {};
+      warnOnSuspiciousAttribution(attribution);
 
       const ownerUserId =
         req.user?.userId ?? getClientSubmissionOwnerUserId();
@@ -255,13 +267,19 @@ router.post(
       });
 
       await pushToGA4(
-        attribution?.client_id || "unknown",
+        attribution?.ga_client_id || attribution?.client_id || "unknown",
         "application_submitted",
         {
           requested_amount: created.requested_amount,
           product_type: created.product_type,
           utm_source: attribution?.utm_source,
           utm_campaign: attribution?.utm_campaign,
+          utm_medium: attribution?.utm_medium,
+          utm_term: attribution?.utm_term,
+          utm_content: attribution?.utm_content,
+          gclid: attribution?.gclid,
+          msclkid: attribution?.msclkid,
+          ga_client_id: attribution?.ga_client_id ?? attribution?.client_id,
         }
       );
 
