@@ -55,6 +55,18 @@ import {
   createDocumentProcessingJob,
 } from "../processing/processing.service";
 import { pushToGA4, serverTrack } from "../../services/serverTracking";
+import { GoogleAdsApi } from "google-ads-api";
+
+const googleAdsClient = new GoogleAdsApi({
+  client_id: process.env.GOOGLE_ADS_CLIENT_ID!,
+  client_secret: process.env.GOOGLE_ADS_CLIENT_SECRET!,
+  developer_token: process.env.GOOGLE_ADS_DEVELOPER_TOKEN!,
+});
+
+const customer = googleAdsClient.Customer({
+  customer_id: process.env.GOOGLE_ADS_CUSTOMER_ID!,
+  refresh_token: process.env.GOOGLE_ADS_REFRESH_TOKEN!,
+});
 
 const BANK_STATEMENT_CATEGORY = "bank_statements_6_months";
 
@@ -141,6 +153,34 @@ function buildRequestMetadata(params: {
   }
   return metadata;
 }
+
+const pushOfflineConversionToGoogle = async (
+  gclid: string,
+  conversionValue: number
+) => {
+  if (!gclid) {
+    return;
+  }
+
+  try {
+    await customer.conversionUploads.uploadClickConversions({
+      customer_id: process.env.GOOGLE_ADS_CUSTOMER_ID!,
+      conversions: [
+        {
+          conversion_action: `customers/${process.env.GOOGLE_ADS_CUSTOMER_ID}/conversionActions/${process.env.GOOGLE_ADS_CONVERSION_ACTION_ID}`,
+          gclid,
+          conversion_date_time: new Date().toISOString(),
+          conversion_value: conversionValue,
+          currency_code: "CAD",
+        },
+      ],
+      partial_failure: true,
+      validate_only: false,
+    } as any);
+  } catch (err) {
+    console.error("Google Ads conversion push failed:", err);
+  }
+};
 
 function resolveApplicationCountry(metadata: unknown): string | null {
   if (!metadata || typeof metadata !== "object") {
@@ -487,6 +527,11 @@ export async function transitionPipelineState(params: {
         ...attribution,
       }
     );
+
+    if (application.gclid) {
+      await pushOfflineConversionToGoogle(application.gclid, projectedCommission);
+      console.log("Offline conversion pushed for gclid:", application.gclid);
+    }
   }
   const auditStagePayload = {
     action: "pipeline_stage_changed",
