@@ -4,7 +4,7 @@ import { logError, logInfo, logWarn } from "../../observability/logger";
 import { normalizePhoneNumber } from "../auth/phone";
 import { startCall, updateCallStatus, updateCallRecording } from "../calls/calls.service";
 import { findCallLogByTwilioSid } from "../calls/calls.repo";
-import { getTwilioClient } from "../../services/twilio";
+import { dial, getTwilioClient } from "../../services/twilio";
 import { type CallStatus, type CallLogRecord } from "../calls/calls.repo";
 import { getVoiceRestrictedNumbers } from "../../config";
 import { recordAuditEvent } from "../audit/audit.service";
@@ -238,34 +238,26 @@ export async function startVoiceCall(params: {
   let callSid = params.callSid ?? "";
   if (shouldCreateTwilioCall) {
     try {
-      const client = getTwilioClient();
-      const callOptions: {
-        to: string;
-        from: string;
-        applicationSid: string;
-        statusCallback?: string;
-        statusCallbackEvent?: string[];
-        statusCallbackMethod?: string;
-      } = {
-        to: normalizedPhone,
-        from: callerId,
-        applicationSid,
-      };
-      if (statusCallbackUrl) {
-        callOptions.statusCallback = statusCallbackUrl;
-        callOptions.statusCallbackEvent = [
-          "initiated",
-          "ringing",
-          "answered",
-          "completed",
-          "busy",
-          "failed",
-          "no-answer",
-          "canceled",
-        ];
-        callOptions.statusCallbackMethod = "POST";
-      }
-      const call = await client.calls.create(callOptions);
+      const call =
+        applicationSid && callerId && statusCallbackUrl
+          ? await getTwilioClient().calls.create({
+              to: normalizedPhone,
+              from: callerId,
+              applicationSid,
+              statusCallback: statusCallbackUrl,
+              statusCallbackEvent: [
+                "initiated",
+                "ringing",
+                "answered",
+                "completed",
+                "busy",
+                "failed",
+                "no-answer",
+                "canceled",
+              ],
+              statusCallbackMethod: "POST",
+            })
+          : await dial(normalizedPhone);
       callSid = call.sid;
     } catch (error) {
       const details = normalizeTwilioError(error);
