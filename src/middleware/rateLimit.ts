@@ -20,7 +20,7 @@ function makeLimiter(max: number, windowMs = oneMinute): RateLimitRequestHandler
 const loginLimiter = makeLimiter(10);
 const otpLimiter = makeLimiter(10);
 
-export const apiLimiter = makeLimiter(200, 15 * 60 * 1000);
+export const apiLimiter = makeLimiter(300, 15 * 60 * 1000);
 export const publicLimiter = makeLimiter(200, 15 * 60 * 1000);
 export const strictLimiter = makeLimiter(25, 15 * 60 * 1000);
 
