@@ -3,8 +3,8 @@
 import type { Express } from "express";
 import type { Server } from "http";
 import { validateServerEnv } from "./config/env";
-import { validateEnv } from "../config/env";
-import { logger } from "./utils/logger";
+import { ENV, validateEnv } from "../config/env";
+import { logger } from "../lib/logger";
 import { markReady } from "../startupState";
 import { createServer } from "./createServer";
 import { db } from "../db";
@@ -19,11 +19,12 @@ function installProcessHandlers(): void {
   processHandlersInstalled = true;
 
   process.on("unhandledRejection", (err) => {
-    logger.error("unhandled_rejection", { err: err instanceof Error ? err.message : String(err) });
+    logger.error({ err }, "unhandled_rejection");
   });
 
   process.on("uncaughtException", (err) => {
-    logger.error("uncaught_exception", { err: err instanceof Error ? err.message : String(err) });
+    logger.error({ err }, "uncaught_exception");
+    process.exit(1);
   });
 }
 
@@ -37,19 +38,6 @@ async function verifyDatabase() {
   }
 }
 
-function resolvePort(): number {
-  const rawPort = process.env.PORT;
-  if (!rawPort) {
-    logger.warn("port_missing_defaulting", { fallback: 3000 });
-    return 3000;
-  }
-  const port = Number(rawPort);
-  if (Number.isNaN(port)) {
-    logger.warn("port_invalid_defaulting", { value: rawPort, fallback: 3000 });
-    return 3000;
-  }
-  return port;
-}
 
 export async function startServer() {
   installProcessHandlers();
@@ -62,7 +50,7 @@ export async function startServer() {
   }
   app = await createServer();
 
-  const port = resolvePort();
+  const port = ENV.PORT;
   server = await new Promise((resolve) => {
     if (!app) {
       throw new Error("Server failed to initialize.");
@@ -72,7 +60,7 @@ export async function startServer() {
         app.set("port", port);
         app.set("server", listener);
       }
-      logger.info("server_listening", { port });
+      logger.info({ port }, "server_listening");
       resolve(listener);
     });
   });
@@ -102,7 +90,7 @@ process.on("SIGTERM", async () => {
 
 if (require.main === module && process.env.NODE_ENV !== "test") {
   startServer().catch((err) => {
-    logger.error("server_start_failed", { err: err instanceof Error ? err.message : String(err) });
+    logger.error({ err }, "server_start_failed");
   });
 }
 

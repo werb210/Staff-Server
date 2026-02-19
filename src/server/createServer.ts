@@ -3,7 +3,7 @@ import { assertCorsConfig, buildApp, registerApiRoutes } from "../app";
 import { assertEnv } from "../config";
 import { warmUpDatabase } from "../db";
 import { assertRequiredSchema } from "../db/schemaAssert";
-import { notFoundHandler } from "../middleware/errors";
+import { errorHandler } from "../middleware/errorHandler";
 import { logError } from "../observability/logger";
 import { getTwilioClient, getVerifyServiceSid } from "../services/twilio";
 import { seedRequirementsForAllProducts } from "../services/lenderProductRequirementsService";
@@ -95,7 +95,10 @@ export async function createServer(
   }
 
   registerApiRoutes(app);
-  app.use(notFoundHandler);
+  app.use((_req, res) => {
+    res.status(404).json({ error: "Route not found" });
+  });
+  app.use(errorHandler);
 
   if (config.startFollowUpJobs !== false) {
     services.startFollowUpJobs?.();
