@@ -1,4 +1,5 @@
 import Twilio from "twilio";
+import { logInfo } from "../observability/logger";
 
 type TwilioClient = ReturnType<typeof Twilio>;
 
@@ -24,4 +25,19 @@ export function getTwilioClient(): TwilioClient {
 
 export function getVerifyServiceSid(): string {
   return requireEnv("TWILIO_VERIFY_SERVICE_SID");
+}
+
+export function dial(number: string): Promise<{ sid: string }> {
+  const isMock = process.env.TWILIO_MODE === "mock";
+  if (isMock) {
+    logInfo("twilio_mock_call_placed", { msg: "Mock call placed", to: number });
+    return Promise.resolve({ sid: "mock-call" });
+  }
+
+  const realTwilioClient = getTwilioClient();
+  return realTwilioClient.calls.create({
+    to: number,
+    from: requireEnv("TWILIO_FROM"),
+    url: requireEnv("TWILIO_WEBHOOK"),
+  });
 }

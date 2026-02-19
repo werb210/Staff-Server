@@ -17,7 +17,7 @@ import {
 import "./startup/envValidation";
 import "./services/twilio";
 import { PORTAL_ROUTE_REQUIREMENTS, API_ROUTE_MOUNTS } from "./routes/routeRegistry";
-import { checkDb, db } from "./db";
+import { checkDb } from "./db";
 import {
   productionLogger,
   requireHttps,
@@ -209,13 +209,15 @@ export function buildApp(): express.Express {
       res.json({ success: true, data: { status: "ready" } });
     });
   }
-  app.get("/health", async (_req, res) => {
-    try {
-      await db.query("SELECT 1");
-      res.json({ status: "ok" });
-    } catch (_err) {
-      res.status(500).json({ status: "db_error" });
-    }
+  app.get("/health", (_req, res) => {
+    res.json({ status: "ok", uptime: process.uptime() });
+  });
+  app.get("/build-info", (_req, res) => {
+    res.json({
+      node: process.version,
+      env: process.env.NODE_ENV,
+      timestamp: new Date().toISOString(),
+    });
   });
   app.use("/health/details", healthRoute);
   app.get("/ready", readyHandler);

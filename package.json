@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=20.10.0 <21.0.0"
   },
   "scripts": {
     "lint": "eslint .",
@@ -13,7 +13,10 @@
     "audit:prod": "npm audit --omit=dev",
     "verify": "npm run lint && npm run check && npm run build && npm run audit:prod",
     "audit:enterprise": "node scripts/enterprise-audit.js",
-    "twilio:test": "node scripts/test-twilio.js"
+    "twilio:test": "node scripts/test-twilio.js",
+    "prestart": "node ./scripts/verify-node-version.js",
+    "start": "node dist/server/index.js",
+    "smoke": "node ./scripts/smoke-test.js"
   },
   "dependencies": {
     "@azure/storage-blob": "^12.19.0",
@@ -32,9 +35,11 @@
     "jsonwebtoken": "^9.0.3",
     "libphonenumber-js": "^1.12.34",
     "multer": "^2.0.2",
+    "node-fetch": "^2.7.0",
     "openai": "^6.22.0",
     "pdf-parse": "^2.4.5",
     "pg": "^8.11.5",
+    "semver": "^7.7.4",
     "twilio": "^4.21.0",
     "uuid": "^13.0.0",
     "web-push": "^3.6.7",
@@ -71,5 +76,6 @@
     "fast-xml-parser": "^4.4.1",
     "qs": "^6.15.0",
     "axios": "^1.13.5"
-  }
+  },
+  "engineStrict": true
 }
