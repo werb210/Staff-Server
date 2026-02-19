@@ -22,7 +22,7 @@ import { pushLeadToCRM } from "../services/crmWebhook";
 import { convertContinuation } from "../modules/continuation/continuation.service";
 import { upsertCrmLead } from "../modules/crm/leadUpsert.service";
 import { createApplicationSchema } from "../validation/application.schema";
-import { serverTrack } from "../services/serverTracking";
+import { serverAnalytics } from "../services/serverTracking";
 
 const applicationSubmissionSchema = z.object({
   business: z.object({
@@ -228,7 +228,7 @@ router.post(
         triggeredBy: req.user?.userId ?? "system",
       });
 
-      serverTrack({
+      serverAnalytics({
         event: "application_created",
         payload: {
           application_id: created.id,
