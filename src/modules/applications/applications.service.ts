@@ -54,6 +54,7 @@ import {
   createBankingAnalysisJob,
   createDocumentProcessingJob,
 } from "../processing/processing.service";
+import { serverTrack } from "../../services/serverTracking";
 
 const BANK_STATEMENT_CATEGORY = "bank_statements_6_months";
 
@@ -410,6 +411,47 @@ export async function transitionPipelineState(params: {
     ...(params.client ? { client: params.client } : {}),
   };
   await recordAuditEvent(auditSuccessPayload);
+
+  serverTrack({
+    event: "lead_status_updated",
+    payload: {
+      application_id: params.applicationId,
+      previous_status: currentStage,
+      status: params.nextState,
+    },
+  });
+
+  if (params.nextState === ApplicationStage.OFF_TO_LENDER) {
+    serverTrack({
+      event: "sent_to_lender",
+      payload: {
+        application_id: params.applicationId,
+        lenders_count: application.lender_id ? 1 : 0,
+      },
+    });
+  }
+
+  if (params.nextState === ApplicationStage.OFFER) {
+    serverTrack({
+      event: "offer_received",
+      payload: {
+        application_id: params.applicationId,
+        lender_id: application.lender_id,
+      },
+    });
+  }
+
+  if (params.nextState === ApplicationStage.ACCEPTED) {
+    const fundedAmount = application.requested_amount ?? 0;
+    serverTrack({
+      event: "deal_funded",
+      payload: {
+        application_id: params.applicationId,
+        funded_amount: fundedAmount,
+        projected_commission: fundedAmount * 0.03,
+      },
+    });
+  }
   const auditStagePayload = {
     action: "pipeline_stage_changed",
     actorUserId: params.actorUserId,
@@ -507,6 +549,14 @@ export async function createApplicationForUser(params: {
       trigger: "application_created",
       triggeredBy: params.actorUserId ?? "system",
       client,
+    });
+    serverTrack({
+      event: "application_created",
+      payload: {
+        application_id: application.id,
+        requested_amount: application.requested_amount,
+        product_type: application.product_type,
+      },
     });
     await recordAuditEvent({
       action: "application_created",
@@ -1196,6 +1246,23 @@ export async function acceptDocumentVersion(params: {
       status: "accepted",
       client,
     });
+
+    const requiredDocuments = await listApplicationRequiredDocuments({
+      applicationId: params.applicationId,
+      client,
+    });
+    const allRequiredAccepted = requiredDocuments.every((entry) => {
+      if (!entry.is_required) return true;
+      return entry.status === "accepted";
+    });
+    if (allRequiredAccepted) {
+      serverTrack({
+        event: "application_docs_complete",
+        payload: {
+          application_id: params.applicationId,
+        },
+      });
+    }
 
     await advanceProcessingStage({
       applicationId: params.applicationId,
