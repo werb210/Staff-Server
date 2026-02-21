@@ -72,6 +72,7 @@ import aiConfidenceRoutes from "./modules/ai/confidence.routes";
 import aiSessionRoutes from "./modules/ai/ai.routes";
 import { logger as serverLogger } from "./server/utils/logger";
 import twilioRoutes from "./routes/twilio";
+import mayaInternalRoutes from "./routes/mayaInternal";
 
 function assertRoutesMounted(app: express.Express): void {
   const mountedRoutes = listRoutes(app);
@@ -339,6 +340,7 @@ export function registerApiRoutes(app: express.Express): void {
   app.use("/api/ai", externalEndpointLimiter, aiSessionRoutes);
   app.use("/api/crm", crmRoutes);
   app.use("/api/healthz", healthRoute);
+  app.use("/api/maya", mayaInternalRoutes);
 
   app.use("/api/tracking", basicBotFilter);
   app.use("/api/drafts", basicBotFilter);
