@@ -73,6 +73,11 @@ import aiSessionRoutes from "./modules/ai/ai.routes";
 import { logger as serverLogger } from "./server/utils/logger";
 import twilioRoutes from "./routes/twilio";
 import mayaInternalRoutes from "./routes/mayaInternal";
+import adminUploadRoutes from "./routes/adminUploadRoutes";
+import performanceRoutes from "./routes/performanceRoutes";
+import enterpriseRoutes from "./routes/enterpriseRoutes";
+import { requireAuth, requireAuthorization } from "./middleware/auth";
+import { ROLES } from "./auth/roles";
 
 function assertRoutesMounted(app: express.Express): void {
   const mountedRoutes = listRoutes(app);
@@ -294,6 +299,16 @@ export async function initializeServer(): Promise<void> {
 
 export function registerApiRoutes(app: express.Express): void {
   assertApiV1Frozen();
+
+  const requireAdmin = [
+    requireAuth,
+    requireAuthorization({ roles: [ROLES.ADMIN] }),
+  ] as const;
+
+  app.use("/api/admin", ...requireAdmin, adminUploadRoutes);
+  app.use("/api", ...requireAdmin, performanceRoutes);
+  app.use("/api", ...requireAdmin, enterpriseRoutes);
+
   app.use("/api/twilio", twilioRoutes);
   app.use(envCheck);
   const externalEndpointLimiter = rateLimit({
