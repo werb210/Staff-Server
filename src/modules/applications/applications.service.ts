@@ -59,6 +59,11 @@ import { pushToGA4, serverTrack } from "../../services/serverTracking";
 import { GoogleAdsApi } from "google-ads-api";
 import axios from "axios";
 import { calculateFundingScore } from "./fundingScore";
+import { callMaya } from "../../integrations/mayaClient";
+import { serverToMayaRole } from "../../security/roleMap";
+import { requireCapability } from "../../security/capabilityGuard";
+import { logServerAudit } from "../../core/serverAuditLogger";
+import { getRequestContext } from "../../observability/requestContext";
 
 const googleAdsClient = new GoogleAdsApi({
   client_id: process.env.GOOGLE_ADS_CLIENT_ID!,
@@ -327,6 +332,7 @@ async function recordDocumentUploadFailure(params: {
   ip?: string;
   userAgent?: string;
   client?: Queryable;
+  correlationId?: string;
 }): Promise<void> {
   const auditPayload = {
     action: "document_upload_rejected",
@@ -424,6 +430,7 @@ async function enforceDocumentsRequiredStage(params: {
   actorRole: Role | null;
   trigger: string;
   client?: Queryable;
+  correlationId?: string;
 }): Promise<void> {
   if (params.application.pipeline_state !== ApplicationStage.DOCUMENTS_REQUIRED) {
     await transitionPipelineState({
@@ -448,6 +455,7 @@ export async function transitionPipelineState(params: {
   ip?: string;
   userAgent?: string;
   client?: Queryable;
+  correlationId?: string;
 }): Promise<void> {
   const application = await findApplicationById(
     params.applicationId,
@@ -531,6 +539,36 @@ export async function transitionPipelineState(params: {
     ...(params.client ? { client: params.client } : {}),
   };
   await recordAuditEvent(auditSuccessPayload);
+
+  const correlationId = params.correlationId ?? getRequestContext()?.requestId;
+  if (correlationId) {
+    await logServerAudit({
+      correlationId,
+      actionType: "pipeline_state_changed",
+      entityType: "application",
+      entityId: params.applicationId,
+      metadata: {
+        fromState: currentStage,
+        toState: params.nextState,
+        trigger: params.trigger,
+        actorUserId: params.actorUserId,
+      },
+    });
+
+    const mayaRole = params.actorRole ? serverToMayaRole[params.actorRole] : undefined;
+    if (mayaRole) {
+      requireCapability(mayaRole, "ml_predict");
+    }
+
+    await callMaya(
+      "/maya/state-sync",
+      {
+        session_id: params.applicationId,
+        new_state: params.nextState,
+      },
+      correlationId
+    );
+  }
 
   serverTrack({
     event: "lead_status_updated",
@@ -1052,6 +1090,7 @@ export async function removeDocument(params: {
 export async function markCreditSummaryCompleted(params: {
   applicationId: string;
   client?: Queryable;
+  correlationId?: string;
 }): Promise<void> {
   if (params.client) {
     await params.client.query(

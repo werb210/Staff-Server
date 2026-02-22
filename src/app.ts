@@ -5,6 +5,7 @@ import rateLimit from "express-rate-limit";
 import { readyHandler } from "./routes/ready";
 import { listRoutes, printRoutes } from "./debug/printRoutes";
 import { requestContext } from "./middleware/requestContext";
+import { correlationMiddleware } from "./middleware/correlationId";
 import { requestLogger } from "./middleware/requestLogger";
 import { requestTimeout } from "./middleware/requestTimeout";
 import { routeResolutionLogger } from "./middleware/routeResolutionLogger";
@@ -78,6 +79,8 @@ import performanceRoutes from "./routes/performanceRoutes";
 import enterpriseRoutes from "./routes/enterpriseRoutes";
 import { requireAuth, requireAuthorization } from "./middleware/auth";
 import { ROLES } from "./auth/roles";
+import axios from "axios";
+import { recordMetric } from "./core/metricsLogger";
 
 function assertRoutesMounted(app: express.Express): void {
   const mountedRoutes = listRoutes(app);
@@ -210,10 +213,15 @@ function dedupeEvent(
 export function buildApp(): express.Express {
   const app = express();
 
+  app.use(correlationMiddleware);
   app.use(requestLogMiddleware);
   app.use(requestContext);
   app.use(requestLogger);
   app.use(productionLogger);
+  app.use(async (req, _res, next) => {
+    await recordMetric("server_request", 1, { endpoint: req.path });
+    next();
+  });
   app.use((req, res, next) => {
     if (shouldBlockInternalOriginRequest(req.path, req.headers.origin)) {
       res.status(403).json({ ok: false, code: "forbidden" });
@@ -264,8 +272,19 @@ export function buildApp(): express.Express {
       res.json({ success: true, data: { status: "ready" } });
     });
   }
-  app.get("/health", (_req, res) => {
-    res.json({ status: "ok", uptime: process.uptime() });
+  app.get("/health", async (_req, res) => {
+    let mayaStatus = "unconfigured";
+
+    if (process.env.MAYA_INTERNAL_URL) {
+      try {
+        const mayaHealth = await axios.get(`${process.env.MAYA_INTERNAL_URL}/health`);
+        mayaStatus = mayaHealth.data?.status ?? "unknown";
+      } catch (_error) {
+        mayaStatus = "unreachable";
+      }
+    }
+
+    res.json({ status: "ok", uptime: process.uptime(), maya: mayaStatus });
   });
   app.get("/build-info", (_req, res) => {
     res.json({
