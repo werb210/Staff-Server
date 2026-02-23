@@ -74,6 +74,7 @@ import aiSessionRoutes from "./modules/ai/ai.routes";
 import { logger as serverLogger } from "./server/utils/logger";
 import twilioRoutes from "./routes/twilio";
 import mayaInternalRoutes from "./routes/mayaInternal";
+import mayaAnalyticsRoutes from "./routes/mayaAnalytics";
 import adminUploadRoutes from "./routes/adminUploadRoutes";
 import performanceRoutes from "./routes/performanceRoutes";
 import enterpriseRoutes from "./routes/enterpriseRoutes";
@@ -375,6 +376,7 @@ export function registerApiRoutes(app: express.Express): void {
   app.use("/api/crm", crmRoutes);
   app.use("/api/healthz", healthRoute);
   app.use("/api/maya", mayaInternalRoutes);
+  app.use("/api", mayaAnalyticsRoutes);
 
   app.use("/api/tracking", basicBotFilter);
   app.use("/api/drafts", basicBotFilter);
