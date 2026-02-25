@@ -1,27 +1,9 @@
-import { ENV } from "./config/env";
-import { logger } from "./lib/logger";
-import { startServer } from "./server/index";
+import app from "./app";
 
-process.on("unhandledRejection", (err) => {
-  logger.error({ err }, "Unhandled Promise Rejection");
-  process.exit(1);
-});
+const PORT = process.env.PORT || 3000;
 
-process.on("uncaughtException", (err) => {
-  logger.fatal({ err }, "Uncaught Exception");
-  process.exit(1);
-});
-
-if (require.main === module && process.env.NODE_ENV !== "test") {
-  logger.info("Server starting...");
-  startServer()
-    .then(() => {
-      logger.info(`🚀 Server running on port ${ENV.PORT}`);
-    })
-    .catch((err) => {
-      logger.fatal({ err }, "Server startup failed");
-      process.exit(1);
-    });
+if (process.env.NODE_ENV !== "test") {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
 }
-
-export * from "./server/index";
