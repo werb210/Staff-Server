@@ -82,12 +82,14 @@ describe("OTP verify contract", () => {
     await upsertUser({ phone: TEST_PHONE, role: ROLES.ADMIN });
 
     let app: Express;
-    jest.isolateModules(() => {
-      jest.doMock("../../src/modules/auth/otp.service", () => {
-        const actual = jest.requireActual("../../src/modules/auth/otp.service");
+    await vi.isolateModulesAsync(async () => {
+      vi.doMock("../../src/modules/auth/otp.service", async () => {
+        const actual = await vi.importActual<typeof import("../../src/modules/auth/otp.service")>(
+          "../../src/modules/auth/otp.service"
+        );
         return {
           ...actual,
-          verifyOtpCode: jest.fn().mockResolvedValue({
+          verifyOtpCode: vi.fn().mockResolvedValue({
             ok: true,
             token: "",
             refreshToken: "",
@@ -95,7 +97,7 @@ describe("OTP verify contract", () => {
           }),
         };
       });
-      const { buildAppWithApiRoutes } = require("../../src/app");
+      const { buildAppWithApiRoutes } = await import("../../src/app");
       app = buildAppWithApiRoutes();
     });
 

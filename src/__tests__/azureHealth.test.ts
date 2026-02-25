@@ -40,7 +40,7 @@ describe("azure health endpoints", () => {
     process.env.PORT = "4777";
     process.env.STARTUP_WATCHDOG_MS = "25";
 
-    const listenSpy = jest.fn((_port, _host, cb?: () => void) => {
+    const listenSpy = vi.fn((_port, _host, cb?: () => void) => {
       const server = createMockServer();
       server.listening = true;
       process.nextTick(() => {
@@ -51,10 +51,10 @@ describe("azure health endpoints", () => {
     });
 
     await new Promise<void>((resolve, reject) => {
-      jest.isolateModules(() => {
-        jest.doMock("../app", () => ({
-          buildApp: () => ({ listen: listenSpy, use: jest.fn() }),
-          registerApiRoutes: jest.fn(),
+      vi.isolateModules(() => {
+        vi.doMock("../app", () => ({
+          buildApp: () => ({ listen: listenSpy, use: vi.fn() }),
+          registerApiRoutes: vi.fn(),
         }));
         const { startServer } = require("../index");
         startServer().then(() => resolve()).catch(reject);

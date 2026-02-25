@@ -12,8 +12,8 @@ describe("POST /api/auth/otp/start", () => {
 
   beforeEach(() => {
     process.env = { ...originalEnv };
-    jest.resetModules();
-    jest.clearAllMocks();
+    vi.resetModules();
+    vi.clearAllMocks();
   });
 
   afterEach(() => {

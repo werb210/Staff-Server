@@ -3,7 +3,6 @@ import { vi } from "vitest";
 import { markReady } from "../startupState";
 import { setupTestDatabase } from "./db";
 
-(globalThis as any).jest = vi;
 
 dotenv.config({ path: ".env.test" });
 

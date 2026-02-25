@@ -14,8 +14,8 @@ describe("POST /api/auth/otp/verify", () => {
 
   beforeEach(() => {
     process.env = { ...originalEnv };
-    jest.resetModules();
-    jest.clearAllMocks();
+    vi.resetModules();
+    vi.clearAllMocks();
   });
 
   afterEach(() => {

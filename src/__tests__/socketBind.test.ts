@@ -14,14 +14,14 @@ function createMockServer(): MockServer {
 
 describe("socket bind", () => {
   afterEach(() => {
-    jest.resetModules();
+    vi.resetModules();
   });
 
   it("uses a single listener with the configured port", async () => {
     process.env.PORT = "4555";
     process.env.STARTUP_WATCHDOG_MS = "25";
 
-    const listenSpy = jest.fn((_port, _host, cb?: () => void) => {
+    const listenSpy = vi.fn((_port, _host, cb?: () => void) => {
       const server = createMockServer();
       server.listening = true;
       process.nextTick(() => {
@@ -32,10 +32,10 @@ describe("socket bind", () => {
     });
 
     await new Promise<void>((resolve, reject) => {
-      jest.isolateModules(() => {
-        jest.doMock("../app", () => ({
-          buildApp: () => ({ listen: listenSpy, use: jest.fn() }),
-          registerApiRoutes: jest.fn(),
+      vi.isolateModules(() => {
+        vi.doMock("../app", () => ({
+          buildApp: () => ({ listen: listenSpy, use: vi.fn() }),
+          registerApiRoutes: vi.fn(),
         }));
         const { startServer } = require("../index");
         startServer().then(() => resolve()).catch(reject);
@@ -50,7 +50,7 @@ describe("socket bind", () => {
     process.env.PORT = "4999";
     process.env.STARTUP_WATCHDOG_MS = "25";
 
-    const listenSpy = jest.fn((_port, _host, cb?: () => void) => {
+    const listenSpy = vi.fn((_port, _host, cb?: () => void) => {
       const server = createMockServer();
       server.listening = true;
       process.nextTick(() => {
@@ -61,10 +61,10 @@ describe("socket bind", () => {
     });
 
     await new Promise<void>((resolve, reject) => {
-      jest.isolateModules(() => {
-        jest.doMock("../app", () => ({
-          buildApp: () => ({ listen: listenSpy, use: jest.fn() }),
-          registerApiRoutes: jest.fn(),
+      vi.isolateModules(() => {
+        vi.doMock("../app", () => ({
+          buildApp: () => ({ listen: listenSpy, use: vi.fn() }),
+          registerApiRoutes: vi.fn(),
         }));
         const { startServer } = require("../index");
         startServer().then(() => resolve()).catch(reject);

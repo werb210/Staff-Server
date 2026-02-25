@@ -35,15 +35,15 @@ describe("boot behavior", () => {
       TWILIO_AUTH_TOKEN: "test-auth-token-1234567890",
       TWILIO_VERIFY_SERVICE_SID: "VA00000000000000000000000000000000",
     };
-    let exitSpy: jest.SpyInstance | null = null;
+    let exitSpy: vi.SpyInstance | null = null;
 
     try {
-      exitSpy = jest
+      exitSpy = vi
         .spyOn(process, "exit")
         .mockImplementation((() => undefined) as never);
-      jest.resetModules();
+      vi.resetModules();
       await new Promise<void>((resolve, reject) => {
-        jest.isolateModules(() => {
+        vi.isolateModules(() => {
           const { startServer } = require("../index");
           startServer()
             .then((listener: import("http").Server) => {
