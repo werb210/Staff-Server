@@ -1,13 +1,17 @@
 export interface GoogleSheetSubmitResult {
   status: "accepted" | "duplicate" | "appended" | "error";
   success: boolean;
-  reason?: string;
+  detail?: string;
 }
 
 export class GoogleSheetSubmissionAdapter {
   async submit(payload: any): Promise<GoogleSheetSubmitResult> {
-    if (!payload || !payload.columnMapVersion) {
-      return { status: "error", success: false };
+    if (!payload?.columnMapVersion) {
+      return {
+        status: "error",
+        success: false,
+        detail: "columnMapVersion missing",
+      };
     }
 
     if (payload.__duplicate === true) {

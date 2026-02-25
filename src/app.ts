@@ -2,8 +2,8 @@ import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import { randomUUID } from "crypto";
 
-import submissionRouter from "./modules/clientSubmission/clientSubmission.routes";
 import authRouter from "./modules/auth/auth.routes";
+import submissionRouter from "./modules/clientSubmission/clientSubmission.routes";
 import lenderRouter from "./modules/lender/lender.routes";
 
 export function buildAppWithApiRoutes() {
@@ -11,15 +11,25 @@ export function buildAppWithApiRoutes() {
 
   app.use(express.json());
 
-  // Request tracing middleware (must run first)
+  // Request tracing + logging
   app.use((req: Request, res: Response, next: NextFunction) => {
     const requestId = randomUUID();
     res.setHeader("x-request-id", requestId);
     (req as any).requestId = requestId;
+
+    res.on("finish", () => {
+      console.log({
+        requestId,
+        method: req.method,
+        path: req.originalUrl,
+        status: res.statusCode,
+      });
+    });
+
     next();
   });
 
-  // CORS — allow portal, block random origins for internal routes
+  // CORS
   app.use(
     cors({
       origin: true,
@@ -28,25 +38,25 @@ export function buildAppWithApiRoutes() {
   );
 
   // Health
-  app.get("/api/health", (_req: Request, res: Response) => {
-    res.status(200).json({ ok: true });
+  app.get("/health", (_req: Request, res: Response) => {
+    res.status(200).json({ status: "ok", ok: true });
   });
 
-  // Auth routes
+  app.get("/api/health", (_req: Request, res: Response) => {
+    res.status(200).json({ status: "ok", ok: true });
+  });
+
+  // Routers
   app.use("/api/auth", authRouter);
-
-  // Submission routes
   app.use("/api/submissions", submissionRouter);
-
-  // Lender routes
   app.use("/api/lenders", lenderRouter);
 
-  // Internal routes
-  app.get("/api/_int/health", (_req: Request, res: Response) => {
-    res.status(200).json({ ok: true });
+  // Internal route guard
+  app.use("/api/_int", (_req: Request, res: Response) => {
+    res.status(200).json({ status: "ok", ok: true });
   });
 
-  // 404 fallback (MUST return JSON + request id)
+  // 404 JSON
   app.use((_req: Request, res: Response) => {
     res.status(404).json({
       error: "Not Found",
@@ -68,7 +78,3 @@ export function registerApiRoutes(_app: express.Express): void {
 export function assertCorsConfig(): void {
   // CORS middleware is configured in buildAppWithApiRoutes.
 }
-
-const app = buildAppWithApiRoutes();
-
-export default app;
