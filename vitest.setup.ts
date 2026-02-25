@@ -1,5 +1,17 @@
-process.env.PORT ??= '3001'
-process.env.JWT_SECRET ??= 'test-secret'
-process.env.DATABASE_URL ??= 'postgres://user:pass@localhost:5432/test'
-process.env.TWILIO_MODE ??= 'mock'
-process.env.NODE_ENV = 'test'
+import { runMigrations } from "./src/migrations";
+
+let initialized: Promise<void> | null = null;
+
+export default async function setup() {
+  if (!initialized) {
+    initialized = runMigrations({
+      ignoreMissingRelations: true,
+      skipPlpgsql: true,
+      rewriteAlterIfExists: true,
+      rewriteCreateTableIfNotExists: true,
+      skipPgMemErrors: true,
+    });
+  }
+
+  await initialized;
+}
