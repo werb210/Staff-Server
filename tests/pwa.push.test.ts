@@ -1,6 +1,7 @@
 import request from "supertest";
 import { randomUUID } from "crypto";
-import { buildAppWithApiRoutes } from "../src/app";
+import { app } from "../src/server";
+import * as webPush from "web-push";
 import { pool } from "../src/db";
 import { createUserAccount } from "../src/modules/auth/auth.service";
 import { ROLES, type Role } from "../src/auth/roles";
@@ -9,11 +10,7 @@ import { sendNotification } from "../src/services/pushService";
 
 vi.mock("web-push");
 
-const webPushMock = vi.requireMock("web-push") as {
-  sendNotification: vi.Mock;
-};
-
-const app = buildAppWithApiRoutes();
+const webPushMock = vi.mocked(webPush);
 const requestId = "pwa-push-test";
 let phoneCounter = 9200;
 
