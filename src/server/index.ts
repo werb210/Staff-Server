@@ -7,7 +7,6 @@ import { ENV, validateEnv } from "../config/env";
 import { logger } from "../lib/logger";
 import { markReady } from "../startupState";
 import { createServer } from "./createServer";
-import { db } from "../db";
 import { initChatSocket } from "../modules/ai/socket.server";
 
 let processHandlersInstalled = false;
@@ -29,32 +28,18 @@ function installProcessHandlers(): void {
   });
 }
 
-async function verifyDatabase() {
-  try {
-    await db.query("SELECT 1");
-    logger.info("database_connected");
-  } catch (_err) {
-    logger.error("database_connection_failed");
-    process.exit(1);
-  }
-}
-
-
 export async function startServer() {
   installProcessHandlers();
   if (process.env.NODE_ENV === "production") {
     validateEnv();
   }
   validateServerEnv();
-  if (process.env.NODE_ENV === "production") {
-    await verifyDatabase();
-  }
   const isMockRuntime = process.env.TWILIO_MODE === "mock";
   app = await createServer({
     config: {
       skipWarmup: isMockRuntime,
-      skipSchemaCheck: isMockRuntime,
-      skipSeed: isMockRuntime,
+      skipSchemaCheck: isMockRuntime || process.env.NODE_ENV === "production",
+      skipSeed: isMockRuntime || process.env.NODE_ENV === "production",
       skipCorsCheck: isMockRuntime,
     },
   });

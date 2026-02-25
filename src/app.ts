@@ -100,14 +100,6 @@ function assertRoutesMounted(app: express.Express): void {
   }
 }
 
-function getRequiredCorsOrigins(): string[] {
-  const rawOrigins = process.env.CORS_ALLOWED_ORIGINS ?? "";
-  return rawOrigins
-    .split(",")
-    .map((origin) => origin.trim())
-    .filter((origin) => origin.length > 0);
-}
-
 export function shouldBlockInternalOriginRequest(
   path: string,
   origin?: string
@@ -119,26 +111,19 @@ export function shouldBlockInternalOriginRequest(
 }
 
 function buildCorsOptions(): cors.CorsOptions {
-  const allowlist = new Set(getRequiredCorsOrigins());
   return {
-    origin: [...allowlist],
+    origin: [
+      "https://staff.boreal.financial",
+      "http://localhost:5173",
+    ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: [
-      "Authorization",
-      "Content-Type",
-      "Idempotency-Key",
-      "X-Request-Id",
-    ],
+    allowedHeaders: ["Content-Type", "Authorization"],
     optionsSuccessStatus: 204,
   };
 }
 
 export function assertCorsConfig(): void {
-  const allowlist = getRequiredCorsOrigins();
-  if (allowlist.length === 0) {
-    serverLogger.warn("cors_origin_env_missing", { missingOrigins: ["CORS_ALLOWED_ORIGINS"] });
-  }
   const corsOptions = buildCorsOptions();
   const allowedHeaders = Array.isArray(corsOptions.allowedHeaders)
     ? corsOptions.allowedHeaders
@@ -155,9 +140,6 @@ export function assertCorsConfig(): void {
   const shouldAllowServer =
     !shouldBlockInternalOriginRequest("/api/_int/routes", undefined);
 
-  if (allowlist.length === 0) {
-    throw new Error("CORS_ALLOWED_ORIGINS must include at least one origin.");
-  }
   if (corsOptions.credentials !== true) {
     throw new Error("CORS credentials must be enabled.");
   }
@@ -213,6 +195,13 @@ function dedupeEvent(
 
 export function buildApp(): express.Express {
   const app = express();
+  const corsOptions = buildCorsOptions();
+
+  app.use(cors(corsOptions));
+  app.options("*", cors(corsOptions));
+
+  app.use(express.json({ limit: "1mb" }));
+  app.use(express.urlencoded({ extended: false, limit: "1mb" }));
 
   app.use(correlationMiddleware);
   app.use(requestLogMiddleware);
@@ -230,15 +219,10 @@ export function buildApp(): express.Express {
     }
     next();
   });
-  app.use(express.json({ limit: "1mb" }));
-  app.use(express.urlencoded({ extended: false, limit: "1mb" }));
-  const corsOptions = buildCorsOptions();
-  app.use(cors(corsOptions));
   app.use((req, res, next) => {
     res.vary("Origin");
     next();
   });
-  app.options("*", cors(corsOptions));
   app.use(securityHeaders);
   app.use((req, _res, next) => {
     if (req.headers["x-forwarded-for"]) {
@@ -258,14 +242,7 @@ export function buildApp(): express.Express {
   }
 
   app.get("/api/health", (_req, res) => {
-    res.status(200).json({
-      success: true,
-      data: {
-        status: "ok",
-        uptime: process.uptime(),
-        environment: process.env.NODE_ENV,
-      },
-    });
+    res.status(200).json({ status: "ok" });
   });
   app.get("/api/ready", readyHandler);
   if (process.env.NODE_ENV !== "production") {
