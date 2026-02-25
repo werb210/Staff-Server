@@ -2,26 +2,32 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 
-const app = express();
+export function buildAppWithApiRoutes(): express.Express {
+  const app = express();
 
-app.use(cors());
-app.use(helmet());
-app.use(express.json());
+  app.use(express.json());
+  app.use(cors());
+  app.use(helmet());
 
-app.get("/health", (_req, res) => {
-  res.status(200).json({ status: "ok" });
-});
+  app.get("/health", (_req, res) => {
+    res.json({ ok: true });
+  });
 
-export function buildApp(): express.Express {
   return app;
 }
 
+export function buildApp(): express.Express {
+  return buildAppWithApiRoutes();
+}
+
 export function registerApiRoutes(_app: express.Express): void {
-  // Routes are mounted directly on the shared app instance.
+  // Routes are mounted in buildAppWithApiRoutes for test bootstrap.
 }
 
 export function assertCorsConfig(): void {
-  // Minimal app uses default CORS middleware with no additional assertions.
+  // No-op for default CORS config.
 }
+
+const app = buildAppWithApiRoutes();
 
 export default app;

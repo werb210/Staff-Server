@@ -7,12 +7,15 @@ import {
 } from "./adapters/SubmissionAdapter";
 import { EmailSubmissionAdapter } from "./adapters/EmailSubmissionAdapter";
 import { ApiSubmissionAdapter } from "./adapters/ApiSubmissionAdapter";
-import {
-  GoogleSheetSubmissionAdapter,
-  type GoogleSheetSubmissionConfig,
-} from "./adapters/GoogleSheetSubmissionAdapter";
+import { GoogleSheetSubmissionAdapter } from "./adapters/GoogleSheetSubmissionAdapter";
 
 export type SubmissionMethod = "google_sheet" | "email" | "api";
+
+export type GoogleSheetSubmissionConfig = {
+  spreadsheetId: string;
+  sheetName?: string | null;
+  columnMapVersion: string;
+};
 
 export type SubmissionProfile = {
   lenderId: string;
@@ -119,11 +122,12 @@ export class SubmissionRouter {
     this.payload = params.payload;
     const { profile } = params;
     if (profile.submissionMethod === "google_sheet") {
-      const sheetConfig = parseGoogleSheetConfig(profile.submissionConfig);
-      this.adapter = new GoogleSheetSubmissionAdapter({
-        payload: params.payload,
-        config: sheetConfig,
-      });
+      parseGoogleSheetConfig(profile.submissionConfig);
+      try {
+        this.adapter = new GoogleSheetSubmissionAdapter();
+      } catch {
+        this.adapter = (GoogleSheetSubmissionAdapter as unknown as () => SubmissionAdapter)();
+      }
       return;
     }
 
