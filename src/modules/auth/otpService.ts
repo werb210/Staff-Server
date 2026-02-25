@@ -1,5 +1,7 @@
 export const otpService = {
   async createVerification() {
-    return { sid: "test-verification" };
+    return {
+      sid: "test-sid",
+    };
   },
 };
