@@ -2,20 +2,20 @@ import { GoogleSheetSubmissionAdapter } from "../src/modules/submissions/adapter
 
 const sheetsInstance = {
   spreadsheets: {
-    get: jest.fn(),
+    get: vi.fn(),
     values: {
-      get: jest.fn(),
-      append: jest.fn(),
+      get: vi.fn(),
+      append: vi.fn(),
     },
   },
 };
 
-jest.mock("googleapis", () => ({
+vi.mock("googleapis", () => ({
   google: {
     auth: {
-      GoogleAuth: jest.fn().mockImplementation(() => ({})),
+      GoogleAuth: vi.fn().mockImplementation(() => ({})),
     },
-    sheets: jest.fn(() => sheetsInstance),
+    sheets: vi.fn(() => sheetsInstance),
   },
 }));
 
@@ -54,7 +54,7 @@ describe("google sheet submission adapter", () => {
   });
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it("appends a new row when the application is not present", async () => {

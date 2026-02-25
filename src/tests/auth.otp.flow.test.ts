@@ -95,7 +95,7 @@ describe("auth otp flow regression coverage", () => {
     process.env.LOGIN_RATE_LIMIT_MAX = "2";
     process.env.LOGIN_RATE_LIMIT_WINDOW_MS = "60000";
     const config = require("../config");
-    const envSpy = jest.spyOn(config, "isTestEnvironment").mockReturnValue(false);
+    const envSpy = vi.spyOn(config, "isTestEnvironment").mockReturnValue(false);
 
     const app = buildTestApp();
     await upsertUser({ phone: TEST_PHONE, role: ROLES.ADMIN });

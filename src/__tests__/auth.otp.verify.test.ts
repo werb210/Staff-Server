@@ -12,8 +12,8 @@ describe("POST /api/auth/otp/start Twilio Verify behaviors", () => {
 
   beforeEach(() => {
     process.env = { ...originalEnv };
-    jest.resetModules();
-    jest.clearAllMocks();
+    vi.resetModules();
+    vi.clearAllMocks();
   });
 
   afterEach(() => {

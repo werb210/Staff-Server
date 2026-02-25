@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "check": "tsc --noEmit",
     "build": "tsc",
-    "test": "vitest --run",
+    "test": "NODE_ENV=test vitest --run",
     "audit:prod": "npm audit --omit=dev",
     "verify": "npm run lint && npm run check && npm run build && npm run audit:prod",
     "audit:enterprise": "node scripts/enterprise-audit.js",
