@@ -1,0 +1,5 @@
+process.env.PORT ??= '3001'
+process.env.JWT_SECRET ??= 'test-secret'
+process.env.DATABASE_URL ??= 'postgres://user:pass@localhost:5432/test'
+process.env.TWILIO_MODE ??= 'mock'
+process.env.NODE_ENV = 'test'
