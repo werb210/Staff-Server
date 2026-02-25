@@ -6,7 +6,7 @@ export interface GoogleSheetSubmitResult {
 
 export class GoogleSheetSubmissionAdapter {
   async submit(payload: any): Promise<GoogleSheetSubmitResult> {
-    if (!payload) {
+    if (!payload || !payload.columnMapVersion) {
       return { status: "error", success: false };
     }
 
