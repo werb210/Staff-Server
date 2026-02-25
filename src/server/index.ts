@@ -8,6 +8,7 @@ import { logger } from "../lib/logger";
 import { markReady } from "../startupState";
 import { createServer } from "./createServer";
 import { initChatSocket } from "../modules/ai/socket.server";
+import { warmUpDatabase } from "../db";
 
 let processHandlersInstalled = false;
 let server: Server | null = null;
@@ -37,7 +38,7 @@ export async function startServer() {
   const isMockRuntime = process.env.TWILIO_MODE === "mock";
   app = await createServer({
     config: {
-      skipWarmup: isMockRuntime,
+      skipWarmup: true,
       skipSchemaCheck: isMockRuntime || process.env.NODE_ENV === "production",
       skipSeed: isMockRuntime || process.env.NODE_ENV === "production",
       skipCorsCheck: isMockRuntime,
@@ -62,6 +63,11 @@ export async function startServer() {
   if (!server) throw new Error("Server failed to start.");
 
   initChatSocket(server);
+
+  warmUpDatabase().catch((err) => {
+    logger.error({ err }, "db_warmup_failed");
+  });
+
   markReady();
   return server;
 }
