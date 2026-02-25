@@ -124,7 +124,7 @@ export class SubmissionRouter {
     if (profile.submissionMethod === "google_sheet") {
       parseGoogleSheetConfig(profile.submissionConfig);
       try {
-        this.adapter = new GoogleSheetSubmissionAdapter();
+        this.adapter = new GoogleSheetSubmissionAdapter() as unknown as SubmissionAdapter;
       } catch {
         this.adapter = (GoogleSheetSubmissionAdapter as unknown as () => SubmissionAdapter)();
       }

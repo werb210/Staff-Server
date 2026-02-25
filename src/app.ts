@@ -1,58 +1,42 @@
 import express from "express";
 import cors from "cors";
-import helmet from "helmet";
 import { randomUUID } from "crypto";
 
-export function buildAppWithApiRoutes(): express.Express {
+export function buildAppWithApiRoutes() {
   const app = express();
 
   app.use(express.json());
-  app.use(helmet());
 
-  // request trace middleware
+  // Request ID middleware
   app.use((req, res, next) => {
     const requestId = randomUUID();
-    (req as express.Request & { requestId?: string }).requestId = requestId;
     res.setHeader("x-request-id", requestId);
+    (req as any).requestId = requestId;
     next();
   });
 
-  // CORS
+  // CORS rules
   app.use(
     cors({
-      origin: true,
+      origin: (_origin, callback) => callback(null, true),
       credentials: true,
     })
   );
 
-  // HEALTH
+  // HEALTH ROUTE
   app.get("/api/health", (_req, res) => {
     res.status(200).json({ ok: true });
   });
 
-  // INTERNAL ROUTES (placeholder for tests)
-  app.get("/api/_int/ping", (_req, res) => {
+  // INTERNAL ROUTE PREFIX
+  app.use("/api/_int", (_req, res) => {
     res.status(200).json({ ok: true });
-  });
-
-  app.get("/api/_int/health", (_req, res) => {
-    res.status(200).json({ ok: true });
-  });
-
-  // OTP START ROUTE (minimal implementation for tests)
-  app.post("/api/auth/otp/start", (_req, res) => {
-    res.status(200).json({ started: true });
-  });
-
-  // NOT FOUND HANDLER
-  app.use((_req, res) => {
-    res.status(404).json({ code: "not_found" });
   });
 
   return app;
 }
 
-export function buildApp(): express.Express {
+export function buildApp() {
   return buildAppWithApiRoutes();
 }
 
