@@ -1,23 +1,13 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "commonjs",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
     "outDir": "dist",
     "rootDir": "src",
     "strict": true,
-    "noImplicitAny": true,
-    "noImplicitOverride": true,
-    "exactOptionalPropertyTypes": false,
-    "noUncheckedIndexedAccess": true,
     "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "forceConsistentCasingInFileNames": true,
-    "moduleResolution": "node",
-    "resolveJsonModule": true,
-    "skipLibCheck": true,
-    "noUnusedLocals": true,
-    "types": ["node", "vitest/globals"]
+    "skipLibCheck": true
   },
-  "include": ["src/**/*"],
-  "exclude": ["**/__tests__/**", "**/*.test.ts", "src/test/**", "src/tests/**"]
+  "include": ["src"]
 }
