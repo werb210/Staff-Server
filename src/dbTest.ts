@@ -10,6 +10,7 @@ import { trackDependency } from "./observability/appInsights";
 import { getRequestContext } from "./observability/requestContext";
 import { logError, logInfo, logWarn } from "./observability/logger";
 import { markNotReady } from "./startupState";
+import { runMigrations } from "./migrations";
 
 type MemoryDb = { adapters: { createPg: () => { Pool: new (config?: any) => PgPool } }; public: { registerFunction: (arg: any) => void } };
 
@@ -75,42 +76,25 @@ export function getTestDb() {
 export const pool: PgPool = new PoolImpl({});
 export const db = pool;
 
-let __testMigrationsInitialized = false;
-let __testMigrationsInitializationPromise: Promise<void> | null = null;
-let __testMigrationsInitializing = false;
-
-async function __initializeTestSchema(): Promise<void> {
-  if (__testMigrationsInitialized) return;
-  if (__testMigrationsInitializationPromise) {
-    await __testMigrationsInitializationPromise;
-    return;
+const testMigrationsDonePromise: Promise<void> = (() => {
+  if (process.env.NODE_ENV !== "test") {
+    return Promise.resolve();
   }
 
-  __testMigrationsInitializationPromise = (async () => {
-    __testMigrationsInitializing = true;
-    const { runMigrations } = await import("./migrations");
-    await runMigrations({
+  const globalAny = globalThis as any;
+
+  if (!globalAny.__PG_MEM_MIGRATIONS_DONE__) {
+    globalAny.__PG_MEM_MIGRATIONS_DONE__ = runMigrations({
       ignoreMissingRelations: true,
       skipPlpgsql: true,
       rewriteAlterIfExists: true,
       rewriteCreateTableIfNotExists: true,
       skipPgMemErrors: true,
     });
-
-    __testMigrationsInitialized = true;
-  })();
-
-  try {
-    await __testMigrationsInitializationPromise;
-  } finally {
-    __testMigrationsInitializing = false;
-    __testMigrationsInitializationPromise = null;
   }
-}
 
-if (memoryDb) {
-  void __initializeTestSchema();
-}
+  return globalAny.__PG_MEM_MIGRATIONS_DONE__;
+})();
 
 export function query(text: string, params?: any[]): Promise<QueryResult> {
   return pool.query(text, params);
@@ -151,9 +135,7 @@ export function setDbTestPoolMetricsOverride(override: PoolMetrics | null): void
 
 function createQueryWrapper<T extends (...args: any[]) => Promise<any>>(originalQuery: T): T {
   const wrapped = async (...args: Parameters<T>): Promise<ReturnType<T>> => {
-    if (memoryDb && !__testMigrationsInitializing) {
-      await __initializeTestSchema();
-    }
+    await testMigrationsDonePromise;
     const queryText = extractQueryText(args as unknown[]);
     const requestContext = getRequestContext();
     const shouldTrace = requestContext?.sqlTraceEnabled ?? false;
