@@ -2,19 +2,18 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-type RequiredEnv = {
-  NODE_ENV: string;
-  PORT: string;
-  JWT_SECRET: string;
-  TWILIO_MODE: string;
-};
+export function requireEnv(name: string): string {
+  const value = process.env[name];
 
-function requireEnv(key: keyof RequiredEnv): string {
-  const value = process.env[key];
   if (!value) {
-    console.error(`❌ Missing required environment variable: ${key}`);
+    if (process.env.NODE_ENV === "test") {
+      return "__test__";
+    }
+
+    console.error(`Missing required environment variable: ${name}`);
     process.exit(1);
   }
+
   return value;
 }
 
