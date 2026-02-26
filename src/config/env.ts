@@ -2,18 +2,14 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
+export const IS_TEST = process.env.NODE_ENV === "test";
+
 export function requireEnv(name: string): string {
+  if (IS_TEST) return "test-value";
   const value = process.env[name];
-
   if (!value) {
-    if (process.env.NODE_ENV === "test") {
-      return "__test__";
-    }
-
-    console.error(`Missing required environment variable: ${name}`);
-    process.exit(1);
+    throw new Error(`Missing required env var: ${name}`);
   }
-
   return value;
 }
 

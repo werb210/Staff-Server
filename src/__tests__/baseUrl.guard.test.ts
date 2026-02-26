@@ -3,23 +3,17 @@ describe("BASE_URL guard", () => {
     vi.resetModules();
   });
 
-  it("throws when BASE_URL is missing in production", () => {
+  it("throws when BASE_URL is missing in production", async () => {
     process.env.NODE_ENV = "production";
     delete process.env.BASE_URL;
-    expect(() => {
-      vi.isolateModules(() => {
-        require("../server");
-      });
-    }).toThrow("BASE_URL must be set in production.");
+    vi.resetModules();
+    await expect(import("../server")).rejects.toThrow("BASE_URL must be set in production.");
   });
 
-  it("allows missing BASE_URL outside production", () => {
+  it("allows missing BASE_URL outside production", async () => {
     process.env.NODE_ENV = "test";
     delete process.env.BASE_URL;
-    expect(() => {
-      vi.isolateModules(() => {
-        require("../server");
-      });
-    }).not.toThrow();
+    vi.resetModules();
+    await expect(import("../server")).resolves.toBeDefined();
   });
 });

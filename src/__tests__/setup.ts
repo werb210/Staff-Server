@@ -1,3 +1,4 @@
+import { vi } from "vitest";
 import { installProcessHandlers } from "../observability/processHandlers";
 import { markReady } from "../startupState";
 
@@ -14,6 +15,8 @@ process.env.TWILIO_API_SECRET = "test-twilio-api-secret";
 process.env.TWILIO_TWIML_APP_SID = "AP00000000000000000000000000000000";
 process.env.TWILIO_PHONE_NUMBER = "+14155550000";
 process.env.JWT_SECRET = "test-access-secret";
+process.env.ACCESS_TOKEN_SECRET = "test-secret";
+process.env.REFRESH_TOKEN_SECRET = "test-refresh";
 process.env.VAPID_PUBLIC_KEY =
   "BEfWI4_C2Dzb-Nwj0lrRCX3tjsD6SHII7rSHm2T-NsJUdP6KBpfPoAggWrkxCbxat6Vv8O-HBZzYnzHvTT8uh1Q";
 process.env.VAPID_PRIVATE_KEY = "rkOdsYGnG4F-cu0nkuG6Zi5dTlFtOmzLUGCCUyYZZqY";
@@ -274,8 +277,16 @@ beforeAll(async () => {
   );
 });
 
-const twilioModule = require("twilio") as {
-  __twilioMocks: unknown;
-};
-
-Object.assign(globalThis, { __twilioMocks: twilioModule.__twilioMocks });
+vi.mock("twilio", () => {
+  return {
+    default: () => ({
+      verify: {
+        services: () => ({
+          verifications: {
+            create: vi.fn().mockResolvedValue({ sid: "test-sid" }),
+          },
+        }),
+      },
+    }),
+  };
+});

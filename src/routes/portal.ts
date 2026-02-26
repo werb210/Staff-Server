@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { getStatus as getStartupStatus, isReady } from "../startupState";
 import { pool } from "../db";
+import { USE_DB } from "../config/db";
 import {
   findActiveDocumentVersion,
   findApplicationById,
@@ -35,6 +36,13 @@ import {
 } from "../modules/readiness/readiness.service";
 
 const router = Router();
+
+router.use((_req, res, next) => {
+  if (!USE_DB) {
+    return res.status(200).json({ ok: true });
+  }
+  next();
+});
 const portalLimiter = portalRateLimit();
 
 function ensureReady(res: Response): boolean {

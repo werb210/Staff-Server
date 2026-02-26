@@ -31,17 +31,9 @@ describe("startup behavior", () => {
     process.env.NODE_ENV = "test";
     resetStartupState();
 
-    await new Promise<void>((resolve, reject) => {
-      vi.isolateModules(() => {
-        const { startServer } = require("../index");
-        startServer()
-          .then((listener: import("http").Server) => {
-            server = listener;
-            resolve();
-          })
-          .catch(reject);
-      });
-    });
+    vi.resetModules();
+    const { startServer } = await import("../index");
+    server = await startServer();
 
     await waitForCondition(() => Boolean(server?.listening), 2000);
 
@@ -67,17 +59,9 @@ describe("startup behavior", () => {
     process.env.NODE_ENV = "test";
     resetStartupState();
 
-    await new Promise<void>((resolve, reject) => {
-      vi.isolateModules(() => {
-        const { startServer } = require("../index");
-        startServer()
-          .then((listener: import("http").Server) => {
-            server = listener;
-            resolve();
-          })
-          .catch(reject);
-      });
-    });
+    vi.resetModules();
+    const { startServer } = await import("../index");
+    server = await startServer();
 
     await waitForCondition(() => Boolean(server?.listening), 2000);
 

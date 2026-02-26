@@ -42,17 +42,8 @@ describe("boot behavior", () => {
         .spyOn(process, "exit")
         .mockImplementation((() => undefined) as never);
       vi.resetModules();
-      await new Promise<void>((resolve, reject) => {
-        vi.isolateModules(() => {
-          const { startServer } = require("../index");
-          startServer()
-            .then((listener: import("http").Server) => {
-              server = listener;
-              resolve();
-            })
-            .catch(reject);
-        });
-      });
+      const { startServer } = await import("../index");
+      server = await startServer();
 
       await waitForCondition(() => Boolean(server?.listening), 2000);
 

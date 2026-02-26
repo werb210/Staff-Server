@@ -6,7 +6,7 @@ describe("twilio startup without configuration", () => {
     vi.resetModules();
   });
 
-  it("does not fail when Twilio env vars are missing", () => {
+  it("does not fail when Twilio env vars are missing", async () => {
     process.env = { ...originalEnv };
     delete process.env.TWILIO_ACCOUNT_SID;
     delete process.env.TWILIO_AUTH_TOKEN;
@@ -14,10 +14,7 @@ describe("twilio startup without configuration", () => {
     process.env.PORT = "0";
     process.env.NODE_ENV = "test";
 
-    expect(() => {
-      vi.isolateModules(() => {
-        require("../index");
-      });
-    }).not.toThrow();
+    vi.resetModules();
+    await expect(import("../index")).resolves.toBeDefined();
   });
 });
