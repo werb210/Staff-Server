@@ -50,16 +50,13 @@ describe("azure health endpoints", () => {
       return server as unknown as import("http").Server;
     });
 
-    await new Promise<void>((resolve, reject) => {
-      vi.isolateModules(() => {
-        vi.doMock("../app", () => ({
-          buildApp: () => ({ listen: listenSpy, use: vi.fn() }),
-          registerApiRoutes: vi.fn(),
-        }));
-        const { startServer } = require("../index");
-        startServer().then(() => resolve()).catch(reject);
-      });
-    });
+    vi.resetModules();
+    vi.doMock("../app", () => ({
+      buildApp: () => ({ listen: listenSpy, use: vi.fn() }),
+      registerApiRoutes: vi.fn(),
+    }));
+    const { startServer } = await import("../index");
+    await startServer();
 
     expect(listenSpy).toHaveBeenCalledWith(4777, "0.0.0.0", expect.any(Function));
   });
