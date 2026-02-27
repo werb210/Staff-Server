@@ -308,14 +308,8 @@ router.post("/refresh", refreshRateLimit(), async (req, res, next) => {
       refreshToken: result.refreshToken,
       user: result.user,
     });
-  } catch (err) {
-    if (err instanceof AppError) {
-      const details = (err as { details?: unknown }).details;
-      respondError(res, err.status, err.code, err.message, details);
-      return;
-    }
-
-    next(err);
+  } catch {
+    return res.status(400).json({ error: "Invalid refresh token" });
   }
 });
 

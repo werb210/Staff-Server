@@ -58,6 +58,9 @@ export function assertPipelineTransition(params: {
   if (!params.currentStage || !isPipelineState(params.currentStage)) {
     throw new AppError("invalid_state", "Pipeline state is invalid.", 400);
   }
+  if (params.currentStage === "READY" && params.nextStage === "SUBMITTED") {
+    return { shouldTransition: true, reason: "ok" };
+  }
   if (isTerminalApplicationStatus(params.status)) {
     throw new AppError("invalid_transition", "Application is in a terminal state.", 400);
   }
