@@ -3,7 +3,8 @@ create table if not exists client_submissions (
   submission_key text not null unique,
   application_id text not null references applications(id) on delete cascade,
   payload jsonb not null,
-  created_at timestamp not null
+  created_at timestamp not null default now(),
+  updated_at timestamp not null default now()
 );
 
 alter table if exists lender_submissions
@@ -19,8 +20,8 @@ create table if not exists lender_submission_retries (
   attempt_count integer not null default 0,
   next_attempt_at timestamp null,
   last_error text null,
-  created_at timestamp not null,
-  updated_at timestamp not null,
+  created_at timestamp not null default now(),
+  updated_at timestamp not null default now(),
   canceled_at timestamp null,
   unique (submission_id)
 );

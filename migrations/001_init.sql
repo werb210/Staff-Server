@@ -7,7 +7,9 @@ create table if not exists users (
   password_changed_at timestamptz null,
   failed_login_attempts integer not null default 0,
   locked_until timestamptz null,
-  token_version integer not null default 0
+  token_version integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
 create table if not exists auth_refresh_tokens (
@@ -16,7 +18,7 @@ create table if not exists auth_refresh_tokens (
   token_hash text not null unique,
   expires_at timestamptz not null,
   revoked_at timestamptz null,
-  created_at timestamptz not null,
+  created_at timestamptz not null default now(),
   unique (user_id)
 );
 

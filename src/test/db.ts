@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll } from "vitest";
+import { afterAll, beforeAll, beforeEach } from "vitest";
 import { pool } from "../db";
 import { runMigrations } from "../migrations";
 
@@ -8,13 +8,6 @@ function assertTestDatabase(): void {
   if (process.env.NODE_ENV !== "test") {
     throw new Error("Test database helpers require NODE_ENV=test.");
   }
-}
-
-async function listPublicTables(): Promise<string[]> {
-  const res = await pool.query<TableRow>(
-    "select table_name as tablename from information_schema.tables where table_schema = 'public'"
-  );
-  return res.rows.map((row) => row.tablename);
 }
 
 async function ensureColumn(params: {
@@ -121,15 +114,35 @@ async function ensureAuthRefreshTokenColumns(): Promise<void> {
   }
 }
 
-async function truncateAllTables(): Promise<void> {
-  const tables = await listPublicTables();
-  const filtered = tables.filter((name) => name !== "schema_migrations");
-  if (filtered.length === 0) {
-    return;
+export async function resetDb(): Promise<void> {
+  let tables: { rows: TableRow[] };
+  try {
+    tables = await pool.query<TableRow>(
+      `select tablename
+       from pg_tables
+       where schemaname = 'public'`
+    );
+  } catch {
+    tables = await pool.query<TableRow>(
+      `select table_name as tablename
+       from information_schema.tables
+       where table_schema = 'public'`
+    );
   }
-  for (const table of filtered) {
-    await pool.query(`truncate table "${table}" restart identity cascade`);
+
+  for (const { tablename } of tables.rows) {
+    await pool.query(`drop table if exists "${tablename}" cascade`);
   }
+
+  await pool.query("drop table if exists schema_migrations cascade");
+
+  await runMigrations({
+    ignoreMissingRelations: true,
+    skipPlpgsql: true,
+    rewriteAlterIfExists: true,
+    rewriteCreateTableIfNotExists: true,
+    skipPgMemErrors: true,
+  });
 }
 
 async function ensureTable(table: string, createSql: string): Promise<void> {
@@ -334,8 +347,12 @@ export function setupTestDatabase(): void {
     await ensureAuditViews();
   });
 
-  afterEach(async () => {
-    await truncateAllTables();
+  beforeEach(async () => {
+    await resetDb();
+    await ensureUserColumns();
+    await ensureAuthRefreshTokenColumns();
+    await ensureCoreTables();
+    await ensureAuditViews();
   });
 
   afterAll(async () => {

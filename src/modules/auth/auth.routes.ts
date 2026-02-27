@@ -22,6 +22,10 @@ import { ALL_ROLES } from "../../auth/roles";
 
 const router = Router();
 
+function isInvalidRefreshError(err: unknown): boolean {
+  return err instanceof AppError && err.code === "invalid_refresh_token";
+}
+
 function getAuthRequestId(res: Response): string {
   return res.locals.requestId ?? getRequestId() ?? "unknown";
 }
@@ -308,8 +312,12 @@ router.post("/refresh", refreshRateLimit(), async (req, res, next) => {
       refreshToken: result.refreshToken,
       user: result.user,
     });
-  } catch {
-    return res.status(400).json({ error: "Invalid refresh token" });
+  } catch (err) {
+    if (isInvalidRefreshError(err)) {
+      return res.status(400).json({ error: "Invalid refresh token" });
+    }
+
+    next(err);
   }
 });
 

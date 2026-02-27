@@ -4,8 +4,8 @@ create table if not exists applications (
   name text not null,
   metadata jsonb null,
   pipeline_state text not null,
-  created_at timestamp not null,
-  updated_at timestamp not null
+  created_at timestamp not null default now(),
+  updated_at timestamp not null default now()
 );
 
 create table if not exists documents (
@@ -13,7 +13,7 @@ create table if not exists documents (
   application_id text not null references applications(id) on delete cascade,
   owner_user_id uuid not null references users(id) on delete cascade,
   title text not null,
-  created_at timestamp not null
+  created_at timestamp not null default now()
 );
 
 create table if not exists document_versions (
@@ -31,6 +31,6 @@ create table if not exists lender_submissions (
   application_id text not null references applications(id) on delete cascade,
   status text not null,
   idempotency_key text not null unique,
-  created_at timestamp not null,
-  updated_at timestamp not null
+  created_at timestamp not null default now(),
+  updated_at timestamp not null default now()
 );

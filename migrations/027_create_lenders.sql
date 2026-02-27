@@ -15,7 +15,9 @@ create table if not exists lenders (
   contact_phone text null,
   submission_method text null,
   submission_email text null,
-  created_at timestamp not null default now()
+  status text not null default 'ACTIVE',
+  created_at timestamp not null default now(),
+  updated_at timestamp not null default now()
 );
 
 alter table if exists lender_products
@@ -63,3 +65,8 @@ create index if not exists lenders_active_idx on lenders (active);
 alter table if exists lender_products
   add constraint lender_products_lender_id_fkey
   foreign key (lender_id) references lenders(id) on delete cascade;
+
+
+alter table if exists lenders
+  add column if not exists status text not null default 'ACTIVE',
+  add column if not exists updated_at timestamp not null default now();

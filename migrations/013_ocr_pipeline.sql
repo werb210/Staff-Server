@@ -9,8 +9,8 @@ create table if not exists ocr_jobs (
   locked_at timestamp null,
   locked_by text null,
   last_error text null,
-  created_at timestamp not null,
-  updated_at timestamp not null,
+  created_at timestamp not null default now(),
+  updated_at timestamp not null default now(),
   unique (document_id),
   check (status in ('queued', 'processing', 'succeeded', 'failed', 'canceled'))
 );
@@ -23,8 +23,8 @@ create table if not exists ocr_results (
   extracted_text text not null,
   extracted_json jsonb null,
   meta jsonb null,
-  created_at timestamp not null,
-  updated_at timestamp not null,
+  created_at timestamp not null default now(),
+  updated_at timestamp not null default now(),
   unique (document_id)
 );
 
