@@ -1,14 +1,13 @@
 import http from "http";
 
-import { buildApp } from "./app";
+import { buildApp, registerApiRoutes } from "./app";
 
-export const appPromise = buildApp();
+export const app = buildApp();
+registerApiRoutes(app);
 
 if (process.env.NODE_ENV !== "test") {
   const port = process.env.PORT || 3000;
-  appPromise.then((app) => {
-    http.createServer(app).listen(port, () => {
-      console.log(`Server running on port ${port}`);
-    });
+  http.createServer(app).listen(port, () => {
+    console.log(`Server running on port ${port}`);
   });
 }
