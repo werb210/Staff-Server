@@ -1,14 +1,13 @@
-import { Express } from "express";
-import authRouter from "./auth";
-import clientRouter from "./client";
-import portalRouter from "./portal";
-import lendersRouter from "./lenders";
+import type { Express } from "express";
+import { Router } from "express";
+import readyRouter from "./ready";
 import healthRouter from "./health";
+import { registerApiRouteMounts } from "./routeRegistry";
 
 export function registerRoutes(app: Express) {
-  app.use("/api/auth", authRouter);
-  app.use("/api/client", clientRouter);
-  app.use("/api/portal", portalRouter);
-  app.use("/api/lenders", lendersRouter);
-  app.use("/api/health", healthRouter);
+  const apiRouter = Router();
+  registerApiRouteMounts(apiRouter);
+  apiRouter.use("/health", healthRouter);
+  app.use("/api", apiRouter);
+  app.use(readyRouter);
 }
