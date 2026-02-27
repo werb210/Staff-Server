@@ -19,7 +19,7 @@ export function getTwilioClient(): TwilioClient {
   const accountSid = requireEnv("TWILIO_ACCOUNT_SID");
   const authToken = requireEnv("TWILIO_AUTH_TOKEN");
 
-  cachedClient = new Twilio(accountSid, authToken);
+  cachedClient = Twilio(accountSid, authToken);
   return cachedClient;
 }
 

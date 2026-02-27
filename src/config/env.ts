@@ -5,7 +5,7 @@ dotenv.config();
 export const IS_TEST = process.env.NODE_ENV === "test";
 
 export function requireEnv(name: string): string {
-  if (IS_TEST) return "test-value";
+  if (IS_TEST) return process.env[name] ?? "test-value";
   const value = process.env[name];
   if (!value) {
     throw new Error(`Missing required env var: ${name}`);
