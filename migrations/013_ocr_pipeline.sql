@@ -1,6 +1,6 @@
 create table if not exists ocr_jobs (
   id text not null,
-  primary key (id),
+
   document_id text not null references documents(id) on delete cascade,
   application_id text not null references applications(id) on delete cascade,
   status text not null,
@@ -13,12 +13,13 @@ create table if not exists ocr_jobs (
   created_at timestamp not null default now(),
   updated_at timestamp not null default now(),
   unique (document_id),
-  check (status in ('queued', 'processing', 'succeeded', 'failed', 'canceled'))
+  check (status in ('queued', 'processing', 'succeeded', 'failed', 'canceled')),
+  constraint ocr_jobs_pk primary key (id)
 );
 
 create table if not exists ocr_results (
   id text not null,
-  primary key (id),
+
   document_id text not null references documents(id) on delete cascade,
   provider text not null,
   model text not null,
@@ -27,7 +28,8 @@ create table if not exists ocr_results (
   meta jsonb null,
   created_at timestamp not null default now(),
   updated_at timestamp not null default now(),
-  unique (document_id)
+  unique (document_id),
+  constraint ocr_results_pk primary key (id)
 );
 
 create index if not exists ocr_jobs_status_next_attempt_at_idx

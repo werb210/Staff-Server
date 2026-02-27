@@ -2,7 +2,8 @@ alter table if exists users
   alter column email set not null;
 
 create unique index if not exists users_email_unique_idx
-  on users (email);
+  on users (email)
+  where email is not null;
 
 create unique index if not exists idempotency_keys_key_route_unique_idx
   on idempotency_keys (key, route);

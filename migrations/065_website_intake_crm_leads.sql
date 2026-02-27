@@ -1,5 +1,5 @@
 create table if not exists crm_leads (
-  id uuid primary key,
+  id uuid not null,
   company_name text null,
   full_name text null,
   phone text null,
@@ -13,7 +13,8 @@ create table if not exists crm_leads (
   notes text null,
   source text not null,
   tags jsonb not null default '[]'::jsonb,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  constraint crm_leads_pk primary key (id)
 );
 
 alter table if exists crm_leads add column if not exists id uuid;

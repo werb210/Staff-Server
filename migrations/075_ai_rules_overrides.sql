@@ -1,11 +1,12 @@
 create table if not exists ai_rules (
-  id uuid primary key default gen_random_uuid(),
+  id uuid not null default gen_random_uuid(),
   rule_type text not null default 'system',
   rule_content text not null,
   priority integer not null default 100,
   active boolean not null default true,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  constraint ai_rules_pk primary key (id)
 );
 
 alter table if exists ai_rules

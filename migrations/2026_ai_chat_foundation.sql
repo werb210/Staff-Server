@@ -1,13 +1,14 @@
 create extension if not exists vector;
 
 create table if not exists chat_sessions (
-  id uuid primary key,
+  id uuid not null,
   crm_contact_id uuid null,
   source text not null,
   status text not null default 'ai',
   assigned_to uuid null,
   created_at timestamptz default now(),
-  updated_at timestamptz default now()
+  updated_at timestamptz default now(),
+  constraint chat_sessions_pk primary key (id)
 );
 
 alter table if exists chat_sessions add column if not exists crm_contact_id uuid null;
@@ -25,12 +26,13 @@ alter table if exists chat_sessions
   check (status in ('ai', 'queued', 'live', 'closed'));
 
 create table if not exists chat_messages (
-  id uuid primary key,
+  id uuid not null,
   session_id uuid references chat_sessions(id) on delete cascade,
   role text not null,
   content text not null,
   metadata jsonb null,
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  constraint chat_messages_pk primary key (id)
 );
 
 alter table if exists chat_messages add column if not exists content text;
@@ -47,35 +49,39 @@ end$$;
 alter table if exists chat_messages alter column content set not null;
 
 create table if not exists chat_queue (
-  id uuid primary key,
+  id uuid not null,
   session_id uuid references chat_sessions(id),
   priority int default 1,
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  constraint chat_queue_pk primary key (id)
 );
 
 create table if not exists ai_knowledge (
-  id uuid primary key,
+  id uuid not null,
   title text,
   content text not null,
   source_type text not null,
   embedding vector(1536),
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  constraint ai_knowledge_pk primary key (id)
 );
 
 create table if not exists ai_policy_rules (
-  id uuid primary key,
+  id uuid not null,
   rule_key text unique,
   rule_type text not null,
   content text not null,
   active boolean default true,
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  constraint ai_policy_rules_pk primary key (id)
 );
 
 create table if not exists ai_voice_state (
-  session_id uuid primary key,
+  session_id uuid not null,
   state text not null,
   last_event jsonb,
-  updated_at timestamptz default now()
+  updated_at timestamptz default now(),
+  constraint ai_voice_state_pk primary key (session_id)
 );
 
 insert into ai_policy_rules (id, rule_key, rule_type, content)

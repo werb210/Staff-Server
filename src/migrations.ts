@@ -165,6 +165,10 @@ export async function runMigrations(options?: {
   guardAlterTableExists?: boolean;
   rewriteInlinePrimaryKeys?: boolean;
 }): Promise<void> {
+  if (ran) {
+    return;
+  }
+  ran = true;
   await ensureMigrationsTable();
   const migrationFiles = listMigrationFiles();
   const applied = await fetchAppliedMigrations();
@@ -259,15 +263,6 @@ export async function runMigrations(options?: {
             "alter table"
           );
         }
-        if (
-          options?.rewriteCreateTableIfNotExists &&
-          normalizedStatement.startsWith("create table if not exists")
-        ) {
-          executableStatement = executableStatement.replace(
-            /create table if not exists/i,
-            "create table"
-          );
-        }
         if (options?.guardAlterTableExists && normalizedStatement.startsWith("alter table")) {
           const alterTableMatch = executableStatement.match(
             /^\s*alter\s+table\s+(?:if\s+exists\s+)?"?([a-zA-Z_][a-zA-Z0-9_]*)"?/i
@@ -317,6 +312,14 @@ export async function runMigrations(options?: {
               continue;
             }
           }
+          if (
+            normalizedStatement.startsWith("create table if not exists")
+          ) {
+            const message = err instanceof Error ? err.message : String(err);
+            if (message.includes("already exists")) {
+              continue;
+            }
+          }
           if (options?.skipPgMemErrors) {
             const message = err instanceof Error ? err.message : String(err);
             if (
@@ -361,15 +364,6 @@ export async function runMigrations(options?: {
               continue;
             }
           }
-          if (
-            options?.rewriteCreateTableIfNotExists &&
-            normalizedStatement.startsWith("create table if not exists")
-          ) {
-            const message = err instanceof Error ? err.message : String(err);
-            if (message.includes("already exists")) {
-              continue;
-            }
-          }
           throw err;
         }
       }
@@ -387,6 +381,8 @@ export async function runMigrations(options?: {
     }
   }
 }
+
+let ran = false;
 
 export async function getPendingMigrations(): Promise<string[]> {
   await ensureMigrationsTable();

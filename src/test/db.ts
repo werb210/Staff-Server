@@ -149,17 +149,25 @@ async function resetSchemaAndRunMigrations(): Promise<void> {
     schemas?: Map<string, unknown>;
     createSchema?: (name: string) => unknown;
   };
-  if (db.schemas && typeof db.createSchema === "function") {
-    db.schemas.delete("public");
-    db.createSchema("public");
-  } else {
-    db.public.none("drop table if exists schema_migrations cascade");
+
+  try {
+    db.public.none(`
+      drop schema if exists public cascade;
+      create schema public;
+    `);
+  } catch {
+    if (db.schemas && typeof db.createSchema === "function") {
+      db.schemas.delete("public");
+      db.createSchema("public");
+    } else {
+      throw new Error("test_schema_reset_failed");
+    }
   }
+
   await runMigrations({
     ignoreMissingRelations: true,
     skipPlpgsql: true,
     rewriteAlterIfExists: true,
-    rewriteCreateTableIfNotExists: true,
     skipPgMemErrors: true,
     ensureCreateIfNotExists: true,
     ensureIndexIfNotExists: true,
@@ -174,14 +182,22 @@ async function ensureTable(table: string, createSql: string): Promise<void> {
     [table]
   );
   if (res.rows.length === 0) {
-    await pool.query(createSql);
+    try {
+      await pool.query(createSql);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes("already exists")) {
+        return;
+      }
+      throw err;
+    }
   }
 }
 
 async function ensureCoreTables(): Promise<void> {
   await ensureTable(
     "audit_events",
-    `create table audit_events (
+    `create table if not exists audit_events (
       actor_user_id uuid null,
       target_user_id uuid null,
       target_type text null,
@@ -197,32 +213,34 @@ async function ensureCoreTables(): Promise<void> {
   );
   await ensureTable(
     "otp_verifications",
-    `create table otp_verifications (
-      id uuid primary key,
+    `create table if not exists otp_verifications (
+      id uuid not null,
       user_id uuid not null,
       phone text not null,
       status text not null,
       verified_at timestamptz null,
-      created_at timestamptz not null default now()
+      created_at timestamptz not null default now(),
+      constraint otp_verifications_pk primary key (id)
     )`
   );
   await ensureTable(
     "idempotency_keys",
-    `create table idempotency_keys (
-      id uuid primary key,
+    `create table if not exists idempotency_keys (
+      id uuid not null,
       key text not null,
       route text not null,
       method text null,
       request_hash text null,
       response_code integer not null,
       response_body jsonb null,
-      created_at timestamptz not null default now()
+      created_at timestamptz not null default now(),
+      constraint idempotency_keys_pk primary key (id)
     )`
   );
   await ensureTable(
     "ocr_jobs",
-    `create table ocr_jobs (
-      id uuid primary key,
+    `create table if not exists ocr_jobs (
+      id uuid not null,
       document_id uuid not null,
       application_id uuid not null,
       status text not null,
@@ -234,7 +252,8 @@ async function ensureCoreTables(): Promise<void> {
       last_error text null,
       created_at timestamptz not null default now(),
       updated_at timestamptz not null default now(),
-      unique (document_id)
+      unique (document_id),
+      constraint ocr_jobs_pk primary key (id)
     )`
   );
 }
@@ -370,6 +389,12 @@ export function setupTestDatabase(): void {
   });
 
   afterAll(async () => {
-    await pool.end();
+    try {
+      await pool.end();
+    } catch (err) {
+      if (!(err instanceof Error) || !err.message.includes("more than once")) {
+        throw err;
+      }
+    }
   });
 }

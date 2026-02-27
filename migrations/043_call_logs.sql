@@ -14,8 +14,8 @@ BEGIN
   END IF;
 END $$;
 
-CREATE TABLE IF NOT EXISTS call_logs (
-  id uuid PRIMARY KEY,
+create table if not exists call_logs (
+  id uuid not null,
   phone_number text NOT NULL,
   direction call_direction_enum NOT NULL,
   status call_status_enum NOT NULL,
@@ -25,7 +25,8 @@ CREATE TABLE IF NOT EXISTS call_logs (
   application_id uuid NULL references applications(id) on delete set null,
   created_at timestamptz NOT NULL DEFAULT now(),
   ended_at timestamptz NULL,
-  CONSTRAINT call_logs_duration_check CHECK (duration_seconds IS NULL OR duration_seconds >= 0)
+  CONSTRAINT call_logs_duration_check CHECK (duration_seconds IS NULL OR duration_seconds >= 0),
+  constraint call_logs_pk primary key (id)
 );
 
 CREATE INDEX IF NOT EXISTS call_logs_contact_idx ON call_logs (crm_contact_id);

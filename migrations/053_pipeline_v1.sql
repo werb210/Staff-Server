@@ -12,25 +12,27 @@ set product_category = coalesce(product_category, product_type),
     startup_flag = coalesce(startup_flag, lower(coalesce(product_category, product_type, '')) = 'startup');
 
 create table if not exists application_stage_events (
-  id uuid primary key,
+  id uuid not null,
   application_id text not null references applications(id) on delete cascade,
   from_stage text null,
   to_stage text not null,
   trigger text not null,
   triggered_by text not null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  constraint application_stage_events_pk primary key (id)
 );
 
 create index if not exists application_stage_events_application_id_idx
   on application_stage_events (application_id);
 
 create table if not exists application_required_documents (
-  id uuid primary key,
+  id uuid not null,
   application_id text not null references applications(id) on delete cascade,
   document_category text not null,
   status text not null,
   created_at timestamptz not null default now(),
   constraint application_required_documents_status_check
     check (status in ('required', 'uploaded', 'accepted', 'rejected')),
-  unique (application_id, document_category)
+  unique (application_id, document_category),
+  constraint application_required_documents_pk primary key (id)
 );

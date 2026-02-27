@@ -1,19 +1,21 @@
 create table if not exists live_chat_requests (
-  id uuid primary key default gen_random_uuid(),
+  id uuid not null default gen_random_uuid(),
   source text not null check (source in ('website', 'client')),
   session_id text not null,
   status text not null default 'pending' check (status in ('pending', 'active', 'closed')),
-  created_at timestamp not null default now()
+  created_at timestamp not null default now(),
+  constraint live_chat_requests_pk primary key (id)
 );
 
 create table if not exists contact_leads (
-  id uuid primary key default gen_random_uuid(),
+  id uuid not null default gen_random_uuid(),
   company text not null,
   first_name text not null,
   last_name text not null,
   email text not null,
   phone text not null,
-  created_at timestamp not null default now()
+  created_at timestamp not null default now(),
+  constraint contact_leads_pk primary key (id)
 );
 
 alter table if exists ai_knowledge

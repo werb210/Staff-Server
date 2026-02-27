@@ -23,11 +23,12 @@ alter table if exists lenders
   check (submission_method in ('email', 'api', 'google_sheet'));
 
 create table if not exists submission_events (
-  id uuid primary key,
+  id uuid not null,
   application_id text not null references applications(id) on delete cascade,
   lender_id text not null references lenders(id) on delete cascade,
   method text not null,
   status text not null,
   internal_error text null,
-  created_at timestamp not null default now()
+  created_at timestamp not null default now(),
+  constraint submission_events_pk primary key (id)
 );

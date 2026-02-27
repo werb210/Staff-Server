@@ -1,11 +1,12 @@
 create table if not exists chat_sessions (
-  id uuid primary key default gen_random_uuid(),
+  id uuid not null default gen_random_uuid(),
   source varchar(50) not null,
   channel varchar(20) not null default 'text',
   status varchar(50) not null default 'ai',
   lead_id uuid null,
   created_at timestamp default now(),
-  updated_at timestamp default now()
+  updated_at timestamp default now(),
+  constraint chat_sessions_pk primary key (id)
 );
 
 alter table if exists chat_sessions
@@ -44,12 +45,13 @@ alter table if exists chat_sessions
   check (status in ('ai', 'human', 'closed'));
 
 create table if not exists chat_messages (
-  id uuid primary key default gen_random_uuid(),
+  id uuid not null default gen_random_uuid(),
   session_id uuid references chat_sessions(id) on delete cascade,
   role varchar(20) not null,
   message text not null,
   metadata jsonb,
-  created_at timestamp default now()
+  created_at timestamp default now(),
+  constraint chat_messages_pk primary key (id)
 );
 
 alter table if exists chat_messages
@@ -75,10 +77,11 @@ alter table if exists chat_messages
   alter column message set not null;
 
 create table if not exists capital_readiness (
-  id uuid primary key default gen_random_uuid(),
+  id uuid not null default gen_random_uuid(),
   lead_id uuid not null,
   score integer not null,
   tier varchar(50) not null,
   payload jsonb not null,
-  created_at timestamp default now()
+  created_at timestamp default now(),
+  constraint capital_readiness_pk primary key (id)
 );

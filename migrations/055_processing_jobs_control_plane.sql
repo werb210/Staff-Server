@@ -1,18 +1,20 @@
-CREATE TABLE document_processing_jobs (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+create table if not exists document_processing_jobs (
+  id UUID not null DEFAULT gen_random_uuid(),
   application_id UUID NOT NULL,
   document_id UUID NOT NULL,
   status TEXT NOT NULL CHECK (status IN ('pending','completed','failed')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  completed_at TIMESTAMPTZ
+  completed_at TIMESTAMPTZ,
+  constraint document_processing_jobs_pk primary key (id)
 );
 
-CREATE TABLE banking_analysis_jobs (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+create table if not exists banking_analysis_jobs (
+  id UUID not null DEFAULT gen_random_uuid(),
   application_id UUID NOT NULL,
   status TEXT NOT NULL CHECK (status IN ('pending','completed','failed')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  completed_at TIMESTAMPTZ
+  completed_at TIMESTAMPTZ,
+  constraint banking_analysis_jobs_pk primary key (id)
 );
 
 ALTER TABLE applications

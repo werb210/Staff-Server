@@ -1,5 +1,5 @@
-CREATE TABLE IF NOT EXISTS application_continuations (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+create table if not exists application_continuations (
+  id UUID not null DEFAULT gen_random_uuid(),
   token VARCHAR(64) UNIQUE NOT NULL,
   company_name TEXT,
   full_name TEXT,
@@ -14,7 +14,8 @@ CREATE TABLE IF NOT EXISTS application_continuations (
   crm_lead_id UUID,
   converted_application_id UUID,
   created_at TIMESTAMP DEFAULT NOW(),
-  converted_at TIMESTAMP
+  converted_at TIMESTAMP,
+  constraint application_continuations_pk primary key (id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_continuation_token
