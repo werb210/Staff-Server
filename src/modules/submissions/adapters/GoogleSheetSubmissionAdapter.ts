@@ -56,7 +56,7 @@ export class GoogleSheetSubmissionAdapter {
       });
       const values = existing.data.values ?? [];
       const appId = payload?.application?.id;
-      const isDuplicate = values.some((row) => row?.[0] === appId);
+      const isDuplicate = values.some((row: unknown[]) => row?.[0] === appId);
       if (isDuplicate) {
         return {
           success: true,
