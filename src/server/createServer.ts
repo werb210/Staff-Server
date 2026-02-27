@@ -1,11 +1,9 @@
 import type express from "express";
-import { assertCorsConfig, buildApp, registerApiRoutes } from "../app";
+import { buildApp } from "../app";
 import { assertEnv } from "../config";
 import { warmUpDatabase } from "../db";
 import { assertRequiredSchema } from "../db/schemaAssert";
-import { errorHandler } from "../middleware/errorHandler";
 import { logError } from "../observability/logger";
-import { getTwilioClient, getVerifyServiceSid } from "../services/twilio";
 import { seedRequirementsForAllProducts } from "../services/lenderProductRequirementsService";
 import { initializePushService } from "../services/pushService";
 import { startFollowUpJobs } from "../modules/followup/followup.scheduler";
@@ -36,7 +34,7 @@ export type CreateServerOptions = {
 export async function createServer(
   options: CreateServerOptions = {}
 ): Promise<express.Express> {
-  const app = buildApp();
+  const app = await buildApp();
   app.set("trust proxy", 1);
 
   const config = options.config ?? {};
@@ -47,8 +45,6 @@ export async function createServer(
   };
   const services = {
     initializePushService,
-    getTwilioClient,
-    getVerifyServiceSid,
     seedRequirementsForAllProducts,
     startFollowUpJobs,
     ...options.services,
@@ -60,10 +56,6 @@ export async function createServer(
 
   if (!config.skipServicesInit) {
     services.initializePushService?.();
-    if (process.env.TWILIO_MODE !== "mock") {
-      services.getTwilioClient?.();
-      services.getVerifyServiceSid?.();
-    }
   }
 
   if (!config.skipWarmup) {
@@ -85,22 +77,6 @@ export async function createServer(
     await services.seedRequirementsForAllProducts?.();
   }
 
-  if (!config.skipCorsCheck) {
-    try {
-      assertCorsConfig();
-    } catch (err) {
-      logError("fatal_cors_assert", {
-        message: err instanceof Error ? err.message : String(err),
-      });
-      throw err;
-    }
-  }
-
-  registerApiRoutes(app);
-  app.use((_req, res) => {
-    res.status(404).json({ error: "Not Found" });
-  });
-  app.use(errorHandler);
 
   if (config.startFollowUpJobs !== false) {
     services.startFollowUpJobs?.();

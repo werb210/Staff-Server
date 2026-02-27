@@ -13,7 +13,7 @@ function makeLimiter(max: number, windowMs = oneMinute): RateLimitRequestHandler
     standardHeaders: true,
     legacyHeaders: false,
     message: { success: false, error: "rate_limited", code: 429 },
-    skip: () => !isEnabled() || process.env.NODE_ENV === "test",
+    skip: () => !isEnabled(),
   });
 }
 

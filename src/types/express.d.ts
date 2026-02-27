@@ -5,6 +5,7 @@ declare global {
     interface Request {
       user?: AuthenticatedUser;
       correlationId?: string;
+      requestId?: string;
     }
   }
 }

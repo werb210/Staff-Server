@@ -165,10 +165,6 @@ export async function runMigrations(options?: {
   guardAlterTableExists?: boolean;
   rewriteInlinePrimaryKeys?: boolean;
 }): Promise<void> {
-  if (ran) {
-    return;
-  }
-  ran = true;
   await ensureMigrationsTable();
   const migrationFiles = listMigrationFiles();
   const applied = await fetchAppliedMigrations();
@@ -382,7 +378,6 @@ export async function runMigrations(options?: {
   }
 }
 
-let ran = false;
 
 export async function getPendingMigrations(): Promise<string[]> {
   await ensureMigrationsTable();
