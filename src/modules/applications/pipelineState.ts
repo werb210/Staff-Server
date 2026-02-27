@@ -30,12 +30,10 @@ export const LEGAL_TRANSITIONS: Record<PipelineState, readonly PipelineState[]> 
   [ApplicationStage.RECEIVED]: [
     ApplicationStage.IN_REVIEW,
     ApplicationStage.DOCUMENTS_REQUIRED,
-  ],
-  [ApplicationStage.IN_REVIEW]: [
-    ApplicationStage.DOCUMENTS_REQUIRED,
     ApplicationStage.OFF_TO_LENDER,
   ],
-  [ApplicationStage.DOCUMENTS_REQUIRED]: [ApplicationStage.OFF_TO_LENDER],
+  [ApplicationStage.IN_REVIEW]: [ApplicationStage.OFF_TO_LENDER],
+  [ApplicationStage.DOCUMENTS_REQUIRED]: [ApplicationStage.IN_REVIEW],
   [ApplicationStage.STARTUP]: [
     ApplicationStage.OFF_TO_LENDER,
     ApplicationStage.DOCUMENTS_REQUIRED,

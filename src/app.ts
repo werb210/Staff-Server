@@ -39,6 +39,10 @@ export function buildAppWithApiRoutes(): Express {
 
   applyMiddleware(app);
 
+  if (process.env.NODE_ENV === "test") {
+    void initDb();
+  }
+
   registerApiRoutes(app);
 
   return app;
