@@ -379,6 +379,13 @@ export async function runMigrations(options?: {
 }
 
 
+export async function ensureMigrations(): Promise<void> {
+  if (process.env.NODE_ENV === "test") return;
+
+  await runMigrations();
+}
+
+
 export async function getPendingMigrations(): Promise<string[]> {
   await ensureMigrationsTable();
   const migrationFiles = listMigrationFiles();
