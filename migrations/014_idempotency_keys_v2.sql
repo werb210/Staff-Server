@@ -2,7 +2,8 @@ drop table if exists idempotency_keys cascade;
 drop index if exists idempotency_keys_pkey;
 
 create table if not exists idempotency_keys (
-  id text primary key,
+  id text not null,
+  primary key (id),
   key text not null,
   route text not null,
   request_hash text not null,

@@ -5,7 +5,8 @@ create table if not exists ops_kill_switches (
 );
 
 create table if not exists ops_replay_jobs (
-  id text primary key,
+  id text not null,
+  primary key (id),
   scope text not null,
   started_at timestamp null,
   completed_at timestamp null,
@@ -13,7 +14,8 @@ create table if not exists ops_replay_jobs (
 );
 
 create table if not exists ops_replay_events (
-  id text primary key,
+  id text not null,
+  primary key (id),
   replay_job_id text references ops_replay_jobs(id) on delete cascade,
   source_table text not null,
   source_id text not null,
@@ -22,7 +24,8 @@ create table if not exists ops_replay_events (
 );
 
 create table if not exists export_audit (
-  id text primary key,
+  id text not null,
+  primary key (id),
   actor_user_id uuid null,
   export_type text not null,
   filters jsonb not null,

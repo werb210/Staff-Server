@@ -1,5 +1,6 @@
 create table if not exists client_submissions (
-  id text primary key,
+  id text not null,
+  primary key (id),
   submission_key text not null unique,
   application_id text not null references applications(id) on delete cascade,
   payload jsonb not null,
@@ -14,7 +15,8 @@ alter table if exists lender_submissions
   add column if not exists failure_reason text null;
 
 create table if not exists lender_submission_retries (
-  id text primary key,
+  id text not null,
+  primary key (id),
   submission_id text not null references lender_submissions(id) on delete cascade,
   status text not null,
   attempt_count integer not null default 0,

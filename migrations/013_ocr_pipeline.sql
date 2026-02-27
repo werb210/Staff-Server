@@ -1,5 +1,6 @@
 create table if not exists ocr_jobs (
-  id text primary key,
+  id text not null,
+  primary key (id),
   document_id text not null references documents(id) on delete cascade,
   application_id text not null references applications(id) on delete cascade,
   status text not null,
@@ -16,7 +17,8 @@ create table if not exists ocr_jobs (
 );
 
 create table if not exists ocr_results (
-  id text primary key,
+  id text not null,
+  primary key (id),
   document_id text not null references documents(id) on delete cascade,
   provider text not null,
   model text not null,

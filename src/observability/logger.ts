@@ -27,7 +27,12 @@ function buildPayload(level: LogLevel, event: string, fields: LogFields = {}): R
 }
 
 function writeLog(level: LogLevel, event: string, fields?: LogFields): void {
-  if (process.env.NODE_ENV === "test" && process.env.TEST_LOGGING !== "true") {
+  const env =
+    typeof process !== "undefined" && process?.env
+      ? process.env
+      : ({} as Record<string, string | undefined>);
+
+  if (env.NODE_ENV === "test" && env.TEST_LOGGING !== "true") {
     return;
   }
   try {

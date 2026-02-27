@@ -1,8 +1,7 @@
 import { afterAll, beforeAll, beforeEach } from "vitest";
 import { pool } from "../db";
+import { getTestDb } from "../dbTest";
 import { runMigrations } from "../migrations";
-
-type TableRow = { tablename: string };
 
 function assertTestDatabase(): void {
   if (process.env.NODE_ENV !== "test") {
@@ -115,34 +114,23 @@ async function ensureAuthRefreshTokenColumns(): Promise<void> {
 }
 
 export async function resetDb(): Promise<void> {
-  let tables: { rows: TableRow[] };
+  const db = getTestDb() as unknown as {
+    public: { none: (sql: string) => Promise<void> };
+    schemas?: Map<string, unknown>;
+    createSchema?: (name: string) => unknown;
+  };
   try {
-    tables = await pool.query<TableRow>(
-      `select tablename
-       from pg_tables
-       where schemaname = 'public'`
-    );
-  } catch {
-    tables = await pool.query<TableRow>(
-      `select table_name as tablename
-       from information_schema.tables
-       where table_schema = 'public'`
-    );
+    await db.public.none(`drop schema public cascade`);
+    await db.public.none(`create schema public`);
+  } catch (error) {
+    if (db.schemas && typeof db.createSchema === "function") {
+      db.schemas.delete("public");
+      db.createSchema("public");
+    } else {
+      throw error;
+    }
   }
-
-  for (const { tablename } of tables.rows) {
-    await pool.query(`drop table if exists "${tablename}" cascade`);
-  }
-
-  await pool.query("drop table if exists schema_migrations cascade");
-
-  await runMigrations({
-    ignoreMissingRelations: true,
-    skipPlpgsql: true,
-    rewriteAlterIfExists: true,
-    rewriteCreateTableIfNotExists: true,
-    skipPgMemErrors: true,
-  });
+  await runMigrations();
 }
 
 async function ensureTable(table: string, createSql: string): Promise<void> {

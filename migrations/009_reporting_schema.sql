@@ -5,7 +5,8 @@ alter table if exists audit_events
   add column if not exists target_id text null;
 
 create table if not exists reporting_daily_metrics (
-  id text primary key,
+  id text not null,
+  primary key (id),
   metric_date date not null unique,
   applications_created integer not null,
   applications_submitted integer not null,
@@ -19,7 +20,8 @@ create table if not exists reporting_daily_metrics (
 );
 
 create table if not exists reporting_pipeline_snapshots (
-  id text primary key,
+  id text not null,
+  primary key (id),
   snapshot_at timestamp not null,
   pipeline_state text not null,
   application_count integer not null,
@@ -27,7 +29,8 @@ create table if not exists reporting_pipeline_snapshots (
 );
 
 create table if not exists reporting_lender_performance (
-  id text primary key,
+  id text not null,
+  primary key (id),
   lender_id text not null,
   period_start date not null,
   period_end date not null,
