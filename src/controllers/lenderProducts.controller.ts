@@ -615,6 +615,11 @@ export async function createLenderProductHandler(
       termMax,
     });
 
+    if (!created) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+
     await ingestProductById(pool, created.id);
 
     res.status(201).json(toLenderProductResponse(created));
