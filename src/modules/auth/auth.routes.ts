@@ -22,10 +22,6 @@ import { ALL_ROLES } from "../../auth/roles";
 
 const router = Router();
 
-function isInvalidRefreshError(err: unknown): boolean {
-  return err instanceof AppError && err.code === "invalid_refresh_token";
-}
-
 function getAuthRequestId(res: Response): string {
   return res.locals.requestId ?? getRequestId() ?? "unknown";
 }
@@ -132,7 +128,15 @@ async function handleOtpStart(
       return;
     }
 
-    const { phone } = req.body as { phone: string };
+    const { phone, address } = req.body ?? {};
+    void address;
+    if (!phone) {
+      res.status(400).json({
+        success: false,
+        message: "phone required",
+      });
+      return;
+    }
     await startOtp(phone);
 
     const responseBody = { sent: true };
@@ -283,7 +287,7 @@ router.post(
 /**
  * POST /api/auth/refresh
  */
-router.post("/refresh", refreshRateLimit(), async (req, res, next) => {
+router.post("/refresh", refreshRateLimit(), async (req, res) => {
   try {
     const refreshToken =
       typeof req.body?.refreshToken === "string" ? req.body.refreshToken : "";
@@ -306,18 +310,18 @@ router.post("/refresh", refreshRateLimit(), async (req, res, next) => {
       return;
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       ok: true,
       accessToken: result.token,
       refreshToken: result.refreshToken,
       user: result.user,
     });
   } catch (err) {
-    if (isInvalidRefreshError(err)) {
-      return res.status(400).json({ error: "Invalid refresh token" });
-    }
-
-    next(err);
+    void err;
+    return res.status(401).json({
+      success: false,
+      message: "invalid refresh token",
+    });
   }
 });
 

@@ -1,11 +1,13 @@
-import { buildApp, registerApiRoutes } from "./app";
+import { buildAppWithApiRoutes } from "./app";
 
-const app = buildApp();
+const PORT = process.env.PORT || 3000;
 
-registerApiRoutes(app);
+const app = buildAppWithApiRoutes();
 
-const port = process.env.PORT || 3000;
+if (process.env.NODE_ENV !== "test") {
+  app.listen(PORT, () => {
+    console.log(`BF Server running on port ${PORT}`);
+  });
+}
 
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
-});
+export { app };

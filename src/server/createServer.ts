@@ -1,5 +1,5 @@
 import type express from "express";
-import { buildApp, registerApiRoutes } from "../app";
+import { buildAppWithApiRoutes } from "../app";
 import { assertEnv } from "../config";
 import { warmUpDatabase } from "../db";
 import { assertRequiredSchema } from "../db/schemaAssert";
@@ -34,8 +34,7 @@ export type CreateServerOptions = {
 export async function createServer(
   options: CreateServerOptions = {}
 ): Promise<express.Express> {
-  const app = await buildApp();
-  registerApiRoutes(app);
+  const app = buildAppWithApiRoutes();
   app.set("trust proxy", 1);
 
   const config = options.config ?? {};

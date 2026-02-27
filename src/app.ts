@@ -1,7 +1,7 @@
-import express from "express";
+import express, { Express } from "express";
 import { registerApiRoutes } from "./routes";
 
-export function buildApp() {
+export function buildApp(): Express {
   const app = express();
 
   app.use(express.json());
@@ -9,10 +9,8 @@ export function buildApp() {
   return app;
 }
 
-export function buildAppWithApiRoutes() {
+export function buildAppWithApiRoutes(): Express {
   const app = buildApp();
   registerApiRoutes(app);
   return app;
 }
-
-export { registerApiRoutes };

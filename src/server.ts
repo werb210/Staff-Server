@@ -1,9 +1,8 @@
 import http from "http";
 
-import { buildApp, registerApiRoutes } from "./app";
+import { buildAppWithApiRoutes } from "./app";
 
-export const app = buildApp();
-registerApiRoutes(app);
+export const app = buildAppWithApiRoutes();
 
 if (process.env.NODE_ENV !== "test") {
   const port = process.env.PORT || 3000;
