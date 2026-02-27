@@ -5,8 +5,9 @@ create table if not exists lenders (
   website text null,
   description text null,
   active boolean not null default true,
-  created_at timestamp not null,
-  updated_at timestamp not null
+  status text not null default 'ACTIVE',
+  created_at timestamp not null default now(),
+  updated_at timestamp not null default now()
 );
 
 create table if not exists lender_products (
@@ -15,6 +16,7 @@ create table if not exists lender_products (
   name text not null,
   description text null,
   active boolean not null default true,
-  created_at timestamp not null,
-  updated_at timestamp not null
+  status text not null default 'ACTIVE',
+  created_at timestamp not null default now(),
+  updated_at timestamp not null default now()
 );
