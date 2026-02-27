@@ -1,20 +1,17 @@
 import { Pool } from "pg";
 import { newDb } from "pg-mem";
 
-let pool: Pool;
+let pool: Pool | null = null;
 
 export async function initDb(): Promise<void> {
   if (process.env.NODE_ENV === "test") {
-    const db = newDb();
-
-    db.public.none(`
-      CREATE TABLE IF NOT EXISTS applications (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid()
-      );
-    `);
+    const db = newDb({
+      autoCreateForeignKeyIndices: true,
+    });
 
     const adapter = db.adapters.createPg();
     pool = new adapter.Pool();
+
     return;
   }
 
@@ -27,7 +24,7 @@ export async function initDb(): Promise<void> {
 
 export function getPool(): Pool {
   if (!pool) {
-    throw new Error("DB not initialized");
+    throw new Error("Database not initialized");
   }
   return pool;
 }
