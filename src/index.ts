@@ -1,19 +1,12 @@
-import buildApp from "./app";
+import { app } from "./app";
 
-const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
-
-async function start() {
-  const app = await buildApp();
-
-  const server = app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on port ${PORT}`);
-  });
-
-  process.on("SIGTERM", () => {
-    server.close(() => process.exit(0));
-  });
-}
+const PORT = process.env.PORT || 3000;
 
 if (process.env.NODE_ENV !== "test") {
-  start();
+  app.listen(PORT, () => {
+    console.log(`Server running on ${PORT}`);
+  });
 }
+
+export { app };
+export default app;
