@@ -1,12 +1,11 @@
-import { app } from "./app";
+import { buildApp, registerApiRoutes } from "./app";
 
-const PORT = process.env.PORT || 3000;
+const app = buildApp();
 
-if (process.env.NODE_ENV !== "test") {
-  app.listen(PORT, () => {
-    console.log(`Server running on ${PORT}`);
-  });
-}
+registerApiRoutes(app);
 
-export { app };
-export default app;
+const port = process.env.PORT || 3000;
+
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
+});
