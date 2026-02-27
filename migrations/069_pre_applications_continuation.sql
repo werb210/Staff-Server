@@ -1,5 +1,5 @@
 create table if not exists pre_applications (
-  id uuid primary key default gen_random_uuid(),
+  id uuid not null default gen_random_uuid(),
   company_name text,
   full_name text,
   email text,
@@ -11,7 +11,8 @@ create table if not exists pre_applications (
   credit_score_range text,
   ai_score text,
   consumed boolean not null default false,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  constraint pre_applications_pk primary key (id)
 );
 
 create index if not exists idx_pre_applications_created_at

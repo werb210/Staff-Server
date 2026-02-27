@@ -1,12 +1,13 @@
 create table if not exists continuation_sessions (
-  id uuid primary key default gen_random_uuid(),
+  id uuid not null default gen_random_uuid(),
   email text,
   phone text,
   full_name text,
   company_name text,
   prefill jsonb,
   application_id uuid,
-  created_at timestamp default now()
+  created_at timestamp default now(),
+  constraint continuation_sessions_pk primary key (id)
 );
 
 alter table if exists continuation_sessions
@@ -42,16 +43,18 @@ alter table if exists continuation_sessions
   alter column application_id drop not null;
 
 create table if not exists live_chat_queue (
-  id uuid primary key default gen_random_uuid(),
+  id uuid not null default gen_random_uuid(),
   status text not null default 'waiting',
-  created_at timestamp default now()
+  created_at timestamp default now(),
+  constraint live_chat_queue_pk primary key (id)
 );
 
 create table if not exists ai_admin_rules (
-  id uuid primary key default gen_random_uuid(),
+  id uuid not null default gen_random_uuid(),
   rule_type text,
   content text,
-  created_at timestamp default now()
+  created_at timestamp default now(),
+  constraint ai_admin_rules_pk primary key (id)
 );
 
 

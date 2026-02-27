@@ -1,11 +1,12 @@
 create table if not exists client_submissions (
   id text not null,
-  primary key (id),
+
   submission_key text not null unique,
   application_id text not null references applications(id) on delete cascade,
   payload jsonb not null,
   created_at timestamp not null default now(),
-  updated_at timestamp not null default now()
+  updated_at timestamp not null default now(),
+  constraint client_submissions_pk primary key (id)
 );
 
 alter table if exists lender_submissions
@@ -16,7 +17,7 @@ alter table if exists lender_submissions
 
 create table if not exists lender_submission_retries (
   id text not null,
-  primary key (id),
+
   submission_id text not null references lender_submissions(id) on delete cascade,
   status text not null,
   attempt_count integer not null default 0,
@@ -25,7 +26,8 @@ create table if not exists lender_submission_retries (
   created_at timestamp not null default now(),
   updated_at timestamp not null default now(),
   canceled_at timestamp null,
-  unique (submission_id)
+  unique (submission_id),
+  constraint lender_submission_retries_pk primary key (id)
 );
 
 drop index if exists lender_submissions_application_id_unique;

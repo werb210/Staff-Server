@@ -1,16 +1,18 @@
 alter table if exists ocr_results
   rename to ocr_document_results;
 
+
 create table if not exists ocr_results (
   id text not null,
-  primary key (id),
+
   application_id text not null references applications(id) on delete cascade,
   document_id text not null references documents(id) on delete cascade,
   field_key text not null,
   value text not null,
   confidence numeric not null,
   source_document_type text null,
-  created_at timestamp not null
+  created_at timestamp not null,
+  constraint ocr_results_fields_pk primary key (id)
 );
 
 create index if not exists ocr_results_application_id_idx

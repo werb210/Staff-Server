@@ -3,14 +3,15 @@ drop index if exists idempotency_keys_pkey;
 
 create table if not exists idempotency_keys (
   id text not null,
-  primary key (id),
+
   key text not null,
   route text not null,
   request_hash text not null,
   response_code integer not null,
   response_body jsonb not null,
   created_at timestamp not null default now(),
-  unique (key, route)
+  unique (key, route),
+  constraint idempotency_keys_pk primary key (id)
 );
 
 create index if not exists idempotency_keys_created_at_idx

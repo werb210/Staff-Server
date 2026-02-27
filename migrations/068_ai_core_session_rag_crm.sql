@@ -31,11 +31,12 @@ alter table if exists ai_sessions
   alter column status set default 'active';
 
 create table if not exists ai_embeddings (
-  id uuid primary key,
+  id uuid not null,
   source_type text not null,
   source_id text,
   content text not null,
-  embedding vector(1536)
+  embedding vector(1536),
+  constraint ai_embeddings_pk primary key (id)
 );
 
 create table if not exists application_continuations (

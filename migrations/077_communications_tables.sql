@@ -1,5 +1,5 @@
 create table if not exists communications (
-  id uuid primary key,
+  id uuid not null,
   type text,
   direction text,
   status text,
@@ -7,11 +7,12 @@ create table if not exists communications (
   twilio_sid text,
   contact_id uuid null references contacts(id) on delete set null,
   user_id uuid null references users(id) on delete set null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  constraint communications_pk primary key (id)
 );
 
 create table if not exists communications_messages (
-  id uuid primary key,
+  id uuid not null,
   type text,
   direction text,
   status text,
@@ -20,7 +21,8 @@ create table if not exists communications_messages (
   contact_id uuid null references contacts(id) on delete set null,
   user_id uuid null references users(id) on delete set null,
   body text,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  constraint communications_messages_pk primary key (id)
 );
 
 create index if not exists communications_created_at_idx

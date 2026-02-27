@@ -7,7 +7,7 @@ alter table if exists applications
   add column if not exists ocr_insights_updated_at timestamptz null;
 
 create table if not exists notifications (
-  id uuid primary key,
+  id uuid not null,
   user_id uuid null references users(id) on delete set null,
   application_id text null references applications(id) on delete set null,
   type text not null,
@@ -15,11 +15,12 @@ create table if not exists notifications (
   body text not null,
   metadata jsonb null,
   created_at timestamptz not null default now(),
-  read_at timestamptz null
+  read_at timestamptz null,
+  constraint notifications_pk primary key (id)
 );
 
 create table if not exists companies (
-  id uuid primary key,
+  id uuid not null,
   name text null,
   website text null,
   email text null,
@@ -28,11 +29,12 @@ create table if not exists companies (
   owner_id uuid null references users(id) on delete set null,
   referrer_id uuid null references users(id) on delete set null,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  constraint companies_pk primary key (id)
 );
 
 create table if not exists contacts (
-  id uuid primary key,
+  id uuid not null,
   company_id uuid null references companies(id) on delete set null,
   name text null,
   email text null,
@@ -41,7 +43,8 @@ create table if not exists contacts (
   owner_id uuid null references users(id) on delete set null,
   referrer_id uuid null references users(id) on delete set null,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  constraint contacts_pk primary key (id)
 );
 
 alter table if exists companies

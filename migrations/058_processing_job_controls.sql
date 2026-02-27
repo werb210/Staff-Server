@@ -40,7 +40,7 @@ alter table if exists banking_analysis_jobs
     check (status in ('pending', 'processing', 'completed', 'failed'));
 
 create table if not exists credit_summary_jobs (
-  id uuid primary key,
+  id uuid not null,
   application_id text not null references applications(id) on delete cascade,
   status text not null check (status in ('pending', 'processing', 'completed', 'failed')),
   retry_count integer not null default 0,
@@ -50,7 +50,8 @@ create table if not exists credit_summary_jobs (
   completed_at timestamptz,
   error_message text,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  constraint credit_summary_jobs_pk primary key (id)
 );
 
 create unique index if not exists credit_summary_jobs_application_id_idx

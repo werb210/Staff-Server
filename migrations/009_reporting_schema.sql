@@ -6,7 +6,7 @@ alter table if exists audit_events
 
 create table if not exists reporting_daily_metrics (
   id text not null,
-  primary key (id),
+
   metric_date date not null unique,
   applications_created integer not null,
   applications_submitted integer not null,
@@ -16,21 +16,23 @@ create table if not exists reporting_daily_metrics (
   documents_uploaded integer not null,
   documents_approved integer not null,
   lender_submissions integer not null,
-  created_at timestamp not null
+  created_at timestamp not null,
+  constraint reporting_daily_metrics_pk primary key (id)
 );
 
 create table if not exists reporting_pipeline_snapshots (
   id text not null,
-  primary key (id),
+
   snapshot_at timestamp not null,
   pipeline_state text not null,
   application_count integer not null,
-  unique (snapshot_at, pipeline_state)
+  unique (snapshot_at, pipeline_state),
+  constraint reporting_pipeline_snapshots_pk primary key (id)
 );
 
 create table if not exists reporting_lender_performance (
   id text not null,
-  primary key (id),
+
   lender_id text not null,
   period_start date not null,
   period_end date not null,
@@ -40,7 +42,8 @@ create table if not exists reporting_lender_performance (
   funded integer not null,
   avg_decision_time_seconds integer not null,
   created_at timestamp not null,
-  unique (lender_id, period_start, period_end)
+  unique (lender_id, period_start, period_end),
+  constraint reporting_lender_performance_pk primary key (id)
 );
 
 create unique index if not exists reporting_lender_performance_unique_idx

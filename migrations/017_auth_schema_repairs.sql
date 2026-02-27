@@ -1,10 +1,11 @@
 create table if not exists password_resets (
-  id uuid primary key,
+  id uuid not null,
   user_id uuid not null references users(id) on delete cascade,
   token_hash text not null unique,
   expires_at timestamptz not null,
   used_at timestamptz null,
-  created_at timestamp not null default now()
+  created_at timestamp not null default now(),
+  constraint password_resets_pk primary key (id)
 );
 
 alter table if exists password_resets
@@ -13,14 +14,15 @@ alter table if exists password_resets
 
 create table if not exists idempotency_keys (
   id text not null,
-  primary key (id),
+
   key text not null,
   route text not null,
   request_hash text not null,
   response_code integer not null,
   response_body jsonb not null,
   created_at timestamp not null default now(),
-  unique (key, route)
+  unique (key, route),
+  constraint idempotency_keys_pk primary key (id)
 );
 
 alter table if exists idempotency_keys

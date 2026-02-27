@@ -10,7 +10,6 @@ async function ensureIdempotencyTable(): Promise<void> {
   await pool.query(
     `create table if not exists idempotency_keys (
        id text not null,
-       primary key (id),
        key text not null,
        route text not null,
        method text not null default 'POST',
@@ -18,7 +17,8 @@ async function ensureIdempotencyTable(): Promise<void> {
        response_code integer not null,
        response_body jsonb not null,
        created_at timestamp not null default now(),
-       unique (key, route)
+       unique (key, route),
+       constraint idempotency_keys_pk primary key (id)
      )`
   );
 }

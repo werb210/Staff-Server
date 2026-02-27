@@ -1,11 +1,12 @@
 create table if not exists otp_verifications (
-  id uuid primary key,
+  id uuid not null,
   user_id uuid not null references users(id) on delete cascade,
   phone text not null,
   verification_sid text null,
   status text not null,
   verified_at timestamptz null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  constraint otp_verifications_pk primary key (id)
 );
 
 alter table if exists otp_verifications

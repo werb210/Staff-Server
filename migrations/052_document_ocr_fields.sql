@@ -1,13 +1,14 @@
 create table if not exists document_ocr_fields (
   id text not null,
-  primary key (id),
+
   document_id text not null references documents(id) on delete cascade,
   application_id text not null references applications(id) on delete cascade,
   field_key text not null,
   value text not null,
   confidence numeric not null,
   page integer null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  constraint document_ocr_fields_pk primary key (id)
 );
 
 create index if not exists document_ocr_fields_application_id_idx

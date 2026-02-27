@@ -1,5 +1,5 @@
 create table if not exists readiness_leads (
-  id uuid primary key,
+  id uuid not null,
   company_name text not null,
   full_name text not null,
   phone text not null,
@@ -15,7 +15,8 @@ create table if not exists readiness_leads (
   crm_contact_id uuid null,
   application_id uuid null,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  constraint readiness_leads_pk primary key (id)
 );
 
 create index if not exists readiness_leads_email_idx on readiness_leads (email);

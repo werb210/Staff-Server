@@ -1,5 +1,5 @@
 create table if not exists readiness_sessions (
-  id uuid primary key,
+  id uuid not null,
   token text not null unique,
   email text not null,
   phone text,
@@ -16,7 +16,8 @@ create table if not exists readiness_sessions (
   is_active boolean not null default true,
   expires_at timestamptz not null,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  constraint readiness_sessions_pk primary key (id)
 );
 
 create unique index if not exists readiness_sessions_email_active_uniq
@@ -27,20 +28,22 @@ create index if not exists readiness_sessions_token_idx on readiness_sessions (t
 create index if not exists readiness_sessions_expires_at_idx on readiness_sessions (expires_at);
 
 create table if not exists readiness_application_mappings (
-  id uuid primary key default gen_random_uuid(),
+  id uuid not null default gen_random_uuid(),
   readiness_session_id uuid not null references readiness_sessions(id) on delete cascade,
   application_id uuid not null,
   created_at timestamptz not null default now(),
   unique (readiness_session_id),
-  unique (application_id)
+  unique (application_id),
+  constraint readiness_application_mappings_pk primary key (id)
 );
 
 create table if not exists crm_lead_activities (
-  id uuid primary key,
+  id uuid not null,
   lead_id uuid not null references crm_leads(id) on delete cascade,
   activity_type text not null,
   payload jsonb not null default '{}'::jsonb,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  constraint crm_lead_activities_pk primary key (id)
 );
 
 create index if not exists crm_lead_activities_lead_id_idx on crm_lead_activities (lead_id, created_at desc);

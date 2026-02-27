@@ -1,5 +1,5 @@
 create table if not exists lenders (
-  id uuid primary key,
+  id uuid not null,
   name text not null,
   active boolean not null default true,
   phone text null,
@@ -17,7 +17,8 @@ create table if not exists lenders (
   submission_email text null,
   status text not null default 'ACTIVE',
   created_at timestamp not null default now(),
-  updated_at timestamp not null default now()
+  updated_at timestamp not null default now(),
+  constraint lenders_pk primary key (id)
 );
 
 alter table if exists lender_products

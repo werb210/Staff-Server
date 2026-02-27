@@ -18,24 +18,26 @@ alter table if exists documents
 
 create table if not exists document_version_reviews (
   id text not null,
-  primary key (id),
+
   document_version_id text not null references document_versions(id) on delete cascade,
   status text not null,
   reviewed_by_user_id uuid null references users(id) on delete set null,
   reviewed_at timestamp not null,
-  unique (document_version_id)
+  unique (document_version_id),
+  constraint document_version_reviews_pk primary key (id)
 );
 
 create table if not exists idempotency_keys (
   id text not null,
-  primary key (id),
+
   actor_user_id uuid not null references users(id) on delete cascade,
   scope text not null,
   idempotency_key text not null,
   status_code integer not null,
   response_body jsonb not null,
   created_at timestamp not null,
-  unique (actor_user_id, scope, idempotency_key)
+  unique (actor_user_id, scope, idempotency_key),
+  constraint idempotency_keys_pk primary key (id)
 );
 
 alter table if exists lender_submissions

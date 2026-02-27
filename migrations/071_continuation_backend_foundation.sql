@@ -1,5 +1,5 @@
 create table if not exists continuation (
-  id uuid primary key default gen_random_uuid(),
+  id uuid not null default gen_random_uuid(),
   company_name text not null,
   full_name text not null,
   email text not null,
@@ -11,7 +11,8 @@ create table if not exists continuation (
   ar_outstanding text,
   existing_debt text,
   used_in_application boolean default false,
-  created_at timestamp default now()
+  created_at timestamp default now(),
+  constraint continuation_pk primary key (id)
 );
 
 create index if not exists idx_continuation_email_created_at

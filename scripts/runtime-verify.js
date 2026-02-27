@@ -27,7 +27,7 @@ const { markReady } = require("../dist/startupState");
 async function setupSchema() {
   await pool.query(`
     create table if not exists users (
-      id uuid primary key,
+      id uuid not null,
       email text null,
       phone_number text null unique,
       phone text null,
@@ -41,12 +41,13 @@ async function setupSchema() {
       locked_until timestamptz null,
       phone_verified boolean not null default false,
       updated_at timestamptz null,
-      token_version integer not null default 0
-    );
+      token_version integer not null default 0,
+  constraint users_pk primary key (id)
+);
   `);
   await pool.query(`
     create table if not exists lenders (
-      id uuid primary key,
+      id uuid not null,
       name text not null,
       country text not null,
       submission_method text null,
@@ -54,20 +55,22 @@ async function setupSchema() {
       phone text null,
       website text null,
       postal_code text null,
-      created_at timestamptz not null default now()
-    );
+      created_at timestamptz not null default now(),
+  constraint lenders_pk primary key (id)
+);
   `);
   await pool.query(`
     create table if not exists lender_products (
-      id uuid primary key,
+      id uuid not null,
       lender_id uuid not null references lenders(id) on delete cascade,
       name text not null,
       description text null,
       active boolean not null default true,
       required_documents jsonb not null default '[]'::jsonb,
       created_at timestamptz not null default now(),
-      updated_at timestamptz not null default now()
-    );
+      updated_at timestamptz not null default now(),
+  constraint lender_products_pk primary key (id)
+);
   `);
 }
 
