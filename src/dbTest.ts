@@ -11,7 +11,19 @@ import { getRequestContext } from "./observability/requestContext";
 import { logError, logInfo, logWarn } from "./observability/logger";
 import { markNotReady } from "./startupState";
 
-type MemoryDb = { adapters: { createPg: () => { Pool: new (config?: any) => PgPool } }; public: { registerFunction: (arg: any) => void } };
+type MemoryDb = {
+  adapters: { createPg: () => { Pool: new (config?: any) => PgPool } };
+  public: {
+    registerFunction: (arg: any) => void;
+    none: (sql: string) => void;
+  };
+};
+
+type TestDbContext = {
+  memoryDb: MemoryDb;
+  adapter: { Pool: new (config?: any) => PgPool };
+  pool: PgPool;
+};
 
 function createMemoryDb(): MemoryDb {
   const { newDb, DataType } = require("pg-mem") as typeof import("pg-mem");
@@ -54,26 +66,62 @@ function createMemoryDb(): MemoryDb {
   return memoryDb as MemoryDb;
 }
 
-const memoryDb = process.env.NODE_ENV === "test" ? createMemoryDb() : null;
-const adapter = memoryDb ? memoryDb.adapters.createPg() : null;
-const PoolImpl = (adapter?.Pool ?? pg.Pool) as new (config?: any) => PgPool;
+function createTestDbContext(): TestDbContext {
+  if (process.env.NODE_ENV !== "test") {
+    throw new Error("createTestDb is only available in NODE_ENV=test");
+  }
+
+  const memoryDb = createMemoryDb();
+  const adapter = memoryDb.adapters.createPg();
+  const PoolImpl = adapter.Pool as new (config?: any) => PgPool;
+  const context: TestDbContext = {
+    memoryDb,
+    adapter,
+    pool: new PoolImpl({}),
+  };
+
+  bindPoolInstrumentation(context.pool);
+  return context;
+}
+
+export function createTestDb(): TestDbContext {
+  return createTestDbContext();
+}
+
+let activeContext: TestDbContext | null =
+  process.env.NODE_ENV === "test" ? createTestDbContext() : null;
+
+export async function initializeTestDb(): Promise<void> {
+  if (process.env.NODE_ENV !== "test") {
+    throw new Error("initializeTestDb is only available in NODE_ENV=test");
+  }
+
+  const previousPool = activeContext?.pool ?? null;
+  activeContext = createTestDbContext();
+  pool = activeContext.pool;
+  db = pool;
+
+  if (previousPool) {
+    await previousPool.end();
+  }
+}
 
 export function setupTestDatabase() {
-  if (!adapter) {
+  if (!activeContext) {
     throw new Error("setupTestDatabase is only available in NODE_ENV=test");
   }
-  return adapter;
+  return activeContext.adapter;
 }
 
 export function getTestDb() {
-  if (!memoryDb) {
+  if (!activeContext) {
     throw new Error("getTestDb is only available in NODE_ENV=test");
   }
-  return memoryDb;
+  return activeContext.memoryDb;
 }
 
-export const pool: PgPool = new PoolImpl({});
-export const db = pool;
+export let pool: PgPool = activeContext?.pool ?? new pg.Pool({});
+export let db = pool;
 
 export function query(text: string, params?: any[]): Promise<QueryResult> {
   return pool.query(text, params);
@@ -157,14 +205,17 @@ function createQueryWrapper<T extends (...args: any[]) => Promise<any>>(original
   return wrapped as unknown as T;
 }
 
-const originalPoolQuery = pool.query.bind(pool);
-pool.query = createQueryWrapper<typeof originalPoolQuery>(originalPoolQuery);
+function bindPoolInstrumentation(targetPool: PgPool): void {
+  const originalPoolQuery = targetPool.query.bind(targetPool);
+  targetPool.query = createQueryWrapper<typeof originalPoolQuery>(originalPoolQuery);
 
-pool.on("connect", () => logInfo("db_client_connected"));
-pool.on("error", (err) => {
-  markNotReady("db_unavailable");
-  logWarn("db_connection_error", { message: err.message });
-});
+  targetPool.on("connect", () => logInfo("db_client_connected"));
+  targetPool.on("error", (err) => {
+    markNotReady("db_unavailable");
+    logWarn("db_connection_error", { message: err.message });
+  });
+}
+
 
 export async function dbQuery<T extends QueryResultRow = QueryResultRow>(
   text: string,

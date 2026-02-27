@@ -23,10 +23,8 @@ process.env.VAPID_PRIVATE_KEY ||= "test-vapid-private-key";
 process.env.VAPID_SUBJECT ||= "mailto:tests@example.com";
 
 const { installProcessHandlers } = await import("../observability/processHandlers");
-const { markReady } = await import("../startupState");
 const { setupTestDatabase } = await import("../test/db");
 
-markReady();
 installProcessHandlers();
 setupTestDatabase();
 

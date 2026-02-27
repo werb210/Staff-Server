@@ -1,6 +1,5 @@
 import dotenv from "dotenv";
 import { vi } from "vitest";
-import { markReady } from "../startupState";
 import { setupTestDatabase } from "./db";
 
 
@@ -54,7 +53,6 @@ vi.mock("twilio", () => {
 
 setupTestDatabase();
 
-markReady();
 
 process.on("unhandledRejection", (reason) => {
   throw reason;
