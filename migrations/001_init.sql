@@ -31,7 +31,8 @@ create table if not exists password_resets (
 );
 
 create table if not exists audit_logs (
-  id text primary key,
+  id text not null,
+  primary key (id),
   actor_user_id uuid null references users(id) on delete set null,
   action text not null,
   entity text not null,
@@ -42,7 +43,8 @@ create table if not exists audit_logs (
 );
 
 create table if not exists audit_events (
-  id text primary key,
+  id text not null,
+  primary key (id),
   user_id uuid null references users(id) on delete set null,
   action text not null,
   ip text null,

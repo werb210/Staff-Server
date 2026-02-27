@@ -2,7 +2,8 @@ alter table if exists ocr_results
   rename to ocr_document_results;
 
 create table if not exists ocr_results (
-  id text primary key,
+  id text not null,
+  primary key (id),
   application_id text not null references applications(id) on delete cascade,
   document_id text not null references documents(id) on delete cascade,
   field_key text not null,

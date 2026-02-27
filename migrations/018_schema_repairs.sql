@@ -12,7 +12,8 @@ alter table if exists password_resets
   add column if not exists created_at timestamptz not null default now();
 
 create table if not exists idempotency_keys (
-  id text primary key,
+  id text not null,
+  primary key (id),
   key text not null,
   route text not null,
   request_hash text not null,

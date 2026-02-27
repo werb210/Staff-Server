@@ -1,5 +1,6 @@
 create table if not exists lenders (
-  id text primary key,
+  id text not null,
+  primary key (id),
   name text not null,
   phone text not null,
   website text null,
@@ -11,7 +12,8 @@ create table if not exists lenders (
 );
 
 create table if not exists lender_products (
-  id text primary key,
+  id text not null,
+  primary key (id),
   lender_id text not null references lenders(id) on delete cascade,
   name text not null,
   description text null,

@@ -9,7 +9,8 @@ type ColumnInfo = { column_name: string; is_nullable: string; data_type: string 
 async function ensureIdempotencyTable(): Promise<void> {
   await pool.query(
     `create table if not exists idempotency_keys (
-       id text primary key,
+       id text not null,
+       primary key (id),
        key text not null,
        route text not null,
        method text not null default 'POST',

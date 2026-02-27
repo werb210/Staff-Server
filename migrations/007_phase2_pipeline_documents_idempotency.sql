@@ -17,7 +17,8 @@ alter table if exists documents
   add column if not exists document_type text not null default 'general';
 
 create table if not exists document_version_reviews (
-  id text primary key,
+  id text not null,
+  primary key (id),
   document_version_id text not null references document_versions(id) on delete cascade,
   status text not null,
   reviewed_by_user_id uuid null references users(id) on delete set null,
@@ -26,7 +27,8 @@ create table if not exists document_version_reviews (
 );
 
 create table if not exists idempotency_keys (
-  id text primary key,
+  id text not null,
+  primary key (id),
   actor_user_id uuid not null references users(id) on delete cascade,
   scope text not null,
   idempotency_key text not null,

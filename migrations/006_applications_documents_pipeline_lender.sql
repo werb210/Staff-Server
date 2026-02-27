@@ -1,5 +1,6 @@
 create table if not exists applications (
-  id text primary key,
+  id text not null,
+  primary key (id),
   owner_user_id uuid not null references users(id) on delete cascade,
   name text not null,
   metadata jsonb null,
@@ -9,7 +10,8 @@ create table if not exists applications (
 );
 
 create table if not exists documents (
-  id text primary key,
+  id text not null,
+  primary key (id),
   application_id text not null references applications(id) on delete cascade,
   owner_user_id uuid not null references users(id) on delete cascade,
   title text not null,
@@ -17,7 +19,8 @@ create table if not exists documents (
 );
 
 create table if not exists document_versions (
-  id text primary key,
+  id text not null,
+  primary key (id),
   document_id text not null references documents(id) on delete cascade,
   version integer not null,
   metadata jsonb not null,
@@ -27,7 +30,8 @@ create table if not exists document_versions (
 );
 
 create table if not exists lender_submissions (
-  id text primary key,
+  id text not null,
+  primary key (id),
   application_id text not null references applications(id) on delete cascade,
   status text not null,
   idempotency_key text not null unique,

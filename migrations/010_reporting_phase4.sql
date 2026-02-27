@@ -1,5 +1,6 @@
 create table if not exists reporting_pipeline_daily_snapshots (
-  id text primary key,
+  id text not null,
+  primary key (id),
   snapshot_date date not null,
   pipeline_state text not null,
   application_count integer not null,
@@ -8,7 +9,8 @@ create table if not exists reporting_pipeline_daily_snapshots (
 );
 
 create table if not exists reporting_application_volume_daily (
-  id text primary key,
+  id text not null,
+  primary key (id),
   metric_date date not null,
   product_type text not null,
   applications_created integer not null,
@@ -21,7 +23,8 @@ create table if not exists reporting_application_volume_daily (
 );
 
 create table if not exists reporting_document_metrics_daily (
-  id text primary key,
+  id text not null,
+  primary key (id),
   metric_date date not null,
   document_type text not null,
   documents_uploaded integer not null,
@@ -32,7 +35,8 @@ create table if not exists reporting_document_metrics_daily (
 );
 
 create table if not exists reporting_staff_activity_daily (
-  id text primary key,
+  id text not null,
+  primary key (id),
   metric_date date not null,
   staff_user_id uuid not null references users(id) on delete cascade,
   action text not null,
@@ -42,7 +46,8 @@ create table if not exists reporting_staff_activity_daily (
 );
 
 create table if not exists reporting_lender_funnel_daily (
-  id text primary key,
+  id text not null,
+  primary key (id),
   metric_date date not null,
   lender_id text not null,
   submissions integer not null,

@@ -1,5 +1,6 @@
 create table if not exists document_ocr_fields (
-  id text primary key,
+  id text not null,
+  primary key (id),
   document_id text not null references documents(id) on delete cascade,
   application_id text not null references applications(id) on delete cascade,
   field_key text not null,
