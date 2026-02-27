@@ -1,5 +1,5 @@
 import express, { Express } from "express";
-import { registerApiRoutes } from "./routes";
+import { registerApiRoutes as registerRoutes } from "./routes";
 
 export function buildApp(): Express {
   const app = express();
@@ -7,6 +7,17 @@ export function buildApp(): Express {
   app.use(express.json());
 
   return app;
+}
+
+/**
+ * Required for test contract compatibility.
+ * DO NOT REMOVE.
+ * Many tests call:
+ *   const app = buildApp();
+ *   registerApiRoutes(app);
+ */
+export function registerApiRoutes(app: Express): void {
+  registerRoutes(app);
 }
 
 export function buildAppWithApiRoutes(): Express {
