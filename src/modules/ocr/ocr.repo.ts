@@ -77,7 +77,7 @@ export async function lockOcrJobs(params: {
          (status in ('queued', 'failed') and (next_attempt_at is null or next_attempt_at <= now()::timestamp))
          or status = 'processing'
        )
-         and (locked_at is null or locked_at <= now() - ($3 * interval '1 minute'))
+         and (locked_at is null or locked_at <= now() - interval '15 minutes')
        order by created_at asc
        limit $1
        for update skip locked
@@ -104,7 +104,7 @@ export async function clearExpiredOcrLocks(params?: { client?: Queryable }): Pro
          locked_by = null,
          updated_at = now()
      where locked_at is not null
-       and locked_at <= now() - ($1 * interval '1 minute')
+       and locked_at <= now() - interval '15 minutes'
      returning id`,
     [lockTimeoutMinutes]
   );

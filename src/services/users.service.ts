@@ -114,10 +114,10 @@ export async function getMe(req: Request, res: Response) {
 
   const user = rows[0] as UserRecord | undefined;
   if (!user) {
-    return res.status(404).json({ ok: false, error: "user_not_found" });
+    return res.status(404).json({ error: "user_not_found" });
   }
 
-  res.json({ ok: true, user: normalizeUserRecord(user) });
+  res.json(normalizeUserRecord(user));
 }
 
 /**
@@ -130,7 +130,7 @@ export async function updateMe(req: Request, res: Response) {
     const input = updateMeSchema.parse(req.body);
 
     if (Object.keys(input).length === 0) {
-      res.json({ ok: true });
+      res.json({ status: "ok" });
       return;
     }
 
@@ -154,7 +154,7 @@ export async function updateMe(req: Request, res: Response) {
       values
     );
 
-    res.json({ ok: true });
+    res.json({ status: "ok" });
   } catch (err) {
     handleUserError(res, err, requestId);
   }
@@ -204,7 +204,7 @@ export async function listUsers(req: Request, res: Response) {
   );
 
   const users = Array.isArray(rows) ? rows.map(normalizeUserRecord) : [];
-  res.json({ ok: true, users });
+  res.json(users);
 }
 
 /**
@@ -217,7 +217,7 @@ export async function adminUpdateUser(req: Request, res: Response) {
     const input = adminUpdateSchema.parse(req.body);
 
     if (Object.keys(input).length === 0) {
-      res.json({ ok: true });
+      res.json({ status: "ok" });
       return;
     }
 
@@ -245,7 +245,7 @@ export async function adminUpdateUser(req: Request, res: Response) {
       throw new AppError("not_found", "User not found.", 404);
     }
 
-    res.json({ ok: true });
+    res.json({ status: "ok" });
   } catch (err) {
     handleUserError(res, err, requestId);
   }
@@ -275,10 +275,7 @@ export async function createUser(req: Request, res: Response) {
     };
     const user = await createUserAccount(createPayload);
 
-    res.status(201).json({
-      ok: true,
-      user,
-    });
+    res.status(201).json(user);
   } catch (err) {
     handleUserError(res, err, requestId);
   }
@@ -309,7 +306,7 @@ export async function deleteUser(req: Request, res: Response) {
     };
     await setUserStatus(statusPayload);
 
-    res.status(200).json({ ok: true });
+    res.status(200).json({ status: "ok" });
   } catch (err) {
     handleUserError(res, err, requestId);
   }

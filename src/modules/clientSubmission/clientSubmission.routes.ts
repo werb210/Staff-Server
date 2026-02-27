@@ -54,7 +54,7 @@ router.post("/submissions", clientSubmissionRateLimit(), async (req, res, next) 
           "client",
         ]
       );
-      res.json({ ok: true, id: applicationId });
+      res.status(201).json({ id: applicationId });
       return;
     } catch (err) {
       next(err);
