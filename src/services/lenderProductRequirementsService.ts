@@ -294,7 +294,7 @@ export async function resolveRequirementsForProductType(params: {
   });
   if (products.length === 0) {
     logWarn("lender_product_type_missing", { productType: params.productType });
-    throw new AppError("invalid_product", "Unsupported product type.", 400);
+    return { requirements: ensureAlwaysRequired([]), lenderProductId: null };
   }
   const requirements = products.flatMap((product) => {
     const docs = parseRequiredDocuments(product.required_documents);
