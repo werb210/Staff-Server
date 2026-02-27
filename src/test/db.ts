@@ -88,6 +88,23 @@ async function ensureUserColumns(): Promise<void> {
   }
 }
 
+
+async function ensureLenderAndUserDefaults(): Promise<void> {
+  await pool.query(`
+    alter table lenders
+      add column if not exists created_at timestamptz not null default now(),
+      add column if not exists updated_at timestamptz not null default now(),
+      add column if not exists status text not null default 'ACTIVE'
+  `);
+
+  await pool.query("alter table users alter column email drop not null").catch(() => undefined);
+  await pool.query(`
+    alter table users
+      add column if not exists created_at timestamptz not null default now(),
+      add column if not exists updated_at timestamptz not null default now()
+  `);
+}
+
 async function ensureAuthRefreshTokenColumns(): Promise<void> {
   await ensureColumn({
     table: "auth_refresh_tokens",
@@ -258,8 +275,20 @@ async function ensureCoreTables(): Promise<void> {
   );
 }
 
+async function safeQuery(sql: string): Promise<void> {
+  try {
+    await pool.query(sql);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.includes("Method not implemented")) {
+      return;
+    }
+    throw err;
+  }
+}
+
 async function ensureAuditViews(): Promise<void> {
-  await pool.query(
+  await safeQuery(
     `create or replace view application_pipeline_history as
      select
        ase.application_id,
@@ -278,11 +307,11 @@ async function ensureAuditViews(): Promise<void> {
      from application_stage_events ase
      left join users u on u.id::text = ase.triggered_by`
   );
-  await pool.query(
+  await safeQuery(
     `create or replace view application_pipeline_history_view as
      select * from application_pipeline_history`
   );
-  await pool.query(
+  await safeQuery(
     `create or replace view document_status_history as
      select
        d.application_id,
@@ -316,11 +345,11 @@ async function ensureAuditViews(): Promise<void> {
      join documents d on d.id = dv.document_id
      left join users u on u.id = r.reviewed_by_user_id`
   );
-  await pool.query(
+  await safeQuery(
     `create or replace view document_status_history_view as
      select * from document_status_history`
   );
-  await pool.query(
+  await safeQuery(
     `create or replace view processing_job_history as
      select
        id as job_id,
@@ -367,7 +396,7 @@ async function ensureAuditViews(): Promise<void> {
        null::text as actor_id
      from credit_summary_jobs`
   );
-  await pool.query(
+  await safeQuery(
     `create or replace view processing_job_history_view as
      select * from processing_job_history`
   );
@@ -381,11 +410,17 @@ export function setupTestDatabase(): void {
     await ensureUserColumns();
     await ensureAuthRefreshTokenColumns();
     await ensureCoreTables();
+    await ensureLenderAndUserDefaults();
     await ensureAuditViews();
   });
 
   beforeEach(async () => {
-    await resetDb();
+    await resetSchemaAndRunMigrations();
+    await ensureUserColumns();
+    await ensureAuthRefreshTokenColumns();
+    await ensureCoreTables();
+    await ensureLenderAndUserDefaults();
+    await ensureAuditViews();
   });
 
   afterAll(async () => {

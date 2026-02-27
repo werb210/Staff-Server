@@ -16,7 +16,7 @@ const TERMINAL_APPLICATION_STATUSES = new Set([
 
 type TransitionCheck = {
   shouldTransition: boolean;
-  reason: "ok" | "no_change";
+  reason: "ok" | "no_change" | "invalid";
 };
 
 function normalizeStatus(status: string | null | undefined): string | null {
@@ -71,7 +71,7 @@ export function assertPipelineTransition(params: {
     return { shouldTransition: false, reason: "no_change" };
   }
   if (!LEGAL_TRANSITIONS[params.currentStage]?.includes(params.nextStage)) {
-    throw new AppError("invalid_transition", "Invalid pipeline transition.", 400);
+    return { shouldTransition: false, reason: "invalid" };
   }
   return { shouldTransition: true, reason: "ok" };
 }

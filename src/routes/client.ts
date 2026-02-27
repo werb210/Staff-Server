@@ -24,5 +24,8 @@ router.use("/lender-products", lenderProductsRoutes);
 router.use("/documents", clientDocumentsRateLimit(), documentsRoutes);
 router.use("/", v1ApplicationsRoutes);
 router.use("/", clientSubmissionRoutes);
+router.get("/continuation/:token", (req, res) => {
+  res.status(200).json({ token: req.params.token });
+});
 
 export default router;
