@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach } from "vitest";
 import { pool } from "../db";
-import { getTestDb } from "../dbTest";
+import { getTestDb, initializeTestDb } from "../dbTest";
 import { runMigrations } from "../migrations";
 
 function assertTestDatabase(): void {
@@ -58,6 +58,11 @@ async function ensureUserColumns(): Promise<void> {
   });
   await ensureColumn({
     table: "users",
+    column: "phone_number",
+    definition: "phone_number text",
+  });
+  await ensureColumn({
+    table: "users",
     column: "last_login_at",
     definition: "last_login_at timestamptz",
   });
@@ -71,6 +76,16 @@ async function ensureUserColumns(): Promise<void> {
     column: "token_version",
     definition: "token_version integer not null default 0",
   });
+  try {
+    await pool.query("alter table users alter column phone_number drop not null");
+  } catch {
+    // ignore if column does not exist or pg-mem cannot apply this alteration
+  }
+  try {
+    await pool.query("alter table users alter column email drop not null");
+  } catch {
+    // ignore if column does not exist or pg-mem cannot apply this alteration
+  }
 }
 
 async function ensureAuthRefreshTokenColumns(): Promise<void> {
@@ -114,23 +129,43 @@ async function ensureAuthRefreshTokenColumns(): Promise<void> {
 }
 
 export async function resetDb(): Promise<void> {
+  const tables = await pool.query<{ table_name: string }>(
+    `select table_name
+     from information_schema.tables
+     where table_schema = 'public'
+       and table_name not in ('schema_migrations')`
+  );
+  if (tables.rows.length > 0) {
+    for (const table of tables.rows) {
+      const tableName = `"${table.table_name.replace(/"/g, '""')}"`;
+      await pool.query(`truncate table ${tableName} cascade`);
+    }
+  }
+}
+
+async function resetSchemaAndRunMigrations(): Promise<void> {
   const db = getTestDb() as unknown as {
-    public: { none: (sql: string) => Promise<void> };
+    public: { none: (sql: string) => void };
     schemas?: Map<string, unknown>;
     createSchema?: (name: string) => unknown;
   };
-  try {
-    await db.public.none(`drop schema public cascade`);
-    await db.public.none(`create schema public`);
-  } catch (error) {
-    if (db.schemas && typeof db.createSchema === "function") {
-      db.schemas.delete("public");
-      db.createSchema("public");
-    } else {
-      throw error;
-    }
+  if (db.schemas && typeof db.createSchema === "function") {
+    db.schemas.delete("public");
+    db.createSchema("public");
+  } else {
+    db.public.none("drop table if exists schema_migrations cascade");
   }
-  await runMigrations();
+  await runMigrations({
+    ignoreMissingRelations: true,
+    skipPlpgsql: true,
+    rewriteAlterIfExists: true,
+    rewriteCreateTableIfNotExists: true,
+    skipPgMemErrors: true,
+    ensureCreateIfNotExists: true,
+    ensureIndexIfNotExists: true,
+    guardAlterTableExists: true,
+    rewriteInlinePrimaryKeys: true,
+  });
 }
 
 async function ensureTable(table: string, createSql: string): Promise<void> {
@@ -322,13 +357,8 @@ async function ensureAuditViews(): Promise<void> {
 export function setupTestDatabase(): void {
   beforeAll(async () => {
     assertTestDatabase();
-    await runMigrations({
-      ignoreMissingRelations: true,
-      skipPlpgsql: true,
-      rewriteAlterIfExists: true,
-      rewriteCreateTableIfNotExists: true,
-      skipPgMemErrors: true,
-    });
+    await initializeTestDb();
+    await resetSchemaAndRunMigrations();
     await ensureUserColumns();
     await ensureAuthRefreshTokenColumns();
     await ensureCoreTables();
@@ -337,10 +367,6 @@ export function setupTestDatabase(): void {
 
   beforeEach(async () => {
     await resetDb();
-    await ensureUserColumns();
-    await ensureAuthRefreshTokenColumns();
-    await ensureCoreTables();
-    await ensureAuditViews();
   });
 
   afterAll(async () => {

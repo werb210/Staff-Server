@@ -160,6 +160,10 @@ export async function runMigrations(options?: {
   rewriteAlterIfExists?: boolean;
   rewriteCreateTableIfNotExists?: boolean;
   skipPgMemErrors?: boolean;
+  ensureCreateIfNotExists?: boolean;
+  ensureIndexIfNotExists?: boolean;
+  guardAlterTableExists?: boolean;
+  rewriteInlinePrimaryKeys?: boolean;
 }): Promise<void> {
   await ensureMigrationsTable();
   const migrationFiles = listMigrationFiles();
@@ -203,11 +207,54 @@ export async function runMigrations(options?: {
           continue;
         }
         let executableStatement = statement;
+        if (options?.ensureCreateIfNotExists) {
+          executableStatement = executableStatement.replace(
+            /^\s*create\s+table\s+(?!if\s+not\s+exists)/i,
+            "create table if not exists "
+          );
+        }
+        if (options?.ensureIndexIfNotExists) {
+          executableStatement = executableStatement.replace(
+            /^\s*create\s+unique\s+index\s+(?!if\s+not\s+exists)/i,
+            "create unique index if not exists "
+          );
+          executableStatement = executableStatement.replace(
+            /^\s*create\s+index\s+(?!if\s+not\s+exists)/i,
+            "create index if not exists "
+          );
+        }
+        if (options?.rewriteInlinePrimaryKeys) {
+          const createTableMatch = executableStatement.match(
+            /^\s*create\s+table\s+(?:if\s+not\s+exists\s+)?([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/i
+          );
+          const tableName = createTableMatch?.[1];
+          if (tableName) {
+            let rewrittenInlinePk = false;
+            executableStatement = executableStatement.replace(
+              /(^\s*id\s+)([^,\n]+?)\s+primary\s+key(\s+default\s+[^,\n]+)?\s*,/im,
+              (_full, idPrefix: string, typeDefRaw: string, defaultDefRaw: string | undefined) => {
+                rewrittenInlinePk = true;
+                const typeDef = typeDefRaw.trim();
+                const defaultDef = (defaultDefRaw ?? "").trim();
+                return `${idPrefix}${typeDef} not null${defaultDef ? ` ${defaultDef}` : ""},`;
+              }
+            );
+            if (rewrittenInlinePk) {
+              const hasPkConstraint = /primary\s+key\s*\(\s*id\s*\)/i.test(executableStatement);
+              if (!hasPkConstraint) {
+                executableStatement = executableStatement.replace(
+                  /\)\s*$/,
+                  `,\n  constraint ${tableName}_pk primary key (id)\n)`
+                );
+              }
+            }
+          }
+        }
         if (
           options?.rewriteAlterIfExists &&
           normalizedStatement.startsWith("alter table if exists")
         ) {
-          executableStatement = statement.replace(
+          executableStatement = executableStatement.replace(
             /alter table if exists/i,
             "alter table"
           );
@@ -216,10 +263,28 @@ export async function runMigrations(options?: {
           options?.rewriteCreateTableIfNotExists &&
           normalizedStatement.startsWith("create table if not exists")
         ) {
-          executableStatement = statement.replace(
+          executableStatement = executableStatement.replace(
             /create table if not exists/i,
             "create table"
           );
+        }
+        if (options?.guardAlterTableExists && normalizedStatement.startsWith("alter table")) {
+          const alterTableMatch = executableStatement.match(
+            /^\s*alter\s+table\s+(?:if\s+exists\s+)?"?([a-zA-Z_][a-zA-Z0-9_]*)"?/i
+          );
+          if (alterTableMatch) {
+            const tableName = alterTableMatch[1];
+            const existsResult = await client.query<{ exists: number }>(
+              `select count(*)::int as exists
+               from information_schema.tables
+               where table_schema = 'public'
+                 and table_name = $1`,
+              [tableName]
+            );
+            if (!existsResult.rows[0] || existsResult.rows[0].exists === 0) {
+              continue;
+            }
+          }
         }
         try {
           await client.query(executableStatement);
