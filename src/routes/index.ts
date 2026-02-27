@@ -14,3 +14,8 @@ export function registerRoutes(app: Express) {
   app.use("/health", healthRouter);
   app.use(readyRouter);
 }
+
+
+export function registerApiRoutes(app: Express) {
+  registerRoutes(app);
+}
