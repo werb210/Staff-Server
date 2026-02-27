@@ -623,6 +623,7 @@ export async function createLenderProductHandler(
     await ingestProductById(pool, created.id);
 
     res.status(201).json(toLenderProductResponse(created));
+    return;
   } catch (err) {
     logError("lender_products_create_failed", {
       error: err,
