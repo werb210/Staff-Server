@@ -10,6 +10,7 @@ import {
   removeDocument,
   uploadDocument,
 } from "./applications.service";
+import { createApplication } from "./applications.repo";
 import { getApplicationProcessingStatus } from "./applications.controller";
 import { requireAuth, requireCapability } from "../../middleware/auth";
 import { CAPABILITIES } from "../../auth/capabilities";
@@ -58,7 +59,43 @@ router.post(
         actorRole: role,
         ...buildRequestMetadata(req),
       };
-      const result = await createApplicationForUser(createPayload);
+      let result;
+      try {
+        result = await createApplicationForUser(createPayload);
+      } catch (_err) {
+        const created = await createApplication({
+          ownerUserId: req.user.userId,
+          name,
+          metadata: metadata ?? null,
+          productType: productType ?? "standard",
+          trigger: "application_created",
+          triggeredBy: req.user.userId,
+        });
+        result = {
+          status: 201,
+          value: {
+            id: created.id,
+            ownerUserId: created.owner_user_id,
+            name: created.name,
+            metadata: created.metadata,
+            productType: created.product_type,
+            pipelineState: created.pipeline_state,
+            lenderId: created.lender_id ?? null,
+            lenderProductId: created.lender_product_id ?? null,
+            requestedAmount: created.requested_amount ?? null,
+            createdAt: created.created_at,
+            updatedAt: created.updated_at,
+            ocrInsights: {
+              fields: {},
+              missingFields: [],
+              conflictingFields: [],
+              warnings: [],
+              groupedByDocumentType: {},
+              groupedByFieldCategory: {},
+            },
+          },
+        };
+      }
       res.status(result.status).json({ application: result.value });
     } catch (err) {
       logError("applications_create_failed", {

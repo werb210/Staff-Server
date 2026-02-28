@@ -78,6 +78,13 @@ export function requestLogger(
         : {}),
     });
 
+    logInfo("route_resolved", {
+      requestId,
+      method: req.method,
+      originalUrl: req.originalUrl,
+      routePath: req.route?.path ?? null,
+    });
+
     trackRequest({
       name: `${req.method} ${req.originalUrl}`,
       url: `${req.protocol}://${req.get("host") ?? "unknown"}${req.originalUrl}`,

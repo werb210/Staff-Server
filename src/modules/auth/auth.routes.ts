@@ -288,36 +288,34 @@ router.post(
  * POST /api/auth/refresh
  */
 router.post("/refresh", refreshRateLimit(), async (req, res) => {
-  try {
-    const refreshToken =
-      typeof req.body?.refreshToken === "string" ? req.body.refreshToken : "";
-    const userAgent = req.get("user-agent");
-    const refreshPayload = {
-      refreshToken,
-      ...(req.ip ? { ip: req.ip } : {}),
-      ...(userAgent ? { userAgent } : {}),
-    };
+  const refreshToken =
+    typeof req.body?.refreshToken === "string" ? req.body.refreshToken : "";
 
-    const result = await refreshSession(refreshPayload);
-
-    if (!result.ok) {
-      return res.status(401).json({
-        error: "invalid_refresh_token",
-      });
-    }
-
-    const accessToken = result.token;
-
-    return res.status(200).json({
-      accessToken,
-      refreshToken: result.refreshToken,
-    });
-  } catch (err) {
-    void err;
+  if (!refreshToken.trim()) {
     return res.status(401).json({
       error: "invalid_refresh_token",
     });
   }
+
+  const userAgent = req.get("user-agent");
+  const refreshPayload = {
+    refreshToken,
+    ...(req.ip ? { ip: req.ip } : {}),
+    ...(userAgent ? { userAgent } : {}),
+  };
+
+  const result = await refreshSession(refreshPayload);
+
+  if (!result.ok) {
+    return res.status(401).json({
+      error: "invalid_refresh_token",
+    });
+  }
+
+  return res.status(200).json({
+    accessToken: result.token,
+    refreshToken: result.refreshToken,
+  });
 });
 
 export default router;

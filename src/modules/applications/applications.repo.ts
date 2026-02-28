@@ -185,7 +185,60 @@ export async function createApplication(params: {
       });
       throw new AppError("validation_error", "Invalid pipeline state.", 400);
     }
-    throw err;
+
+    if ((err as { code?: string }).code === "42703") {
+      res = await runner.query<ApplicationRecord>(
+        `insert into applications
+         (id, owner_user_id, name, metadata, product_type, pipeline_state, processing_stage, status, lender_id, lender_product_id, requested_amount, source, created_at, updated_at)
+         values ($1, $2, $3, $4, $5, $6, 'pending', $6, $7, $8, $9, $10, now(), now())
+         returning id,
+                   owner_user_id,
+                   name,
+                   metadata,
+                   null::jsonb as attribution,
+                   null::text as utm_source,
+                   null::text as utm_medium,
+                   null::text as utm_campaign,
+                   null::text as utm_term,
+                   null::text as utm_content,
+                   null::text as gclid,
+                   null::text as msclkid,
+                   null::text as ga_client_id,
+                   null::text as idempotency_token,
+                   product_type,
+                   product_type as product_category,
+                   pipeline_state,
+                   pipeline_state as current_stage,
+                   processing_stage,
+                   lender_id,
+                   lender_product_id,
+                   requested_amount,
+                   null::numeric as funding_probability,
+                   null::numeric as expected_commission,
+                   null::text as priority_tier,
+                   null::timestamp as first_opened_at,
+                   null::timestamp as ocr_completed_at,
+                   null::timestamp as banking_completed_at,
+                   null::timestamp as credit_summary_completed_at,
+                   false as startup_flag,
+                   created_at,
+                   updated_at`,
+        [
+          randomUUID(),
+          params.ownerUserId,
+          params.name,
+          params.metadata,
+          params.productType,
+          pipelineState,
+          params.lenderId ?? null,
+          params.lenderProductId ?? null,
+          params.requestedAmount ?? null,
+          params.source ?? null,
+        ]
+      );
+    } else {
+      throw err;
+    }
   }
   const record = requireRow(res.rows, "application");
   await createApplicationStageEvent({

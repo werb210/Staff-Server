@@ -39,6 +39,10 @@ const AUTH_FAILURE_CODES = new Set([
 
 const CONSTRAINT_VIOLATION_CODES = new Set(["23502", "23503", "23505"]);
 
+function isUniqueViolation(err: Error): boolean {
+  return (err as { code?: string }).code === "23505";
+}
+
 function isConstraintViolation(err: Error): boolean {
   const code = (err as { code?: string }).code;
   return typeof code === "string" && CONSTRAINT_VIOLATION_CODES.has(code);
@@ -221,10 +225,11 @@ export function errorHandler(
 
   // DB CONSTRAINTS
   if (isConstraintViolation(err)) {
+    const duplicate = isUniqueViolation(err);
     logWarn("request_error", {
       ...logBase,
       status: 409,
-      code: "constraint_violation",
+      code: duplicate ? "duplicate" : "constraint_violation",
     });
 
     trackException({
@@ -233,10 +238,15 @@ export function errorHandler(
         requestId,
         route: req.originalUrl,
         status: 409,
-        code: "constraint_violation",
+        code: duplicate ? "duplicate" : "constraint_violation",
         failure_reason: failureReason,
       },
     });
+
+    if (duplicate) {
+      res.status(409).json({ error: "duplicate" });
+      return;
+    }
 
     res.status(409).json({
       code: "constraint_violation",
