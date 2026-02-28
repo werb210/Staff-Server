@@ -183,7 +183,7 @@ router.get(
        from ai_knowledge
        order by created_at desc`
     );
-    res.json({ success: true, data: rows });
+    res.status(200).json(rows);
   })
 );
 

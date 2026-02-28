@@ -23,14 +23,12 @@ router.get(
        from applications
        order by updated_at desc`
     );
-    res.status(200).json({
-      items: result.rows.map((row) => ({
-        id: row.id,
-        name: row.name,
-        stage: row.pipeline_state ?? ApplicationStage.RECEIVED,
-        updatedAt: row.updated_at,
-      })),
-    });
+    res.status(200).json(result.rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      stage: row.pipeline_state ?? ApplicationStage.RECEIVED,
+      updatedAt: row.updated_at,
+    })));
   })
 );
 
@@ -39,7 +37,7 @@ router.get(
   requireAuth,
   requireCapability([CAPABILITIES.APPLICATION_READ]),
   safeHandler(async (_req, res) => {
-    res.status(200).json({ stages: getPipelineStates() });
+    res.status(200).json(getPipelineStates());
   })
 );
 

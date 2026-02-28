@@ -39,7 +39,7 @@ const router = Router();
 
 router.use((_req, res, next) => {
   if (!USE_DB) {
-    return res.status(200).json({ ok: true });
+    return res.status(200).json([]);
   }
   next();
 });
@@ -196,7 +196,7 @@ router.get(
   requireAuthorization({ roles: [ROLES.ADMIN] }),
   safeHandler(async (_req, res) => {
     const items = await listReadinessLeads();
-    res.status(200).json({ items });
+    res.status(200).json(items);
   })
 );
 

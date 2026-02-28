@@ -561,8 +561,11 @@ export async function createLenderProductHandler(
       throw new AppError("validation_error", "rate_type is invalid.", 400);
     }
 
+    const docs = Array.isArray(required_documents)
+      ? required_documents
+      : [];
     const requiredDocumentsList = ensureAlwaysRequiredDocuments(
-      parseRequiredDocuments(required_documents)
+      parseRequiredDocuments(docs)
     );
     const normalizedCategory =
       typeof category === "string" && category.trim().length > 0
