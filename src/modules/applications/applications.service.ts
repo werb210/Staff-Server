@@ -677,12 +677,18 @@ async function evaluateRequirements(params: {
   if (!isPipelineState(application.pipeline_state)) {
     throw new AppError("invalid_state", "Pipeline state is invalid.", 400);
   }
-  const { requirements } = await resolveRequirementsForApplication({
-    lenderProductId: application.lender_product_id ?? null,
-    productType: application.product_type,
-    requestedAmount: application.requested_amount ?? null,
-    country: resolveApplicationCountry(application.metadata),
-  });
+  let requirements: Array<{ documentType: string; required: boolean; minAmount: number | null; maxAmount: number | null }> = [];
+  try {
+    const resolved = await resolveRequirementsForApplication({
+      lenderProductId: application.lender_product_id ?? null,
+      productType: application.product_type,
+      requestedAmount: application.requested_amount ?? null,
+      country: resolveApplicationCountry(application.metadata),
+    });
+    requirements = resolved.requirements;
+  } catch (_err) {
+    requirements = [];
+  }
 
   const requiredDocuments = await ensureRequiredDocuments({
     application,
@@ -868,12 +874,18 @@ export async function listDocumentsForApplication(params: {
     throw new AppError("forbidden", "Not authorized.", 403);
   }
 
-  const { requirements } = await resolveRequirementsForApplication({
-    lenderProductId: application.lender_product_id ?? null,
-    productType: application.product_type,
-    requestedAmount: application.requested_amount ?? null,
-    country: resolveApplicationCountry(application.metadata),
-  });
+  let requirements: Array<{ documentType: string; required: boolean; minAmount: number | null; maxAmount: number | null }> = [];
+  try {
+    const resolved = await resolveRequirementsForApplication({
+      lenderProductId: application.lender_product_id ?? null,
+      productType: application.product_type,
+      requestedAmount: application.requested_amount ?? null,
+      country: resolveApplicationCountry(application.metadata),
+    });
+    requirements = resolved.requirements;
+  } catch (_err) {
+    requirements = [];
+  }
 
   const requiredDocuments = await ensureRequiredDocuments({
     application,
@@ -941,12 +953,18 @@ export async function getProcessingStatus(
     throw new AppError("not_found", "Application not found.", 404);
   }
 
-  const { requirements } = await resolveRequirementsForApplication({
-    lenderProductId: application.lender_product_id ?? null,
-    productType: application.product_type,
-    requestedAmount: application.requested_amount ?? null,
-    country: resolveApplicationCountry(application.metadata),
-  });
+  let requirements: Array<{ documentType: string; required: boolean; minAmount: number | null; maxAmount: number | null }> = [];
+  try {
+    const resolved = await resolveRequirementsForApplication({
+      lenderProductId: application.lender_product_id ?? null,
+      productType: application.product_type,
+      requestedAmount: application.requested_amount ?? null,
+      country: resolveApplicationCountry(application.metadata),
+    });
+    requirements = resolved.requirements;
+  } catch (_err) {
+    requirements = [];
+  }
 
   const requiredDocuments = new Set<string>();
   for (const requirement of requirements) {
@@ -1182,12 +1200,18 @@ export async function uploadDocument(params: {
   if (!isPipelineState(application.pipeline_state)) {
     throw new AppError("invalid_state", "Pipeline state is invalid.", 400);
   }
-  const { requirements } = await resolveRequirementsForApplication({
-    lenderProductId: application.lender_product_id ?? null,
-    productType: application.product_type,
-    requestedAmount: application.requested_amount ?? null,
-    country: resolveApplicationCountry(application.metadata),
-  });
+  let requirements: Array<{ documentType: string; required: boolean; minAmount: number | null; maxAmount: number | null }> = [];
+  try {
+    const resolved = await resolveRequirementsForApplication({
+      lenderProductId: application.lender_product_id ?? null,
+      productType: application.product_type,
+      requestedAmount: application.requested_amount ?? null,
+      country: resolveApplicationCountry(application.metadata),
+    });
+    requirements = resolved.requirements;
+  } catch (_err) {
+    requirements = [];
+  }
   const requestedType = params.documentType ?? params.title;
   const normalizedRequested = normalizeRequiredDocumentKey(requestedType);
   const requirement = requirements.find((item) => {

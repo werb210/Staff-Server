@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { type Request, type Response } from "express";
 import { AppError } from "../middleware/errors";
 import {
@@ -116,11 +117,7 @@ function parseRequiredDocuments(value: unknown): RequiredDocuments {
   }
 
   if (value === null) {
-    throw new AppError(
-      "validation_error",
-      "required_documents cannot be null.",
-      400
-    );
+    return [];
   }
 
   const parsedValue =
@@ -189,6 +186,54 @@ function parseRequiredDocuments(value: unknown): RequiredDocuments {
   }
 
   return normalized;
+}
+
+async function seedLenderProductRequirements(productId: string, documents: RequiredDocuments): Promise<void> {
+  if (!documents.length) {
+    return;
+  }
+
+  const normalizedTypes = Array.from(
+    new Set(
+      documents
+        .map((doc) => {
+          const rawType =
+            typeof doc.type === "string"
+              ? doc.type
+              : typeof doc.documentType === "string"
+                ? doc.documentType
+                : typeof doc.document_key === "string"
+                  ? doc.document_key
+                  : typeof doc.key === "string"
+                    ? doc.key
+                    : null;
+          return rawType ? normalizeRequiredDocumentKey(rawType) : null;
+        })
+        .filter((value): value is RequiredDocumentKey => Boolean(value))
+    )
+  );
+
+  if (!normalizedTypes.length) {
+    return;
+  }
+
+  for (const documentType of normalizedTypes) {
+    try {
+      await pool.query(
+        `insert into lender_product_requirements (id, lender_product_id, document_type, required, min_amount, max_amount, created_at)
+         select $1, $2, $3, true, null, null, now()
+         where not exists (
+           select 1
+           from lender_product_requirements lpr
+           where lpr.lender_product_id = $2
+             and lpr.document_type = $3
+         )`,
+        [randomUUID(), productId, documentType]
+      );
+    } catch (_err) {
+      return;
+    }
+  }
 }
 
 function ensureAlwaysRequiredDocuments(documents: RequiredDocuments): RequiredDocuments {
@@ -623,7 +668,12 @@ export async function createLenderProductHandler(
       return;
     }
 
-    await ingestProductById(pool, created.id);
+    await seedLenderProductRequirements(created.id, requiredDocumentsList);
+    try {
+      await ingestProductById(pool, created.id);
+    } catch (_err) {
+      // non-blocking for product creation contract
+    }
 
     res.status(201).json(toLenderProductResponse(created));
     return;
