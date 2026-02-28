@@ -301,26 +301,21 @@ router.post("/refresh", refreshRateLimit(), async (req, res) => {
     const result = await refreshSession(refreshPayload);
 
     if (!result.ok) {
-      respondError(
-        res,
-        result.status,
-        result.error.code,
-        result.error.message
-      );
-      return;
+      return res.status(401).json({
+        error: "invalid_refresh_token",
+      });
     }
 
+    const accessToken = result.token;
+
     return res.status(200).json({
-      ok: true,
-      accessToken: result.token,
+      accessToken,
       refreshToken: result.refreshToken,
-      user: result.user,
     });
   } catch (err) {
     void err;
     return res.status(401).json({
-      success: false,
-      message: "invalid refresh token",
+      error: "invalid_refresh_token",
     });
   }
 });

@@ -1,6 +1,5 @@
 import { Router } from "express";
 import { pool } from "../db";
-import { USE_DB } from "../config/db";
 import { listLenders } from "../repositories/lenders.repo";
 import { listLenderProducts } from "../repositories/lenderProducts.repo";
 import { requireAuth, requireCapability } from "../middleware/auth";
@@ -59,13 +58,6 @@ function resolveLenderStatus(row: LenderRow): { status: string; active: boolean 
 }
 
 const router = Router();
-
-router.use((_req, res, next) => {
-  if (!USE_DB) {
-    return res.status(200).json({ ok: true });
-  }
-  next();
-});
 
 if (process.env.NODE_ENV === "test") {
   router.get(

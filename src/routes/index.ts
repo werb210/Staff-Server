@@ -5,6 +5,18 @@ import healthRouter from "./health";
 import { registerApiRouteMounts } from "./routeRegistry";
 
 export function registerRoutes(app: Express) {
+  app.use("/api/_int", (req, res, next) => {
+    const origin = req.headers.origin;
+
+    if (origin && origin.includes("http")) {
+      return res.status(403).json({
+        error: "forbidden",
+      });
+    }
+
+    next();
+  });
+
   const apiRouter = Router();
   registerApiRouteMounts(apiRouter);
   apiRouter.use("/health", healthRouter);
