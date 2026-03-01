@@ -17,14 +17,10 @@ create table if not exists audit_events (
 create table if not exists lender_product_requirements (
   id uuid not null,
   lender_product_id uuid not null,
-  type text not null,
+  document_type text not null,
   required boolean not null default true,
   constraint lender_product_requirements_contract_pk primary key (id)
 );
 
 alter table if exists lender_product_requirements
-  add column if not exists type text;
-
-update lender_product_requirements
-set type = coalesce(type, document_type)
-where type is null;
+  add column if not exists document_type text;

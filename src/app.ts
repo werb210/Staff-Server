@@ -5,6 +5,7 @@ import { requestLogger } from "./middleware/requestLogger";
 import { errorHandler, notFoundHandler } from "./middleware/errors";
 import { logWarn } from "./observability/logger";
 import { registerApiRoutes as registerRoutes } from "./routes";
+import twilioRouter from "./routes/twilio";
 
 export function buildApp(): Express {
   const app = express();
@@ -36,6 +37,9 @@ export function registerApiRoutes(app: Express): void {
 
 export function buildAppWithApiRoutes(): Express {
   const app = buildApp();
+  app.use("/api/twilio", twilioRouter);
   registerApiRoutes(app);
   return app;
 }
+
+export { startServer } from "./server/index";

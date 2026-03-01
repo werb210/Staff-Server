@@ -1,6 +1,6 @@
 create table if not exists users (
   id uuid not null,
-  email text not null unique,
+  email text,
   password_hash text not null,
   role text not null,
   active boolean not null,
@@ -57,3 +57,8 @@ create table if not exists audit_events (
   created_at timestamptz not null,
   constraint audit_events_pk primary key (id)
 );
+
+
+create unique index if not exists users_email_key
+  on users(email)
+  where email is not null;

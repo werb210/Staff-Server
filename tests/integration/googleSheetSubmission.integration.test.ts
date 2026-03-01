@@ -169,8 +169,8 @@ beforeAll(async () => {
   `);
   await pool.query(`
     create table if not exists lenders (
-      id uuid,
-      name text,
+      id uuid primary key,
+      name text not null,
       active boolean,
       status text,
       country text,

@@ -276,8 +276,11 @@ export async function checkDb(): Promise<void> {
 }
 
 export async function warmUpDatabase(): Promise<void> {
-  await pool.query("select 1");
-  assertPoolHealthy();
+  try {
+    await pool.query("select 1");
+  } catch {
+    throw new Error("db unavailable");
+  }
 }
 
 export async function getInstrumentedClient(): Promise<PoolClient> {
