@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { pool } from "../../db";
 import { isTestEnvironment } from "../../dbRuntime";
+import { AppError } from "../../middleware/errors";
 import { type PoolClient } from "pg";
 
 type Queryable = Pick<PoolClient, "query">;
@@ -102,7 +103,7 @@ export async function createSubmission(params: {
   );
   const record = res.rows[0];
   if (!record) {
-    throw new Error("Failed to create lender submission.");
+    throw new AppError("internal_error", 500);
   }
   return record;
 }
@@ -251,7 +252,7 @@ export async function upsertSubmissionRetryState(params: {
     );
     const retryRecord = res.rows[0];
     if (!retryRecord) {
-      throw new Error("Failed to load lender submission retry.");
+      throw new AppError("internal_error", 500);
     }
     return retryRecord;
   }
@@ -280,7 +281,7 @@ export async function upsertSubmissionRetryState(params: {
   );
   const retryRecord = res.rows[0];
   if (!retryRecord) {
-    throw new Error("Failed to create lender submission retry.");
+    throw new AppError("internal_error", 500);
   }
   return retryRecord;
 }
@@ -328,7 +329,7 @@ export async function createSubmissionEvent(params: {
     );
     const eventRecord = res.rows[0];
     if (!eventRecord) {
-      throw new Error("Failed to create submission event.");
+      throw new AppError("internal_error", 500);
     }
     return eventRecord;
   } catch (err) {

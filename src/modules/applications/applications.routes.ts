@@ -261,7 +261,8 @@ router.post(
       if (!req.user) {
         throw new AppError("missing_token", "Authorization token is required.", 401);
       }
-      const { state, override } = req.body ?? {};
+      const state = req.body?.state;
+      const override = Boolean(req.body?.override);
       if (!state || typeof state !== "string") {
         throw new AppError("missing_fields", "state is required.", 400);
       }
@@ -278,7 +279,7 @@ router.post(
         nextState: state,
         actorUserId: req.user.userId,
         actorRole: role,
-        override: Boolean(override),
+        override,
         ...buildRequestMetadata(req),
       };
       await changePipelineState(changePayload);

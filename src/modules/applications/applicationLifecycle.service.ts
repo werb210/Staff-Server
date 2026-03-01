@@ -66,13 +66,13 @@ export function assertPipelineTransition(params: {
     return { shouldTransition: true, reason: "ok" };
   }
   if (isTerminalApplicationStatus(params.status)) {
-    throw new AppError("invalid_transition", "Application is in a terminal state.", 400);
+    throw new AppError("invalid_transition", 400);
   }
   if (params.currentStage === params.nextStage) {
     return { shouldTransition: false, reason: "no_change" };
   }
   if (!LEGAL_TRANSITIONS[params.currentStage]?.includes(params.nextStage)) {
-    throw new AppError("invalid_transition", "Invalid pipeline transition.", 400);
+    throw new AppError("invalid_transition", 400);
   }
   return { shouldTransition: true, reason: "ok" };
 }
