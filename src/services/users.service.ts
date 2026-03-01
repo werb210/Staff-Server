@@ -260,7 +260,7 @@ export async function createUser(req: Request, res: Response) {
     const parsed = createUserSchema.parse(req.body ?? {});
     const normalizedRole = normalizeRole(parsed.role);
     if (!normalizedRole) {
-      throw new AppError("validation_error", "Role is invalid.", 400);
+      throw new AppError("invalid_role", "Role is invalid.", 400);
     }
 
     const userAgent = req.get("user-agent");
@@ -275,7 +275,10 @@ export async function createUser(req: Request, res: Response) {
     };
     const user = await createUserAccount(createPayload);
 
-    res.status(201).json(user);
+    res.status(201).json({
+      ok: true,
+      user,
+    });
   } catch (err) {
     handleUserError(res, err, requestId);
   }

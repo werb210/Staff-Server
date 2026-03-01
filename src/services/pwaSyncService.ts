@@ -408,7 +408,7 @@ async function executeReplayAction(
     const parsed = parsedResult.data;
     const normalizedRole = normalizeRole(parsed.role);
     if (!normalizedRole) {
-      throw new AppError("validation_error", "Role is invalid.", 400);
+      throw new AppError("invalid_role", "Role is invalid.", 400);
     }
     const created = await createUserAccount({
       email: parsed.email ?? null,
