@@ -40,6 +40,7 @@ router.post(
   safeHandler(async (req, res) => {
     try {
       const { name, metadata, productType } = req.body ?? {};
+      const override = Boolean(req.body?.override);
       if (!req.user) {
         throw new AppError("missing_token", "Authorization token is required.", 401);
       }
@@ -57,7 +58,7 @@ router.post(
         productType: productType ?? null,
         actorUserId: req.user.userId,
         actorRole: role,
-        override: Boolean(override),
+        override,
         ...buildRequestMetadata(req),
       };
       let result;
@@ -180,6 +181,7 @@ router.post(
         throw new AppError("missing_token", "Authorization token is required.", 401);
       }
       const { title, metadata, content, documentId, documentType } = req.body ?? {};
+      const override = Boolean(req.body?.override);
       if (!title || !metadata || !content) {
         throw new AppError(
           "missing_fields",
@@ -204,7 +206,7 @@ router.post(
         content,
         actorUserId: req.user.userId,
         actorRole: role,
-        override: Boolean(override),
+        override,
         ...buildRequestMetadata(req),
       };
       const result = await uploadDocument(uploadPayload);
@@ -302,6 +304,7 @@ router.post(
       if (!req.user) {
         throw new AppError("missing_token", "Authorization token is required.", 401);
       }
+      const override = Boolean(req.body?.override);
       const role = req.user.role;
       if (!role || !isRole(role)) {
         throw forbiddenError();
@@ -318,7 +321,7 @@ router.post(
         documentVersionId,
         actorUserId: req.user.userId,
         actorRole: role,
-        override: Boolean(override),
+        override,
         ...buildRequestMetadata(req),
       };
       await acceptDocumentVersion(acceptPayload);
@@ -344,6 +347,7 @@ router.post(
       if (!req.user) {
         throw new AppError("missing_token", "Authorization token is required.", 401);
       }
+      const override = Boolean(req.body?.override);
       const role = req.user.role;
       if (!role || !isRole(role)) {
         throw forbiddenError();
@@ -360,7 +364,7 @@ router.post(
         documentVersionId,
         actorUserId: req.user.userId,
         actorRole: role,
-        override: Boolean(override),
+        override,
         ...buildRequestMetadata(req),
       };
       await rejectDocumentVersion(rejectPayload);
