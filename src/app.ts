@@ -8,21 +8,12 @@ import { requestContext } from "./middleware/requestContext";
 import { requestLogger } from "./middleware/requestLogger";
 import { requestTimeout } from "./middleware/requestTimeout";
 import { routeResolutionLogger } from "./middleware/routeResolutionLogger";
-import {
-  getStatus as getStartupStatus,
-  isReady,
-  markNotReady,
-  markReady,
-} from "./startupState";
+import { markNotReady, markReady } from "./startupState";
 import "./startup/envValidation";
 import "./services/twilio";
 import { PORTAL_ROUTE_REQUIREMENTS } from "./routes/routeRegistry";
 import { checkDb } from "./db";
-import {
-  productionLogger,
-  requireHttps,
-  securityHeaders,
-} from "./middleware/security";
+import { productionLogger, securityHeaders } from "./middleware/security";
 import { notFoundHandler } from "./middleware/errors";
 import authRoutes from "./routes/auth";
 import lendersRoutes from "./routes/lenders";
