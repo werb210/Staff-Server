@@ -1,13 +1,12 @@
 import { buildAppWithApiRoutes } from "./app";
+import { startServer } from "./server/index";
 
-const PORT = process.env.PORT || 3000;
-
-const app = buildAppWithApiRoutes();
+export const app = buildAppWithApiRoutes();
+export { startServer };
 
 if (process.env.NODE_ENV !== "test") {
-  app.listen(PORT, () => {
-    console.log(`BF Server running on port ${PORT}`);
+  startServer().catch((err) => {
+    console.error("server_start_failed", err);
+    process.exit(1);
   });
 }
-
-export { app };
