@@ -3,18 +3,33 @@ import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 
+import { readyHandler } from "./routes/ready";
 import { listRoutes, printRoutes } from "./debug/printRoutes";
 import { requestContext } from "./middleware/requestContext";
 import { requestLogger } from "./middleware/requestLogger";
 import { requestTimeout } from "./middleware/requestTimeout";
 import { routeResolutionLogger } from "./middleware/routeResolutionLogger";
-import { markNotReady, markReady } from "./startupState";
+import {
+  getStatus as getStartupStatus,
+  isReady,
+  markNotReady,
+  markReady,
+} from "./startupState";
 import "./startup/envValidation";
 import "./services/twilio";
-import { PORTAL_ROUTE_REQUIREMENTS } from "./routes/routeRegistry";
-import { checkDb } from "./db";
-import { productionLogger, securityHeaders } from "./middleware/security";
+import { PORTAL_ROUTE_REQUIREMENTS, API_ROUTE_MOUNTS } from "./routes/routeRegistry";
+import { checkDb, db } from "./db";
+import {
+  productionLogger,
+  requireHttps,
+  securityHeaders,
+} from "./middleware/security";
+import { apiLimiter, publicLimiter, strictLimiter } from "./middleware/rateLimit";
+import { idempotencyMiddleware } from "./middleware/idempotency";
+import { ensureIdempotencyKey } from "./middleware/idempotencyKey";
 import { notFoundHandler } from "./middleware/errors";
+import { logError } from "./observability/logger";
+import { getRequestContext } from "./observability/requestContext";
 import authRoutes from "./routes/auth";
 import lendersRoutes from "./routes/lenders";
 import lenderProductsRoutes from "./routes/lenderProducts";
@@ -24,7 +39,27 @@ import { assertApiV1Frozen } from "./contracts/v1Freeze";
 import requestLogMiddleware from "./middleware/logger";
 import envCheck from "./middleware/envCheck";
 import { logger as serverLogger } from "./server/utils/logger";
-import { globalErrorHandler } from "./middleware/globalErrorHandler";
+
+/* ---------------- ROUTE ASSERTION ---------------- */
+
+function assertRoutesMounted(app: express.Express): void {
+  const mountedRoutes = listRoutes(app);
+  const mountedSet = new Set(
+    mountedRoutes.map((route) => `${route.method} ${route.path}`)
+  );
+
+  const missing = PORTAL_ROUTE_REQUIREMENTS.filter(
+    (route) => !mountedSet.has(`${route.method} ${route.path}`)
+  );
+
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing API routes: ${missing
+        .map((route) => `${route.method} ${route.path}`)
+        .join(", ")}`
+    );
+  }
+}
 
 /* ---------------- CORS ---------------- */
 
@@ -34,8 +69,8 @@ function getRequiredCorsOrigins(): string[] {
     process.env.PORTAL_URL,
     process.env.WEBSITE_URL,
   ]
-    .map((o) => (typeof o === "string" ? o.trim() : ""))
-    .filter((o) => o.length > 0);
+    .map((origin) => (typeof origin === "string" ? origin.trim() : ""))
+    .filter((origin) => origin.length > 0);
 }
 
 export function shouldBlockInternalOriginRequest(
@@ -67,30 +102,10 @@ function buildCorsOptions(): cors.CorsOptions {
 
 export function assertCorsConfig(): void {
   const allowlist = getRequiredCorsOrigins();
+
   if (allowlist.length === 0) {
     throw new Error(
-      "At least one of WEBSITE_URL, PORTAL_URL, or CLIENT_URL must be configured for CORS."
-    );
-  }
-}
-
-/* ---------------- ROUTE ASSERTION ---------------- */
-
-function assertRoutesMounted(app: express.Express): void {
-  const mountedRoutes = listRoutes(app);
-  const mountedSet = new Set(
-    mountedRoutes.map((route) => `${route.method} ${route.path}`)
-  );
-
-  const missing = PORTAL_ROUTE_REQUIREMENTS.filter(
-    (route) => !mountedSet.has(`${route.method} ${route.path}`)
-  );
-
-  if (missing.length > 0) {
-    throw new Error(
-      `Missing API routes: ${missing
-        .map((route) => `${route.method} ${route.path}`)
-        .join(", ")}`
+      "At least one of WEBSITE_URL, PORTAL_URL, or CLIENT_URL must be configured."
     );
   }
 }
@@ -119,6 +134,7 @@ export function buildApp(): express.Express {
   );
 
   app.use(securityHeaders);
+  app.use("/api/", apiLimiter);
   app.use(routeResolutionLogger);
   app.use(requestTimeout);
 
@@ -148,16 +164,59 @@ export function registerApiRoutes(app: express.Express): void {
 
   app.use("/api", limiter);
 
+  /* Explicit mounts */
   app.use("/api/auth", authRoutes);
   app.use("/api/lenders", lendersRoutes);
   app.use("/api/lender-products", lenderProductsRoutes);
   app.use("/api/applications", applicationsRoutes);
   app.use("/api/ai", aiRoutes);
 
+  /* Dynamic mounts — REQUIRED FOR TESTS */
+  API_ROUTE_MOUNTS.forEach((entry) => {
+    app.use(`/api${entry.path}`, entry.router);
+  });
+
+  app.use(
+    "/api",
+    requireHttps,
+    ensureIdempotencyKey,
+    idempotencyMiddleware
+  );
+
   app.use("/api", notFoundHandler);
 
-  /* GLOBAL ERROR HANDLER — MUST BE LAST */
-  app.use(globalErrorHandler);
+  app.use(
+    (
+      err: Error,
+      req: express.Request,
+      res: express.Response,
+      _next: express.NextFunction
+    ) => {
+      if (res.headersSent) return;
+
+      const requestId = res.locals.requestId ?? "unknown";
+      const requestContext = getRequestContext();
+
+      const shouldLogStack =
+        process.env.NODE_ENV === "development" ||
+        Boolean(requestContext?.sqlTraceEnabled);
+
+      logError("request_failed", {
+        requestId,
+        method: req.method,
+        originalUrl: req.originalUrl,
+        statusCode: 500,
+        errorName: err.name,
+        errorMessage: err.message,
+        ...(shouldLogStack ? { stack: err.stack } : {}),
+      });
+
+      res.status(500).json({
+        success: false,
+        error: "Internal Server Error",
+      });
+    }
+  );
 
   const mountedRoutes = listRoutes(app);
   printRoutes(app);
