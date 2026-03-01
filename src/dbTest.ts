@@ -63,6 +63,37 @@ function createMemoryDb(): MemoryDb {
     implementation: () => randomUUID(),
   });
 
+  memoryDb.public.none(`
+    CREATE TABLE IF NOT EXISTS call_logs (
+      id uuid primary key,
+      application_id uuid,
+      user_id uuid,
+      direction text,
+      status text,
+      started_at timestamptz,
+      ended_at timestamptz,
+      created_at timestamptz default now()
+    );
+  `);
+
+  memoryDb.public.none(`
+    CREATE TABLE IF NOT EXISTS audit_events (
+      id uuid primary key default gen_random_uuid(),
+      actor_user_id uuid,
+      target_user_id uuid,
+      target_type text,
+      target_id uuid,
+      event_type text,
+      event_action text,
+      ip_address text,
+      user_agent text,
+      request_id text,
+      success boolean,
+      metadata jsonb,
+      created_at timestamptz default now()
+    );
+  `);
+
   return memoryDb as MemoryDb;
 }
 

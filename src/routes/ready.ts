@@ -1,23 +1,19 @@
 import type { Request, Response } from "express";
 import { Router } from "express";
-import { getStatus, isReady } from "../startupState";
+import { isReady } from "../startupState";
 
 const router = Router();
 
 export function healthHandler(_req: Request, res: Response): void {
-  res.status(200).json({ status: "ok" });
+  res.status(200).json({ ok: true });
 }
 
 export function readyHandler(_req: Request, res: Response): void {
   if (!isReady()) {
-    const status = getStatus();
-    res.status(503).json({
-      code: "service_not_ready",
-      reason: status.reason,
-    });
+    res.status(503).json({ ok: false });
     return;
   }
-  res.status(200).json({ status: "ok" });
+  res.status(200).json({ ok: true });
 }
 
 router.get("/health", healthHandler);
