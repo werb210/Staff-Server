@@ -292,8 +292,7 @@ router.post("/refresh", refreshRateLimit(), async (req, res) => {
 
   if (!refreshToken) {
     return res.status(401).json({
-      ok: false,
-      error: "invalid_refresh_token",
+      error: { code: "invalid_refresh_token" },
     });
   }
 
@@ -306,20 +305,19 @@ router.post("/refresh", refreshRateLimit(), async (req, res) => {
 
     if (!result.ok) {
       return res.status(401).json({
-        ok: false,
-        error: "invalid_refresh_token",
+        error: { code: "invalid_refresh_token" },
       });
     }
 
+    const accessToken = result.token;
+
     return res.status(200).json({
-      ok: true,
-      accessToken: result.token,
+      accessToken,
       refreshToken: result.refreshToken,
     });
   } catch {
     return res.status(401).json({
-      ok: false,
-      error: "invalid_refresh_token",
+      error: { code: "invalid_refresh_token" },
     });
   }
 });

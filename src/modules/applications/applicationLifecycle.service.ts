@@ -44,7 +44,8 @@ export function resolveNextPipelineStage(
       return stage;
     }
   }
-  return allowed[0] ?? null;
+  const fallback = allowed[0];
+  return fallback && isPipelineState(fallback) ? fallback : null;
 }
 
 export function assertPipelineTransition(params: {
