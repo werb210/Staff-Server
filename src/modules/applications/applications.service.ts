@@ -1384,13 +1384,76 @@ export async function changePipelineState(params: {
   actorRole: Role;
   ip?: string;
   userAgent?: string;
+  override?: boolean;
 }): Promise<void> {
-  void params;
-  throw new AppError(
-    "forbidden",
-    "Manual pipeline stage changes are not permitted.",
-    403
-  );
+  if (!isPipelineState(params.nextState)) {
+    throw new AppError("invalid_state", "Pipeline state is invalid.", 400);
+  }
+
+  const evaluation = await evaluateRequirements({
+    applicationId: params.applicationId,
+    actorUserId: params.actorUserId,
+    actorRole: params.actorRole,
+    ...(params.ip ? { ip: params.ip } : {}),
+    ...(params.userAgent ? { userAgent: params.userAgent } : {}),
+  });
+
+  if (evaluation.missingRequired && params.nextState === ApplicationStage.OFF_TO_LENDER) {
+    await transitionPipelineState({
+      applicationId: params.applicationId,
+      nextState: ApplicationStage.DOCUMENTS_REQUIRED,
+      actorUserId: params.actorUserId,
+      actorRole: params.actorRole,
+      trigger: "missing_documents",
+      reason: "Required documents missing.",
+      ...(params.ip ? { ip: params.ip } : {}),
+      ...(params.userAgent ? { userAgent: params.userAgent } : {}),
+    });
+    if (!params.override) {
+      throw new AppError("missing_documents", "Required documents are missing.", 400);
+    }
+  }
+
+  if (params.override) {
+    const app = await findApplicationById(params.applicationId);
+    if (!app) {
+      throw new AppError("not_found", "Application not found.", 404);
+    }
+    await updateApplicationPipelineState({
+      applicationId: params.applicationId,
+      pipelineState: params.nextState,
+    });
+    await createApplicationStageEvent({
+      applicationId: params.applicationId,
+      fromStage: assertPipelineState(app.pipeline_state),
+      toStage: params.nextState,
+      trigger: "manual_override",
+      triggeredBy: params.actorUserId,
+      reason: "override",
+    });
+    await recordAuditEvent({
+      action: "pipeline_state_changed",
+      actorUserId: params.actorUserId,
+      targetUserId: app.owner_user_id,
+      targetType: "application",
+      targetId: params.applicationId,
+      ip: params.ip ?? null,
+      userAgent: params.userAgent ?? null,
+      success: true,
+      metadata: { override: true, to: params.nextState },
+    });
+    return;
+  }
+
+  await transitionPipelineState({
+    applicationId: params.applicationId,
+    nextState: params.nextState,
+    actorUserId: params.actorUserId,
+    actorRole: params.actorRole,
+    trigger: "manual_status_update",
+    ...(params.ip ? { ip: params.ip } : {}),
+    ...(params.userAgent ? { userAgent: params.userAgent } : {}),
+  });
 }
 
 export async function acceptDocumentVersion(params: {

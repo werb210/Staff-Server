@@ -60,6 +60,27 @@ function isAuthRoute(req: Request): boolean {
   return path.startsWith("/api/auth/");
 }
 
+
+function mapErrorToStatus(err: AppError): number {
+  switch (err.code) {
+    case "invalid_transition":
+    case "missing_documents":
+      return 400;
+    case "invalid_token":
+    case "invalid_refresh_token":
+      return 401;
+    case "forbidden":
+    case "user_disabled":
+    case "account_disabled":
+    case "locked":
+      return 403;
+    case "constraint_violation":
+      return 409;
+    default:
+      return err.status >= 400 && err.status <= 599 ? err.status : 500;
+  }
+}
+
 function resolveFailureReason(err: Error): string {
   if (err instanceof AppError) {
     return AUTH_FAILURE_CODES.has(err.code)
@@ -78,7 +99,7 @@ function normalizeAuthError(
 ): { status: number; code: string; message: string; details?: unknown } {
   if (err instanceof AppError) {
     return {
-      status: err.status,
+      status: mapErrorToStatus(err),
       code: err.code,
       message: err.message,
       details: (err as { details?: unknown }).details,
@@ -197,7 +218,7 @@ export function errorHandler(
   if (err instanceof AppError) {
     logWarn("request_error", {
       ...logBase,
-      status: err.status,
+      status: mapErrorToStatus(err),
       code: err.code,
       message: err.message,
     });
@@ -207,14 +228,14 @@ export function errorHandler(
       properties: {
         requestId,
         route: req.originalUrl,
-        status: err.status,
+        status: mapErrorToStatus(err),
         code: err.code,
         failure_reason: failureReason,
       },
     });
 
     const details = (err as { details?: unknown }).details;
-    res.status(err.status).json({
+    res.status(mapErrorToStatus(err)).json({
       code: err.code,
       message: err.message,
       ...(details ? { details } : {}),
