@@ -5,11 +5,25 @@ import { trackException } from "../observability/appInsights";
 import { getStatus as getErrorStatus, isHttpishError } from "../helpers/errors";
 
 export class AppError extends Error {
-  status: number;
   code: string;
+  status: number;
 
-  constructor(code: string, message: string, status = 400) {
-    super(message);
+  constructor(code: string, status: number, message?: string);
+  constructor(code: string, message: string, status?: number);
+  constructor(code: string, arg2: number | string, arg3?: number | string) {
+    const status =
+      typeof arg2 === "number"
+        ? arg2
+        : typeof arg3 === "number"
+          ? arg3
+          : 400;
+    const resolvedMessage =
+      typeof arg2 === "string"
+        ? arg2
+        : typeof arg3 === "string"
+          ? arg3
+          : code;
+    super(resolvedMessage);
     this.code = code;
     this.status = status;
   }

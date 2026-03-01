@@ -1398,7 +1398,11 @@ export async function changePipelineState(params: {
     ...(params.userAgent ? { userAgent: params.userAgent } : {}),
   });
 
-  if (evaluation.missingRequired && params.nextState === ApplicationStage.OFF_TO_LENDER) {
+  if (
+    evaluation.missingRequired &&
+    params.nextState === ApplicationStage.OFF_TO_LENDER &&
+    !params.override
+  ) {
     await transitionPipelineState({
       applicationId: params.applicationId,
       nextState: ApplicationStage.DOCUMENTS_REQUIRED,
@@ -1409,40 +1413,7 @@ export async function changePipelineState(params: {
       ...(params.ip ? { ip: params.ip } : {}),
       ...(params.userAgent ? { userAgent: params.userAgent } : {}),
     });
-    if (!params.override) {
-      throw new AppError("missing_documents", "Required documents are missing.", 400);
-    }
-  }
-
-  if (params.override) {
-    const app = await findApplicationById(params.applicationId);
-    if (!app) {
-      throw new AppError("not_found", "Application not found.", 404);
-    }
-    await updateApplicationPipelineState({
-      applicationId: params.applicationId,
-      pipelineState: params.nextState,
-    });
-    await createApplicationStageEvent({
-      applicationId: params.applicationId,
-      fromStage: assertPipelineState(app.pipeline_state),
-      toStage: params.nextState,
-      trigger: "manual_override",
-      triggeredBy: params.actorUserId,
-      reason: "override",
-    });
-    await recordAuditEvent({
-      action: "pipeline_state_changed",
-      actorUserId: params.actorUserId,
-      targetUserId: app.owner_user_id,
-      targetType: "application",
-      targetId: params.applicationId,
-      ip: params.ip ?? null,
-      userAgent: params.userAgent ?? null,
-      success: true,
-      metadata: { override: true, to: params.nextState },
-    });
-    return;
+    throw new AppError("missing_documents", 400);
   }
 
   await transitionPipelineState({
@@ -1450,10 +1421,25 @@ export async function changePipelineState(params: {
     nextState: params.nextState,
     actorUserId: params.actorUserId,
     actorRole: params.actorRole,
-    trigger: "manual_status_update",
+    trigger: params.override ? "manual_override" : "manual_status_update",
     ...(params.ip ? { ip: params.ip } : {}),
     ...(params.userAgent ? { userAgent: params.userAgent } : {}),
   });
+
+  if (params.override) {
+    const app = await findApplicationById(params.applicationId);
+    await recordAuditEvent({
+      action: "pipeline_override_used",
+      actorUserId: params.actorUserId,
+      targetUserId: app?.owner_user_id ?? null,
+      targetType: "application",
+      targetId: params.applicationId,
+      ip: params.ip ?? null,
+      userAgent: params.userAgent ?? null,
+      success: true,
+      metadata: { override: true, to: params.nextState },
+    });
+  }
 }
 
 export async function acceptDocumentVersion(params: {
