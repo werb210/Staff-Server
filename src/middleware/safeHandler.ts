@@ -43,11 +43,7 @@ export function safeHandler(handler: SafeRequestHandler): SafeRequestHandler {
       }
 
       // Final hard stop: unexpected server error
-      res.status(500).json({
-        code: "server_error",
-        message: "An unexpected error occurred.",
-        requestId,
-      });
+      next(new AppError("internal_error", 500));
     }
   };
 }

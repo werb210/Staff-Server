@@ -2,6 +2,7 @@ import { Router } from "express";
 import { logger } from "../utils/logger";
 import jwt from "jsonwebtoken";
 import { dbQuery } from "../db";
+import { AppError } from "../middleware/errors";
 
 type ContinuationJwt = {
   preAppId: string;
@@ -12,7 +13,7 @@ const router = Router();
 function getJwtSecret(): string {
   const secret = process.env.JWT_SECRET;
   if (!secret) {
-    throw new Error("JWT_SECRET is not configured");
+    throw new AppError("internal_error", 500);
   }
   return secret;
 }

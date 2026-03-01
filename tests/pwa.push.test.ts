@@ -42,7 +42,7 @@ async function login(role: Role): Promise<string> {
 
 beforeEach(async () => {
   await resetDb();
-  webPushMock.sendNotification.mockReset();
+  webPushMock.sendNotification?.mockReset();
 });
 
 afterAll(async () => {

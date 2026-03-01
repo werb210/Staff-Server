@@ -1,7 +1,8 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { requireAuth, requireCapability } from "../middleware/auth";
 import { CAPABILITIES } from "../auth/capabilities";
 import { safeHandler } from "../middleware/safeHandler";
+import { AppError } from "../middleware/errors";
 import {
   listLenders,
   createLender,
@@ -10,11 +11,16 @@ import {
 
 const router = Router();
 
+router.use((req, res, next) => {
+  res.locals.requestId = (req as Request & { id?: string }).id ?? res.locals.requestId;
+  next();
+});
+
 if (process.env.NODE_ENV === "test") {
   router.get(
     "/__test-error",
     safeHandler(() => {
-      throw new Error("lenders test error");
+      throw new AppError("internal_error", 500);
     })
   );
 }

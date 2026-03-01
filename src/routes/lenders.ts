@@ -5,6 +5,7 @@ import { listLenderProducts } from "../repositories/lenderProducts.repo";
 import { requireAuth, requireCapability } from "../middleware/auth";
 import { CAPABILITIES } from "../auth/capabilities";
 import { safeHandler } from "../middleware/safeHandler";
+import { AppError } from "../middleware/errors";
 import { ROLES } from "../auth/roles";
 import { type LenderProductRecord } from "../db/schema/lenderProducts";
 import {
@@ -63,7 +64,7 @@ if (process.env.NODE_ENV === "test") {
   router.get(
     "/__test-error",
     safeHandler(() => {
-      throw new Error("lenders test error");
+      throw new AppError("internal_error", 500);
     })
   );
 }

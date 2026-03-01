@@ -1,9 +1,7 @@
 import { type NextFunction, type Request, type Response } from "express";
+import { AppError as CanonicalAppError } from "../errors/AppError";
 
-export class AppError extends Error {
-  code: string;
-  status: number;
-
+export class AppError extends CanonicalAppError {
   constructor(code: string, status: number, message?: string);
   constructor(code: string, message: string, status?: number);
   constructor(code: string, arg2: number | string, arg3?: number | string) {
@@ -12,16 +10,15 @@ export class AppError extends Error {
         ? arg2
         : typeof arg3 === "number"
           ? arg3
-          : 400;
+          : 500;
     const resolvedMessage =
       typeof arg2 === "string"
         ? arg2
         : typeof arg3 === "string"
           ? arg3
-          : code;
-    super(resolvedMessage);
-    this.code = code;
-    this.status = status;
+          : undefined;
+    super(code, status, resolvedMessage);
+    Object.setPrototypeOf(this, AppError.prototype);
   }
 }
 
@@ -42,7 +39,7 @@ export function errorHandler(
   res: Response,
   _next: NextFunction
 ): void {
-  if (err instanceof AppError) {
+  if (err instanceof CanonicalAppError) {
     res.status(err.status).json({
       error: err.code,
       message: err.message,
@@ -51,6 +48,5 @@ export function errorHandler(
   }
   res.status(500).json({
     error: "internal_error",
-    message: "internal_error",
   });
 }
