@@ -1,79 +1,37 @@
 import express from "express";
-import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 
-import { readyHandler } from "./routes/ready";
 import { listRoutes, printRoutes } from "./debug/printRoutes";
 import { requestContext } from "./middleware/requestContext";
 import { requestLogger } from "./middleware/requestLogger";
 import { requestTimeout } from "./middleware/requestTimeout";
 import { routeResolutionLogger } from "./middleware/routeResolutionLogger";
 import {
-  getStatus as getStartupStatus,
-  isReady,
   markNotReady,
   markReady,
 } from "./startupState";
 import "./startup/envValidation";
 import "./services/twilio";
-import { PORTAL_ROUTE_REQUIREMENTS, API_ROUTE_MOUNTS } from "./routes/routeRegistry";
-import { checkDb, db } from "./db";
+import { PORTAL_ROUTE_REQUIREMENTS } from "./routes/routeRegistry";
+import { checkDb } from "./db";
 import {
   productionLogger,
-  requireHttps,
   securityHeaders,
 } from "./middleware/security";
-import { apiLimiter, publicLimiter, strictLimiter } from "./middleware/rateLimit";
-import { idempotencyMiddleware } from "./middleware/idempotency";
-import { ensureIdempotencyKey } from "./middleware/idempotencyKey";
 import { notFoundHandler } from "./middleware/errors";
 import authRoutes from "./routes/auth";
 import lendersRoutes from "./routes/lenders";
 import lenderProductsRoutes from "./routes/lenderProducts";
 import applicationsRoutes from "./routes/applications";
 import aiRoutes from "./routes/ai";
-import creditRoutes from "./routes/credit";
-import issueFoundationRoutes from "./routes/issues";
-import aiV2Routes from "./routes/ai.v2";
-import chatApiRoutes from "./modules/ai/chat.routes";
-import capitalRoutes from "./modules/ai/capital.routes";
-import internalRoutes from "./routes/_int";
-import { intHealthHandler } from "./routes/_int/health";
-import { runtimeHandler } from "./routes/_int/runtime";
 import { assertApiV1Frozen } from "./contracts/v1Freeze";
-import { contractGuard } from "./middleware/contractGuard";
 import requestLogMiddleware from "./middleware/logger";
 import envCheck from "./middleware/envCheck";
-import healthRoute from "./routes/health";
-import contactRoute from "./routes/contact";
-import applicationRoute from "./routes/application";
-import leadRoute from "./routes/lead";
-import crmRoutes from "./routes/crm";
-import issueRoutes from "./routes/issueReport";
-import chatRoutes from "./routes/chat";
-import supportRoutes from "./routes/support";
-import publicRoutes from "./routes/public";
-import analyticsRoutes from "./routes/analytics";
-import readinessRoutes from "./routes/readiness";
-import productComparisonRoutes from "./routes/productComparison";
-import crmLeadRoutes from "./routes/leads";
-import aiCoreRoutes from "./routes/aiCore";
-import preApplicationRoutes from "./routes/preApplication";
-import applicationContinuationRoutes from "./modules/continuation/continuation.routes";
-import creditReadinessRoutes from "./routes/creditReadiness";
-import clientContinuationRoutes from "./routes/clientContinuation";
-import continuationRoutes from "./routes/continuation";
-import productsRoutes from "./routes/products";
-import liveChatRoutes from "./routes/liveChat";
-import aiPlaceholderRoutes from "./routes/aiPlaceholder";
-import aiRuleRoutes from "./modules/ai/rule.routes";
-import aiConfidenceRoutes from "./modules/ai/confidence.routes";
-import aiSessionRoutes from "./modules/ai/ai.routes";
 import { logger as serverLogger } from "./server/utils/logger";
 import { globalErrorHandler } from "./middleware/globalErrorHandler";
 
-/* ------------------------ ROUTE ASSERTION ------------------------ */
+/* ---------------- ROUTE ASSERTION ---------------- */
 
 function assertRoutesMounted(app: express.Express): void {
   const mountedRoutes = listRoutes(app);
@@ -94,7 +52,7 @@ function assertRoutesMounted(app: express.Express): void {
   }
 }
 
-/* ------------------------ APP BUILD ------------------------ */
+/* ---------------- BUILD APP ---------------- */
 
 export function buildApp(): express.Express {
   const app = express();
@@ -114,14 +72,13 @@ export function buildApp(): express.Express {
   );
 
   app.use(securityHeaders);
-  app.use("/api/", apiLimiter);
   app.use(routeResolutionLogger);
   app.use(requestTimeout);
 
   return app;
 }
 
-/* ------------------------ INIT ------------------------ */
+/* ---------------- INIT ---------------- */
 
 export async function initializeServer(): Promise<void> {
   markNotReady("initializing");
@@ -129,7 +86,7 @@ export async function initializeServer(): Promise<void> {
   markReady();
 }
 
-/* ------------------------ REGISTER ROUTES ------------------------ */
+/* ---------------- REGISTER ROUTES ---------------- */
 
 export function registerApiRoutes(app: express.Express): void {
   assertApiV1Frozen();
@@ -145,7 +102,7 @@ export function registerApiRoutes(app: express.Express): void {
 
   app.use("/api", limiter);
 
-  /* ROUTES */
+  /* CORE ROUTES */
   app.use("/api/auth", authRoutes);
   app.use("/api/lenders", lendersRoutes);
   app.use("/api/lender-products", lenderProductsRoutes);
@@ -170,7 +127,7 @@ export function registerApiRoutes(app: express.Express): void {
   assertRoutesMounted(app);
 }
 
-/* ------------------------ BOOTSTRAP ------------------------ */
+/* ---------------- BOOTSTRAP ---------------- */
 
 export function buildAppWithApiRoutes(): express.Express {
   const app = buildApp();
