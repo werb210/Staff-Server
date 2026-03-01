@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import AccessToken from "twilio/lib/jwt/AccessToken";
 import VoiceResponse from "twilio/lib/twiml/VoiceResponse";
 import { logger } from "../lib/logger";
+import { AppError } from "../middleware/errors";
 
 const router = Router();
 
@@ -19,7 +20,7 @@ const { VoiceGrant } = AccessToken;
 function requireTwilioEnv(name: (typeof REQUIRED_TWILIO_ENV)[number]): string {
   const value = process.env[name];
   if (!value || !value.trim()) {
-    throw new Error(`Missing required env var: ${name}`);
+    throw new AppError("internal_error", 500);
   }
   return value.trim();
 }

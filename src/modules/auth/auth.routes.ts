@@ -215,7 +215,7 @@ async function handleOtpVerify(
 
     const accessToken = result.token;
     if (!accessToken) {
-      throw new Error("OTP verified but accessToken missing");
+      throw new AppError("internal_error", 500);
     }
 
     const responseBody = {
