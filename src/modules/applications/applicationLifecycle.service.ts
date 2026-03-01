@@ -1,4 +1,4 @@
-import { AppError } from "../../middleware/errors";
+import { ApiError } from "../../core/errors/ApiError";
 import {
   ApplicationStage,
   LEGAL_TRANSITIONS,
@@ -54,10 +54,10 @@ export function assertPipelineTransition(params: {
   status?: string | null;
 }): TransitionCheck {
   if (!isPipelineState(params.nextStage)) {
-    throw new AppError("invalid_state", "Pipeline state is invalid.", 400);
+    throw new ApiError(400, "invalid_state", "Pipeline state is invalid.");
   }
   if (!params.currentStage || !isPipelineState(params.currentStage)) {
-    throw new AppError("invalid_state", "Pipeline state is invalid.", 400);
+    throw new ApiError(400, "invalid_state", "Pipeline state is invalid.");
   }
   if (
     params.currentStage === ApplicationStage.STARTUP &&
@@ -66,20 +66,20 @@ export function assertPipelineTransition(params: {
     return { shouldTransition: true, reason: "ok" };
   }
   if (isTerminalApplicationStatus(params.status)) {
-    throw new AppError("invalid_transition", 400);
+    throw new ApiError(400, "invalid_transition", "invalid_transition");
   }
   if (params.currentStage === params.nextStage) {
     return { shouldTransition: false, reason: "no_change" };
   }
   if (!LEGAL_TRANSITIONS[params.currentStage]?.includes(params.nextStage)) {
-    throw new AppError("invalid_transition", 400);
+    throw new ApiError(400, "invalid_transition", "invalid_transition");
   }
   return { shouldTransition: true, reason: "ok" };
 }
 
 export function assertPipelineState(value: string | null): PipelineState {
   if (!value || !isPipelineState(value)) {
-    throw new AppError("invalid_state", "Pipeline state is invalid.", 400);
+    throw new ApiError(400, "invalid_state", "Pipeline state is invalid.");
   }
   return value;
 }

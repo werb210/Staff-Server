@@ -1,11 +1,8 @@
-export class AppError extends Error {
-  public code: string;
-  public status: number;
+import { ApiError } from "../core/errors/ApiError";
 
+export class AppError extends ApiError {
   constructor(code: string, status = 500, message?: string) {
-    super(message ?? code);
-    this.code = code;
-    this.status = status;
+    super(status, code, message);
     Object.setPrototypeOf(this, AppError.prototype);
   }
 }

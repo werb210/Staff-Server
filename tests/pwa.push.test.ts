@@ -8,7 +8,9 @@ import { ROLES, type Role } from "../src/auth/roles";
 import { otpVerifyRequest } from "../src/__tests__/helpers/otpAuth";
 import { sendNotification } from "../src/services/pushService";
 
-vi.mock("web-push");
+vi.mock("web-push", () => ({
+  sendNotification: vi.fn().mockResolvedValue({ statusCode: 201 }),
+}));
 
 const webPushMock = vi.mocked(webPush);
 const requestId = "pwa-push-test";

@@ -1,5 +1,6 @@
 import { Router, type NextFunction, type Request, type Response } from "express";
 import { AppError } from "../../middleware/errors";
+import { ApiError } from "../../core/errors/ApiError";
 import {
   loginRateLimit,
   otpRateLimit,
@@ -292,7 +293,7 @@ router.post("/refresh", refreshRateLimit(), async (req, res, next) => {
     const { refreshToken } = req.body ?? {};
 
     if (!refreshToken || typeof refreshToken !== "string") {
-      throw new AppError("unauthorized", 401);
+      throw new ApiError(401, "unauthorized", "unauthorized");
     }
 
     const result = await refreshSession({
@@ -302,7 +303,7 @@ router.post("/refresh", refreshRateLimit(), async (req, res, next) => {
     });
 
     if (!result.ok) {
-      throw new AppError("unauthorized", 401);
+      throw new ApiError(401, "unauthorized", "unauthorized");
     }
 
     const accessToken = result.token;
@@ -312,8 +313,8 @@ router.post("/refresh", refreshRateLimit(), async (req, res, next) => {
       refreshToken: result.refreshToken,
     });
   } catch (err) {
-    if (!(err instanceof AppError)) {
-      return next(new AppError("unauthorized", 401));
+    if (!(err instanceof ApiError || err instanceof AppError)) {
+      return next(new ApiError(401, "unauthorized", "unauthorized"));
     }
     return next(err);
   }

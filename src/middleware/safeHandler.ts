@@ -1,5 +1,6 @@
 import { type NextFunction, type Request, type Response } from "express";
 import { AppError } from "./errors";
+import { ApiError } from "../core/errors/ApiError";
 import { isDbConnectionFailure } from "../dbRuntime";
 import { logError } from "../observability/logger";
 import { getRequestContext } from "../observability/requestContext";
@@ -37,7 +38,7 @@ export function safeHandler(handler: SafeRequestHandler): SafeRequestHandler {
       });
 
       // Let canonical error handlers deal with known error types
-      if (err instanceof AppError || isDbConnectionFailure(err)) {
+      if (err instanceof AppError || err instanceof ApiError || isDbConnectionFailure(err)) {
         next(err as Error);
         return;
       }
