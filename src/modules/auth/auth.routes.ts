@@ -287,16 +287,14 @@ router.post(
 /**
  * POST /api/auth/refresh
  */
-router.post("/refresh", refreshRateLimit(), async (req, res) => {
-  const { refreshToken } = req.body ?? {};
-
-  if (!refreshToken) {
-    return res.status(401).json({
-      error: { code: "invalid_refresh_token" },
-    });
-  }
-
+router.post("/refresh", refreshRateLimit(), async (req, res, next) => {
   try {
+    const { refreshToken } = req.body ?? {};
+
+    if (!refreshToken || typeof refreshToken !== "string") {
+      throw new AppError("unauthorized", 401);
+    }
+
     const result = await refreshSession({
       refreshToken,
       ...(req.ip ? { ip: req.ip } : {}),
@@ -304,9 +302,7 @@ router.post("/refresh", refreshRateLimit(), async (req, res) => {
     });
 
     if (!result.ok) {
-      return res.status(401).json({
-        error: { code: "invalid_refresh_token" },
-      });
+      throw new AppError("unauthorized", 401);
     }
 
     const accessToken = result.token;
@@ -315,10 +311,11 @@ router.post("/refresh", refreshRateLimit(), async (req, res) => {
       accessToken,
       refreshToken: result.refreshToken,
     });
-  } catch {
-    return res.status(401).json({
-      error: { code: "invalid_refresh_token" },
-    });
+  } catch (err) {
+    if (!(err instanceof AppError)) {
+      return next(new AppError("unauthorized", 401));
+    }
+    return next(err);
   }
 });
 

@@ -266,6 +266,7 @@ router.post(
       if (!state || typeof state !== "string") {
         throw new AppError("missing_fields", "state is required.", 400);
       }
+      const normalizedState = state === "START_UP" ? "STARTUP" : state;
       const role = req.user.role;
       if (!role || !isRole(role)) {
         throw forbiddenError();
@@ -276,7 +277,7 @@ router.post(
       }
       const changePayload = {
         applicationId,
-        nextState: state,
+        nextState: normalizedState,
         actorUserId: req.user.userId,
         actorRole: role,
         override,
