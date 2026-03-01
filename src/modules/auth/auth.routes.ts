@@ -109,6 +109,17 @@ async function handleOtpStart(
   next: NextFunction
 ): Promise<void> {
   try {
+    if (
+      !process.env.TWILIO_ACCOUNT_SID ||
+      !process.env.TWILIO_AUTH_TOKEN ||
+      !process.env.TWILIO_VERIFY_SERVICE_SID
+    ) {
+      res.status(500).json({
+        error: "twilio_not_configured"
+      });
+      return;
+    }
+
     const route = "/api/auth/otp/start";
     const requestId = getAuthRequestId(res);
 
@@ -177,6 +188,17 @@ async function handleOtpVerify(
   next: NextFunction
 ): Promise<void> {
   try {
+    if (
+      !process.env.TWILIO_ACCOUNT_SID ||
+      !process.env.TWILIO_AUTH_TOKEN ||
+      !process.env.TWILIO_VERIFY_SERVICE_SID
+    ) {
+      res.status(500).json({
+        error: "twilio_not_configured"
+      });
+      return;
+    }
+
     const route = "/api/auth/otp/verify";
     const requestId = getAuthRequestId(res);
 

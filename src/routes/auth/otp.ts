@@ -10,6 +10,16 @@ const router = Router();
 
 router.post("/start", otpSendLimiter(), async (req, res, next) => {
   try {
+    if (
+      !process.env.TWILIO_ACCOUNT_SID ||
+      !process.env.TWILIO_AUTH_TOKEN ||
+      !process.env.TWILIO_VERIFY_SERVICE_SID
+    ) {
+      return res.status(500).json({
+        error: "twilio_not_configured"
+      });
+    }
+
     const { phone } = req.body ?? {};
     await startOtp(phone);
     const requestId = res.locals.requestId ?? "unknown";
@@ -28,6 +38,16 @@ router.post("/start", otpSendLimiter(), async (req, res, next) => {
 
 router.post("/verify", otpVerifyLimiter(), async (req, res, next) => {
   try {
+    if (
+      !process.env.TWILIO_ACCOUNT_SID ||
+      !process.env.TWILIO_AUTH_TOKEN ||
+      !process.env.TWILIO_VERIFY_SERVICE_SID
+    ) {
+      return res.status(500).json({
+        error: "twilio_not_configured"
+      });
+    }
+
     const { phone, code, email } = req.body ?? {};
     const userAgent = req.get("user-agent");
     const route = req.originalUrl ?? req.url;

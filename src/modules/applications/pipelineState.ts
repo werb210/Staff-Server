@@ -32,14 +32,14 @@ export const LEGAL_TRANSITIONS: Record<string, string[]> = {
     ApplicationStage.DOCUMENTS_REQUIRED,
     ApplicationStage.OFF_TO_LENDER,
   ],
-  [ApplicationStage.DOCUMENTS_REQUIRED]: [ApplicationStage.IN_REVIEW],
   [ApplicationStage.IN_REVIEW]: [ApplicationStage.OFF_TO_LENDER],
+  [ApplicationStage.OFF_TO_LENDER]: [ApplicationStage.OFFER, ApplicationStage.REJECTED],
+  [ApplicationStage.OFFER]: [ApplicationStage.ACCEPTED, ApplicationStage.REJECTED],
+  [ApplicationStage.DOCUMENTS_REQUIRED]: [ApplicationStage.IN_REVIEW],
   [ApplicationStage.STARTUP]: [
     ApplicationStage.OFF_TO_LENDER,
     ApplicationStage.DOCUMENTS_REQUIRED,
   ],
-  [ApplicationStage.OFF_TO_LENDER]: [ApplicationStage.OFFER, ApplicationStage.REJECTED],
-  [ApplicationStage.OFFER]: [ApplicationStage.ACCEPTED, ApplicationStage.REJECTED],
   [ApplicationStage.ACCEPTED]: [],
   [ApplicationStage.REJECTED]: [],
 };

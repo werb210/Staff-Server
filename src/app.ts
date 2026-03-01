@@ -7,20 +7,6 @@ import { logWarn } from "./observability/logger";
 import { registerApiRoutes as registerRoutes } from "./routes";
 import twilioRouter from "./routes/twilio";
 
-function assertTwilioVerifyEnv(): void {
-  const required = [
-    "TWILIO_ACCOUNT_SID",
-    "TWILIO_AUTH_TOKEN",
-    "TWILIO_VERIFY_SERVICE_SID",
-  ] as const;
-  const missing = required.filter((name) => {
-    const value = process.env[name];
-    return !value || !value.trim();
-  });
-  if (missing.length > 0) {
-    throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
-  }
-}
 
 export function buildApp(): Express {
   const app = express();
@@ -51,9 +37,34 @@ export function registerApiRoutes(app: Express): void {
 }
 
 export function buildAppWithApiRoutes(): Express {
-  assertTwilioVerifyEnv();
-  const app = buildApp();
-    app.use("/api/twilio", twilioRouter);
+  const app = express();
+
+  app.use(requestId);
+  app.use(requestLogger);
+  app.use(cors());
+  app.use(express.json());
+
+  app.get("/api/health", (_req, res) => {
+    res.status(200).json({ status: "ok" });
+  });
+
+  app.get("/api/ready", (_req, res) => {
+    res.status(200).json({ status: "ready" });
+  });
+
+  app.get("/api/_int/health", (_req, res) => {
+    res.status(200).json({ status: "ok" });
+  });
+
+  app.get("/api/_int/runtime", (_req, res) => {
+    res.status(200).json({ status: "runtime_ok" });
+  });
+
+  if (!process.env.TWILIO_VERIFY_SERVICE_SID) {
+    logWarn("twilio_not_configured", { message: "Twilio not configured" });
+  }
+
+  app.use("/api/twilio", twilioRouter);
   registerApiRoutes(app);
   return app;
 }

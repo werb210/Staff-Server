@@ -243,11 +243,9 @@ export async function sendNotification(
 ): Promise<{ sent: number; failed: number }> {
   initializePushService();
   if (!pushConfigured) {
-    throw new AppError(
-      "push_not_configured",
-      "Push notifications are not configured.",
-      503
-    );
+    return {
+      status: "skipped"
+    } as unknown as { sent: number; failed: number };
   }
   ensurePayloadSize(payload);
   const subscriptions = await listPwaSubscriptionsByUser(target.userId);
