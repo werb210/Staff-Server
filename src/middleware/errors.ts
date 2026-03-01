@@ -1,5 +1,7 @@
+import { randomUUID } from "crypto";
 import { type NextFunction, type Request, type Response } from "express";
 import { AppError as CanonicalAppError } from "../errors/AppError";
+import { ApiError } from "../core/errors/ApiError";
 
 export class AppError extends CanonicalAppError {
   constructor(code: string, status: number, message?: string);
@@ -26,27 +28,38 @@ export function forbiddenError(message = "Access denied."): AppError {
   return new AppError("forbidden", message, 403);
 }
 
-export function notFoundHandler(_req: Request, res: Response): void {
+export function notFoundHandler(req: Request, res: Response): void {
+  const requestId =
+    (req.headers["x-request-id"] as string | undefined) ?? randomUUID();
   res.status(404).json({
-    error: "not_found",
-    message: "Not found",
+    code: "not_found",
+    message: "not_found",
+    requestId,
   });
 }
 
 export function errorHandler(
   err: unknown,
-  _req: Request,
+  req: Request,
   res: Response,
   _next: NextFunction
 ): void {
-  if (err instanceof CanonicalAppError) {
+  const requestId =
+    (req.headers["x-request-id"] as string | undefined) ?? randomUUID();
+
+  if (err instanceof ApiError || err instanceof CanonicalAppError) {
     res.status(err.status).json({
-      error: err.code,
+      code: err.code,
       message: err.message,
+      requestId,
     });
     return;
   }
+
+  console.error("UNHANDLED ERROR:", err);
   res.status(500).json({
-    error: "internal_error",
+    code: "internal_error",
+    message: "internal_error",
+    requestId,
   });
 }
