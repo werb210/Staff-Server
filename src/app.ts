@@ -3,28 +3,25 @@ import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 
-import { readyHandler } from "./routes/ready";
 import { listRoutes, printRoutes } from "./debug/printRoutes";
 import { requestContext } from "./middleware/requestContext";
 import { requestLogger } from "./middleware/requestLogger";
 import { requestTimeout } from "./middleware/requestTimeout";
 import { routeResolutionLogger } from "./middleware/routeResolutionLogger";
 import {
-  getStatus as getStartupStatus,
-  isReady,
   markNotReady,
   markReady,
 } from "./startupState";
 import "./startup/envValidation";
 import "./services/twilio";
 import { PORTAL_ROUTE_REQUIREMENTS, API_ROUTE_MOUNTS } from "./routes/routeRegistry";
-import { checkDb, db } from "./db";
+import { checkDb } from "./db";
 import {
   productionLogger,
   requireHttps,
   securityHeaders,
 } from "./middleware/security";
-import { apiLimiter, publicLimiter, strictLimiter } from "./middleware/rateLimit";
+import { apiLimiter } from "./middleware/rateLimit";
 import { idempotencyMiddleware } from "./middleware/idempotency";
 import { ensureIdempotencyKey } from "./middleware/idempotencyKey";
 import { notFoundHandler } from "./middleware/errors";
