@@ -387,8 +387,10 @@ export function registerApiRoutes(app: express.Express): void {
         return;
       }
       const requestId = res.locals.requestId ?? "unknown";
-      const requestContext = getRequestContext();
-      const shouldLogStack = process.env.NODE_ENV === "development" || Boolean(requestContext?.sqlTraceEnabled);
+      const currentRequestContext = getRequestContext();
+      const shouldLogStack =
+        process.env.NODE_ENV === "development" ||
+        Boolean(currentRequestContext?.sqlTraceEnabled);
       logError("request_failed", {
         requestId,
         method: _req.method,
