@@ -14,9 +14,11 @@ import { markNotReady } from "./startupState";
 const { Pool } = pg;
 
 function buildPoolConfig(): PoolConfig {
+  const isProduction = process.env.NODE_ENV === "production";
+
   return {
     connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
+    ssl: isProduction ? { rejectUnauthorized: false } : false,
     max: Number(process.env.DB_POOL_MAX ?? 20),
   };
 }
@@ -70,8 +72,10 @@ function createQueryWrapper<T extends (...args: any[]) => Promise<any>>(original
     const traceStack = shouldTrace ? new Error("sql-trace").stack : undefined;
     const traceParams = shouldTrace ? extractQueryParams(args as unknown[]) : null;
     const start = Date.now();
+
     try {
       const result = await originalQuery(...(args as Parameters<T>));
+
       trackDependency({
         name: "postgres",
         data: queryText ?? "unknown",
@@ -79,6 +83,7 @@ function createQueryWrapper<T extends (...args: any[]) => Promise<any>>(original
         success: true,
         dependencyTypeName: "postgres",
       });
+
       return result as ReturnType<T>;
     } catch (err) {
       trackDependency({
@@ -88,10 +93,12 @@ function createQueryWrapper<T extends (...args: any[]) => Promise<any>>(original
         success: false,
         dependencyTypeName: "postgres",
       });
+
       throw err;
     } finally {
       if (shouldTrace && traceStart !== null) {
         const durationMs = Number(process.hrtime.bigint() - traceStart) / 1e6;
+
         logInfo("sql_trace_query", {
           requestId: requestContext?.requestId ?? "unknown",
           path: requestContext?.path ?? "unknown",
@@ -103,6 +110,7 @@ function createQueryWrapper<T extends (...args: any[]) => Promise<any>>(original
       }
     }
   };
+
   return wrapped as unknown as T;
 }
 
@@ -110,6 +118,7 @@ const originalPoolQuery = pool.query.bind(pool);
 pool.query = createQueryWrapper<typeof originalPoolQuery>(originalPoolQuery);
 
 pool.on("connect", () => logInfo("db_client_connected"));
+
 pool.on("error", (err) => {
   markNotReady("db_unavailable");
   logWarn("db_connection_error", { message: err.message });
@@ -128,11 +137,14 @@ export async function dbQuery<T extends QueryResultRow = QueryResultRow>(
 }
 
 export function assertPoolHealthy(): void {
-  const metrics: PoolMetrics = testPoolMetricsOverride ?? {
-    waitingCount: (pool as any).waitingCount ?? 0,
-    totalCount: (pool as any).totalCount ?? 0,
-    max: (pool as any).options?.max ?? 0,
-  };
+  const metrics: PoolMetrics =
+    testPoolMetricsOverride ??
+    {
+      waitingCount: (pool as any).waitingCount ?? 0,
+      totalCount: (pool as any).totalCount ?? 0,
+      max: (pool as any).options?.max ?? 0,
+    };
+
   if (metrics.max > 0 && metrics.waitingCount > 0 && metrics.totalCount >= metrics.max) {
     throw new Error("db_pool_exhausted");
   }
@@ -157,7 +169,9 @@ let shutdownInProgress = false;
 
 async function shutdownPool(signal: string): Promise<void> {
   if (shutdownInProgress) return;
+
   shutdownInProgress = true;
+
   try {
     logInfo("db_pool_shutdown_started", { signal });
     await pool.end();
