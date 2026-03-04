@@ -43,7 +43,7 @@ import applicationContinuationRouter from "./modules/continuation/continuation.r
 import chatRouter from "./modules/ai/chat.routes";
 import confidenceRouter from "./modules/ai/confidence.routes";
 import twilioRoutes from "./routes/twilio";
-import voiceTokenRoute from "./routes/voiceToken";
+import voiceToken from "./routes/voiceToken";
 import voiceIncoming from "./routes/voiceIncoming";
 import voiceStatusRoute from "./routes/voiceStatus";
 import telephonyRoutes from "./telephony/routes/telephonyRoutes";
@@ -188,7 +188,7 @@ export function registerApiRoutes(app: express.Express): void {
   app.use("/api", twilioRoutes);
   app.use("/api", voiceIncoming);
   app.use("/api", voiceStatusRoute);
-  app.use("/api", voiceTokenRoute);
+  app.use("/api", voiceToken);
   app.use("/telephony", telephonyRoutes);
   app.use("/api/application", applicationRouter);
   app.use("/api/application/continuation", applicationContinuationRouter);

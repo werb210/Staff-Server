@@ -3,42 +3,35 @@ import twilio from "twilio";
 
 const router = Router();
 
-const {
-  TWILIO_ACCOUNT_SID,
-  TWILIO_API_KEY,
-  TWILIO_API_SECRET,
-  TWILIO_TWIML_APP_SID,
-} = process.env;
+router.get("/voice/token", (req, res) => {
+  const identity = (req.query.identity as string) || "client";
 
-router.get("/voice/token", async (req, res) => {
-  try {
-    const identity = (req.query.identity as string) || "anonymous";
+  const AccessToken = (twilio as any).jwt.AccessToken;
+  const VoiceGrant = AccessToken.VoiceGrant;
 
-    const AccessToken = (twilio as any).jwt.AccessToken;
-    const VoiceGrant = AccessToken.VoiceGrant;
+  const accountSid = process.env.TWILIO_ACCOUNT_SID!;
+  const apiKey = process.env.TWILIO_API_KEY!;
+  const apiSecret = process.env.TWILIO_API_SECRET!;
+  const twimlAppSid = process.env.TWILIO_TWIML_APP_SID!;
 
-    const token = new AccessToken(
-      TWILIO_ACCOUNT_SID!,
-      TWILIO_API_KEY!,
-      TWILIO_API_SECRET!,
-      { identity }
-    );
+  const token = new AccessToken(
+    accountSid,
+    apiKey,
+    apiSecret,
+    { identity }
+  );
 
-    const voiceGrant = new VoiceGrant({
-      outgoingApplicationSid: TWILIO_TWIML_APP_SID!,
-      incomingAllow: true,
-    });
+  const voiceGrant = new VoiceGrant({
+    outgoingApplicationSid: twimlAppSid,
+    incomingAllow: true
+  });
 
-    token.addGrant(voiceGrant);
+  token.addGrant(voiceGrant);
 
-    res.json({
-      token: token.toJwt(),
-    });
-  } catch (err) {
-    res.status(500).json({
-      error: "Failed to generate voice token",
-    });
-  }
+  res.json({
+    identity,
+    token: token.toJwt()
+  });
 });
 
 export default router;
