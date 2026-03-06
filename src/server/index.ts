@@ -9,6 +9,7 @@ import { markReady } from "../startupState";
 import { createServer } from "./createServer";
 import { db } from "../db";
 import { initChatSocket } from "../modules/ai/socket.server";
+import { validateStartup } from "../startup/validateStartup";
 
 let processHandlersInstalled = false;
 let server: Server | null = null;
@@ -53,6 +54,7 @@ function resolvePort(): number {
 
 export async function startServer() {
   installProcessHandlers();
+  validateStartup();
   if (process.env.NODE_ENV === "production") {
     validateEnv();
   }

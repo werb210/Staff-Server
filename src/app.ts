@@ -25,8 +25,7 @@ import { apiLimiter } from "./middleware/rateLimit";
 import { idempotencyMiddleware } from "./middleware/idempotency";
 import { ensureIdempotencyKey } from "./middleware/idempotencyKey";
 import { notFoundHandler } from "./middleware/errors";
-import { logError } from "./observability/logger";
-import { getRequestContext } from "./observability/requestContext";
+import { errorHandler } from "./middleware/errorHandler";
 import authRoutes from "./routes/auth";
 import lendersRoutes from "./routes/lenders";
 import lenderProductsRoutes from "./routes/lenderProducts";
@@ -53,6 +52,7 @@ import requestLogMiddleware from "./middleware/logger";
 import envCheck from "./middleware/envCheck";
 import { logger as serverLogger } from "./server/utils/logger";
 import { verifyRoutes } from "./startup/verifyRoutes";
+import systemHealthRouter from "./routes/systemHealth";
 
 /* ---------------- ROUTE ASSERTION ---------------- */
 
@@ -181,6 +181,7 @@ export function registerApiRoutes(app: express.Express): void {
 
   app.use("/", healthRouter);
   app.use("/api", healthRouter);
+  app.use("/api", systemHealthRouter);
   app.use("/api/readiness", readinessRouter);
   app.use("/api/contact", contactRouter);
   app.use("/api", chatRouter);
@@ -210,37 +211,7 @@ export function registerApiRoutes(app: express.Express): void {
   });
 
   app.use("/api", notFoundHandler);
-
-  app.use(
-    (
-      err: Error,
-      req: express.Request,
-      res: express.Response,
-      _next: express.NextFunction
-    ) => {
-      if (res.headersSent) return;
-
-      const requestId = res.locals.requestId ?? "unknown";
-      const currentRequestContext = getRequestContext();
-      const shouldLogStack =
-        process.env.NODE_ENV === "development" ||
-        Boolean(currentRequestContext?.sqlTraceEnabled);
-      logError("request_failed", {
-        requestId,
-        method: req.method,
-        originalUrl: req.originalUrl,
-        statusCode: 500,
-        errorName: err.name,
-        errorMessage: err.message,
-        ...(shouldLogStack ? { stack: err.stack } : {}),
-      });
-
-      res.status(500).json({
-        success: false,
-        error: "Internal Server Error",
-      });
-    }
-  );
+  app.use(errorHandler);
 
   const mountedRoutes = listRoutes(app);
   printRoutes(app);
