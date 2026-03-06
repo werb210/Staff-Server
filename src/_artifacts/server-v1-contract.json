@@ -153,6 +153,16 @@
         "method": "GET",
         "path": "/api/portal/applications/:id/readiness",
         "classification": "read"
+      },
+      {
+        "method": "POST",
+        "path": "/api/portal/offers",
+        "classification": "write"
+      },
+      {
+        "method": "PATCH",
+        "path": "/api/portal/offers/:id/status",
+        "classification": "write"
       }
     ]
   }

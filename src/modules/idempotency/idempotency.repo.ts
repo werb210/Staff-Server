@@ -47,6 +47,20 @@ export async function deleteExpiredIdempotencyRecord(params: {
   );
 }
 
+export async function purgeExpiredIdempotencyKeys(client?: Queryable): Promise<void> {
+  const runner = client ?? pool;
+  await runner.query(
+    `delete from idempotency_keys
+     where created_at < (localtimestamp - interval '24 hours')`
+  );
+}
+
+function isUndefinedColumnError(error: unknown, column: string): boolean {
+  const code = (error as { code?: string }).code;
+  const message = error instanceof Error ? error.message.toLowerCase() : "";
+  return code === "42703" || message.includes(column.toLowerCase());
+}
+
 export async function createIdempotencyRecord(params: {
   route: string;
   idempotencyKey: string;
@@ -76,24 +90,40 @@ export async function createIdempotencyRecord(params: {
       );
       return;
     } catch (error) {
-      const code = (error as { code?: string }).code;
-      const message = error instanceof Error ? error.message : "";
-      if (code !== "42703" && !message.toLowerCase().includes("method")) {
+      if (!isUndefinedColumnError(error, "method")) {
         throw error;
       }
     }
   }
+  try {
+    await runner.query(
+      `insert into idempotency_keys
+       (id, key, route, request_hash, response_code, response_body, created_at)
+       values ($1, $2, $3, $4, $5, $6, now())`,
+      [
+        id,
+        params.idempotencyKey,
+        params.route,
+        params.requestHash,
+        params.responseCode,
+        params.responseBody,
+      ]
+    );
+    return;
+  } catch (error) {
+    if (!isUndefinedColumnError(error, "request_hash") && !isUndefinedColumnError(error, "response_code") && !isUndefinedColumnError(error, "response_body") && !isUndefinedColumnError(error, "id")) {
+      throw error;
+    }
+  }
+
   await runner.query(
     `insert into idempotency_keys
-     (id, key, route, request_hash, response_code, response_body, created_at)
-     values ($1, $2, $3, $4, $5, $6, now())`,
+     (key, route, response, created_at)
+     values ($1, $2, $3, now())`,
     [
-      id,
       params.idempotencyKey,
       params.route,
-      params.requestHash,
-      params.responseCode,
-      params.responseBody,
+      JSON.stringify(params.responseBody ?? null),
     ]
   );
 }

@@ -10,6 +10,7 @@ import {
   createIdempotencyRecord,
   deleteExpiredIdempotencyRecord,
   findIdempotencyRecord,
+  purgeExpiredIdempotencyKeys,
 } from "../modules/idempotency/idempotency.repo";
 import { logWarn } from "../observability/logger";
 import { trackEvent } from "../observability/appInsights";
@@ -109,7 +110,8 @@ export function idempotencyMiddleware(
   }
 
   const requestId = res.locals.requestId ?? "unknown";
-  const route = req.path;
+  const requestPath = (req.originalUrl ?? req.url ?? req.path).split("?")[0] ?? req.path;
+  const route = requestPath.startsWith("/api/") ? requestPath.slice(4) : requestPath;
   const requestHash = sha256(stableStringify(req.body ?? {}));
   const keyHash = sha256(rawKey);
 
@@ -129,6 +131,8 @@ export function idempotencyMiddleware(
         if (shouldLock) {
           await client.query("select pg_advisory_lock($1,$2)", lockKey);
         }
+
+        await purgeExpiredIdempotencyKeys(client);
 
         const existing = await findIdempotencyRecord({
           route,
@@ -203,7 +207,7 @@ export function idempotencyMiddleware(
         client.release();
       }
     } catch (err) {
-      logWarn("idempotency_failed", {
+            logWarn("idempotency_failed", {
         requestId,
         route,
         error: err instanceof Error ? err.message : "unknown_error",
