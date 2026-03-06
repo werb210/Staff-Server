@@ -1,5 +1,4 @@
 import { Request, Response, NextFunction } from "express";
-import { logError } from "../observability/logger";
 
 export function errorHandler(
   err: any,
@@ -7,18 +6,12 @@ export function errorHandler(
   res: Response,
   _next: NextFunction
 ) {
-  const status = err.statusCode || err.status || 500;
-  const message = typeof err?.message === "string" ? err.message : "";
-  const requestId = res.locals.requestId ?? "unknown";
+  console.error("SERVER ERROR:", err);
 
-  logError("request_error", {
-    requestId,
-    errorMessage: message,
-    errorStack: err?.stack,
-  });
+  const status = err.status || 500;
 
   res.status(status).json({
-    ok: false,
-    error: err.code || (message ? message : "internal_error"),
+    error: err.message || "Internal server error",
+    status,
   });
 }
