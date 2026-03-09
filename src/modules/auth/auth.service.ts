@@ -1,5 +1,5 @@
 import jwt, { type JwtPayload, type SignOptions } from "jsonwebtoken";
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import { type PoolClient } from "pg";
 import {
   createUser,
@@ -219,6 +219,40 @@ type TwilioErrorDetails = {
 const OTP_VERIFY_DEDUP_WINDOW_MS = 1500;
 const otpVerifyInFlight = new Map<string, NodeJS.Timeout>();
 const OTP_VERIFICATION_MAX_AGE_MS = 10 * 60 * 1000;
+const OTP_ATTEMPT_WINDOW_MS = 10 * 60 * 1000;
+const OTP_MAX_VERIFY_ATTEMPTS = 5;
+const otpAttemptState = new Map<string, { count: number; resetAt: number; lastCodeHash: string }>();
+
+function hashOtpCode(code: string): string {
+  const salt = process.env.OTP_HASH_SALT?.trim() || process.env.TWILIO_AUTH_TOKEN?.trim() || "staff-server-otp";
+  return createHash("sha256").update(`${salt}:${code}`).digest("hex");
+}
+
+function assertOtpAttemptLimit(phoneE164: string): void {
+  const current = otpAttemptState.get(phoneE164);
+  const now = Date.now();
+  if (!current || current.resetAt <= now) {
+    return;
+  }
+  if (current.count >= OTP_MAX_VERIFY_ATTEMPTS) {
+    throw new AppError("too_many_attempts", "Too many OTP attempts. Please request a new code.", 429);
+  }
+}
+
+function recordOtpAttempt(phoneE164: string, codeHash: string): void {
+  const now = Date.now();
+  const current = otpAttemptState.get(phoneE164);
+  if (!current || current.resetAt <= now) {
+    otpAttemptState.set(phoneE164, { count: 1, resetAt: now + OTP_ATTEMPT_WINDOW_MS, lastCodeHash: codeHash });
+    return;
+  }
+  current.count += 1;
+  current.lastCodeHash = codeHash;
+}
+
+function clearOtpAttemptLimit(phoneE164: string): void {
+  otpAttemptState.delete(phoneE164);
+}
 
 function assertSingleVerifyAttempt(phoneE164: string): void {
   if (isTestEnvironment()) {
@@ -613,6 +647,7 @@ export async function startOtp(
     const twilioClient = getTwilioClient();
     const serviceSid = getVerifyServiceSid();
     const phoneTail = getPhoneTail(phoneE164);
+    clearOtpAttemptLimit(phoneE164);
 
     logInfo("otp_start_request", {
       phoneTail,
@@ -730,6 +765,8 @@ export async function verifyOtpCode(params: {
       };
     }
     const phoneTail = getPhoneTail(phoneE164);
+    const codeHash = hashOtpCode(code);
+    assertOtpAttemptLimit(phoneE164);
     assertSingleVerifyAttempt(phoneE164);
     dedupPhone = phoneE164;
     let status: string | undefined;
@@ -833,13 +870,17 @@ export async function verifyOtpCode(params: {
           requestId,
           error: err,
         });
+        recordOtpAttempt(phoneE164, codeHash);
         return mapTwilioVerifyCheckFailure(details, err);
       }
     }
 
     if (status !== "approved") {
+      recordOtpAttempt(phoneE164, codeHash);
       return resolveOtpFailure(status);
     }
+
+    clearOtpAttemptLimit(phoneE164);
 
     const dbClient = await pool.connect();
     const db = dbClient;

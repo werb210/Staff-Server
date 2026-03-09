@@ -22,6 +22,7 @@ import {
   securityHeaders,
 } from "./middleware/security";
 import { apiLimiter } from "./middleware/rateLimit";
+import { csrfProtection } from "./middleware/csrfProtection";
 import { idempotencyMiddleware } from "./middleware/idempotency";
 import { ensureIdempotencyKey } from "./middleware/idempotencyKey";
 import { notFoundHandler } from "./middleware/errors";
@@ -148,6 +149,7 @@ export function buildApp(): express.Express {
   );
 
   app.use(securityHeaders);
+  app.use(csrfProtection);
   app.use("/api/", apiLimiter);
   app.use(routeResolutionLogger);
   app.use(requestTimeout);
