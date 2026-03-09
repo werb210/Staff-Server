@@ -3,6 +3,9 @@ import rateLimit, { type RateLimitRequestHandler } from "express-rate-limit";
 const oneMinute = 60 * 1000;
 
 function isEnabled(): boolean {
+  if (process.env.NODE_ENV === "production") {
+    return true;
+  }
   return process.env.RATE_LIMIT_ENABLED !== "false";
 }
 
