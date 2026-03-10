@@ -16,4 +16,17 @@ export const envSchema = z.object({
   PRINT_ROUTES: z.string().optional(),
 });
 
-export const env = envSchema.parse(process.env);
+const envSource =
+  process.env.NODE_ENV === "test"
+    ? {
+        DATABASE_URL:
+          process.env.DATABASE_URL ||
+          "postgres://test:test@localhost:5432/test",
+        JWT_SECRET: process.env.JWT_SECRET || "test-secret",
+        JWT_REFRESH_SECRET:
+          process.env.JWT_REFRESH_SECRET || "test-refresh",
+        ...process.env,
+      }
+    : process.env;
+
+export const env = envSchema.parse(envSource);
