@@ -1,6 +1,16 @@
 import { logError } from "../observability/logger";
 
 const requiredCorsHeaders = ["Authorization", "Content-Type", "Idempotency-Key"];
+const requiredCorsOrigins = [
+  "https://staff.boreal.financial",
+  "https://portal.boreal.financial",
+  "https://boreal.financial",
+  "https://client.boreal.financial",
+];
+
+function normalizeOrigin(origin: string): string {
+  return origin.trim().toLowerCase().replace(/\/$/, "");
+}
 
 export function getCorsAllowedHeaders(): string[] {
   return ["Authorization", "Content-Type", "Idempotency-Key"];
@@ -16,7 +26,7 @@ export function validateCorsConfig(): void {
   }
   const origins = rawOrigins
     .split(",")
-    .map((origin) => origin.trim())
+    .map((origin) => normalizeOrigin(origin))
     .filter(Boolean);
   if (origins.length === 0) {
     logError("cors_validation_failed", {
@@ -24,12 +34,14 @@ export function validateCorsConfig(): void {
     });
     return;
   }
-  const hasStaffOrigin = origins.some((origin) =>
-    origin.includes("staff.boreal.financial")
+
+  const missingOrigins = requiredCorsOrigins.filter(
+    (requiredOrigin) => !origins.includes(normalizeOrigin(requiredOrigin))
   );
-  if (!hasStaffOrigin) {
+  if (missingOrigins.length > 0) {
     logError("cors_validation_failed", {
-      reason: "staff_origin_missing",
+      reason: "required_origins_missing",
+      missingOrigins,
       origins,
     });
     return;
