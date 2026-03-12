@@ -92,15 +92,6 @@ const allowedOrigins = [
   "http://localhost:5173",
 ];
 
-function buildCorsOptions(): cors.CorsOptions {
-  return {
-    origin: allowedOrigins,
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "x-request-id"],
-  };
-}
-
 export function assertCorsConfig(): void {
   if (allowedOrigins.length === 0) {
     throw new Error(
@@ -154,7 +145,14 @@ export function buildApp(): express.Express {
   app.use(express.json({ limit: "10mb" }));
   app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
-  app.use(cors(buildCorsOptions()));
+  app.use(
+    cors({
+      origin: allowedOrigins,
+      credentials: true,
+      methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+      allowedHeaders: ["Content-Type", "Authorization", "x-request-id"],
+    })
+  );
   app.options("*", cors());
 
   app.use(
