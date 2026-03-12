@@ -1,11 +1,10 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 
 import { listRoutes, printRoutes } from "./debug/printRoutes";
 import { requestContext } from "./middleware/requestContext";
-import { rateLimitKeyFromRequest } from "./middleware/clientIp";
 import { requestLogger } from "./middleware/requestLogger";
 import { requestTimeout } from "./middleware/requestTimeout";
 import { routeResolutionLogger } from "./middleware/routeResolutionLogger";
@@ -184,13 +183,13 @@ export function registerApiRoutes(app: express.Express): void {
     max: 500,
     standardHeaders: true,
     legacyHeaders: false,
-    keyGenerator: rateLimitKeyFromRequest,
+    keyGenerator: (req) => ipKeyGenerator(req.ip ?? ""),
   });
 
   const continuationLimiter = rateLimit({
     windowMs: 60 * 1000,
     max: 60,
-    keyGenerator: rateLimitKeyFromRequest,
+    keyGenerator: (req) => ipKeyGenerator(req.ip ?? ""),
   });
 
   app.use("/api", limiter);
