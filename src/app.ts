@@ -53,16 +53,8 @@ import { errorHandler } from "./platform/errorHandler";
 import healthRoutes from "./platform/healthRoutes";
 import metricsRoutes from "./platform/metricsRoutes";
 import { env } from "./platform/env";
-
-const API_BASE_URL =
-  process.env.PUBLIC_BASE_URL ||
-  process.env.API_BASE_URL ||
-  "https://api.staff.boreal.financial";
-
-const ALLOWED_ORIGINS = [
-  "https://staff.boreal.financial",
-  "https://client.boreal.financial",
-];
+import { ALLOWED_ORIGINS } from "./config/runtime";
+import internalEnvRouter from "./routes/internal/env";
 
 /* ---------------- ROUTE ASSERTION ---------------- */
 
@@ -229,12 +221,7 @@ export function registerApiRoutes(app: express.Express): void {
   app.use("/api/lender-products", lenderProductsRoutes);
   app.use("/api/applications", applicationsRoutes);
   app.use("/api/ai", aiRoutes);
-  app.get("/api/_int/env", (_req, res) => {
-    res.json({
-      apiBaseUrl: API_BASE_URL,
-      allowedOrigins: ALLOWED_ORIGINS,
-    });
-  });
+  app.use(internalEnvRouter);
 
   /* Dynamic mounts — REQUIRED FOR TESTS */
   API_ROUTE_MOUNTS.forEach((entry) => {
