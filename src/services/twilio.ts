@@ -1,27 +1,38 @@
-import Twilio from "twilio";
+import twilio from "twilio";
 
-type TwilioClient = ReturnType<typeof Twilio>;
+let client: ReturnType<typeof twilio> | null = null;
+let warnedMissingCredentials = false;
+let warnedMissingVerifySid = false;
 
-let cachedClient: TwilioClient | null = null;
+export function getTwilioClient(): ReturnType<typeof twilio> {
+  if (client) return client;
 
-function requireEnv(name: string): string {
-  const v = process.env[name];
-  if (!v || !v.trim()) {
-    throw new Error(`Missing required env var: ${name}`);
+  const sid = process.env.TWILIO_ACCOUNT_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
+
+  if (!sid || !token) {
+    if (!warnedMissingCredentials) {
+      console.warn("Twilio credentials are missing; SMS/voice features are effectively disabled.");
+      warnedMissingCredentials = true;
+    }
+    client = twilio(sid ?? "", token ?? "");
+    return client;
   }
-  return v;
-}
 
-export function getTwilioClient(): TwilioClient {
-  if (cachedClient) return cachedClient;
-
-  const accountSid = requireEnv("TWILIO_ACCOUNT_SID");
-  const authToken = requireEnv("TWILIO_AUTH_TOKEN");
-
-  cachedClient = new Twilio(accountSid, authToken);
-  return cachedClient;
+  client = twilio(sid, token);
+  return client;
 }
 
 export function getVerifyServiceSid(): string {
-  return requireEnv("TWILIO_VERIFY_SERVICE_SID");
+  const sid = process.env.TWILIO_VERIFY_SERVICE_SID;
+
+  if (!sid) {
+    if (!warnedMissingVerifySid) {
+      console.warn("Twilio Verify service SID is missing; verification flows are effectively disabled.");
+      warnedMissingVerifySid = true;
+    }
+    return "";
+  }
+
+  return sid;
 }
