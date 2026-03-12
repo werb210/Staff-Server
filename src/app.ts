@@ -89,7 +89,6 @@ export function shouldBlockInternalOriginRequest(
 
 const allowedOrigins = [
   "https://staff.boreal.financial",
-  "https://api.staff.boreal.financial",
   "https://client.boreal.financial",
   "https://boreal.financial",
   "https://www.boreal.financial",
@@ -107,7 +106,7 @@ function buildCorsOptions(): cors.CorsOptions {
       }
 
       console.error("CORS blocked origin:", origin);
-      return callback(new Error("CORS blocked"));
+      return callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
