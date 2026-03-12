@@ -129,6 +129,24 @@ export function buildApp(): express.Express {
   app.set("trust proxy", true);
 
   app.use((req, _res, next) => {
+    const forwardedHost = req.headers["x-forwarded-host"];
+    const proto = req.headers["x-forwarded-proto"];
+
+    if (typeof forwardedHost === "string" && forwardedHost.length > 0) {
+      req.headers.host = forwardedHost;
+    }
+
+    if (typeof proto === "string" && proto.length > 0) {
+      Object.defineProperty(req, "protocol", {
+        value: proto,
+        configurable: true,
+      });
+    }
+
+    next();
+  });
+
+  app.use((req, _res, next) => {
     if (req.url.startsWith("/api/api/")) {
       const normalizedUrl = req.url.replace(/^\/api\/api\//, "/api/");
       serverLogger.info("normalized_duplicate_api_prefix", {
