@@ -37,6 +37,7 @@ import applicationContinuationRouter from "./modules/continuation/continuation.r
 import chatRouter from "./modules/ai/chat.routes";
 import confidenceRouter from "./modules/ai/confidence.routes";
 import twilioRoutes from "./routes/twilio";
+import telephonyRoutes from "./routes/telephony";
 import { assertApiV1Frozen } from "./contracts/v1Freeze";
 import envCheck from "./middleware/envCheck";
 import { logger as serverLogger } from "./server/utils/logger";
@@ -251,6 +252,7 @@ export function registerApiRoutes(app: express.Express): void {
   app.use("/api/public", publicRouter);
   app.use("/api/support", supportRouter);
   app.use("/api", aiCoreRouter);
+  app.use("/api/telephony", telephonyRoutes);
   app.use("/api", twilioRoutes);
   app.use("/api", apiRouter);
   app.use("/api/application", applicationRouter);
