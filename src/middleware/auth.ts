@@ -1,6 +1,7 @@
 import { RequestHandler } from "express";
 import jwt from "jsonwebtoken";
 import { getCapabilitiesForRole } from "../auth/capabilities";
+import { verifyAccessToken } from "../auth/jwt";
 import { DEFAULT_AUTH_SILO } from "../auth/silo";
 import { isRole } from "../auth/roles";
 import { type AuthenticatedUser } from "../types/auth";
@@ -18,7 +19,7 @@ export const requireAuth: RequestHandler = (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET as string);
+    const decoded = verifyJwtPayload(token);
     const user = resolveAuthenticatedUser(decoded);
     if (!user) {
       res.status(401).json({ ok: false, error: "invalid_token" });
@@ -32,10 +33,26 @@ export const requireAuth: RequestHandler = (req, res, next) => {
   }
 };
 
+function verifyJwtPayload(token: string): jwt.JwtPayload {
+  try {
+    const payload = verifyAccessToken(token);
+    return payload as jwt.JwtPayload;
+  } catch {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET as string);
+    if (!decoded || typeof decoded !== "object") {
+      throw new Error("invalid_token");
+    }
+    return decoded;
+  }
+}
+
 function resolveToken(req: Parameters<RequestHandler>[0]): string | null {
   const header = req.headers.authorization;
-  if (header?.startsWith("Bearer ")) {
-    return header.substring(7);
+  if (typeof header === "string") {
+    const [scheme, rawToken] = header.split(/\s+/, 2);
+    if (scheme?.toLowerCase() === "bearer" && rawToken) {
+      return rawToken;
+    }
   }
 
   const cookieHeader = req.headers.cookie;

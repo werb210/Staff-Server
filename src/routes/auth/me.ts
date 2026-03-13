@@ -100,6 +100,9 @@ export async function authMeHandler(
       silo,
       user: {
         id: user.userId,
+        role: user.role,
+        silo,
+        phone: user.phone,
       },
     };
 
