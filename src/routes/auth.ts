@@ -11,6 +11,10 @@ const router = Router();
 const otpStore = new Map<string, { code: string; expiresAt: number }>();
 const OTP_TTL_MS = 5 * 60 * 1000;
 
+function generateOtpCode(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
 router.use((_req, res, next) => {
   res.set("Cache-Control", "no-store");
   next();
@@ -24,8 +28,10 @@ router.post("/request", (req, res) => {
     return;
   }
 
+  const code = process.env.NODE_ENV === "production" ? generateOtpCode() : "123456";
+
   otpStore.set(phone, {
-    code: "123456",
+    code,
     expiresAt: Date.now() + OTP_TTL_MS,
   });
 

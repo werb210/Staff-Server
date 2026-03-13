@@ -54,6 +54,9 @@ export const authMeSchema = z
     user: z
       .object({
         id: z.string(),
+        role: roleSchema,
+        silo: z.string().min(1, "Silo is required"),
+        phone: z.string().nullable(),
       })
       .strict(),
   })
