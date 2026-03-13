@@ -1,9 +1,13 @@
-import express from "express";
-import { requireAuth } from "../middleware/auth";
+import { Router } from "express";
 
-const router = express.Router();
+const router = Router();
 
-router.use(requireAuth);
+router.get("/", (_req, res) => {
+  res.json({
+    ok: true,
+    message: "dashboard root",
+  });
+});
 
 router.get("/pipeline", async (req, res) => {
   res.json({ ok: true, data: [] });
