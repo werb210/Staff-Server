@@ -251,10 +251,11 @@ export function registerApiRoutes(app: express.Express): void {
   app.use("/api/health", healthRoutes);
   app.use("/api", healthRoutes);
   app.get("/", (_req, res) => {
-    res.status(200).json({
-      service: "bf-server",
-      status: "running",
-    });
+    res.status(200).json({ status: "ok" });
+  });
+
+  app.get("/health", (_req, res) => {
+    res.status(200).json({ status: "healthy" });
   });
   app.use(sessionRoutes);
   if (isTruthyFlag(process.env.ENABLE_COMPAT_ROUTES)) {
@@ -294,6 +295,16 @@ export function registerApiRoutes(app: express.Express): void {
     }
 
     app.use(`/api${entry.path}`, entry.router);
+  });
+
+  app.get("/telephony/call-status", (req, res) => {
+    req.url = "/api/telephony/call-status";
+    (app as any).handle(req, res);
+  });
+
+  app.get("/continuation/session", (req, res) => {
+    req.url = "/api/application/continuation";
+    (app as any).handle(req, res);
   });
 
   app.use("/api/*", (_req, res) => {
