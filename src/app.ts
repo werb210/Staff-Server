@@ -1,5 +1,4 @@
 import express from "express";
-import cors from "cors";
 import helmet from "helmet";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 
@@ -63,6 +62,7 @@ import recoveryRoutes from "./routes/recoveryRoutes";
 import devRecoveryRoutes from "./routes/devRecoveryRoutes";
 import devRoutes from "./routes/dev";
 import healthRouter from "./routes/health";
+import { corsMiddleware } from "./middleware/cors";
 
 function isTruthyFlag(value: string | undefined): boolean {
   if (!value) {
@@ -107,8 +107,8 @@ export function shouldBlockInternalOriginRequest(
 }
 
 const allowedOrigins = [
-  process.env.CLIENT_URL,
-  process.env.PORTAL_URL,
+  process.env.CLIENT_ORIGIN,
+  process.env.PORTAL_ORIGIN,
   "https://boreal-client.azurewebsites.net",
   "https://boreal-portal.azurewebsites.net",
   "http://localhost:5173",
@@ -118,7 +118,7 @@ const allowedOrigins = [
 export function assertCorsConfig(): void {
   if (allowedOrigins.length === 0) {
     throw new Error(
-      "At least one of WEBSITE_URL, PORTAL_URL, or CLIENT_URL must be configured."
+      "At least one of CLIENT_ORIGIN or PORTAL_ORIGIN must be configured."
     );
   }
 }
@@ -132,7 +132,7 @@ export function buildApp(): express.Express {
   app.use(express.json({ limit: "1mb" }));
   app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
-  app.use(healthRouter);
+  app.use("/health", healthRouter);
 
   app.use((req, _res, next) => {
     const forwardedHost = req.headers["x-forwarded-host"];
@@ -170,28 +170,9 @@ export function buildApp(): express.Express {
   app.use(requestContext);
   app.use(productionLogger);
 
-  app.use(
-    cors({
-      origin: (origin, callback) => {
-        if (!origin) {
-          return callback(null, true);
-        }
-        if (allowedOrigins.includes(origin)) {
-          return callback(null, true);
-        }
-        return callback(new Error("Not allowed by CORS"));
-      },
-      credentials: true,
-      methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-      allowedHeaders: ["Content-Type", "Authorization", "x-request-id"],
-    })
-  );
+  app.use(corsMiddleware);
 
-  app.use(
-    helmet({
-      contentSecurityPolicy: false,
-    })
-  );
+  app.use(helmet());
 
   app.use(securityHeaders);
   app.use(csrfProtection);
@@ -271,9 +252,6 @@ export function registerApiRoutes(app: express.Express): void {
     res.status(200).json({ status: "ok" });
   });
 
-  app.get("/health", (_req, res) => {
-    res.status(200).json({ status: "healthy" });
-  });
   app.use(sessionRoutes);
   if (isTruthyFlag(process.env.ENABLE_COMPAT_ROUTES)) {
     serverLogger.warn("compat_routes_enabled");
