@@ -107,51 +107,69 @@ router.post("/verify", (req, res) => {
 
 router.post("/verify-otp", async (req, res) => {
   try {
-    const { sessionId, code } = req.body ?? {};
+    const body = req.body || {};
 
-    if (!sessionId || !code) {
-      return res.status(400).json({ error: "missing_fields" });
+    const phone =
+      body.phone ||
+      body.phoneNumber ||
+      body.mobile ||
+      body.userPhone ||
+      null;
+
+    const code =
+      body.code ||
+      body.otp ||
+      body.passcode ||
+      null;
+
+    if (!phone || !code) {
+      req.log?.warn({
+        event: "otp_bad_payload",
+        body,
+      });
+
+      return res.status(400).json({
+        error: "Invalid payload",
+        message: "phone and code required",
+      });
     }
 
-    await createOtpSessionsTable();
+    const normalizedPhone = String(phone).trim();
+    const normalizedCode = String(code).trim();
 
-    const providedCode = String(code);
-    const sessionResult = await db.query(
-      `
-      SELECT * FROM otp_sessions
-      WHERE id = $1
-      AND code = $2
-      AND expires_at > NOW()
-      `,
-      [sessionId, providedCode]
-    );
+    req.log?.info({
+      event: "otp_verify_attempt",
+      phone: normalizedPhone,
+    });
 
-    if (sessionResult.rows.length === 0) {
-      return res.status(401).json({ error: "invalid_code" });
+    const result = await verifyOtpCode({
+      phone: normalizedPhone,
+      code: normalizedCode,
+      ip: req.ip,
+      userAgent: req.get("user-agent") ?? undefined,
+      route: req.originalUrl,
+      method: req.method,
+    });
+    const valid = result.ok;
+
+    if (!valid) {
+      return res.status(401).json({
+        error: "Invalid OTP",
+      });
     }
 
-    const phone = sessionResult.rows[0]?.phone as string;
-
-    const verified = await verifyOtpCode({ phone, code: providedCode });
-
-    if (!verified.ok || !verified.token) {
-      return res.status(401).json({ error: "invalid_code" });
-    }
-
-    await db.query(
-      `
-      DELETE FROM otp_sessions WHERE id = $1
-      `,
-      [sessionId]
-    );
-
-    return res.json({
+    return res.status(200).json({
       success: true,
-      token: verified.token,
     });
   } catch (err) {
-    console.error("OTP verify failed", err);
-    return res.status(500).json({ error: "otp_verify_failed" });
+    req.log?.error({
+      event: "otp_verify_failure",
+      error: err,
+    });
+
+    return res.status(500).json({
+      error: "OTP verification failed",
+    });
   }
 });
 
