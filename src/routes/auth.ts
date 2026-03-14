@@ -1,14 +1,18 @@
 import { Router } from "express";
 import jwt from "jsonwebtoken";
+import { randomUUID } from "crypto";
 import authRoutes from "../modules/auth/auth.routes";
+import { startOtp, verifyOtpCode } from "../modules/auth/otp.service";
 import { requireAuth, requireAuthorization } from "../middleware/auth";
 import { notFoundHandler } from "../middleware/errors";
 import { errorHandler } from "../middleware/errorHandler";
 import { authMeHandler } from "./auth/me";
 import { ALL_ROLES } from "../auth/roles";
+import { normalizePhone } from "../utils/phoneNormalizer";
 
 const router = Router();
 const otpStore = new Map<string, { code: string; expiresAt: number }>();
+const otpSessionStore = new Map<string, string>();
 const OTP_TTL_MS = 5 * 60 * 1000;
 
 function generateOtpCode(): string {
@@ -38,6 +42,29 @@ router.post("/request", (req, res) => {
   res.status(200).json({ ok: true });
 });
 
+router.post("/request-otp", async (req, res) => {
+  try {
+    const rawPhone = req.body?.phone;
+    const phone = normalizePhone(typeof rawPhone === "string" ? rawPhone : "");
+
+    if (!phone) {
+      return res.status(400).json({ error: "phone_required" });
+    }
+
+    await startOtp(phone);
+    const sessionId = randomUUID();
+    otpSessionStore.set(sessionId, phone);
+
+    return res.json({
+      success: true,
+      sessionId,
+    });
+  } catch (err) {
+    console.error("OTP request failed", err);
+    return res.status(500).json({ error: "otp_request_failed" });
+  }
+});
+
 router.post("/verify", (req, res) => {
   const { phone, code } = (req.body ?? {}) as { phone?: string; code?: string };
 
@@ -65,6 +92,37 @@ router.post("/verify", (req, res) => {
   });
 
   res.status(200).json({ ok: true, verified: true, token });
+});
+
+router.post("/verify-otp", async (req, res) => {
+  try {
+    const { sessionId, code } = req.body ?? {};
+
+    if (!sessionId || !code) {
+      return res.status(400).json({ error: "missing_fields" });
+    }
+
+    const phone = otpSessionStore.get(sessionId);
+    if (!phone) {
+      return res.status(401).json({ error: "invalid_code" });
+    }
+
+    const verified = await verifyOtpCode({ phone, code: String(code) });
+
+    if (!verified.ok || !verified.token) {
+      return res.status(401).json({ error: "invalid_code" });
+    }
+
+    otpSessionStore.delete(sessionId);
+
+    return res.json({
+      success: true,
+      token: verified.token,
+    });
+  } catch (err) {
+    console.error("OTP verify failed", err);
+    return res.status(500).json({ error: "otp_verify_failed" });
+  }
 });
 
 /**
