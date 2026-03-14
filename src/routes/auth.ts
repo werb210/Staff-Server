@@ -107,31 +107,59 @@ router.post("/verify", (req, res) => {
 
 router.post("/verify-otp", async (req, res) => {
   try {
-    console.log("verify-otp body:", req.body);
-    const body = req.body || {};
+    const body = req.body;
+    const parsedRawBody =
+      typeof body === "string"
+        ? (() => {
+            const trimmed = body.trim();
+            if (!trimmed) {
+              return {};
+            }
+            try {
+              return JSON.parse(trimmed) as Record<string, unknown>;
+            } catch {
+              return Object.fromEntries(new URLSearchParams(trimmed).entries());
+            }
+          })()
+        : Buffer.isBuffer(body)
+          ? (() => {
+              const trimmed = body.toString("utf8").trim();
+              if (!trimmed) {
+                return {};
+              }
+              try {
+                return JSON.parse(trimmed) as Record<string, unknown>;
+              } catch {
+                return Object.fromEntries(new URLSearchParams(trimmed).entries());
+              }
+            })()
+          : body;
+
+    const rawBody =
+      parsedRawBody && typeof parsedRawBody === "object" ? parsedRawBody : {};
 
     const phone =
-      body.phone ||
-      body.phoneNumber ||
-      body.mobile ||
-      body.userPhone ||
+      rawBody.phone ??
+      rawBody.phoneNumber ??
+      rawBody.mobile ??
+      rawBody.userPhone ??
       null;
 
     const code =
-      body.code ||
-      body.otp ||
-      body.passcode ||
+      rawBody.code ??
+      rawBody.otp ??
+      rawBody.passcode ??
+      rawBody.token ??
       null;
 
     if (!phone || !code) {
       req.log?.warn({
-        event: "otp_bad_payload",
-        body,
+        event: "otp_missing_fields",
+        received: rawBody,
       });
 
       return res.status(400).json({
-        error: "Invalid payload",
-        message: "phone and code required",
+        error: "missing_fields",
       });
     }
 
@@ -155,7 +183,7 @@ router.post("/verify-otp", async (req, res) => {
 
     if (!valid) {
       return res.status(401).json({
-        error: "Invalid OTP",
+        error: "invalid_code",
       });
     }
 
