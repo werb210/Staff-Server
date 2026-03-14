@@ -1,3 +1,4 @@
+import "./config/validateEnv";
 import { validateEnv } from "./startup/validateEnv";
 
 validateEnv();
