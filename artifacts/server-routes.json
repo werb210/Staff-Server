@@ -145,7 +145,7 @@
     {
       "method": "GET",
       "path": "/api/application/continuation",
-      "source": "/"
+      "source": "/api/application"
     },
     {
       "method": "GET",
@@ -181,11 +181,6 @@
       "method": "GET",
       "path": "/api/applications/:id/processing-status",
       "source": "/api/applications"
-    },
-    {
-      "method": "GET",
-      "path": "/api/auth/me",
-      "source": "/"
     },
     {
       "method": "GET",
@@ -294,11 +289,6 @@
     },
     {
       "method": "GET",
-      "path": "/api/crm/leads",
-      "source": "/"
-    },
-    {
-      "method": "GET",
       "path": "/api/crm/timeline",
       "source": "/api/crm"
     },
@@ -330,27 +320,12 @@
     {
       "method": "GET",
       "path": "/api/dashboard/metrics",
-      "source": "/"
-    },
-    {
-      "method": "GET",
-      "path": "/api/dashboard/metrics",
       "source": "/api/dashboard"
     },
     {
       "method": "GET",
       "path": "/api/dashboard/offers",
-      "source": "/"
-    },
-    {
-      "method": "GET",
-      "path": "/api/dashboard/offers",
       "source": "/api/dashboard"
-    },
-    {
-      "method": "GET",
-      "path": "/api/dashboard/pipeline",
-      "source": "/"
     },
     {
       "method": "GET",
@@ -375,12 +350,17 @@
     {
       "method": "GET",
       "path": "/api/health",
-      "source": "/"
+      "source": "/api"
     },
     {
       "method": "GET",
       "path": "/api/health",
       "source": "/api/health"
+    },
+    {
+      "method": "GET",
+      "path": "/api/health/db",
+      "source": "/api"
     },
     {
       "method": "GET",
@@ -400,11 +380,6 @@
     {
       "method": "GET",
       "path": "/api/lender-products",
-      "source": "/"
-    },
-    {
-      "method": "GET",
-      "path": "/api/lender-products",
       "source": "/api/lender-products"
     },
     {
@@ -416,11 +391,6 @@
       "method": "GET",
       "path": "/api/lender/submissions/:id",
       "source": "/api/lender"
-    },
-    {
-      "method": "GET",
-      "path": "/api/lenders",
-      "source": "/"
     },
     {
       "method": "GET",
@@ -551,6 +521,11 @@
       "method": "GET",
       "path": "/api/readiness/:sessionId",
       "source": "/api/readiness"
+    },
+    {
+      "method": "GET",
+      "path": "/api/ready",
+      "source": "/api"
     },
     {
       "method": "GET",
@@ -715,11 +690,6 @@
     {
       "method": "GET",
       "path": "/api/support/queue",
-      "source": "/"
-    },
-    {
-      "method": "GET",
-      "path": "/api/support/queue",
       "source": "/api/support"
     },
     {
@@ -744,16 +714,6 @@
     },
     {
       "method": "GET",
-      "path": "/api/telephony/presence",
-      "source": "/"
-    },
-    {
-      "method": "GET",
-      "path": "/api/telephony/token",
-      "source": "/"
-    },
-    {
-      "method": "GET",
       "path": "/api/telephony/token",
       "source": "/api/telephony"
     },
@@ -771,6 +731,16 @@
       "method": "GET",
       "path": "/api/users/me",
       "source": "/api/users"
+    },
+    {
+      "method": "GET",
+      "path": "/continuation/session",
+      "source": "/"
+    },
+    {
+      "method": "GET",
+      "path": "/dev/ping",
+      "source": "/"
     },
     {
       "method": "GET",
@@ -805,11 +775,6 @@
     {
       "method": "GET",
       "path": "/session",
-      "source": "/"
-    },
-    {
-      "method": "OPTIONS",
-      "path": "/*",
       "source": "/"
     },
     {
@@ -1000,22 +965,7 @@
     {
       "method": "POST",
       "path": "/api/application",
-      "source": "/"
-    },
-    {
-      "method": "POST",
-      "path": "/api/application",
       "source": "/api/application"
-    },
-    {
-      "method": "POST",
-      "path": "/api/application/continuation",
-      "source": "/"
-    },
-    {
-      "method": "POST",
-      "path": "/api/application/update",
-      "source": "/"
     },
     {
       "method": "POST",
@@ -1060,27 +1010,12 @@
     {
       "method": "POST",
       "path": "/api/auth/logout",
-      "source": "/"
-    },
-    {
-      "method": "POST",
-      "path": "/api/auth/logout",
       "source": "/api/auth"
     },
     {
       "method": "POST",
       "path": "/api/auth/otp/start",
-      "source": "/"
-    },
-    {
-      "method": "POST",
-      "path": "/api/auth/otp/start",
       "source": "/api/auth"
-    },
-    {
-      "method": "POST",
-      "path": "/api/auth/otp/verify",
-      "source": "/"
     },
     {
       "method": "POST",
@@ -1099,7 +1034,22 @@
     },
     {
       "method": "POST",
+      "path": "/api/auth/request-otp",
+      "source": "/api/auth"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/send-otp",
+      "source": "/api/auth"
+    },
+    {
+      "method": "POST",
       "path": "/api/auth/verify",
+      "source": "/api/auth"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/verify-otp",
       "source": "/api/auth"
     },
     {
@@ -1216,11 +1166,6 @@
       "method": "POST",
       "path": "/api/credit/score",
       "source": "/api/credit"
-    },
-    {
-      "method": "POST",
-      "path": "/api/crm/web-leads",
-      "source": "/"
     },
     {
       "method": "POST",
@@ -1379,11 +1324,6 @@
     },
     {
       "method": "POST",
-      "path": "/api/readiness/submit",
-      "source": "/"
-    },
-    {
-      "method": "POST",
       "path": "/api/referrals",
       "source": "/api/referrals"
     },
@@ -1396,11 +1336,6 @@
       "method": "POST",
       "path": "/api/support/contact",
       "source": "/api/support"
-    },
-    {
-      "method": "POST",
-      "path": "/api/support/event",
-      "source": "/"
     },
     {
       "method": "POST",
