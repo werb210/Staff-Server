@@ -1,22 +1,67 @@
 import { Router } from "express";
+import rateLimit from "express-rate-limit";
 import { startOtp, verifyOtpCode } from "../../modules/auth/otp.service";
 import {
-  otpSendLimiter,
   otpVerifyLimiter,
   resetOtpRateLimit,
 } from "../../middleware/rateLimit";
+import { normalizePhoneNumber } from "../../modules/auth/phone";
 
 const router = Router();
+const OTP_START_REUSE_WINDOW_MS = 60 * 1000;
+const recentOtpStarts = new Map<string, number>();
 
-router.post("/start", otpSendLimiter(), async (req, res, next) => {
+const otpLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+function hasRecentOtpStart(phone: string): boolean {
+  const now = Date.now();
+  const expiresAt = recentOtpStarts.get(phone);
+  if (!expiresAt) {
+    return false;
+  }
+  if (expiresAt <= now) {
+    recentOtpStarts.delete(phone);
+    return false;
+  }
+  return true;
+}
+
+function markRecentOtpStart(phone: string): void {
+  recentOtpStarts.set(phone, Date.now() + OTP_START_REUSE_WINDOW_MS);
+}
+
+router.post("/start", otpLimiter, async (req, res, next) => {
   try {
     const { phone } = req.body ?? {};
-    await startOtp(phone);
+
+    const normalizedPhone = normalizePhoneNumber(phone);
+    if (!normalizedPhone) {
+      return res.status(400).json({
+        ok: false,
+        success: false,
+        error: "Phone required",
+      });
+    }
+
+    const reused = hasRecentOtpStart(normalizedPhone);
+    if (!reused) {
+      await startOtp(normalizedPhone);
+      markRecentOtpStart(normalizedPhone);
+    }
+
     const requestId = res.locals.requestId ?? "unknown";
     return res.json({
       ok: true,
+      success: true,
+      reused,
       data: {
-        sent: true,
+        sent: !reused,
+        reused,
       },
       error: null,
       requestId,
@@ -44,6 +89,7 @@ router.post("/verify", otpVerifyLimiter(), async (req, res, next) => {
     if (!result.ok) {
       return res.status(result.status).json({
         ok: false,
+        success: false,
         error: result.error,
       });
     }
@@ -52,6 +98,8 @@ router.post("/verify", otpVerifyLimiter(), async (req, res, next) => {
     }
     return res.status(200).json({
       ok: true,
+      success: true,
+      accessToken: result.token,
       token: result.token,
       user: {
         id: result.user.id,
