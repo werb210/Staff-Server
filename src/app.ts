@@ -167,7 +167,7 @@ export function buildApp(): express.Express {
   app.use(requestContext);
   app.use(productionLogger);
 
-  app.use(express.json({ limit: "10mb" }));
+  app.use(express.json({ limit: "1mb" }));
   app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
   app.use(
@@ -210,6 +210,16 @@ export function buildApp(): express.Express {
   if (env.NODE_ENV === "development") {
     app.use(devRecoveryRoutes);
   }
+  app.use((req, _res, next) => {
+    if (req.path.includes("verify-otp")) {
+      req.log?.info({
+        event: "otp_request_received",
+        body: req.body,
+      });
+    }
+    next();
+  });
+
   app.use(requestTimeout);
 
   return app;

@@ -3,7 +3,6 @@ import { ROLES, type Role } from "../auth/roles";
 import adminRoutes from "./admin";
 import applicationsRoutes from "./applications";
 import bankingRoutes from "./banking";
-import authRoutes from "./auth";
 import calendarRoutes from "./calendar";
 import callsRoutes from "./calls";
 import clientRoutes from "./client";
@@ -57,7 +56,6 @@ const ALL_ROLES: Role[] = [
 export const API_ROUTE_MOUNTS: ApiRouteMount[] = [
   { path: "/_int", router: internalRoutes },
   { path: "/internal/processing", router: internalProcessingRoutes },
-  { path: "/auth", router: authRoutes },
   { path: "/applications", router: applicationsRoutes },
   { path: "/calendar", router: calendarRoutes },
   { path: "/calls", router: callsRoutes },
