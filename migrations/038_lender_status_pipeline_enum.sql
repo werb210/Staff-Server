@@ -74,16 +74,11 @@ BEGIN
     WHERE table_name = 'lenders'
   ) THEN
     UPDATE lenders
-    SET status = 'ACTIVE'::lender_status
-    WHERE status IS NULL;
-
-    UPDATE lenders
-    SET status = 'ACTIVE'::lender_status
-    WHERE LOWER(status::text) = 'active';
-
-    UPDATE lenders
-    SET status = 'INACTIVE'::lender_status
-    WHERE LOWER(status::text) = 'inactive';
+    SET status = CASE
+      WHEN status IS NULL THEN 'ACTIVE'::lender_status
+      WHEN LOWER(status::text) = 'inactive' THEN 'INACTIVE'::lender_status
+      ELSE 'ACTIVE'::lender_status
+    END;
   END IF;
 END $$;
 
