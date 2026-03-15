@@ -10,7 +10,7 @@
     "dev": "tsx src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "db:migrate": "tsx -e \"import('./src/migrations').then(m => m.runMigrations()).catch(err => { console.error(err); process.exit(1); })\"",
+    "db:migrate": "node dist/db/migrate.js",
     "db:seed": "tsx src/db/seed.ts",
     "test": "node scripts/vitest-runner.js",
     "test:watch": "vitest",

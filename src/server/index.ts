@@ -12,6 +12,7 @@ import { initChatSocket } from "../modules/ai/socket.server";
 import { validateStartup } from "../startup/validateStartup";
 import { cleanupOtpSessions } from "../jobs/otpCleanup";
 import { createOtpSessionsTable } from "../db/migrations/createOtpSessions";
+import { runMigrations } from "../db/migrationRunner";
 
 let processHandlersInstalled = false;
 let server: Server | null = null;
@@ -79,6 +80,7 @@ export async function startServer() {
   if (process.env.NODE_ENV === "production") {
     await verifyDatabase();
   }
+  await runMigrations();
   app = await createServer();
   await createOtpSessionsTable();
   registerOtpCleanupJob();
