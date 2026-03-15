@@ -13,6 +13,8 @@ import { validateStartup } from "../startup/validateStartup";
 import { cleanupOtpSessions } from "../jobs/otpCleanup";
 import { createOtpSessionsTable } from "../db/migrations/createOtpSessions";
 import { runMigrations } from "../db/migrationRunner";
+import { runMigrations as runStartupMigrations } from "../startup/runMigrations";
+import { pool } from "../db";
 
 let processHandlersInstalled = false;
 let server: Server | null = null;
@@ -84,6 +86,7 @@ export async function startServer() {
     console.log("Running database migrations...");
     await runMigrations();
   }
+  await runStartupMigrations(pool);
   app = await createServer();
   await createOtpSessionsTable();
   registerOtpCleanupJob();
