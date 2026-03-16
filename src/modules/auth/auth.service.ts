@@ -744,6 +744,7 @@ export async function startOtp(
 export async function verifyOtpCode(params: {
   phone: string;
   code: string;
+  otpSessionId?: string;
   email?: string | null;
   ip?: string;
   userAgent?: string;

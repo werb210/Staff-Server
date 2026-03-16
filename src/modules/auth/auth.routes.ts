@@ -13,6 +13,7 @@ import { refreshSession } from "./auth.service";
 import { startOtp, verifyOtpCode } from "./otp.service";
 import {
   startOtpResponseSchema,
+  validateStartOtp,
   validateVerifyOtp,
   verifyOtpResponseSchema,
 } from "../../validation/auth.validation";
@@ -112,38 +113,18 @@ async function handleOtpStart(
     const route = "/api/auth/otp/start";
     const requestId = getAuthRequestId(res);
 
-    const body = (req.body ?? {}) as {
-      phone?: unknown;
-      phoneNumber?: unknown;
-    };
-    const rawPhone = body.phone ?? body.phoneNumber;
-
-    if (rawPhone === undefined || rawPhone === null || rawPhone === "") {
-      respondRequestValidationError(res, route, requestId, {
-        formErrors: ["phone is required"],
-      });
+    const validation = validateStartOtp(req);
+    if (!validation.success) {
+      respondRequestValidationError(
+        res,
+        route,
+        requestId,
+        validation.error.flatten()
+      );
       return;
     }
 
-    const compactPhone = String(rawPhone).replace(/[\s()\-]/g, "").trim();
-    const digitsOnly = compactPhone.replace(/\D/g, "");
-
-    let phone = compactPhone;
-    if (!phone.startsWith("+") && /^\d{10}$/.test(digitsOnly)) {
-      phone = `+1${digitsOnly}`;
-    } else if (!phone.startsWith("+")) {
-      phone = `+${digitsOnly}`;
-    } else {
-      phone = `+${digitsOnly}`;
-    }
-
-    if (!/^\+\d{10,15}$/.test(phone)) {
-      respondRequestValidationError(res, route, requestId, {
-        formErrors: ["invalid phone format"],
-      });
-      return;
-    }
-
+    const { phone } = validation.data;
     const otpStartResult = await startOtp(phone);
 
     const responseBody = {
@@ -200,29 +181,14 @@ async function handleOtpVerify(
       return;
     }
 
-    const body = req.body as {
-      phone: string;
-      code: string;
-      otpSessionId?: string;
-      sessionToken?: string;
-      email?: string | null;
-    };
-
-    const phoneDigits = body.phone.replace(/\D/g, "");
-    const phoneE164 = phoneDigits.startsWith("1")
-      ? `+${phoneDigits}`
-      : `+1${phoneDigits}`;
-
-    const otpId = body.otpSessionId || body.sessionToken;
-    if (!otpId) {
-      throw new Error("Missing OTP session id");
-    }
+    const { phone, code, otpSessionId, email } = validation.data;
 
     const userAgent = req.get("user-agent");
     const verifyPayload = {
-      phone: phoneE164,
-      code: body.code,
-      ...(body.email !== undefined ? { email: body.email } : {}),
+      phone,
+      code,
+      otpSessionId,
+      ...(email !== undefined ? { email } : {}),
       ...(req.ip ? { ip: req.ip } : {}),
       ...(userAgent ? { userAgent } : {}),
       route,
@@ -260,7 +226,7 @@ async function handleOtpVerify(
       return;
     }
 
-    resetOtpRateLimit(phoneE164);
+    resetOtpRateLimit(phone);
 
     res.status(200).json(responseBody);
   } catch (err) {

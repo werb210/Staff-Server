@@ -5,7 +5,10 @@ import {
   otpVerifyLimiter,
   resetOtpRateLimit,
 } from "../../middleware/rateLimit";
-import { normalizePhoneNumber } from "../../modules/auth/phone";
+import {
+  startOtpSchema,
+  verifyOtpSchema,
+} from "../../validation/auth.validation";
 
 const router = Router();
 const OTP_START_REUSE_WINDOW_MS = 60 * 1000;
@@ -38,34 +41,26 @@ function markRecentOtpStart(phone: string): void {
 
 router.post("/start", otpLimiter, async (req, res, next) => {
   try {
-    const { phone } = req.body ?? {};
-
-    const normalizedPhone = normalizePhoneNumber(phone);
-    if (!normalizedPhone) {
+    const parsed = startOtpSchema.safeParse(req.body);
+    if (!parsed.success) {
       return res.status(400).json({
-        ok: false,
-        success: false,
-        error: "Phone required",
+        error: "Validation failed",
+        details: parsed.error.flatten(),
       });
     }
 
-    const reused = hasRecentOtpStart(normalizedPhone);
+    const { phone } = parsed.data;
+    const reused = hasRecentOtpStart(phone);
+    let otpSessionId: string | null = null;
+
     if (!reused) {
-      await startOtp(normalizedPhone);
-      markRecentOtpStart(normalizedPhone);
+      const otpResult = await startOtp(phone);
+      otpSessionId = otpResult.sid;
+      markRecentOtpStart(phone);
     }
 
-    const requestId = res.locals.requestId ?? "unknown";
-    return res.json({
-      ok: true,
-      success: true,
-      reused,
-      data: {
-        sent: !reused,
-        reused,
-      },
-      error: null,
-      requestId,
+    return res.status(200).json({
+      otpSessionId: otpSessionId ?? "reused",
     });
   } catch (err) {
     return next(err);
@@ -73,69 +68,44 @@ router.post("/start", otpLimiter, async (req, res, next) => {
 });
 
 router.post("/verify", otpVerifyLimiter(), async (req, res, next) => {
-  const body = req.body || {};
-
-  const phone = body.phone || body.phoneNumber || body.mobile || body.userPhone;
-
-  const code = body.code || body.otp || body.passcode;
-  const otpId = body.otpSessionId || body.sessionToken;
-
-  if (!phone || !code) {
+  const parsed = verifyOtpSchema.safeParse(req.body);
+  if (!parsed.success) {
     req.log?.warn({
-      event: "otp_missing_fields",
-      body,
+      event: "otp_verify_validation_failed",
+      body: req.body,
+      errors: parsed.error.flatten(),
     });
 
     return res.status(400).json({
-      error: "Invalid request",
-      message: "phone and code required",
+      error: "Validation failed",
+      details: parsed.error.flatten(),
     });
   }
 
-  const normalizedCode = String(code).trim();
-  const normalizedPhone = normalizePhoneNumber(phone);
+  const { phone, code, otpSessionId, email } = parsed.data;
 
-  if (!normalizedPhone || !normalizedCode) {
-    req.log?.warn({
-      event: "otp_missing_fields",
-      body,
-    });
-
-    return res.status(400).json({
-      error: "Invalid request",
-      message: "phone and code required",
-    });
-  }
-
-
-  if (!otpId) {
-    return res.status(400).json({
-      error: "Invalid request",
-      message: "Missing OTP session id",
-    });
-  }
-
-  if (activeVerifications.get(normalizedPhone)) {
+  if (activeVerifications.get(phone)) {
     return res.status(429).json({
       success: false,
       error: "Verification already in progress",
     });
   }
 
-  activeVerifications.set(normalizedPhone, true);
+  activeVerifications.set(phone, true);
 
   try {
     req.log?.info({
       event: "otp_verification_attempt",
-      phone: normalizedPhone,
+      phone,
+      otpSessionId,
     });
 
-    const email = body.email;
     const userAgent = req.get("user-agent");
     const route = req.originalUrl ?? req.url;
     const payload = {
-      phone: normalizedPhone,
-      code: normalizedCode,
+      phone,
+      code,
+      otpSessionId,
       email,
       ...(req.ip ? { ip: req.ip } : {}),
       ...(userAgent ? { userAgent } : {}),
@@ -149,7 +119,7 @@ router.post("/verify", otpVerifyLimiter(), async (req, res, next) => {
         error: "Invalid OTP",
       });
     }
-    resetOtpRateLimit(normalizedPhone);
+    resetOtpRateLimit(phone);
     return res.status(200).json({
       token: result.token,
       user: {
@@ -167,7 +137,7 @@ router.post("/verify", otpVerifyLimiter(), async (req, res, next) => {
       error: "OTP verification failed",
     });
   } finally {
-    activeVerifications.delete(normalizedPhone);
+    activeVerifications.delete(phone);
   }
 });
 
