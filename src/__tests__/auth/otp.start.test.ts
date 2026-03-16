@@ -1,5 +1,6 @@
 import request from "supertest";
 import type { Express } from "express";
+import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { getTwilioMocks } from "../helpers/twilioMocks";
 
 function buildTestApp(): Express {
@@ -12,15 +13,15 @@ describe("POST /api/auth/otp/start", () => {
 
   beforeEach(() => {
     process.env = { ...originalEnv };
-    jest.resetModules();
-    jest.clearAllMocks();
+    vi.resetModules();
+    vi.clearAllMocks();
   });
 
   afterEach(() => {
     process.env = originalEnv;
   });
 
-  it("calls Twilio Verify with E.164 phone and sms channel", async () => {
+  it("calls Twilio Verify with normalized E.164 phone and sms channel", async () => {
     const twilioMocks = getTwilioMocks();
     twilioMocks.createVerification.mockResolvedValueOnce({
       sid: "VE200",
@@ -34,6 +35,8 @@ describe("POST /api/auth/otp/start", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
+    expect(res.body.data).toMatchObject({ sent: true });
+    expect(res.body.data.otpSessionId).toBeUndefined();
     expect(twilioMocks.services).toHaveBeenCalledWith(
       process.env.TWILIO_VERIFY_SERVICE_SID
     );

@@ -82,7 +82,7 @@ router.post("/verify", otpVerifyLimiter(), async (req, res, next) => {
     });
   }
 
-  const { phone, code, otpSessionId, email } = parsed.data;
+  const { phone, code, email } = parsed.data;
 
   if (activeVerifications.get(phone)) {
     return res.status(429).json({
@@ -97,7 +97,6 @@ router.post("/verify", otpVerifyLimiter(), async (req, res, next) => {
     req.log?.info({
       event: "otp_verification_attempt",
       phone,
-      otpSessionId,
     });
 
     const userAgent = req.get("user-agent");
@@ -105,7 +104,6 @@ router.post("/verify", otpVerifyLimiter(), async (req, res, next) => {
     const payload = {
       phone,
       code,
-      otpSessionId,
       email,
       ...(req.ip ? { ip: req.ip } : {}),
       ...(userAgent ? { userAgent } : {}),

@@ -24,7 +24,6 @@ const phoneSchema = z
 export const startOtpSchema = z
   .object({
     phone: phoneSchema,
-    email: z.string().email().optional(),
   })
   .strict();
 
@@ -32,7 +31,6 @@ export const verifyOtpSchema = z
   .object({
     phone: phoneSchema,
     code: z.string().min(1, "Code is required"),
-    otpSessionId: z.string().min(1, "otpSessionId is required"),
     email: z.string().email().optional(),
   })
   .strict();
@@ -46,14 +44,17 @@ export const startOtpResponseSchema = z
 
 export const verifyOtpResponseSchema = z
   .object({
-    token: z.string(),
-    accessToken: z.string().optional(),
-    refreshToken: z.string().optional(),
-    user: z
+    ok: z.literal(true),
+    data: z
       .object({
-        id: z.string(),
-        role: roleSchema,
-        email: z.string().nullable(),
+        token: z.string(),
+        user: z
+          .object({
+            id: z.string(),
+            role: roleSchema,
+            email: z.string().nullable(),
+          })
+          .strict(),
       })
       .strict(),
   })

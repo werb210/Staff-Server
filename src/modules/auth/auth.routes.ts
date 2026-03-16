@@ -181,13 +181,12 @@ async function handleOtpVerify(
       return;
     }
 
-    const { phone, code, otpSessionId, email } = validation.data;
+    const { phone, code, email } = validation.data;
 
     const userAgent = req.get("user-agent");
     const verifyPayload = {
       phone,
       code,
-      otpSessionId,
       ...(email !== undefined ? { email } : {}),
       ...(req.ip ? { ip: req.ip } : {}),
       ...(userAgent ? { userAgent } : {}),
@@ -197,6 +196,10 @@ async function handleOtpVerify(
     const result = await verifyOtpCode(verifyPayload);
 
     if (!result.ok) {
+      if (result.error.code === "invalid_code") {
+        res.status(400).json({ ok: false, error: "invalid_code" });
+        return;
+      }
       respondError(res, result.status, result.error.code, result.error.message);
       return;
     }
@@ -207,10 +210,11 @@ async function handleOtpVerify(
     }
 
     const responseBody = {
-      token: accessToken,
-      accessToken,
-      refreshToken: result.refreshToken,
-      user: result.user,
+      ok: true as const,
+      data: {
+        token: accessToken,
+        user: result.user,
+      },
     };
 
     const responseValidation =
