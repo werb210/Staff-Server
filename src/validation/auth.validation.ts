@@ -17,7 +17,7 @@ const phoneSchema = z
   .string()
   .min(1, "Phone is required")
   .transform(normalizePhone)
-  .refine((phone) => /^\+?[1-9]\d{1,14}$/.test(phone), {
+  .refine((phone) => /^\+\d{10,15}$/.test(phone), {
     message: "Phone must be in E.164 format",
   });
 
@@ -30,16 +30,12 @@ export const startOtpSchema = z
 
 export const verifyOtpSchema = z
   .object({
-    phone: z.string(),
-    code: z.string(),
-    otpSessionId: z.string().optional(),
-    sessionToken: z.string().optional(),
+    phone: phoneSchema,
+    code: z.string().min(1, "Code is required"),
+    otpSessionId: z.string().min(1, "otpSessionId is required"),
     email: z.string().email().optional(),
   })
-  .refine((payload) => Boolean(payload.otpSessionId || payload.sessionToken), {
-    message: "Missing OTP session id",
-    path: ["otpSessionId"],
-  });
+  .strict();
 
 export const startOtpResponseSchema = z
   .object({
