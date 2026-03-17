@@ -58,12 +58,12 @@ type RefreshTokenPayload = JwtPayload & {
 
 type VerifyOtpSuccess = {
   ok: true;
-  token: string | null;
-  refreshToken: string | null;
-  sessionToken: string | null;
-  user: { id: string; role: Role; email: string | null } | null;
+  token: string;
+  refreshToken: string;
+  sessionToken: string;
+  user: { id: string; role: Role; email: string | null };
   applicationId: string | null;
-  nextPath: "/application/start" | "/portal";
+  nextPath: "/portal";
 };
 
 type VerifyOtpFailure = {
@@ -99,25 +99,6 @@ export function issueAccessToken(payload: AccessTokenPayload): string {
   }
 }
 
-function issueApplicantSessionToken(phone: string): string {
-  const secret = getAccessTokenSecret();
-  if (!secret) {
-    throw new AppError("auth_misconfigured", "Auth is not configured.", 500);
-  }
-
-  return jwt.sign(
-    {
-      type: "otp_session",
-      phone,
-      jti: randomUUID(),
-    },
-    secret,
-    {
-      algorithm: "HS256",
-      expiresIn: "1h",
-    }
-  );
-}
 
 export function issueRefreshToken(params: {
   userId: string;
@@ -854,22 +835,20 @@ export async function verifyOtpCode(params: {
       requestId
     );
 
-    if (!isTestEnvironment() && hasInternalUserCandidate) {
-      if (!latestVerification) {
-        return {
-          ok: false,
-          status: 400,
-          error: { code: "expired_code", message: "OTP code expired." },
-        };
-      }
+    if (!latestVerification) {
+      return {
+        ok: false,
+        status: 400,
+        error: { code: "expired_code", message: "OTP session expired" },
+      };
+    }
 
-      if (!isOtpVerificationFresh(latestVerification)) {
-        return {
-          ok: false,
-          status: 400,
-          error: { code: "expired_code", message: "OTP code expired." },
-        };
-      }
+    if (!isOtpVerificationFresh(latestVerification)) {
+      return {
+        ok: false,
+        status: 400,
+        error: { code: "expired_code", message: "OTP session expired" },
+      };
     }
 
     if (latestVerification?.status === "approved" && isOtpVerificationFresh(latestVerification)) {
@@ -968,19 +947,10 @@ export async function verifyOtpCode(params: {
     testOtpStore.delete(phoneE164);
 
     if (!hasInternalUserCandidate && !isBootstrapAdminUser({ phoneNumber: phoneE164, email: null })) {
-      OTP_TRACE("OTP_VERIFY_RESULT", {
-        phone: phoneE164,
-        success: true,
-        instance: process.pid,
-      });
       return {
-        ok: true,
-        token: null,
-        refreshToken: null,
-        sessionToken: issueApplicantSessionToken(phoneE164),
-        user: null,
-        applicationId: null,
-        nextPath: "/application/start",
+        ok: false,
+        status: 404,
+        error: { code: "user_not_found", message: "User not found" },
       };
     }
 
@@ -1114,6 +1084,9 @@ export async function verifyOtpCode(params: {
         capabilities: getCapabilitiesForRole(role),
       };
       const token = issueAccessToken(payload);
+      if (!token) {
+        throw new Error("Failed to create auth token");
+      }
       const refresh = issueRefreshToken({
         userId: userRecord.id,
         tokenVersion,
@@ -1146,7 +1119,7 @@ export async function verifyOtpCode(params: {
         ok: true,
         token,
         refreshToken: refresh.token,
-        sessionToken: refresh.token,
+        sessionToken: token,
         user: {
           id: userRecord.id,
           role,
