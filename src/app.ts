@@ -63,6 +63,7 @@ import devRecoveryRoutes from "./routes/devRecoveryRoutes";
 import devRoutes from "./routes/dev";
 import healthRouter from "./routes/health";
 import { corsMiddleware } from "./middleware/cors";
+import { normalizeApiPath } from "./middleware/normalizeApiPath";
 
 function isTruthyFlag(value: string | undefined): boolean {
   if (!value) {
@@ -149,17 +150,7 @@ export function buildApp(): express.Express {
     next();
   });
 
-  app.use((req, _res, next) => {
-    if (req.url.startsWith("/api/api/")) {
-      const normalizedUrl = req.url.replace(/^\/api\/api\//, "/api/");
-      serverLogger.info("normalized_duplicate_api_prefix", {
-        originalUrl: req.url,
-        normalizedUrl,
-      });
-      req.url = normalizedUrl;
-    }
-    next();
-  });
+  app.use(normalizeApiPath);
 
   app.use(requestId);
   app.use(requestLogger);

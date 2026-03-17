@@ -41,6 +41,10 @@ router.post("/otp/request", async (req, res) => {
 });
 
 router.post("/otp/verify", async (req, res) => {
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error("OTP verify timeout")), 5000)
+  );
+
   try {
     const phone = normalizePhone(String(req.body.phone ?? ""));
     const code = String(req.body.code ?? "").trim();
@@ -48,22 +52,27 @@ router.post("/otp/verify", async (req, res) => {
     if (!phone || !code) {
       return res.status(400).json({
         ok: false,
+        data: null,
         error: "missing_fields",
       });
     }
 
-    const result = await verifyOtpCode({
-      phone,
-      code,
-      ip: req.ip,
-      userAgent: req.get("user-agent") ?? undefined,
-      route: req.originalUrl,
-      method: req.method,
-    });
+    const result = await Promise.race([
+      verifyOtpCode({
+        phone,
+        code,
+        ip: req.ip,
+        userAgent: req.get("user-agent") ?? undefined,
+        route: req.originalUrl,
+        method: req.method,
+      }),
+      timeout,
+    ]);
 
     if (!result.ok) {
       return res.status(400).json({
         ok: false,
+        data: null,
         error: "invalid_otp",
       });
     }
@@ -71,15 +80,16 @@ router.post("/otp/verify", async (req, res) => {
     return res.json({
       ok: true,
       data: {
-        sessionToken: result.sessionToken,
-        nextPath: "/application/start",
+        token: result.token,
+        user: result.user,
       },
       error: null,
     });
   } catch (err) {
     return res.status(500).json({
       ok: false,
-      error: "otp_verify_failed",
+      data: null,
+      error: err instanceof Error ? err.message : "otp_verify_failed",
     });
   }
 });
