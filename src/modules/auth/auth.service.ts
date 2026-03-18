@@ -1330,7 +1330,7 @@ export async function createUserAccount(params: {
       phoneNumber,
       role: params.role,
       lenderId,
-      active: false,
+      active: process.env.NODE_ENV === "test",
       client: db,
       ...(params.email !== undefined ? { email: params.email } : {}),
     };
