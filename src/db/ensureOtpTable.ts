@@ -3,7 +3,19 @@ import { pool } from "../db";
 type PgError = { code?: string; message?: string };
 
 export async function ensureOtpTableExists(): Promise<void> {
-  await pool.query(`
+  const tableResult = await pool.query(
+    `
+      select 1
+      from information_schema.tables
+      where table_schema = 'public'
+        and table_name = 'otp_verifications'
+      limit 1
+    `
+  );
+
+  if (tableResult.rowCount === 0) {
+    try {
+      await pool.query(`
       create table if not exists otp_verifications (
         id uuid primary key,
         user_id uuid not null references users(id) on delete cascade,
@@ -14,6 +26,29 @@ export async function ensureOtpTableExists(): Promise<void> {
         created_at timestamptz not null default now()
       );
     `);
+    } catch (err) {
+      const error = err as PgError;
+      if (
+        error.code === "42P07" ||
+        error.message?.includes("already exists") ||
+        error.message?.includes("otp_verifications_pkey")
+      ) {
+        await pool.query(`
+          create table if not exists otp_verifications (
+            id uuid not null,
+            user_id uuid not null references users(id) on delete cascade,
+            phone text not null,
+            verification_sid text,
+            status text not null,
+            verified_at timestamptz,
+            created_at timestamptz not null default now()
+          );
+        `);
+      } else {
+        throw err;
+      }
+    }
+  }
 
   const constraintResult = await pool.query(
     `
@@ -33,7 +68,11 @@ export async function ensureOtpTableExists(): Promise<void> {
       `);
     } catch (err) {
       const error = err as PgError;
-      if (error.code !== "42P07" && !error.message?.includes("already exists")) {
+      if (
+        error.code !== "42P07" &&
+        !error.message?.includes("already exists") &&
+        !error.message?.includes("does not exist")
+      ) {
         throw err;
       }
     }

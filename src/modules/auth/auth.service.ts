@@ -597,6 +597,13 @@ function resolveOtpFailure(status?: string): VerifyOtpFailure {
       error: { code: "expired_code", message: "OTP code expired." },
     };
   }
+  if (typeof status === "string" && status.length > 0) {
+    return {
+      ok: false,
+      status: 400,
+      error: { code: "otp_failed", message: "OTP verification failed." },
+    };
+  }
   return {
     ok: false,
     status: 400,

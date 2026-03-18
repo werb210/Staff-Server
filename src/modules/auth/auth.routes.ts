@@ -17,7 +17,15 @@ router.post("/otp/start", async (req: Request, res: Response, next) => {
   try {
     const phone = typeof body.phone === "string" ? body.phone : "";
     const result = await startOtp(phone);
-    return res.status(200).json({ ok: true, sid: result.sid });
+    return res.status(200).json({
+      ok: true,
+      sent: true,
+      sid: result.sid,
+      data: {
+        sent: true,
+        sid: result.sid,
+      },
+    });
   } catch (err: any) {
     if (typeof err?.status === "number" && typeof err?.code === "string") {
       return res.status(err.status).json({
@@ -49,8 +57,10 @@ async function handleOtpVerify(req: Request, res: Response, next: (err?: unknown
     if (!result.ok) {
       return res.status(result.status).json({
         ok: false,
-        error: result.error.code,
-        message: result.error.message,
+        error: {
+          code: result.error.code,
+          message: result.error.message,
+        },
       });
     }
 
@@ -100,8 +110,10 @@ router.post("/login", async (req: Request, res: Response, next) => {
   if (!canBootstrapTestOtp) {
     return res.status(attempt.status).json({
       ok: false,
-      error: attempt.error.code,
-      message: attempt.error.message,
+      error: {
+        code: attempt.error.code,
+        message: attempt.error.message,
+      },
     });
   }
 
