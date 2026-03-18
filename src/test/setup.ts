@@ -77,23 +77,12 @@ beforeAll(async () => {
       name text null,
       metadata jsonb null,
       product_type text null,
-      product_category text null,
       pipeline_state text null,
-      current_stage text null,
-      processing_stage text null,
       status text null,
-      application_status text null,
-      is_completed boolean not null default false,
-      last_updated timestamptz null,
       lender_id uuid null,
       lender_product_id uuid null,
       requested_amount numeric null,
       source text null,
-      first_opened_at timestamptz null,
-      ocr_completed_at timestamptz null,
-      banking_completed_at timestamptz null,
-      credit_summary_completed_at timestamptz null,
-      startup_flag boolean not null default false,
       created_at timestamptz not null default now(),
       updated_at timestamptz not null default now()
     );
@@ -108,60 +97,8 @@ beforeAll(async () => {
       title text null,
       document_type text null,
       status text null,
-      filename text null,
-      storage_key text null,
-      uploaded_by text null,
-      rejection_reason text null,
       created_at timestamptz not null default now(),
       updated_at timestamptz not null default now()
-    );
-  `);
-  await pool.query(`
-    create table if not exists application_stage_events (
-      id uuid primary key,
-      application_id uuid not null references applications(id) on delete cascade,
-      from_stage text null,
-      to_stage text not null,
-      trigger text null,
-      triggered_by text null,
-      reason text null,
-      created_at timestamptz not null default now()
-    );
-  `);
-  await pool.query(`
-    create table if not exists application_required_documents (
-      id uuid primary key,
-      application_id uuid not null references applications(id) on delete cascade,
-      document_category text not null,
-      is_required boolean not null default true,
-      status text not null default 'PENDING',
-      created_at timestamptz not null default now()
-    );
-  `);
-  await pool.query(`
-    create unique index if not exists application_required_documents_app_doc_uidx
-      on application_required_documents (application_id, document_category);
-  `);
-  await pool.query(`
-    create table if not exists document_versions (
-      id uuid primary key,
-      document_id uuid not null references documents(id) on delete cascade,
-      version integer not null default 1,
-      blob_name text null,
-      hash text null,
-      metadata jsonb null,
-      content text null,
-      created_at timestamptz not null default now()
-    );
-  `);
-  await pool.query(`
-    create table if not exists document_version_reviews (
-      id uuid primary key,
-      document_version_id uuid not null references document_versions(id) on delete cascade,
-      status text not null,
-      reviewed_by_user_id uuid null references users(id) on delete set null,
-      reviewed_at timestamptz null,
-      created_at timestamptz not null default now()
     );
   `);
 
@@ -270,41 +207,18 @@ beforeAll(async () => {
   `);
   await pool.query(`
     create table if not exists document_processing_jobs (
-      id uuid primary key default gen_random_uuid(),
+      id uuid primary key,
       application_id uuid null references applications(id) on delete cascade,
       document_id uuid null references documents(id) on delete cascade,
-      job_type text not null default 'ocr',
       provider text null,
-      status text not null default 'pending',
-      started_at timestamptz null,
+      status text not null default 'queued',
       retry_count integer not null default 0,
-      last_retry_at timestamptz null,
       max_retries integer not null default 3,
       error_code text null,
       error_message text null,
       created_at timestamptz not null default now(),
       updated_at timestamptz not null default now(),
       completed_at timestamptz null
-    );
-  `);
-  await pool.query(`
-    create unique index if not exists document_processing_jobs_doc_type_uidx
-      on document_processing_jobs (document_id, job_type);
-  `);
-  await pool.query(`
-    create table if not exists banking_analysis_jobs (
-      id uuid primary key default gen_random_uuid(),
-      application_id uuid not null references applications(id) on delete cascade,
-      status text not null default 'pending',
-      statement_months_detected integer null,
-      started_at timestamptz null,
-      completed_at timestamptz null,
-      error_message text null,
-      retry_count integer not null default 0,
-      last_retry_at timestamptz null,
-      max_retries integer not null default 3,
-      created_at timestamptz not null default now(),
-      updated_at timestamptz not null default now()
     );
   `);
   await pool.query(`
