@@ -23,7 +23,8 @@
     "lint": "eslint \"src/**/*.{ts,js}\" --max-warnings=0",
     "workers": "tsx scripts/startWorkers.ts",
     "routes:export": "node --import tsx scripts/export-routes.ts",
-    "drift:check": "bash scripts/api-drift-check.sh"
+    "drift:check": "bash scripts/api-drift-check.sh",
+    "test:db:runtime": "npm run build && node scripts/db-runtime-integration.js"
   },
   "dependencies": {
     "@azure/storage-blob": "^12.29.1",
