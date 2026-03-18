@@ -49,13 +49,11 @@ router.post("/otp/start", async (req: Request, res: Response) => {
       [randomUUID(), phone, code, expiresAt]
     );
 
-    console.log("OTP INSERT:", insertResult.rows[0]);
-
     if (!insertResult.rows || insertResult.rows.length === 0) {
       throw new Error("OTP insert failed");
     }
   } catch (err) {
-    console.error("OTP INSERT ERROR:", err);
+    req.log?.error({ err }, "otp_start_failed");
     return res.status(500).json({ ok: false, error: "OTP persistence failed" });
   }
 
@@ -63,8 +61,6 @@ router.post("/otp/start", async (req: Request, res: Response) => {
     ok: true,
     data: {
       sent: true,
-      phone,
-      otp: code,
     },
   });
 });
@@ -97,16 +93,12 @@ router.post("/otp/verify", async (req: Request, res: Response) => {
 
     record = rows.rows[0] ?? null;
 
-    console.log("OTP FETCH RESULT:", record);
-
     if (!record) {
       return res.status(400).json({ ok: false, error: "No OTP session" });
     }
 
-    const MAX_AGE_MS = 5 * 60 * 1000;
-    const age = Date.now() - new Date(record.created_at).getTime();
-
-    if (age > MAX_AGE_MS) {
+    const expiresAt = new Date(record.expires_at).getTime();
+    if (Number.isNaN(expiresAt) || Date.now() > expiresAt) {
       return res.status(400).json({ ok: false, error: "OTP expired" });
     }
 
@@ -114,7 +106,7 @@ router.post("/otp/verify", async (req: Request, res: Response) => {
       return res.status(400).json({ ok: false, error: "Invalid code" });
     }
   } catch (err) {
-    console.error("OTP VERIFY ERROR:", err);
+    req.log?.error({ err }, "otp_verify_failed");
     return res.status(500).json({ ok: false, error: "Verification failed" });
   }
 
@@ -146,7 +138,7 @@ router.post("/otp/verify", async (req: Request, res: Response) => {
       user = created.rows[0];
     }
   } catch (err) {
-    console.error("USER ERROR:", err);
+    req.log?.error({ err }, "otp_verify_user_resolution_failed");
     return res.status(500).json({ ok: false, error: "User creation failed" });
   }
 
