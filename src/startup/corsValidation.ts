@@ -3,9 +3,8 @@ import { logError } from "../observability/logger";
 const requiredCorsHeaders = ["Authorization", "Content-Type", "Idempotency-Key"];
 const requiredCorsOrigins = [
   "https://staff.boreal.financial",
-  "https://portal.boreal.financial",
-  "https://boreal.financial",
   "https://client.boreal.financial",
+  "https://server.boreal.financial",
 ];
 
 function normalizeOrigin(origin: string): string {
