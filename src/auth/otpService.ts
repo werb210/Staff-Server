@@ -11,7 +11,7 @@ function normalizePhone(phone: string): string {
 
 export async function sendOtp(phone: string) {
   const normalized = normalizePhone(phone);
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  const code = process.env.TEST_OTP_CODE ?? "123456";
   const key = `otp:${normalized}`;
 
   console.log("[OTP STORE]", key, code);

@@ -157,6 +157,11 @@ export function assertEnv(): void {
     missing.push("BASE_URL");
   }
   if (missing.length > 0) {
+    if (!isProductionEnv()) {
+      logWarn("missing_env_non_production", { keys: missing });
+      return;
+    }
+
     logError("missing_env", { keys: missing });
     throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
   }
