@@ -37,7 +37,7 @@ function markRecentOtpStart(phone: string): void {
   recentOtpStarts.set(phone, Date.now() + OTP_START_REUSE_WINDOW_MS);
 }
 
-router.post("/start", otpLimiter, async (req, res) => {
+router.post("/start", otpLimiter, async (req, res, next) => {
   try {
     const rawBody =
       typeof req.body === "string"
@@ -97,7 +97,7 @@ router.post("/start", otpLimiter, async (req, res) => {
   }
 });
 
-router.post("/verify", otpVerifyLimiter(), async (req, res) => {
+router.post("/verify", otpVerifyLimiter(), async (req, res, next) => {
   let phoneForLock: string | null = null;
   const requestId = res.locals.requestId ?? "unknown";
 

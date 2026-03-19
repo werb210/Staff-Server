@@ -93,7 +93,7 @@ async function tryStoreReport(payload: {
 
 router.post(
   "/chat",
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     if (req.body?.mode !== "core") {
       await chatHandler(req, res);
       return;
@@ -112,7 +112,7 @@ router.post(
 
 router.post(
   "/escalate",
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     const sessionId =
       typeof req.body?.sessionId === "string" && req.body.sessionId.trim().length > 0
         ? req.body.sessionId
@@ -135,7 +135,7 @@ router.post(
 
 router.post(
   "/report",
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     const message =
       typeof req.body?.message === "string" && req.body.message.trim().length > 0
         ? req.body.message
@@ -189,7 +189,7 @@ router.get(
 
 router.post(
   "/knowledge",
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     const { title, content, sourceType } = req.body as {
       title?: string;
       content?: string;
@@ -221,7 +221,7 @@ router.post(
 router.post(
   "/report-issue",
   upload.single("screenshot"),
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     const body = req.body as {
       session_id?: string;
       description?: string;

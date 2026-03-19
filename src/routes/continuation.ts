@@ -20,7 +20,7 @@ type ContinuationPayload = {
   existingDebt?: string;
 };
 
-router.post("/", async (req, res) => {
+router.post("/", async (req, res, next) => {
   const data = (req.body ?? {}) as ContinuationPayload;
 
   if (!data.companyName || !data.fullName || !data.email || !data.phone || !data.industry) {
@@ -86,7 +86,7 @@ router.post("/", async (req, res) => {
   res.json(rows[0]);
 });
 
-router.get("/by-email", async (req, res) => {
+router.get("/by-email", async (req, res, next) => {
   const email = req.query.email;
   if (typeof email !== "string" || !email.trim()) {
     res.status(400).json({ error: "Missing email" });
@@ -112,7 +112,7 @@ router.get("/by-email", async (req, res) => {
   res.json(rows[0]);
 });
 
-router.get("/:id", async (req, res) => {
+router.get("/:id", async (req, res, next) => {
   const { id } = req.params;
 
   const { rows } = await db.query<ContinuationRecord>(
@@ -128,7 +128,7 @@ router.get("/:id", async (req, res) => {
   res.json(rows[0]);
 });
 
-router.patch("/:id/mark-used", async (req, res) => {
+router.patch("/:id/mark-used", async (req, res, next) => {
   const { id } = req.params;
 
   await db.query(

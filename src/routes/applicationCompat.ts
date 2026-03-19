@@ -2,7 +2,7 @@ import { Router } from "express";
 
 const router = Router();
 
-router.post("/api/application", async (req, res) => {
+router.post("/api/application", async (req, res, next) => {
   const data = req.body;
 
   return res.json({

@@ -48,7 +48,7 @@ async function handleTokenRequest(req: Request, res: Response) {
 router.get("/token", handleTokenRequest);
 router.post("/token", handleTokenRequest);
 
-router.post("/outbound-call", async (req, res) => {
+router.post("/outbound-call", async (req, res, next) => {
   const { to, fromIdentity } = req.body as { to?: string; fromIdentity?: string };
 
   const conferenceId = `call_${Date.now()}`;
@@ -68,7 +68,7 @@ router.post("/presence", async (_req, res) => {
   });
 });
 
-router.post("/call-status", async (req, res) => {
+router.post("/call-status", async (req, res, next) => {
   const { callSid, status } = req.body as { callSid?: string; status?: string };
 
   if (!callSid) {

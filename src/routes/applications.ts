@@ -111,7 +111,7 @@ router.get(
   "/",
   requireAuth,
   requireCapability([CAPABILITIES.APPLICATION_READ]),
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     try {
       const page = Math.max(1, Number(req.query.page) || 1);
       const pageSize = Math.max(1, Number(req.query.pageSize) || 25);
@@ -149,7 +149,7 @@ router.get(
   "/:id/ocr-insights",
   requireAuth,
   requireCapability([CAPABILITIES.APPLICATION_READ]),
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     const applicationId = req.params.id;
     if (!applicationId) {
       throw new AppError("validation_error", "Application id is required.", 400);
@@ -294,7 +294,7 @@ router.get(
   "/:id",
   requireAuth,
   requireCapability([CAPABILITIES.APPLICATION_READ]),
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     try {
       const applicationId = req.params.id;
       if (!applicationId) {

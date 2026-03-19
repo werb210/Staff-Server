@@ -22,7 +22,7 @@ router.use(requireCapability([CAPABILITIES.APPLICATION_CREATE]));
 
 router.post(
   "/",
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     const parsed = referralSchema.safeParse(req.body);
     if (!parsed.success) {
       throw new AppError("invalid_payload", "Invalid referral payload.", 400);

@@ -75,7 +75,7 @@ router.get(
   "/",
   requireAuth,
   requireCapability([CAPABILITIES.LENDERS_READ]),
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     const lendersRows = await listLenders(pool);
     const products = await listLenderProducts();
     const productsByLender = new Map<string, LenderProductRecord[]>();

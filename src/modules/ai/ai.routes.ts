@@ -7,7 +7,7 @@ const router = Router();
 
 router.post(
   "/session/start",
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     const context = req.body?.context as AiContext;
     if (!["website", "client", "portal"].includes(context)) {
       res.status(400).json({ error: "Invalid context" });
@@ -20,7 +20,7 @@ router.post(
 
 router.post(
   "/message",
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     const { sessionId, message } = req.body;
     if (typeof sessionId !== "string" || typeof message !== "string" || !message.trim()) {
       res.status(400).json({ error: "sessionId and message are required" });
@@ -33,7 +33,7 @@ router.post(
 
 router.post(
   "/escalate",
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     const { sessionId } = req.body;
     if (typeof sessionId !== "string" || !sessionId.trim()) {
       res.status(400).json({ error: "sessionId is required" });
@@ -45,7 +45,7 @@ router.post(
 
 router.post(
   "/report",
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     const { sessionId, message, screenshot } = req.body;
     if (typeof sessionId !== "string" || typeof message !== "string" || !message.trim()) {
       res.status(400).json({ error: "sessionId and message are required" });

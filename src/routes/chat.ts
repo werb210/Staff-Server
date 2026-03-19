@@ -5,7 +5,7 @@ import { dbQuery } from "../db";
 
 const router = Router();
 
-router.post("/", async (req, res) => {
+router.post("/", async (req, res, next) => {
   const { message } = req.body as { message?: string };
 
   if (!message) {
@@ -22,7 +22,7 @@ router.post("/", async (req, res) => {
   return res.json({ response, context });
 });
 
-router.post("/escalate", async (req, res) => {
+router.post("/escalate", async (req, res, next) => {
   const { sessionId, transcript, source } = req.body as {
     sessionId?: string;
     transcript?: unknown;

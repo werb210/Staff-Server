@@ -69,7 +69,7 @@ function buildRequestMetadata(req: Request): { ip?: string; userAgent?: string }
 
 router.post(
   "/log",
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     const parsed = z
       .object({
         staff_id: z.string().uuid(),
@@ -108,7 +108,7 @@ router.post(
   "/start",
   requireAuth,
   requireAuthorization({ roles: [ROLES.ADMIN, ROLES.STAFF] }),
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     const parsed = callStartSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       throw new AppError("validation_error", "Invalid call payload.", 400);
@@ -133,7 +133,7 @@ router.post(
   "/:id/status",
   requireAuth,
   requireAuthorization({ roles: [ROLES.ADMIN, ROLES.STAFF] }),
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     const id = req.params.id;
     if (!id || !uuidSchema.safeParse(id).success) {
       throw new AppError("validation_error", "Invalid call id.", 400);
@@ -162,7 +162,7 @@ router.post(
   "/:id/end",
   requireAuth,
   requireAuthorization({ roles: [ROLES.ADMIN, ROLES.STAFF] }),
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     const id = req.params.id;
     if (!id || !uuidSchema.safeParse(id).success) {
       throw new AppError("validation_error", "Invalid call id.", 400);
@@ -190,7 +190,7 @@ router.get(
   "/",
   requireAuth,
   requireAuthorization({ roles: [ROLES.ADMIN, ROLES.STAFF] }),
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     const contactId = typeof req.query.contactId === "string" ? req.query.contactId : null;
     const applicationId =
       typeof req.query.applicationId === "string" ? req.query.applicationId : null;

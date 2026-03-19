@@ -10,7 +10,7 @@ type SessionRequest = {
   };
 };
 
-router.post("/api/auth/otp/start", async (req, res) => {
+router.post("/api/auth/otp/start", async (req, res, next) => {
   const { phone } = (req.body ?? {}) as { phone?: string };
 
   try {
@@ -28,7 +28,7 @@ router.post("/api/auth/otp/start", async (req, res) => {
   });
 });
 
-router.post("/api/auth/otp/verify", async (req, res) => {
+router.post("/api/auth/otp/verify", async (req, res, next) => {
   const { phone, code } = (req.body ?? {}) as { phone?: string; code?: string };
 
   try {

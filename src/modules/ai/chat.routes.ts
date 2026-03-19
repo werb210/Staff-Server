@@ -35,7 +35,7 @@ async function createSessionHandler(req: Request, res: Response): Promise<void> 
 router.post("/chat/start", chatLimiter, createSessionHandler);
 router.post("/chat/session", chatLimiter, createSessionHandler);
 
-router.post("/chat/message", chatLimiter, async (req, res) => {
+router.post("/chat/message", chatLimiter, async (req, res, next) => {
   const { sessionId, message, source } = req.body as {
     sessionId?: string;
     message?: string;
@@ -73,7 +73,7 @@ async function transferChatHandler(req: Request, res: Response): Promise<void> {
 router.post("/chat/human", chatLimiter, transferChatHandler);
 router.post("/chat/transfer", chatLimiter, transferChatHandler);
 
-router.post("/chat/close", chatLimiter, async (req, res) => {
+router.post("/chat/close", chatLimiter, async (req, res, next) => {
   const { sessionId } = req.body as { sessionId?: string };
   if (!sessionId) {
     res.status(400).json({ error: "sessionId is required" });
@@ -83,7 +83,7 @@ router.post("/chat/close", chatLimiter, async (req, res) => {
   res.json({ status: "closed" });
 });
 
-router.get("/chat/sessions", async (req, res) => {
+router.get("/chat/sessions", async (req, res, next) => {
   const status = req.query.status;
   if (status !== "human") {
     res.status(400).json({ error: "Only status=human is currently supported" });
@@ -94,7 +94,7 @@ router.get("/chat/sessions", async (req, res) => {
   res.json({ sessions });
 });
 
-router.get("/chat/:sessionId/messages", async (req, res) => {
+router.get("/chat/:sessionId/messages", async (req, res, next) => {
   const messages = await getSessionMessages(req.params.sessionId);
   res.json({ messages });
 });

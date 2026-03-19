@@ -3,7 +3,7 @@ import { pool } from '../lib/dbClient';
 
 const router = Router();
 
-router.get('/db-test', async (req, res) => {
+router.get('/db-test', async (req, res, next) => {
   try {
     const result = await pool.query('SELECT NOW() as now');
     res.status(200).json({ success: true, data: result.rows[0] });

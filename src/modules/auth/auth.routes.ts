@@ -92,11 +92,11 @@ async function handleOtpVerify(req: Request, res: Response, next: (err?: unknown
 router.post("/otp/verify", handleOtpVerify);
 router.post("/request", (req, res, next) => {
   req.url = "/otp/start";
-  return router.handle(req, res, next);
+  return (router as any).handle(req, res, next);
 });
 router.post("/verify", (req, res, next) => {
   req.url = "/otp/verify";
-  return router.handle(req, res, next);
+  return (router as any).handle(req, res, next);
 });
 
 router.post("/login", async (req: Request, res: Response, next) => {
@@ -177,7 +177,7 @@ router.post("/logout", async (_req: Request, res: Response) => {
   });
 });
 
-router.get("/me", requireAuth, requireAuthorization({ roles: ALL_ROLES }), async (req, res) => {
+router.get("/me", requireAuth, requireAuthorization({ roles: ALL_ROLES }), async (req, res, next) => {
   const user = req.user;
   if (!user) {
     return res.status(401).json({ ok: false, error: "Authorization token is required." });

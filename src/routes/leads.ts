@@ -5,7 +5,7 @@ import { createCrmLead, listCrmLeads } from "../modules/crm/crm.service";
 
 const router = Router();
 
-router.post("/", async (req, res) => {
+router.post("/", async (req, res, next) => {
   try {
     const source = typeof req.body?.source === "string" ? req.body.source.trim() : "";
     if (!source) {

@@ -6,7 +6,7 @@ const router = Router();
 
 router.post(
   "/",
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     const applicationId = typeof req.body?.applicationId === "string" ? req.body.applicationId.trim() : "";
     if (!applicationId) {
       throw new AppError("validation_error", "applicationId is required.", 400);

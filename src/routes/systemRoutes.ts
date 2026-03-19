@@ -5,7 +5,7 @@ const router = Router();
 /*
 Continuation route used by Portal and Client
 */
-router.get("/continuation/:token", async (req, res) => {
+router.get("/continuation/:token", async (req, res, next) => {
   const { token } = req.params;
 
   if (!token) {
