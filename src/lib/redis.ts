@@ -1,9 +1,13 @@
 import Redis from "ioredis";
 
-const redisUrl = process.env.REDIS_URL || "redis://127.0.0.1:6379";
+if (!process.env.REDIS_URL) {
+  throw new Error("REDIS_URL missing");
+}
 
-export const redis = new Redis(redisUrl, {
-  maxRetriesPerRequest: 1,
-  enableReadyCheck: true,
-  lazyConnect: true,
+export const redis = new Redis(process.env.REDIS_URL, {
+  tls: {},
+  maxRetriesPerRequest: null,
 });
+
+redis.on("connect", () => console.log("[REDIS CONNECTED]"));
+redis.on("error", (err) => console.error("[REDIS ERROR]", err));

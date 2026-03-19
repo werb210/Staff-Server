@@ -1,68 +1,46 @@
 import express from "express";
-import { storeOtp, verifyOtp } from "../auth/otpService";
+import { sendOtp, verifyOtp } from "../auth/otpService";
 
 const router = express.Router();
-const isProduction = process.env.NODE_ENV === "production";
 
-function getSessionCookieDomain(): string | undefined {
-  return isProduction ? ".boreal.financial" : undefined;
-}
+type SessionRequest = {
+  session?: {
+    user?: unknown;
+    [key: string]: unknown;
+  };
+};
 
-function generateOtp(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-}
-
-router.post("/otp/start", async (req, res) => {
-  const { phone } = req.body as { phone?: string };
-
-  if (!phone) {
-    return res.status(400).json({ message: "Missing phone" });
-  }
-
-  const otp = generateOtp();
-
+router.post("/otp/send", async (req, res) => {
   try {
-    await storeOtp(phone, otp);
+    const { phone } = req.body;
 
-    return res.status(200).json({
-      success: true,
-      ...(isProduction ? {} : { otp }),
-    });
-  } catch (error) {
-    return res.status(400).json({
-      success: false,
-      message: error instanceof Error ? error.message : "Failed to send OTP",
-    });
+    await sendOtp(phone);
+
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("[OTP SEND ERROR]", err);
+    return res.status(500).json({ ok: false });
   }
 });
 
 router.post("/otp/verify", async (req, res) => {
-  const { phone, code } = req.body as { phone?: string; code?: string };
-
-  if (!phone || !code) {
-    return res.status(400).json({ message: "Invalid payload" });
-  }
-
   try {
+    const { phone, code } = req.body;
+
     const result = await verifyOtp(phone, code);
 
     if (!result.ok) {
       return res.status(400).json(result);
     }
 
-    res.cookie("session", "valid", {
-      httpOnly: true,
-      sameSite: isProduction ? "none" : "lax",
-      secure: isProduction,
-      domain: getSessionCookieDomain(),
-    });
+    const sessionRequest = req as unknown as SessionRequest;
+    sessionRequest.session = sessionRequest.session || {};
+    sessionRequest.session.user = { phone };
 
-    return res.status(200).json({ user: { id: "1" } });
-  } catch (error) {
-    return res.status(400).json({
-      ok: false,
-      message: error instanceof Error ? error.message : "Failed to verify OTP",
-    });
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("[OTP VERIFY ERROR]", err);
+    return res.status(500).json({ ok: false });
   }
 });
 
