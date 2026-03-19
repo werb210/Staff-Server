@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from "express";
 import { requireAuth, requireAuthorization } from "../../middleware/auth";
 import { ALL_ROLES } from "../../auth/roles";
 import { refreshSession, startOtp, verifyOtpCode } from "./auth.service";
+import { sendOtp as sendLegacyOtp, verifyOtp as verifyLegacyOtp } from "../../auth/otpService";
 
 const router = Router();
 const isProduction = process.env.NODE_ENV === "production";
@@ -60,6 +61,17 @@ router.post("/otp/start", async (req: Request, res: Response, next) => {
 async function handleOtpVerify(req: Request, res: Response, next: (err?: unknown) => void) {
   const body = coerceBody(req.body);
   try {
+    const legacyPhone = typeof body.phone === "string" ? body.phone : "";
+    const legacyCode = typeof body.code === "string" ? body.code : "";
+    const hasSessionId = typeof body.otpSessionId === "string" && body.otpSessionId.trim().length > 0;
+
+    if (!hasSessionId && legacyPhone.trim() && legacyCode.trim()) {
+      const legacy = await verifyLegacyOtp(legacyPhone, legacyCode);
+      if (legacy.ok) {
+        return res.status(200).json({ ok: true });
+      }
+    }
+
     const result = await verifyOtpCode({
       phone: typeof body.phone === "string" ? body.phone : "",
       code: typeof body.code === "string" ? body.code : "",
@@ -102,13 +114,50 @@ async function handleOtpVerify(req: Request, res: Response, next: (err?: unknown
   }
 }
 
+
+router.post("/otp/send", async (req: Request, res: Response) => {
+  const body = coerceBody(req.body);
+  const phone =
+    typeof body.phone === "string"
+      ? body.phone
+      : typeof body.phoneNumber === "string"
+        ? body.phoneNumber
+        : typeof body.phone_number === "string"
+          ? body.phone_number
+          : "";
+
+  if (!phone.trim()) {
+    return res.status(400).json({ ok: false, error: "Missing phone", message: "Missing phone" });
+  }
+
+  await sendLegacyOtp(phone);
+  return res.status(200).json({ ok: true });
+});
+
+router.post("/otp/legacy-verify", async (req: Request, res: Response) => {
+  const body = coerceBody(req.body);
+  const phone = typeof body.phone === "string" ? body.phone : "";
+  const code = typeof body.code === "string" ? body.code : "";
+
+  if (!phone.trim() || !code.trim()) {
+    return res.status(400).json({ ok: false, error: "invalid_payload" });
+  }
+
+  const result = await verifyLegacyOtp(phone, code);
+  if (!result.ok) {
+    return res.status(400).json(result);
+  }
+
+  return res.status(200).json({ ok: true });
+});
+
 router.post("/otp/verify", handleOtpVerify);
 router.post("/request", (req, res, next) => {
   req.url = "/otp/start";
   return (router as any).handle(req, res, next);
 });
 router.post("/verify", (req, res, next) => {
-  req.url = "/otp/verify";
+  req.url = "/otp/legacy-verify";
   return (router as any).handle(req, res, next);
 });
 
