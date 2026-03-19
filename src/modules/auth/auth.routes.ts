@@ -4,6 +4,11 @@ import { ALL_ROLES } from "../../auth/roles";
 import { refreshSession, startOtp, verifyOtpCode } from "./auth.service";
 
 const router = Router();
+const isProduction = process.env.NODE_ENV === "production";
+
+function getSessionCookieDomain(): string | undefined {
+  return isProduction ? ".boreal.financial" : undefined;
+}
 
 function coerceBody(body: unknown): Record<string, unknown> {
   if (!body || typeof body !== "object") {
@@ -79,8 +84,9 @@ async function handleOtpVerify(req: Request, res: Response, next: (err?: unknown
 
     res.cookie("session", result.data.token, {
       httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
+      sameSite: isProduction ? "none" : "lax",
+      secure: isProduction,
+      domain: getSessionCookieDomain(),
     });
 
     return res.json({
@@ -185,6 +191,10 @@ router.post("/logout", async (_req: Request, res: Response) => {
 
 router.get("/me", requireAuth, requireAuthorization({ roles: ALL_ROLES }), async (req, res) => {
   const user = req.user;
+
+  if (!user) {
+    return res.status(401).json({ ok: false, error: { code: "unauthorized", message: "Unauthorized" } });
+  }
 
   return res.json({
     ok: true,
