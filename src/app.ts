@@ -65,6 +65,7 @@ import healthRouter from "./routes/health";
 import { corsMiddleware } from "./middleware/cors";
 import { normalizeApiPath } from "./middleware/normalizeApiPath";
 import { dbGuard } from "./middleware/dbGuard";
+import { sessionMiddleware } from "./middleware/sessionStore";
 
 function isTruthyFlag(value: string | undefined): boolean {
   if (!value) {
@@ -169,6 +170,7 @@ export function buildApp(): express.Express {
   app.use(productionLogger);
 
   app.use(corsMiddleware);
+  app.use(sessionMiddleware);
 
   app.use(helmet());
 

@@ -1,5 +1,10 @@
 import express from 'express';
 const router = express.Router();
+const isProduction = process.env.NODE_ENV === "production";
+
+function getSessionCookieDomain(): string | undefined {
+  return isProduction ? '.boreal.financial' : undefined;
+}
 
 router.post('/otp/start', async (req, res, next) => {
   const { phone } = req.body;
@@ -20,8 +25,9 @@ router.post('/otp/verify', async (req, res, next) => {
 
   res.cookie('session', 'valid', {
     httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === "production",
+    sameSite: isProduction ? 'none' : 'lax',
+    secure: isProduction,
+    domain: getSessionCookieDomain(),
   });
 
   return res.status(200).json({ user: { id: '1' } });
