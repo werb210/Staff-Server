@@ -21,7 +21,7 @@ router.post("/update", async (_req, res) => {
   res.status(200).json({ ok: true });
 });
 
-router.post("/", async (req, res) => {
+router.post("/", async (req, res, next) => {
   try {
     const { sessionId, source } = createApplicationSchema.parse(req.body ?? {});
 

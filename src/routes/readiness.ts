@@ -19,7 +19,7 @@ const readinessSchema = z.object({
   existingDebt: z.union([z.boolean(), z.string()]).optional(),
 });
 
-router.post("/", async (req, res) => {
+router.post("/", async (req, res, next) => {
   const parsed = readinessSchema.safeParse(req.body ?? {});
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid request" });
@@ -47,7 +47,7 @@ router.post("/", async (req, res) => {
   }
 });
 
-router.post("/continue", async (req, res) => {
+router.post("/continue", async (req, res, next) => {
   const email = typeof req.body?.email === "string" ? req.body.email.trim() : "";
   if (!email) {
     return res.status(400).json({ error: "Invalid request" });
@@ -69,7 +69,7 @@ router.post("/continue", async (req, res) => {
   return res.status(200).json({ success: true, data: { session } });
 });
 
-router.get("/:sessionId", async (req, res) => {
+router.get("/:sessionId", async (req, res, next) => {
   const sessionId = typeof req.params.sessionId === "string" ? req.params.sessionId.trim() : "";
   if (!sessionId) {
     return res.status(400).json({ error: "Invalid request" });

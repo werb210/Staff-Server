@@ -25,7 +25,7 @@ router.post(
   requireAuth,
   requireCapability([CAPABILITIES.LENDER_SUBMIT]),
   lenderSubmissionRateLimit(),
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     if (!req.user) {
       throw new AppError("missing_token", "Authorization token is required.", 401);
     }

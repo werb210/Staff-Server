@@ -67,7 +67,7 @@ function buildRequestMetadata(req: Request): { ip?: string; userAgent?: string }
   return metadata;
 }
 
-const uploadHandler = safeHandler(async (req, res) => {
+const uploadHandler = safeHandler(async (req, res, next) => {
   const applicationId = typeof req.body?.applicationId === "string"
     ? req.body.applicationId.trim()
     : "";
@@ -194,7 +194,7 @@ router.post("/upload", upload.single("file"), uploadHandler);
 
 router.get(
   "/:id/presign",
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     const documentId = typeof req.params.id === "string" ? req.params.id.trim() : "";
     if (!documentId) {
       throw new AppError("validation_error", "documentId is required.", 400);
@@ -233,7 +233,7 @@ router.post(
   "/:id/accept",
   requireAuth,
   requireCapability([CAPABILITIES.DOCUMENT_REVIEW]),
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     if (!req.user) {
       throw new AppError("missing_token", "Authorization token is required.", 401);
     }
@@ -258,7 +258,7 @@ router.post(
   "/:id/reject",
   requireAuth,
   requireCapability([CAPABILITIES.DOCUMENT_REVIEW]),
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     if (!req.user) {
       throw new AppError("missing_token", "Authorization token is required.", 401);
     }

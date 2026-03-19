@@ -36,7 +36,7 @@ router.post(
   "/",
   requireAuth,
   requireCapability([CAPABILITIES.APPLICATION_CREATE]),
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     try {
       const { name, metadata, productType } = req.body ?? {};
       if (!req.user) {
@@ -83,7 +83,7 @@ router.get(
   "/:id/documents",
   requireAuth,
   requireCapability([CAPABILITIES.APPLICATION_READ]),
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     if (!req.user) {
       throw new AppError("missing_token", "Authorization token is required.", 401);
     }
@@ -108,7 +108,7 @@ router.post(
   "/:id/open",
   requireAuth,
   requireCapability([CAPABILITIES.APPLICATION_READ]),
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     if (!req.user) {
       throw new AppError("missing_token", "Authorization token is required.", 401);
     }
@@ -136,7 +136,7 @@ router.post(
   requireAuth,
   requireCapability([CAPABILITIES.DOCUMENT_UPLOAD]),
   documentUploadRateLimit(),
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     try {
       if (!req.user) {
         throw new AppError("missing_token", "Authorization token is required.", 401);
@@ -186,7 +186,7 @@ router.delete(
   "/:id/documents/:documentId",
   requireAuth,
   requireCapability([CAPABILITIES.DOCUMENT_REVIEW]),
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     if (!req.user) {
       throw new AppError("missing_token", "Authorization token is required.", 401);
     }
@@ -215,7 +215,7 @@ router.post(
   "/:id/pipeline",
   requireAuth,
   requireCapability([CAPABILITIES.PIPELINE_MANAGE]),
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     try {
       if (!req.user) {
         throw new AppError("missing_token", "Authorization token is required.", 401);
@@ -258,7 +258,7 @@ router.post(
   "/:id/documents/:documentId/versions/:versionId/accept",
   requireAuth,
   requireCapability([CAPABILITIES.DOCUMENT_REVIEW]),
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     try {
       if (!req.user) {
         throw new AppError("missing_token", "Authorization token is required.", 401);
@@ -299,7 +299,7 @@ router.post(
   "/:id/documents/:documentId/versions/:versionId/reject",
   requireAuth,
   requireCapability([CAPABILITIES.DOCUMENT_REVIEW]),
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     try {
       if (!req.user) {
         throw new AppError("missing_token", "Authorization token is required.", 401);

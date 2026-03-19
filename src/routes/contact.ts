@@ -38,7 +38,7 @@ const schema = Joi.object({
 
 const router = Router();
 
-router.post("/", contactRateLimiter, validateBody(schema), async (req, res) => {
+router.post("/", contactRateLimiter, validateBody(schema), async (req, res, next) => {
   try {
     const {
       company,

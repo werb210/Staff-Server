@@ -3,7 +3,7 @@ import { buildLenderPackage } from "../../services/lenders/packageBuilder";
 
 const router = Router();
 
-router.post("/send", async (req, res) => {
+router.post("/send", async (req, res, next) => {
   try {
     const packageData = buildLenderPackage(req.body);
 

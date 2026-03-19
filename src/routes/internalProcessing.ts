@@ -15,7 +15,7 @@ router.use(requireCapability([CAPABILITIES.OPS_MANAGE]));
 
 router.post(
   "/ocr/:documentId/complete",
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     const documentId =
       typeof req.params.documentId === "string" ? req.params.documentId.trim() : "";
     if (!documentId) {
@@ -28,7 +28,7 @@ router.post(
 
 router.post(
   "/banking/:applicationId/complete",
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     const applicationId =
       typeof req.params.applicationId === "string"
         ? req.params.applicationId.trim()

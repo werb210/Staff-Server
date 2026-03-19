@@ -4,7 +4,7 @@ import { withTimeout } from "../utils/withTimeout";
 
 const router = Router();
 
-router.post("/", async (req, res) => {
+router.post("/", async (req, res, next) => {
   const { email } = req.body as { email?: string };
 
   if (!email) {

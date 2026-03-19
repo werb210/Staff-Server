@@ -9,7 +9,7 @@ const router = Router();
 
 router.post(
   "/",
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     const applicationId = typeof req.body?.applicationId === "string" ? req.body.applicationId.trim() : "";
     const body = typeof req.body?.body === "string" ? req.body.body.trim() : "";
     if (!applicationId || !body) {

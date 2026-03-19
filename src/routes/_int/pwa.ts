@@ -24,7 +24,7 @@ router.post(
   requireAuth,
   requireAuthorization({ roles: ALL_ROLES }),
   pushSendRateLimit(),
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     assertIntPwaAllowed();
     const payload = {
       type: "alert" as const,
@@ -46,7 +46,7 @@ router.post(
   "/pwa/test-sync",
   requireAuth,
   requireAuthorization({ roles: ALL_ROLES }),
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     assertIntPwaAllowed();
     const requestId = res.locals.requestId ?? "unknown";
     const user = req.user!;

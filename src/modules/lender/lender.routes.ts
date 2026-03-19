@@ -25,7 +25,7 @@ router.post(
   requireAuth,
   requireCapability([CAPABILITIES.LENDER_SUBMIT]),
   lenderSubmissionRateLimit(),
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     if (!req.user) {
       throw new AppError("missing_token", "Authorization token is required.", 401);
     }
@@ -82,7 +82,7 @@ router.get(
   "/submissions/:id",
   requireAuth,
   requireCapability([CAPABILITIES.LENDER_SUBMIT]),
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     const submissionId = req.params.id;
     if (!submissionId) {
       throw new AppError("validation_error", "submission id is required.", 400);

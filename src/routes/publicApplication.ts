@@ -31,7 +31,7 @@ function normalizeRequestedAmount(value: number | string | undefined): number | 
   return null;
 }
 
-router.post("/application/start", async (req, res) => {
+router.post("/application/start", async (req, res, next) => {
   try {
     const {
       companyName,

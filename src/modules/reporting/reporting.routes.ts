@@ -79,7 +79,7 @@ function getAuditContext(req: Request): { ip: string | null; userAgent: string |
   };
 }
 
-router.get("/overview", safeHandler(async (req, res) => {
+router.get("/overview", safeHandler(async (req, res, next) => {
   const { from, to, groupBy, limit, offset } = req.query ?? {};
   const parsedFrom = parseDate(from, "from");
   const parsedTo = parseDate(to, "to");
@@ -108,7 +108,7 @@ router.get("/overview", safeHandler(async (req, res) => {
   res.json({ metrics, limit: parsedLimit, offset: parsedOffset });
 }));
 
-router.get("/pipeline", safeHandler(async (req, res) => {
+router.get("/pipeline", safeHandler(async (req, res, next) => {
   try {
     const { from, to, groupBy, limit, offset } = req.query ?? {};
     const parsedFrom = parseDate(from, "from");
@@ -148,7 +148,7 @@ router.get("/pipeline", safeHandler(async (req, res) => {
   }
 }));
 
-router.get("/pipeline/summary", safeHandler(async (req, res) => {
+router.get("/pipeline/summary", safeHandler(async (req, res, next) => {
   try {
     const currentState = await listCurrentPipelineState();
 
@@ -174,7 +174,7 @@ router.get("/pipeline/summary", safeHandler(async (req, res) => {
   }
 }));
 
-router.get("/pipeline/timeseries", safeHandler(async (req, res) => {
+router.get("/pipeline/timeseries", safeHandler(async (req, res, next) => {
   try {
     const { from, to, groupBy, limit, offset, pipelineState } = req.query ?? {};
     const parsedFrom = parseDate(from, "from");
@@ -214,7 +214,7 @@ router.get("/pipeline/timeseries", safeHandler(async (req, res) => {
   }
 }));
 
-router.get("/lenders/performance", safeHandler(async (req, res) => {
+router.get("/lenders/performance", safeHandler(async (req, res, next) => {
   const { from, to, groupBy, limit, offset, lenderId } = req.query ?? {};
   const parsedFrom = parseDate(from, "from");
   const parsedTo = parseDate(to, "to");
@@ -252,7 +252,7 @@ router.get("/lenders/performance", safeHandler(async (req, res) => {
   res.json({ performance, funnel, limit: parsedLimit, offset: parsedOffset });
 }));
 
-router.get("/applications/volume", safeHandler(async (req, res) => {
+router.get("/applications/volume", safeHandler(async (req, res, next) => {
   const { from, to, groupBy, limit, offset, productType } = req.query ?? {};
   const parsedFrom = parseDate(from, "from");
   const parsedTo = parseDate(to, "to");
@@ -282,7 +282,7 @@ router.get("/applications/volume", safeHandler(async (req, res) => {
   res.json({ metrics, limit: parsedLimit, offset: parsedOffset });
 }));
 
-router.get("/documents/metrics", safeHandler(async (req, res) => {
+router.get("/documents/metrics", safeHandler(async (req, res, next) => {
   const { from, to, groupBy, limit, offset, documentType } = req.query ?? {};
   const parsedFrom = parseDate(from, "from");
   const parsedTo = parseDate(to, "to");
@@ -312,7 +312,7 @@ router.get("/documents/metrics", safeHandler(async (req, res) => {
   res.json({ metrics, limit: parsedLimit, offset: parsedOffset });
 }));
 
-router.get("/staff/activity", safeHandler(async (req, res) => {
+router.get("/staff/activity", safeHandler(async (req, res, next) => {
   const { from, to, groupBy, limit, offset, staffUserId, action } = req.query ?? {};
   const parsedFrom = parseDate(from, "from");
   const parsedTo = parseDate(to, "to");
@@ -367,7 +367,7 @@ router.get("/conversion", safeHandler(async (_req, res) => {
   res.json({ funnel: result.rows[0] ?? null });
 }));
 
-router.get("/documents", safeHandler(async (req, res) => {
+router.get("/documents", safeHandler(async (req, res, next) => {
   const result = await pool.query<{
     documents_uploaded: number;
     documents_reviewed: number;
@@ -391,7 +391,7 @@ router.get("/documents", safeHandler(async (req, res) => {
   res.json({ documents: result.rows[0] ?? null });
 }));
 
-router.get("/lenders", safeHandler(async (req, res) => {
+router.get("/lenders", safeHandler(async (req, res, next) => {
   const { from, to, groupBy, limit, offset } = req.query ?? {};
   const parsedFrom = parseDate(from, "from");
   const parsedTo = parseDate(to, "to");

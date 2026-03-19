@@ -19,7 +19,7 @@ function getJwtSecret(): string {
 /**
  * WEBSITE → Store pre-application and return continuation token.
  */
-router.post("/continue-application", async (req, res) => {
+router.post("/continue-application", async (req, res, next) => {
   try {
     const data = (req.body ?? {}) as Record<string, string | undefined>;
 
@@ -72,7 +72,7 @@ router.post("/continue-application", async (req, res) => {
 /**
  * CLIENT → Fetch continuation data.
  */
-router.get("/continue-application", async (req, res) => {
+router.get("/continue-application", async (req, res, next) => {
   try {
     const token = req.headers.authorization?.replace("Bearer ", "");
     if (!token) {
@@ -117,7 +117,7 @@ router.get("/continue-application", async (req, res) => {
 /**
  * CLIENT → Mark as consumed once application created.
  */
-router.post("/consume-pre-application", async (req, res) => {
+router.post("/consume-pre-application", async (req, res, next) => {
   try {
     const { id } = (req.body ?? {}) as { id?: string };
     if (!id) {

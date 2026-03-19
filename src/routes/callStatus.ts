@@ -8,7 +8,7 @@ router.post(
   "/status",
   requireAuth,
   requireAuthorization({ roles: [ROLES.ADMIN, ROLES.STAFF] }),
-  async (req, res) => {
+  async (req, res, next) => {
     const { callSid, status } = req.body as { callSid?: string; status?: string };
 
     if (!callSid) {

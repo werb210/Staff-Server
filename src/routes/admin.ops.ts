@@ -36,7 +36,7 @@ function getAuditContext(req: Request): { ip: string | null; userAgent: string |
   };
 }
 
-router.get("/kill-switches", safeHandler(async (req, res) => {
+router.get("/kill-switches", safeHandler(async (req, res, next) => {
   const switches = await listKillSwitches();
   await recordAuditEvent({
     action: "ops_kill_switches_viewed",
@@ -50,7 +50,7 @@ router.get("/kill-switches", safeHandler(async (req, res) => {
   res.json({ switches });
 }));
 
-router.post("/kill-switches/:key/enable", safeHandler(async (req, res) => {
+router.post("/kill-switches/:key/enable", safeHandler(async (req, res, next) => {
   const key = req.params.key ?? "";
   assertKillSwitchKey(key);
   await setKillSwitch(key, true);
@@ -66,7 +66,7 @@ router.post("/kill-switches/:key/enable", safeHandler(async (req, res) => {
   res.json({ key, enabled: true });
 }));
 
-router.post("/kill-switches/:key/disable", safeHandler(async (req, res) => {
+router.post("/kill-switches/:key/disable", safeHandler(async (req, res, next) => {
   const key = req.params.key ?? "";
   assertKillSwitchKey(key);
   await setKillSwitch(key, false);
@@ -82,7 +82,7 @@ router.post("/kill-switches/:key/disable", safeHandler(async (req, res) => {
   res.json({ key, enabled: false });
 }));
 
-router.post("/replay/:scope", safeHandler(async (req, res) => {
+router.post("/replay/:scope", safeHandler(async (req, res, next) => {
   const scope = req.params.scope ?? "";
   if (!REPLAY_SCOPES.includes(scope as (typeof REPLAY_SCOPES)[number])) {
     throw new AppError("invalid_scope", "Unsupported replay scope.", 400);
@@ -106,7 +106,7 @@ router.post("/replay/:scope", safeHandler(async (req, res) => {
   res.status(202).json({ job });
 }));
 
-router.get("/replay/:id/status", safeHandler(async (req, res) => {
+router.get("/replay/:id/status", safeHandler(async (req, res, next) => {
   const jobId = req.params.id;
   if (!jobId) {
     throw new AppError("validation_error", "Replay job id is required.", 400);

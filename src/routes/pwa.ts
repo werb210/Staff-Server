@@ -58,7 +58,7 @@ router.post(
   "/subscribe",
   requireAuth,
   requireAuthorization({ roles: ALL_ROLES }),
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     const requestId = res.locals.requestId ?? "unknown";
     const parsedResult = subscriptionSchema.safeParse(req.body ?? {});
     if (!parsedResult.success) {
@@ -84,7 +84,7 @@ router.delete(
   "/unsubscribe",
   requireAuth,
   requireAuthorization({ roles: ALL_ROLES }),
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     const parsedResult = unsubscribeSchema.safeParse(req.body ?? {});
     if (!parsedResult.success) {
       throw new AppError("validation_error", "Invalid unsubscribe payload.", 400);
@@ -107,7 +107,7 @@ router.delete(
   "/unsubscribe/owned",
   requireAuth,
   requireAuthorization({ roles: ALL_ROLES }),
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     const parsedResult = unsubscribeSchema.safeParse(req.body ?? {});
     if (!parsedResult.success) {
       throw new AppError("validation_error", "Invalid unsubscribe payload.", 400);
@@ -136,7 +136,7 @@ router.get(
   requireAuth,
   requireAuthorization({ roles: ALL_ROLES }),
   perUserNotificationReadLimiter,
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     const limitRaw = typeof req.query.limit === "string" ? Number(req.query.limit) : DEFAULT_NOTIFICATION_LIMIT;
     const offsetRaw = typeof req.query.offset === "string" ? Number(req.query.offset) : 0;
     const limit = Number.isFinite(limitRaw)
@@ -167,7 +167,7 @@ router.post(
   requireAuth,
   requireAuthorization({ roles: ALL_ROLES }),
   perUserNotificationAckLimiter,
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     const id = req.params.id;
     if (!id) {
       throw new AppError("validation_error", "id is required.", 400);
@@ -184,7 +184,7 @@ router.post(
   "/sync",
   requireAuth,
   requireAuthorization({ roles: ALL_ROLES }),
-  safeHandler(async (req, res) => {
+  safeHandler(async (req, res, next) => {
     const requestId = res.locals.requestId ?? "unknown";
     const user = req.user!;
     const replayUser = {

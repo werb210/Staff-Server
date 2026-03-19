@@ -9,7 +9,7 @@ type SessionRequest = {
   };
 };
 
-router.get("/session", async (req, res) => {
+router.get("/session", async (req, res, next) => {
   const sessionUser = (req as unknown as SessionRequest).session?.user;
 
   if (sessionUser) {
@@ -24,7 +24,7 @@ router.get("/session", async (req, res) => {
   });
 });
 
-router.post("/api/client/session/refresh", async (req, res) => {
+router.post("/api/client/session/refresh", async (req, res, next) => {
   const session = (req as unknown as SessionRequest).session;
 
   if (!session) {

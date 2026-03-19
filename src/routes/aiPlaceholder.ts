@@ -2,7 +2,7 @@ import { Router } from "express";
 
 const router = Router();
 
-router.post("/ai/chat", async (req, res) => {
+router.post("/ai/chat", async (req, res, next) => {
   const { message } = req.body as { message?: string };
 
   if (!message) {
