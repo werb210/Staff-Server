@@ -68,11 +68,11 @@ function buildRequestMetadata(req: Request): { ip?: string; userAgent?: string }
 }
 
 const uploadHandler = safeHandler(async (req, res, next) => {
-  const applicationId = typeof req.body?.applicationId === "string"
-    ? req.body.applicationId.trim()
-    : "";
-  const category =
-    typeof req.body?.category === "string" ? req.body.category.trim() : "";
+  const applicationIdRaw = req.body?.applicationId ?? req.body?.application_id;
+  const categoryRaw = req.body?.category ?? req.body?.document_category;
+  const applicationId =
+    typeof applicationIdRaw === "string" ? applicationIdRaw.trim() : "";
+  const category = typeof categoryRaw === "string" ? categoryRaw.trim() : "";
   if (!applicationId) {
     throw new AppError("validation_error", "applicationId is required.", 400);
   }

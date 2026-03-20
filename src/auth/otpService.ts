@@ -1,4 +1,5 @@
 import { deleteOtp, getOtp, storeOtp as persistOtp } from "../services/otpService";
+import { ENV } from "../config/env";
 
 function normalizePhone(phone: string): string {
   let p = phone.replace(/\D/g, "");
@@ -12,6 +13,10 @@ function generateOtp(): string {
 }
 
 export async function sendOtp(phone: string): Promise<string> {
+  if (ENV.TEST_MODE) {
+    return "000000";
+  }
+
   const normalized = normalizePhone(phone);
   const code = generateOtp();
 
@@ -31,6 +36,10 @@ export async function storeOtp(phone: string, code: string): Promise<void> {
 }
 
 export async function verifyOtp(phone: string, code: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (ENV.TEST_MODE) {
+    return code === "000000" ? { ok: true } : { ok: false, error: "invalid_code" };
+  }
+
   const normalized = normalizePhone(phone);
   const stored = await getOtp(normalized);
 

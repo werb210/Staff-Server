@@ -1,51 +1,32 @@
-import cors from "cors";
-import { getCorsAllowlistConfig } from "../config";
-import { getCorsAllowedHeaders } from "../startup/corsValidation";
+import { Request, Response, NextFunction } from "express";
+import { ENV } from "../config/env";
 
-const REQUIRED_PRODUCTION_ORIGINS = [
-  "https://client.boreal.financial",
-  "https://staff.boreal.financial",
-  "https://server.boreal.financial",
-] as const;
+export function corsMiddleware(req: Request, res: Response, next: NextFunction) {
+  const origin = req.headers.origin;
 
-function normalizeOrigin(origin: string): string {
-  return origin.trim().toLowerCase().replace(/\/$/, "");
+  const allowedOrigins = new Set([
+    ENV.CLIENT_URL,
+    ENV.PORTAL_URL,
+    ...ENV.CORS_ORIGINS,
+  ]);
+
+  if (origin && allowedOrigins.has(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
+
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+  );
+  res.setHeader(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PUT, DELETE, OPTIONS"
+  );
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+
+  next();
 }
-
-function buildAllowedOrigins(): string[] {
-  const legacyOrigins = [process.env.CLIENT_ORIGIN, process.env.PORTAL_ORIGIN];
-  const configured = [...getCorsAllowlistConfig(), ...legacyOrigins, ...REQUIRED_PRODUCTION_ORIGINS]
-    .filter((origin): origin is string => Boolean(origin))
-    .map((origin) => normalizeOrigin(origin));
-
-  return [...new Set(configured)];
-}
-
-const allowedOrigins = buildAllowedOrigins();
-const allowedOriginSet = new Set(allowedOrigins);
-const allowAllOrigins = allowedOriginSet.has("*");
-
-export function getAllowedOrigins(): string[] {
-  return [...allowedOrigins];
-}
-
-export const corsMiddleware = cors({
-  origin(origin, callback) {
-    if (!origin) {
-      callback(null, true);
-      return;
-    }
-
-    if (allowAllOrigins) {
-      callback(null, true);
-      return;
-    }
-
-    const normalizedOrigin = normalizeOrigin(origin);
-    callback(null, allowedOriginSet.has(normalizedOrigin));
-  },
-  credentials: true,
-  methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: getCorsAllowedHeaders(),
-  optionsSuccessStatus: 204,
-});
