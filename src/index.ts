@@ -7,6 +7,8 @@ import { testDb } from "./lib/db";
 import { initRedis } from "./lib/redis";
 import { IS_TEST } from "./config/env";
 
+const isTestMode = process.env.TEST_MODE === "true";
+
 // FORCE correct env file based on NODE_ENV
 const envFile = process.env.NODE_ENV === "test" ? ".env.test" : ".env";
 dotenv.config({ path: envFile });
@@ -30,7 +32,10 @@ app.use(
 );
 
 app.get("/health", (_req, res) => {
-  res.json({ ok: true });
+  res.json({
+    status: "ok",
+    db: isTestMode || IS_TEST ? "skipped" : "connected",
+  });
 });
 
 async function loadRoutes(): Promise<void> {
@@ -53,13 +58,18 @@ async function loadRoutes(): Promise<void> {
 const PORT = Number(process.env.PORT || 8080);
 
 async function safeInit() {
-  if (IS_TEST) {
-    console.log("TEST MODE: skipping DB + Redis init");
+  if (IS_TEST || isTestMode) {
+    console.log("TEST_MODE enabled — skipping DB connection");
     return;
   }
 
-  await testDb();
-  initRedis();
+  try {
+    await testDb();
+    initRedis();
+  } catch (err) {
+    console.error("DB init failed", err);
+    process.exit(1);
+  }
 }
 
 async function start() {
