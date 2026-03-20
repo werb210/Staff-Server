@@ -10,6 +10,21 @@ export class EmailSubmissionAdapter implements SubmissionAdapter {
   }
 
   async submit(_input: SubmissionPayload): Promise<SubmissionResult> {
+    if (process.env.TEST_MODE === "true") {
+      console.log("[TEST_MODE] EMAIL skipped");
+      return {
+        success: true,
+        response: {
+          status: "accepted",
+          detail: "TEST_MODE email skipped",
+          receivedAt: new Date().toISOString(),
+          externalReference: "email_test_mode_skip",
+        },
+        failureReason: null,
+        retryable: false,
+      };
+    }
+
     const now = new Date().toISOString();
     void this.payload;
     return {

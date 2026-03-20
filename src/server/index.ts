@@ -20,6 +20,7 @@ import { assertDatabaseHealthy } from "../health/dbHealth";
 let processHandlersInstalled = false;
 let server: Server | null = null;
 let app: Express | null = null;
+const isTestMode = process.env.TEST_MODE === "true";
 
 function installProcessHandlers(): void {
   if (processHandlersInstalled) return;
@@ -36,6 +37,11 @@ function installProcessHandlers(): void {
 
 
 function registerOtpCleanupJob(): void {
+  if (isTestMode) {
+    logger.info("otp_cleanup_skipped_test_mode");
+    return;
+  }
+
   const timer = setInterval(() => {
     cleanupOtpSessions(db).catch((err) => {
       logger.error("otp_cleanup_failed", {
@@ -112,7 +118,9 @@ export async function startServer() {
 
   if (!server) throw new Error("Server failed to start.");
 
-  initChatSocket(server);
+  if (!isTestMode) {
+    initChatSocket(server);
+  }
   markReady();
   return server;
 }

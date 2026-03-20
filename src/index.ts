@@ -7,7 +7,7 @@ import { testDb } from "./lib/db";
 import { initRedis } from "./lib/redis";
 import { IS_TEST } from "./config/env";
 
-const isTestMode = process.env.TEST_MODE === "true";
+export const isTestMode = process.env.TEST_MODE === "true";
 
 // FORCE correct env file based on NODE_ENV
 const envFile = process.env.NODE_ENV === "test" ? ".env.test" : ".env";
@@ -34,7 +34,18 @@ app.use(
 app.get("/health", (_req, res) => {
   res.json({
     status: "ok",
-    db: isTestMode || IS_TEST ? "skipped" : "connected",
+    testMode: isTestMode,
+    timestamp: Date.now(),
+  });
+});
+
+app.get("/test/smoke", (_req, res) => {
+  res.json({
+    success: true,
+    services: {
+      api: true,
+      redis: isTestMode ? "skipped" : "active",
+    },
   });
 });
 

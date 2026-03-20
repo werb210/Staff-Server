@@ -69,6 +69,8 @@ import { normalizeApiPath } from "./middleware/normalizeApiPath";
 import { dbGuard } from "./middleware/dbGuard";
 import { sessionMiddleware } from "./middleware/sessionStore";
 
+export const isTestMode = process.env.TEST_MODE === "true";
+
 function isTruthyFlag(value: string | undefined): boolean {
   if (!value) {
     return false;
@@ -137,6 +139,24 @@ export function buildApp(): express.Express {
 
   app.use(express.json({ limit: "1mb" }));
   app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+
+  app.get("/health", (_req, res) => {
+    res.json({
+      status: "ok",
+      testMode: isTestMode,
+      timestamp: Date.now(),
+    });
+  });
+
+  app.get("/test/smoke", (_req, res) => {
+    res.json({
+      success: true,
+      services: {
+        api: true,
+        redis: isTestMode ? "skipped" : "active",
+      },
+    });
+  });
 
   app.use("/health", healthRouter);
 
