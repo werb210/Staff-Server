@@ -54,12 +54,13 @@ export async function createServer(
     ...options.services,
   };
   const isProduction = (process.env.NODE_ENV ?? "development") === "production";
+  const isTestMode = process.env.TEST_MODE === "true";
 
   if (!config.skipEnvCheck) {
     assertEnv();
   }
 
-  if (!config.skipServicesInit) {
+  if (!config.skipServicesInit && !isTestMode) {
     services.initializePushService?.();
     services.getTwilioClient?.();
     services.getVerifyServiceSid?.();
@@ -121,7 +122,7 @@ export async function createServer(
   registerApiRoutes(app);
   app.use(notFoundHandler);
 
-  if (config.startFollowUpJobs !== false) {
+  if (!isTestMode && config.startFollowUpJobs !== false) {
     services.startFollowUpJobs?.();
   }
 

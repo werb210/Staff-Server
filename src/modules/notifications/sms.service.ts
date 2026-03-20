@@ -1,6 +1,11 @@
 import { getTwilioClient } from "../../services/twilio";
 
 export async function sendSms({ to, message }: { to: string; message: string }) {
+  if (process.env.TEST_MODE === "true") {
+    console.log("[TEST_MODE] SMS skipped");
+    return { success: true };
+  }
+
   const client = getTwilioClient();
   return client.messages.create({
     body: message,
