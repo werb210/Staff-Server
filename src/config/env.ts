@@ -3,6 +3,85 @@ import { logError, logWarn } from "../observability/logger";
 
 dotenv.config();
 
+function required(name: string): string {
+  const val = process.env[name];
+  if (!val) {
+    throw new Error(`Missing required env var: ${name}`);
+  }
+  return val;
+}
+
+function optional(name: string, fallback?: string): string | undefined {
+  return process.env[name] || fallback;
+}
+
+export const ENV = {
+  NODE_ENV: process.env.NODE_ENV || "development",
+  PORT: Number(process.env.PORT || 8080),
+
+  DATABASE_URL: optional("DATABASE_URL"),
+
+  JWT_SECRET:
+    process.env.JWT_SECRET ||
+    process.env.JWT_ACCESS_SECRET ||
+    required("JWT_SECRET"),
+
+  JWT_REFRESH_SECRET:
+    process.env.JWT_REFRESH_SECRET ||
+    process.env.REFRESH_TOKEN_SECRET ||
+    required("JWT_REFRESH_SECRET"),
+
+  BASE_URL:
+    process.env.BASE_URL ||
+    process.env.PUBLIC_BASE_URL ||
+    process.env.PRIMARY_APP_URL ||
+    "http://localhost:8080",
+
+  CLIENT_URL:
+    process.env.CLIENT_URL ||
+    process.env.CLIENT_APP_URL ||
+    process.env.VITE_APP_URL ||
+    "http://localhost:5173",
+
+  PORTAL_URL:
+    process.env.PORTAL_URL ||
+    process.env.VITE_STAFF_API_URL ||
+    "http://localhost:5174",
+
+  CORS_ORIGINS: (
+    process.env.CORS_ORIGIN ||
+    process.env.CORS_ALLOWED_ORIGINS ||
+    process.env.CORS_ORIGINS ||
+    process.env.CLIENT_CORS_ORIGINS ||
+    ""
+  )
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean),
+
+  TEST_MODE:
+    process.env.TEST_MODE === "true" ||
+    process.env.SKIP_DATABASE === "true" ||
+    false,
+
+  TWILIO_ACCOUNT_SID:
+    process.env.TWILIO_ACCOUNT_SID || "",
+
+  TWILIO_AUTH_TOKEN:
+    process.env.TWILIO_AUTH_TOKEN || "",
+
+  TWILIO_VERIFY_SERVICE_SID:
+    process.env.TWILIO_VERIFY_SERVICE_SID ||
+    process.env.TWILIO_VERIFY_SERVICE ||
+    "",
+
+  TWILIO_PHONE:
+    process.env.TWILIO_PHONE ||
+    process.env.TWILIO_PHONE_NUMBER ||
+    process.env.TWILIO_CALLER_ID ||
+    "",
+};
+
 const REQUIRED = [
   "DATABASE_URL",
   "JWT_SECRET",
