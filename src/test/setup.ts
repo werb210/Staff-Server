@@ -1,5 +1,7 @@
 import './setupEnv'
 import './setupMocks'
 import './setupDbMock'
+import './setupTwilioMock'
+import './setupProcess'
 
-console.log('[GLOBAL TEST SETUP COMPLETE]')
+console.log('[FULL TEST ENV READY]')
