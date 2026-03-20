@@ -1,10 +1,12 @@
-import { defineConfig } from '@playwright/test'
+import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
-  testDir: './tests/e2e',
+  testDir: './tests',
+  testIgnore: ['**/node_modules/**'],
+  fullyParallel: false,
+  retries: 0,
   timeout: 30000,
   use: {
-    baseURL: 'https://staff.boreal.financial',
-    headless: true
-  }
-})
+    baseURL: 'http://localhost:3000',
+  },
+});
