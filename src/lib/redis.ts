@@ -1,8 +1,14 @@
 import Redis from "ioredis";
 
 let redisClient: Redis | null = null;
+const isTestMode = process.env.TEST_MODE === "true";
 
 export function initRedis(): Redis | null {
+  if (isTestMode) {
+    console.log("TEST_MODE enabled — skipping Redis connection");
+    return null;
+  }
+
   const redisUrl = process.env.REDIS_URL?.trim();
 
   if (!redisUrl) {
@@ -27,7 +33,7 @@ export function initRedis(): Redis | null {
   return redisClient;
 }
 
-export const redis = initRedis();
+export const redis = isTestMode ? null : initRedis();
 
 function requireRedis(): Redis {
   if (!redis) {
