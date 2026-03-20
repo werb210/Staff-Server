@@ -46,7 +46,7 @@ async function start() {
 
   await loadRoutes();
 
-  app.listen(PORT, "0.0.0.0", () => {
+  if (process.env.NODE_ENV !== "test") app.listen(PORT, "0.0.0.0", () => {
     console.log(`🚀 Server running on port ${PORT}`);
   });
 }
