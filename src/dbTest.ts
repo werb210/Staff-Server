@@ -58,6 +58,63 @@ const memoryDb = process.env.NODE_ENV === "test" ? createMemoryDb() : null;
 const adapter = memoryDb ? memoryDb.adapters.createPg() : null;
 const PoolImpl = (adapter?.Pool ?? pg.Pool) as new (config?: any) => PgPool;
 
+async function ensureBaselineSchema(): Promise<void> {
+  if (!adapter) {
+    return;
+  }
+  const bootstrapPool = new PoolImpl({});
+  await bootstrapPool.query(`
+    create table if not exists users (
+      id uuid primary key,
+      email text,
+      phone_number text unique,
+      phone text,
+      role text not null default 'Staff',
+      lender_id uuid null,
+      active boolean not null default true,
+      is_active boolean not null default true,
+      disabled boolean not null default false,
+      locked_until timestamp null,
+      phone_verified boolean not null default false,
+      token_version integer not null default 0,
+      created_at timestamp not null default now(),
+      updated_at timestamp not null default now()
+    );
+
+    create table if not exists lenders (
+      id uuid primary key,
+      name text not null,
+      country text not null default 'US',
+      status text not null default 'ACTIVE',
+      active boolean not null default true,
+      submission_method text not null default 'email',
+      created_at timestamp not null default now(),
+      updated_at timestamp not null default now()
+    );
+
+    create table if not exists lender_products (
+      id uuid primary key,
+      lender_id uuid not null references lenders(id) on delete cascade,
+      name text not null,
+      category text not null default 'LOC',
+      country text not null default 'US',
+      rate_type text null,
+      interest_min numeric null,
+      interest_max numeric null,
+      term_min integer null,
+      term_max integer null,
+      term_unit text null,
+      active boolean not null default true,
+      required_documents jsonb not null default '[]'::jsonb,
+      created_at timestamp not null default now(),
+      updated_at timestamp not null default now()
+    );
+  `);
+  await bootstrapPool.end();
+}
+
+const schemaReadyPromise = ensureBaselineSchema();
+
 export function setupTestDatabase() {
   if (!adapter) {
     throw new Error("setupTestDatabase is only available in NODE_ENV=test");
@@ -76,7 +133,7 @@ export const pool: PgPool = new PoolImpl({});
 export const db = pool;
 
 export function query(text: string, params?: any[]): Promise<QueryResult> {
-  return pool.query(text, params);
+  return schemaReadyPromise.then(() => pool.query(text, params));
 }
 
 export function getClient() {
@@ -131,6 +188,7 @@ export function setDbTestPoolMetricsOverride(override: PoolMetrics | null): void
 
 function createQueryWrapper<T extends (...args: any[]) => Promise<any>>(originalQuery: T): T {
   const wrapped = async (...args: Parameters<T>): Promise<ReturnType<T>> => {
+    await schemaReadyPromise;
     const queryText = extractQueryText(args as unknown[]);
     const requestContext = getRequestContext();
     const shouldTrace = requestContext?.sqlTraceEnabled ?? false;

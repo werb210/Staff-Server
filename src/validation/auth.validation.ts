@@ -48,23 +48,33 @@ export const verifyOtpResponseSchema = z
   })
   .strict();
 
+const authMeUserSchema = z
+  .object({
+    id: z.string(),
+    role: roleSchema,
+    silo: z.string().nullable().optional(),
+    phone: z.string().nullable().optional(),
+  })
+  .strict();
+
 export const authMeSchema = z
   .object({
     ok: z.literal(true),
-    data: z
-      .object({
-        user: z
-          .object({
-            id: z.string(),
-            role: roleSchema,
-            silo: z.string().nullable().optional(),
-            phone: z.string().nullable().optional(),
-          })
-          .strict(),
-      })
-      .strict(),
+    data: z.object({ user: authMeUserSchema }).optional(),
+    userId: z.string().optional(),
+    role: roleSchema.optional(),
+    silo: z.string().nullable().optional(),
+    user: authMeUserSchema.optional(),
   })
-  .strict();
+  .passthrough()
+  .superRefine((value, ctx) => {
+    if (!value.user && !value.data?.user) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "auth me response must contain user details",
+      });
+    }
+  });
 
 export function validateStartOtp(req: Request) {
   return startOtpSchema.safeParse(req.body);

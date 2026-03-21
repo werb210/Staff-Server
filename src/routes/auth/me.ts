@@ -53,12 +53,6 @@ export async function authMeHandler(
   req: Request,
   res: Response
 ): Promise<void> {
-  const isTest = process.env.NODE_ENV === "test" || process.env.TEST_MODE === "true";
-  if (isTest) {
-    res.status(200).json({ user: { id: "test-user" } });
-    return;
-  }
-
   const route = "/api/auth/me";
   const requestId = getAuthRequestId(res);
 
@@ -104,6 +98,14 @@ export async function authMeHandler(
       userId: user.userId,
       role: user.role,
       silo,
+      data: {
+        user: {
+          id: user.userId,
+          role: user.role,
+          silo,
+          phone: user.phone,
+        },
+      },
       user: {
         id: user.userId,
         role: user.role,
