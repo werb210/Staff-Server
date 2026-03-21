@@ -1,31 +1,24 @@
-import { randomUUID } from "crypto";
-import { type NextFunction, type Request, type Response } from "express";
+import { Request, Response, NextFunction } from 'express';
+import { randomUUID } from 'crypto';
+import { appInsights } from '../services/appInsights';
 
-export function requestLogger(req: Request, res: Response, next: NextFunction): void {
-  const headerRequestId = req.headers["x-request-id"];
-  const id = typeof headerRequestId === "string" && headerRequestId.length > 0 ? headerRequestId : randomUUID();
+export function requestLogger(req: Request, res: Response, next: NextFunction) {
+  const requestId = randomUUID();
 
-  req.id = id;
-  req.requestId = id;
-  res.setHeader("x-request-id", id);
+  (req as any).request_id = requestId;
+  res.setHeader('x-request-id', requestId);
 
-  console.log(
-    JSON.stringify({
-      event: "request_started",
-      request_id: id,
-      method: req.method,
-      path: req.originalUrl,
-    })
-  );
+  appInsights.trackRequest({
+    request_id: requestId,
+    method: req.method,
+    path: req.path,
+  });
 
-  res.on("finish", () => {
-    console.log(
-      JSON.stringify({
-        event: "request_completed",
-        request_id: id,
-        status: res.statusCode,
-      })
-    );
+  res.on('finish', () => {
+    appInsights.trackDependency({
+      request_id: requestId,
+      status: res.statusCode,
+    });
   });
 
   next();

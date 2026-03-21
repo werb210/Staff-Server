@@ -1,13 +1,14 @@
-import { type Request, type Response, Router } from "express";
+import { Router } from 'express';
 
-export function intHealthHandler(_req: Request, res: Response): void {
-  res.json({
+const router = Router();
+
+export function intHealthHandler(_req: any, res: any) {
+  return res.json({
     success: true,
-    status: "ok",
+    status: 'ok',
   });
 }
 
-const router = Router();
-router.get("/health", intHealthHandler);
+router.get('/', intHealthHandler);
 
 export default router;
