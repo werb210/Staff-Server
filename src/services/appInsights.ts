@@ -1,12 +1,11 @@
-export function trackRequest(data: any) {
-  // minimal implementation for tests
-  console.log("trackRequest", data)
-}
-
-export function trackDependency(data: any) {
-  console.log("trackDependency", data)
-}
-
-export function trackException(err: any) {
-  console.log("trackException", err?.message || err)
-}
+export const appInsights = {
+  trackRequest: (data: any) => {
+    console.log('trackRequest', data);
+  },
+  trackDependency: (data: any) => {
+    console.log('trackDependency', data);
+  },
+  trackException: (data: any) => {
+    console.log('trackException', data);
+  },
+};

@@ -1,29 +1,20 @@
-import { Request, Response, NextFunction } from "express"
+import { Request, Response, NextFunction } from 'express';
 
-export function errorHandler(
-  err: any,
-  req: Request,
-  res: Response,
-  _next: NextFunction
-) {
-  const message = err?.message || "Internal server error"
+export function errorHandler(err: any, req: Request, res: Response, _next: NextFunction) {
+  const requestId = (req as any).request_id;
 
-  if (message.includes("Missing required environment variable")) {
-    return res.status(500).json({
-      code: "config_error",
-      message,
-    })
-  }
+  console.error({
+    request_id: requestId,
+    error: err?.message || 'Unknown error',
+    stack: err?.stack,
+  });
 
-  if (message.includes("invalid")) {
-    return res.status(400).json({
-      code: "invalid_request",
-      message,
-    })
-  }
+  const status = err?.status || 500;
 
-  return res.status(500).json({
-    code: "internal_error",
-    message,
-  })
+  res.status(status).json({
+    success: false,
+    code: err?.code || 'internal_error',
+    message: err?.message || 'Internal server error',
+    request_id: requestId,
+  });
 }
