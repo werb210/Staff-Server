@@ -20,7 +20,7 @@ async function otpStartHandler(req: express.Request, res: express.Response) {
 
     await sendOtp(phone);
 
-    return res.json({ ok: true });
+    return res.status(204).send();
   } catch (err) {
     console.error("[OTP SEND ERROR]", err);
     return res.status(500).json({ ok: false });

@@ -191,13 +191,8 @@ export function buildApp(): express.Express {
   app.use(corsMiddleware);
 
   app.use((req, res, next) => {
-    if (req.path.startsWith("/api/_int")) {
-      const origin = req.headers.origin;
-      const allowed = [process.env.CLIENT_URL, process.env.PORTAL_URL];
-
-      if (origin && !allowed.includes(origin)) {
-        return res.sendStatus(403);
-      }
+    if (req.path.startsWith("/api/_int") && req.headers.origin) {
+      return res.sendStatus(403);
     }
 
     next();

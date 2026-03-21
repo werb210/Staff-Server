@@ -6,12 +6,11 @@ import { createUserAccount } from "../src/modules/auth/auth.service";
 import { ROLES, type Role } from "../src/auth/roles";
 import { otpVerifyRequest } from "../src/__tests__/helpers/otpAuth";
 import { sendNotification } from "../src/services/pushService";
+import * as webPush from "web-push";
 
 vi.mock("web-push");
 
-const webPushMock = vi.requireMock("web-push") as {
-  sendNotification: vi.Mock;
-};
+const webPushMock = vi.mocked(webPush);
 
 const app = buildAppWithApiRoutes();
 const requestId = "pwa-push-test";

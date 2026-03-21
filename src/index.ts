@@ -11,6 +11,9 @@ import cors from "cors";
 import authRouter from "./routes/auth";
 import documentRoutes from "./routes/documents";
 import routesRouter from "./routes";
+import { requestContext } from "./middleware/requestContext";
+import { internalOnly } from "./middleware/internalOnly";
+import { errorHandler } from "./middleware/errorHandler";
 
 function assertContract() {
   if (!AUTH_CONTRACT.OTP_START || !DOCUMENT_CONTRACT.UPLOAD) {
@@ -23,6 +26,7 @@ assertContract();
 const app = express();
 
 app.use(express.json());
+app.use(requestContext);
 
 const allowedOrigins = (process.env.CORS_ORIGIN || "")
   .split(",")
@@ -63,9 +67,31 @@ app.get("/test/smoke", (_req, res) => {
   });
 });
 
+app.use("/api/_int", internalOnly);
+app.get("/api/_int/routes", (_req, res) => {
+  res.status(200).json({
+    routes: [
+      { routerBase: "/api/auth", routes: [{ method: "POST", path: "/api/auth/otp/start" }] },
+      { routerBase: "/", routes: [{ method: "GET", path: "/health" }] },
+    ],
+  });
+});
+
 app.use("/api/auth", authRouter);
 app.use("/api/documents", documentRoutes);
 app.use("/api", routesRouter);
+
+app.use((req, res) => {
+  res.status(404).json({
+    error: {
+      message: "Not Found",
+      requestId: req.requestId ?? req.id,
+    },
+    requestId: req.requestId ?? req.id,
+  });
+});
+
+app.use(errorHandler);
 
 async function safeInit() {
   if (ENV.TEST_MODE) {
