@@ -1,5 +1,9 @@
-import type { Request, Response } from "express";
+import { Router } from 'express'
 
-export function intHealthHandler(_req: Request, res: Response): void {
-  res.status(200).json({ status: "ok" });
-}
+const router = Router()
+
+router.get('/_int/health', (_req, res) => {
+  res.status(200).json({ status: 'ok' })
+})
+
+export default router
