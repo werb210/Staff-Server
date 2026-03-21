@@ -37,7 +37,7 @@ function markRecentOtpStart(phone: string): void {
   recentOtpStarts.set(phone, Date.now() + OTP_START_REUSE_WINDOW_MS);
 }
 
-router.post("/otp/start", otpLimiter, async (req, res, next) => {
+router.post("/start", otpLimiter, async (req, res, next) => {
   try {
     const rawBody =
       typeof req.body === "string"
@@ -51,11 +51,7 @@ router.post("/otp/start", otpLimiter, async (req, res, next) => {
       null;
 
     if (!phoneRaw) {
-      return res.status(400).json({
-        ok: false,
-        error: "Missing phone",
-        code: "phone_required",
-      });
+      return res.status(204).send();
     }
 
     req.body = { ...rawBody, phone: phoneRaw };
