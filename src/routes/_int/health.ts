@@ -1,9 +1,7 @@
-import { Router } from 'express'
+import { Request, Response } from "express";
 
-const router = Router()
-
-router.get('/_int/health', (_req, res) => {
-  res.status(200).json({ status: 'ok' })
-})
-
-export default router
+export const intHealthHandler = (req: Request, res: Response) => {
+  res.json({
+    status: "healthy",
+  });
+};

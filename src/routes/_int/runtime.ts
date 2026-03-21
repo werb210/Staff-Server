@@ -1,13 +1,8 @@
-import { Router } from 'express'
+import { Request, Response } from "express";
 
-const router = Router()
-
-router.get('/_int/runtime', (_req, res) => {
-  res.status(200).json({
-    ok: true,
+export const runtimeHandler = (req: Request, res: Response) => {
+  res.json({
+    status: "ok",
     uptime: process.uptime(),
-    env: process.env.NODE_ENV || 'unknown'
-  })
-})
-
-export default router
+  });
+};
