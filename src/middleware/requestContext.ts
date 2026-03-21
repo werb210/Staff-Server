@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { type Request, type Response, type NextFunction } from "express";
 import {
   getRequestContext,
@@ -18,11 +19,14 @@ export type RequestContext = {
   idempotencyKeyHash?: string;
 };
 
-export function requestContext(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): void {
+export function requestContext(req: Request, res: Response, next: NextFunction): void {
+  const incoming = req.headers["x-request-id"];
+  const requestId = String(Array.isArray(incoming) ? incoming[0] : incoming ?? randomUUID());
+
+  req.id = requestId;
+  req.requestId = requestId;
+  res.setHeader("x-request-id", requestId);
+
   runWithRequestContextMiddleware(req, res, next);
 }
 
@@ -38,24 +42,17 @@ export function getRequestIdempotencyKeyHash(): string | undefined {
   return getRequestContext()?.idempotencyKeyHash;
 }
 
-export function runWithRequestContext<T>(
-  ctx: RequestContext,
-  fn: () => T
-): T {
+export function runWithRequestContext<T>(ctx: RequestContext, fn: () => T): T {
   const input: RequestContextInput = {
     requestId: ctx.requestId,
     ...(ctx.method !== undefined ? { method: ctx.method } : {}),
-    ...(ctx.path !== undefined || ctx.route !== undefined
-      ? { path: ctx.path ?? ctx.route }
-      : {}),
+    ...(ctx.path !== undefined || ctx.route !== undefined ? { path: ctx.path ?? ctx.route } : {}),
     ...(ctx.startTime !== undefined || ctx.start !== undefined
       ? { startTime: ctx.startTime ?? ctx.start }
       : {}),
     ...(ctx.sqlTraceEnabled !== undefined ? { sqlTraceEnabled: ctx.sqlTraceEnabled } : {}),
     ...(ctx.dbProcessIds !== undefined ? { dbProcessIds: ctx.dbProcessIds } : {}),
-    ...(ctx.idempotencyKeyHash !== undefined
-      ? { idempotencyKeyHash: ctx.idempotencyKeyHash }
-      : {}),
+    ...(ctx.idempotencyKeyHash !== undefined ? { idempotencyKeyHash: ctx.idempotencyKeyHash } : {}),
   };
   return withRequestContext(input, fn);
 }

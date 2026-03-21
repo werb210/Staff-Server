@@ -1,4 +1,8 @@
 export function normalizePhone(phone: string): string {
+  if (typeof phone !== "string") {
+    throw new Error("Invalid phone number format");
+  }
+
   const digits = phone.replace(/\D/g, "");
 
   if (digits.length === 10) {
@@ -9,7 +13,7 @@ export function normalizePhone(phone: string): string {
     return `+${digits}`;
   }
 
-  return phone;
+  throw new Error("Invalid phone number format");
 }
 
 export function tryNormalizePhone(phone: unknown): string | null {
@@ -17,6 +21,9 @@ export function tryNormalizePhone(phone: unknown): string | null {
     return null;
   }
 
-  const normalizedPhone = normalizePhone(phone);
-  return normalizedPhone.length > 1 ? normalizedPhone : null;
+  try {
+    return normalizePhone(phone);
+  } catch {
+    return null;
+  }
 }

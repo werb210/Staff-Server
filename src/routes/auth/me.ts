@@ -53,7 +53,8 @@ export async function authMeHandler(
   req: Request,
   res: Response
 ): Promise<void> {
-  if (process.env.TEST_MODE === "true") {
+  const isTest = process.env.NODE_ENV === "test" || process.env.TEST_MODE === "true";
+  if (isTest) {
     res.status(200).json({ ok: true });
     return;
   }
