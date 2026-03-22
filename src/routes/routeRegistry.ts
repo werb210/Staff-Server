@@ -1,6 +1,5 @@
-import { type Router } from "express";
+import { Router } from "express";
 import { ROLES, type Role } from "../auth/roles";
-import { FLAGS } from "../config/featureFlags";
 import adminRoutes from "./admin";
 import applicationsRoutes from "../modules/applications/applications.routes";
 import bankingRoutes from "./banking";
@@ -35,6 +34,7 @@ import pipelineRoutes from "./pipeline";
 import telephonyRoutes from "../telephony/routes/telephonyRoutes";
 import webhooksRoutes from "./webhooks";
 import websiteRoutes from "./website";
+import { mount } from "./_canonicalMount";
 
 export type ApiRoute = {
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -57,9 +57,9 @@ const ALL_ROLES: Role[] = [
 export const API_ROUTE_MOUNTS: ApiRouteMount[] = [
   { path: "/_int", router: internalRoutes },
   { path: "/internal/processing", router: internalProcessingRoutes },
-  ...(FLAGS.USE_LEGACY_APPLICATIONS ? [{ path: "/applications", router: applicationsRoutes }] : []),
   { path: "/calendar", router: calendarRoutes },
   { path: "/calls", router: callsRoutes },
+  { path: "/telephony", router: telephonyRoutes },
   { path: "/banking", router: bankingRoutes },
   { path: "/client", router: clientRoutes },
   { path: "/communications", router: communicationsRoutes },
@@ -71,7 +71,7 @@ export const API_ROUTE_MOUNTS: ApiRouteMount[] = [
   { path: "/lender", router: lenderRoutes },
   { path: "/lender-submissions", router: lenderSubmissionsRoutes },
   { path: "/lender-products", router: lenderProductsRoutes },
-  ...(FLAGS.USE_LEGACY_LENDERS ? [{ path: "/lenders", router: lendersRoutes }] : []),
+  { path: "/lenders", router: lendersRoutes },
   { path: "/admin", router: adminRoutes },
   { path: "/marketing", router: marketingRoutes },
   { path: "/offers", router: offersRoutes },
@@ -86,7 +86,6 @@ export const API_ROUTE_MOUNTS: ApiRouteMount[] = [
   { path: "/pwa", router: pwaRoutes },
   { path: "/referrals", router: referralsRoutes },
   { path: "/pipeline", router: pipelineRoutes },
-  ...(FLAGS.USE_LEGACY_TELEPHONY ? [{ path: "/telephony", router: telephonyRoutes }] : []),
   { path: "/webhooks", router: webhooksRoutes },
   { path: "/website", router: websiteRoutes },
   { path: "/applications", router: applicationsRoutes },
@@ -164,8 +163,12 @@ export const ROUTES: ApiRoute[] = [
   { method: "GET", path: "/api/portal/applications/:id/readiness", roles: [ROLES.ADMIN] },
 ];
 
-export function registerApiRouteMounts(router: Router): void {
+export function registerApiRouteMounts(app: Router): void {
+  const apiRouter = Router();
+
   API_ROUTE_MOUNTS.forEach((entry) => {
-    router.use(entry.path, entry.router);
+    mount(apiRouter, entry.path, entry.router);
   });
+
+  app.use("/api", apiRouter);
 }
