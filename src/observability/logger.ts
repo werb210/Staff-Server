@@ -1,11 +1,6 @@
 export const logger = {
-  info: console.log,
-  error: console.error,
-  warn: console.warn,
-  debug: console.debug,
+  info: (...args: any[]) => console.log('[INFO]', ...args),
+  error: (...args: any[]) => console.error('[ERROR]', ...args),
+  warn: (...args: any[]) => console.warn('[WARN]', ...args),
+  debug: (...args: any[]) => console.debug('[DEBUG]', ...args)
 };
-
-export const logInfo = (...args: unknown[]) => logger.info(...args);
-export const logError = (...args: unknown[]) => logger.error(...args);
-export const logWarn = (...args: unknown[]) => logger.warn(...args);
-export const logDebug = (...args: unknown[]) => logger.debug(...args);

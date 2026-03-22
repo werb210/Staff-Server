@@ -50,3 +50,14 @@ const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
   console.log(`SERVER RUNNING ON ${PORT}`);
 });
+
+// UNHANDLED_REJECTION_HANDLER
+process.on('unhandledRejection', (err) => {
+  console.error('UNHANDLED REJECTION:', err);
+  process.exit(1);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT EXCEPTION:', err);
+  process.exit(1);
+});
