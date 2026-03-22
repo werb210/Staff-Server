@@ -3,9 +3,9 @@ import { Request, Response } from 'express'
 /**
  * Normalizes input that may be string | string[] | undefined → string
  */
-function getString(value: unknown): string {
+function getString(value as any)
   if (Array.isArray(value)) return value[0] ?? ''
-  if (typeof value === 'string') return value
+  if (value as any)
   return ''
 }
 

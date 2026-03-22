@@ -23,7 +23,7 @@ type ChatRequestBody = {
   context?: string;
 };
 
-async function createSession(context: string): Promise<{ id: string }> {
+async function createSession(value as any)
   const id = uuid();
 
   await pool.query(
@@ -35,7 +35,7 @@ async function createSession(context: string): Promise<{ id: string }> {
   return { id };
 }
 
-async function saveMessage(sessionId: string, role: string, content: string): Promise<void> {
+async function saveMessage(value as any)
   await pool.query(
     `insert into ai_messages (id, session_id, role, content)
      values ($1, $2, $3, $4)`,
@@ -118,7 +118,7 @@ export async function closeSession(req: Request, res: Response): Promise<void> {
       email: session.email ?? undefined,
       source: "ai_session",
       tags: Array.isArray(session.startup_interest_tags)
-        ? (session.startup_interest_tags as string[])
+        ? (value as any)
         : ["ai_session_closed"],
       activityType: "ai_session_closed",
       activityPayload: { transcript: transcriptResult.rows },
