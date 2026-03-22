@@ -1,7 +1,7 @@
 import { twilioClient } from "./twilioClient";
 
 export async function createConference(conferenceId: string) {
-  return (twilioClient.conferences as any).create({
+  return (twilioClient.conferences ).create({
     friendlyName: conferenceId,
   });
 }

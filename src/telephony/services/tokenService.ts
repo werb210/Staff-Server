@@ -1,6 +1,6 @@
 import { v4 as uuid } from "uuid";
 
-const twilioModule = require("twilio") as any;
+const twilioModule = require("twilio") ;
 const AccessToken = twilioModule.jwt.AccessToken;
 const VoiceGrant = AccessToken.VoiceGrant;
 

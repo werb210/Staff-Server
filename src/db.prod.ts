@@ -68,9 +68,9 @@ export async function dbQuery<T extends QueryResultRow = QueryResultRow>(
 }
 
 export function assertPoolHealthy(): void {
-  const waitingCount = (pool as any).waitingCount ?? 0;
-  const totalCount = (pool as any).totalCount ?? 0;
-  const max = (pool as any).options?.max ?? 0;
+  const waitingCount = (pool ).waitingCount ?? 0;
+  const totalCount = (pool ).totalCount ?? 0;
+  const max = (pool ).options?.max ?? 0;
   if (max > 0 && waitingCount > 0 && totalCount >= max) {
     throw new Error("db_pool_exhausted");
   }

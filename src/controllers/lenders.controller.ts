@@ -368,7 +368,7 @@ export async function createLender(
       throw new AppError("validation_error", "country is required.", 400);
     }
     const normalizedCountry = country.trim().toUpperCase();
-    if (!LENDER_COUNTRIES.includes(normalizedCountry as any)) {
+    if (!LENDER_COUNTRIES.includes(normalizedCountry )) {
       throw new AppError("validation_error", "country is invalid.", 400);
     }
     if (!submissionMethod || typeof submissionMethod !== "string") {
@@ -424,7 +424,7 @@ export async function createLender(
         : normalizedSubmissionMethod;
     if (
       resolvedSubmissionMethod &&
-      !LENDER_SUBMISSION_METHODS.includes(resolvedSubmissionMethod as any)
+      !LENDER_SUBMISSION_METHODS.includes(resolvedSubmissionMethod )
     ) {
       throw new AppError(
         "validation_error",
@@ -575,7 +575,7 @@ export async function updateLender(
         : undefined;
     if (
       normalizedCountry &&
-      !LENDER_COUNTRIES.includes(normalizedCountry as any)
+      !LENDER_COUNTRIES.includes(normalizedCountry )
     ) {
       throw new AppError("validation_error", "country is invalid.", 400);
     }
@@ -612,7 +612,7 @@ export async function updateLender(
         : normalizedSubmissionMethod;
     if (
       resolvedSubmissionMethod &&
-      !LENDER_SUBMISSION_METHODS.includes(resolvedSubmissionMethod as any)
+      !LENDER_SUBMISSION_METHODS.includes(resolvedSubmissionMethod )
     ) {
       throw new AppError(
         "validation_error",

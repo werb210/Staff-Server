@@ -27,7 +27,7 @@ router.post("/", async (req, res, next) => {
 
   const payload = parsed.data;
   try {
-    const { leadId } = await createReadinessLead(payload as any);
+    const { leadId } = await createReadinessLead(payload );
     const session = await createOrReuseReadinessSession(payload);
 
     return res.status(201).json({

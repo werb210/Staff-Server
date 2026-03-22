@@ -17,7 +17,7 @@ export function getDb(): Pool {
   if (!_pool) {
     if (!process.env.DATABASE_URL) {
       if (process.env.NODE_ENV === 'test') {
-        return null as any;
+        return null ;
       }
       throw new Error('DATABASE_URL is required');
     }
@@ -31,7 +31,7 @@ export const pool = {
   query: (...args: any[]) => {
     const db = getDb();
     if (!db) throw new Error('DB not available in test mode');
-    return (db as any).query(...args as any);
+    return (db ).query(...args );
   },
 };
 

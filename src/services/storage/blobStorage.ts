@@ -12,7 +12,7 @@ export function getContainerClient() {
           readableStreamBody: Buffer.from("test"),
         }),
       }),
-    } as any;
+    } ;
   }
 
   const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING;

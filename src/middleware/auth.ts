@@ -43,7 +43,7 @@ export const requireAuth: RequestHandler = (req, res, next) => {
       return res.status(401).json(authErrorBody(req, "invalid_token", "Invalid token"));
     }
 
-    (req as any).user = user;
+    (req ).user = user;
     next();
   } catch {
     return res.status(401).json(authErrorBody(req, "invalid_token", "Invalid token"));
@@ -138,7 +138,7 @@ export function requireAuthorization(options: AuthorizationOptions = {}): Reques
   const requiredCapabilities = options.capabilities ?? [];
 
   return (req, res, next) => {
-    const user = (req as any).user;
+    const user = (req ).user;
 
     if (!user) {
       return res.status(401).json(authErrorBody(req, "missing_token", "Missing token"));
@@ -167,7 +167,7 @@ export function requireCapability(cap: string | string[]): RequestHandler {
   const required = Array.isArray(cap) ? cap : [cap];
 
   return (req, res, next) => {
-    const user = (req as any).user;
+    const user = (req ).user;
 
     if (!user) {
       return res.status(401).json(authErrorBody(req, "missing_token", "Missing token"));
