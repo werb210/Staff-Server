@@ -90,12 +90,28 @@ export async function startServer() {
   await createOtpSessionsTable();
   registerOtpCleanupJob();
 
-  const expressApp = app ;
-  expressApp?._router?.stack
-    ?.filter((r: any) => r.route)
-    ?.forEach((r: any) => {
-      console.log(Object.keys(r.route.methods), r.route.path);
-    });
+  const listRoutes = (expressApp: Express) => {
+    console.log("\n=== REGISTERED ROUTES ===");
+
+    expressApp?._router?.stack
+      ?.filter((r: any) => r.route)
+      ?.forEach((r: any) => {
+        const methods = Object.keys(r.route.methods).join(",").toUpperCase();
+        console.log(`${methods} ${r.route.path}`);
+      });
+
+    console.log("=========================\n");
+  };
+
+  setTimeout(() => {
+    try {
+      if (app) {
+        listRoutes(app);
+      }
+    } catch (e) {
+      console.error("Route listing failed", e);
+    }
+  }, 1000);
 
   const port = resolvePort();
   server = await new Promise((resolve) => {
