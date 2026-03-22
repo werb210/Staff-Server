@@ -1,15 +1,12 @@
 import { Handler } from "../types/handler";
 
 export const wrap = (fn: Handler): Handler => {
-  return async (req, res) => {
+  return async (req, res, next) => {
     try {
-      await fn(req, res);
+      await fn(req, res, next);
     } catch (err) {
-      console.error("HANDLER ERROR:", err);
-      res.status(500).json({
-        success: false,
-        error: "Internal Server Error",
-      });
+      console.error(err);
+      res.status(500).json({ success: false, error: "Internal error" });
     }
   };
 };
