@@ -1,3 +1,4 @@
+import { assertNoDuplicateRoutes } from "./_internal/routeConflicts";
 import express from "express";
 import { registerApiRouteMounts } from "./routes/routeRegistry";
 
@@ -14,8 +15,19 @@ export function buildApp() {
     res.json({ ok: true });
   });
 
+  app.get("/_int/route-conflicts", (req, res) => {
+    const { assertNoDuplicateRoutes } = require("./_internal/routeConflicts");
+    try {
+      assertNoDuplicateRoutes(app);
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(500).json({ error: "conflicts detected" });
+    }
+  });
+
   // routes
   registerApiRouteMounts(app);
+  assertNoDuplicateRoutes(app);
 
   return app;
 }
@@ -30,6 +42,7 @@ export function createApp() {
 
 export function registerApiRoutes(app: any) {
   registerApiRouteMounts(app);
+  assertNoDuplicateRoutes(app);
 }
 
 export function assertCorsConfig() {
