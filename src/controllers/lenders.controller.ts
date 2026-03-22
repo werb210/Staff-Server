@@ -1,5 +1,6 @@
 import { Handler } from "../types/handler";
 import { lenderService } from "../services/lenders/lender.service";
+import { createLenderSchema } from "../validation/lender.validation";
 
 export const getLenders: Handler = async (_req, res) => {
   const data = await lenderService.list();
@@ -12,7 +13,8 @@ export const getLenderById: Handler = async (req, res) => {
 };
 
 export const createLender: Handler = async (req, res) => {
-  const data = await lenderService.create(req.body);
+  const parsed = createLenderSchema.parse(req.body);
+  const data = await lenderService.create(parsed);
   res.json({ success: true, data });
 };
 

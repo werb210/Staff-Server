@@ -1,0 +1,24 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Lender {
+  id             String          @id @default(uuid())
+  name           String
+  createdAt      DateTime        @default(now())
+  lenderProducts LenderProduct[]
+}
+
+model LenderProduct {
+  id        String   @id @default(uuid())
+  lenderId  String
+  name      String
+  createdAt DateTime @default(now())
+
+  lender Lender @relation(fields: [lenderId], references: [id])
+}

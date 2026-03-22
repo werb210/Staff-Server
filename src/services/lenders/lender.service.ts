@@ -1,22 +1,30 @@
+import { db } from "../../lib/db";
+import { CreateLenderDTO, UpdateLenderDTO } from "../../types/dto/lender.dto";
+
 export const lenderService = {
   async list() {
-    // TODO: replace with DB
-    return [];
+    return db.lender.findMany();
   },
 
   async getById(id: string) {
-    return { id };
+    return db.lender.findUnique({ where: { id } });
   },
 
-  async create(data: any) {
-    return { id: "new-id", ...data };
+  async create(data: CreateLenderDTO) {
+    return db.lender.create({ data });
   },
 
-  async update(id: string, data: any) {
-    return { id, ...data };
+  async update(id: string, data: UpdateLenderDTO) {
+    return db.lender.update({
+      where: { id },
+      data,
+    });
   },
 
   async getWithProducts(id: string) {
-    return { id, products: [] };
+    return db.lender.findUnique({
+      where: { id },
+      include: { lenderProducts: true },
+    });
   },
 };
