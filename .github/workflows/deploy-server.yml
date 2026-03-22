@@ -10,22 +10,21 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Use Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '20'
 
       - name: Install deps
-        run: npm install
+        run: npm ci
 
       - name: Build
         run: npm run build
 
-      - name: Deploy to Azure
-        uses: azure/webapps-deploy@v3
+      - name: Deploy
+        uses: azure/webapps-deploy@v2
         with:
           app-name: boreal-staff-server
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
