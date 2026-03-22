@@ -15,6 +15,11 @@ export function buildApp() {
     res.json({ ok: true });
   });
 
+  app.get("/_int/flags", (req, res) => {
+    const { FLAGS } = require("./config/featureFlags");
+    res.json(FLAGS);
+  });
+
   app.get("/_int/route-conflicts", (req, res) => {
     const { assertNoDuplicateRoutes } = require("./_internal/routeConflicts");
     try {
