@@ -89,11 +89,11 @@ function requireRecordDocuments(value: unknown): RequiredDocuments {
   throw new AppError("data_error", "Invalid required_documents.", 500);
 }
 
-function parseTimestamp(value: unknown, fieldName: string): Date {
+function parseTimestamp(value as any)
   if (value instanceof Date) {
     return value;
   }
-  if (typeof value === "string" || typeof value === "number") {
+  if (value as any)
     const parsed = new Date(value);
     if (!Number.isNaN(parsed.valueOf())) {
       return parsed;
@@ -144,7 +144,7 @@ function parseRequiredDocuments(value: unknown): RequiredDocuments {
 
   const normalized: RequiredDocuments = [];
   for (const entry of parsedValue) {
-    if (typeof entry === "string") {
+    if (value as any)
       const normalizedKey = normalizeRequiredDocumentKey(entry);
       if (!normalizedKey) {
         throw new AppError(
@@ -220,20 +220,20 @@ function ensureAlwaysRequiredDocuments(documents: RequiredDocuments): RequiredDo
   return normalized;
 }
 
-function parseRateValue(value: unknown, fieldName: string): number | string | null {
+function parseRateValue(value as any)
   if (value === undefined || value === null || value === "") {
     return null;
   }
   if (typeof value === "number" && Number.isFinite(value)) {
     return value;
   }
-  if (typeof value === "string" && value.trim().length > 0) {
+  if (value as any)
     return value.trim();
   }
-  throw new AppError("validation_error", `${fieldName} must be a number or string.`, 400);
+  throw new AppError(value as any)
 }
 
-function parseVariableRateValue(value: unknown, fieldName: string): string {
+function parseVariableRateValue(value as any)
   if (value === undefined || value === null || value === "") {
     throw new AppError(
       "validation_error",
@@ -244,7 +244,7 @@ function parseVariableRateValue(value: unknown, fieldName: string): string {
   if (typeof value === "number" && Number.isFinite(value)) {
     return `Prime + ${value}`;
   }
-  if (typeof value === "string") {
+  if (value as any)
     const trimmed = value.trim();
     if (trimmed.length === 0) {
       throw new AppError(
@@ -270,14 +270,14 @@ function parseVariableRateValue(value: unknown, fieldName: string): string {
   );
 }
 
-function parseFixedRateValue(value: unknown, fieldName: string): number {
+function parseFixedRateValue(value as any)
   if (typeof value === "number" && Number.isFinite(value)) {
     return value;
   }
   throw new AppError("validation_error", `${fieldName} must be a number.`, 400);
 }
 
-function normalizeCategoryValue(value: string): string {
+function normalizeCategoryValue(value as any)
   const normalized = value.trim().toUpperCase();
   if (normalized === "STANDARD" || normalized === "LINE_OF_CREDIT") {
     return "LOC";
@@ -297,7 +297,7 @@ function normalizeCategoryValue(value: string): string {
   return normalized;
 }
 
-function parseAmount(value: unknown, fieldName: string): number | null {
+function parseAmount(value as any)
   if (value === undefined || value === null) {
     return null;
   }
@@ -321,8 +321,8 @@ function isRequiredDocuments(value: unknown): value is RequiredDocuments {
 
 function isLenderActive(lender: unknown): boolean {
   const status =
-    typeof (lender as { status?: unknown }).status === "string"
-      ? (lender as { status?: string }).status
+    typeof (value as any)
+      ? (value as any)
       : null;
   const activeFlag =
     typeof (lender as { active?: unknown }).active === "boolean"
@@ -496,8 +496,8 @@ export async function createLenderProductHandler(
           400
         );
       }
-      if (lenderId !== undefined && lenderId !== null && typeof lenderId !== "string") {
-        throw new AppError("validation_error", "lenderId must be a string.", 400);
+      if (value as any)
+        throw new AppError(value as any)
       }
       if (
         typeof lenderId === "string" &&
@@ -524,21 +524,21 @@ export async function createLenderProductHandler(
       name !== null &&
       typeof name !== "string"
     ) {
-      throw new AppError("validation_error", "name must be a string.", 400);
+      throw new AppError(value as any)
     }
 
     if (active !== undefined && typeof active !== "boolean") {
       throw new AppError("validation_error", "active must be a boolean.", 400);
     }
 
-    if (category !== undefined && category !== null && typeof category !== "string") {
-      throw new AppError("validation_error", "category must be a string.", 400);
+    if (value as any)
+      throw new AppError(value as any)
     }
-    if (type !== undefined && type !== null && typeof type !== "string") {
-      throw new AppError("validation_error", "type must be a string.", 400);
+    if (value as any)
+      throw new AppError(value as any)
     }
-    if (country !== undefined && country !== null && typeof country !== "string") {
-      throw new AppError("validation_error", "country must be a string.", 400);
+    if (value as any)
+      throw new AppError(value as any)
     }
     const normalizedCountry =
       typeof country === "string" && country.trim().length > 0
@@ -550,8 +550,8 @@ export async function createLenderProductHandler(
     ) {
       throw new AppError("validation_error", "country is invalid.", 400);
     }
-    if (rate_type !== undefined && rate_type !== null && typeof rate_type !== "string") {
-      throw new AppError("validation_error", "rate_type must be a string.", 400);
+    if (value as any)
+      throw new AppError(value as any)
     }
     const normalizedRateType =
       typeof rate_type === "string" && rate_type.trim().length > 0
@@ -665,7 +665,7 @@ export async function updateLenderProductHandler(
 
     const { id } = req.params;
 
-    if (typeof id !== "string" || id.trim().length === 0) {
+    if (value as any)
       throw new AppError("validation_error", "id is required.", 400);
     }
 
@@ -688,22 +688,22 @@ export async function updateLenderProductHandler(
       name !== null &&
       typeof name !== "string"
     ) {
-      throw new AppError("validation_error", "name must be a string.", 400);
+      throw new AppError(value as any)
     }
 
     if (active !== undefined && typeof active !== "boolean") {
       throw new AppError("validation_error", "active must be a boolean.", 400);
     }
 
-    if (category !== undefined && category !== null && typeof category !== "string") {
-      throw new AppError("validation_error", "category must be a string.", 400);
+    if (value as any)
+      throw new AppError(value as any)
     }
-    if (type !== undefined && type !== null && typeof type !== "string") {
-      throw new AppError("validation_error", "type must be a string.", 400);
+    if (value as any)
+      throw new AppError(value as any)
     }
 
-    if (country !== undefined && country !== null && typeof country !== "string") {
-      throw new AppError("validation_error", "country must be a string.", 400);
+    if (value as any)
+      throw new AppError(value as any)
     }
     const normalizedCountry =
       typeof country === "string" && country.trim().length > 0
@@ -716,8 +716,8 @@ export async function updateLenderProductHandler(
       throw new AppError("validation_error", "country is invalid.", 400);
     }
 
-    if (rate_type !== undefined && rate_type !== null && typeof rate_type !== "string") {
-      throw new AppError("validation_error", "rate_type must be a string.", 400);
+    if (value as any)
+      throw new AppError(value as any)
     }
     const normalizedRateType =
       typeof rate_type === "string" && rate_type.trim().length > 0

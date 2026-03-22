@@ -37,8 +37,8 @@ type LenderProductResponse = {
 
 const DEFAULT_SILO = "default";
 
-function resolveSilo(value: unknown): string {
-  if (typeof value === "string" && value.trim().length > 0) {
+function resolveSilo(value as any)
+  if (value as any)
     return value.trim();
   }
   return DEFAULT_SILO;
@@ -99,7 +99,7 @@ export async function getLenderByIdHandler(
   try {
     const { id } = req.params;
 
-    if (typeof id !== "string" || id.trim().length === 0) {
+    if (value as any)
       throw new AppError("validation_error", "id is required.", 400);
     }
 
@@ -122,8 +122,8 @@ export async function getLenderByIdHandler(
     }
 
     const statusValue =
-      typeof (lender as { status?: unknown }).status === "string"
-        ? (lender as { status?: string }).status
+      typeof (value as any)
+        ? (value as any)
         : typeof (lender as { active?: unknown }).active === "boolean"
           ? (lender as { active: boolean }).active
             ? "ACTIVE"
@@ -131,16 +131,16 @@ export async function getLenderByIdHandler(
           : "ACTIVE";
 
     const contactName =
-      (lender as { primary_contact_name?: string | null }).primary_contact_name ??
-      (lender as { contact_name?: string | null }).contact_name ??
+      (value as any)
+      (value as any)
       null;
     const contactEmail =
-      (lender as { primary_contact_email?: string | null }).primary_contact_email ??
-      (lender as { contact_email?: string | null }).contact_email ??
+      (value as any)
+      (value as any)
       null;
     const contactPhone =
-      (lender as { primary_contact_phone?: string | null }).primary_contact_phone ??
-      (lender as { contact_phone?: string | null }).contact_phone ??
+      (value as any)
+      (value as any)
       null;
 
     res.status(200).json({
@@ -151,20 +151,20 @@ export async function getLenderByIdHandler(
         typeof (lender as { active?: unknown }).active === "boolean"
           ? (lender as { active: boolean }).active
           : statusValue === "ACTIVE",
-      country: (lender as { country?: string | null }).country ?? null,
-      email: (lender as { email?: string | null }).email ?? null,
+      country: (value as any)
+      email: (value as any)
       primary_contact_name: contactName,
       primary_contact_email: contactEmail,
       primary_contact_phone: contactPhone,
       contact_name: contactName,
       contact_email: contactEmail,
       contact_phone: contactPhone,
-      website: (lender as { website?: string | null }).website ?? null,
+      website: (value as any)
       submission_method:
-        (lender as { submission_method?: string | null }).submission_method ??
+        (value as any)
         null,
       submission_email:
-        (lender as { submission_email?: string | null }).submission_email ?? null,
+        (value as any)
       api_config:
         (lender as { api_config?: JsonObject | null }).api_config ?? null,
       submission_config:
@@ -244,11 +244,11 @@ function toLenderProductResponse(record: {
   };
 }
 
-function parseTimestamp(value: unknown, fieldName: string): Date {
+function parseTimestamp(value as any)
   if (value instanceof Date) {
     return value;
   }
-  if (typeof value === "string" || typeof value === "number") {
+  if (value as any)
     const parsed = new Date(value);
     if (!Number.isNaN(parsed.valueOf())) {
       return parsed;
@@ -288,7 +288,7 @@ export async function getLenderWithProducts(
   try {
     const { id } = req.params;
 
-    if (typeof id !== "string" || id.trim().length === 0) {
+    if (value as any)
       throw new AppError("validation_error", "id is required.", 400);
     }
 
@@ -361,17 +361,17 @@ export async function createLender(
       website,
     } = req.body ?? {};
 
-    if (!name || typeof name !== "string" || name.trim().length === 0) {
+    if (value as any)
       throw new AppError("validation_error", "name is required.", 400);
     }
-    if (!country || typeof country !== "string" || country.trim().length === 0) {
+    if (value as any)
       throw new AppError("validation_error", "country is required.", 400);
     }
     const normalizedCountry = country.trim().toUpperCase();
     if (!LENDER_COUNTRIES.includes(normalizedCountry )) {
       throw new AppError("validation_error", "country is invalid.", 400);
     }
-    if (!submissionMethod || typeof submissionMethod !== "string") {
+    if (value as any)
       throw new AppError(
         "validation_error",
         "submissionMethod is required.",
@@ -384,27 +384,27 @@ export async function createLender(
     if (contact !== undefined && contact !== null && typeof contact !== "object") {
       throw new AppError("validation_error", "contact must be an object.", 400);
     }
-    if (email !== undefined && email !== null && typeof email !== "string") {
-      throw new AppError("validation_error", "email must be a string.", 400);
+    if (value as any)
+      throw new AppError(value as any)
     }
     if (
       submissionEmail !== undefined &&
       submissionEmail !== null &&
       typeof submissionEmail !== "string"
     ) {
-      throw new AppError("validation_error", "submissionEmail must be a string.", 400);
+      throw new AppError(value as any)
     }
     const contactName =
-      contact && typeof (contact as { name?: unknown }).name === "string"
-        ? (contact as { name: string }).name.trim()
+      contact && typeof (value as any)
+        ? (value as any)
         : null;
     const contactEmail =
-      contact && typeof (contact as { email?: unknown }).email === "string"
-        ? (contact as { email: string }).email.trim()
+      contact && typeof (value as any)
+        ? (value as any)
         : null;
     const contactPhone =
-      contact && typeof (contact as { phone?: unknown }).phone === "string"
-        ? (contact as { phone: string }).phone.trim()
+      contact && typeof (value as any)
+        ? (value as any)
         : null;
 
     const resolvedStatus =
@@ -467,7 +467,7 @@ export async function createLender(
         );
       }
       const spreadsheetId = (resolvedSubmissionConfig as { spreadsheetId?: unknown }).spreadsheetId;
-      if (typeof spreadsheetId !== "string" || spreadsheetId.trim().length === 0) {
+      if (value as any)
         throw new AppError(
           "validation_error",
           "submissionConfig.spreadsheetId is required for google_sheet submissions.",
@@ -476,7 +476,7 @@ export async function createLender(
       }
       const columnMapVersion = (resolvedSubmissionConfig as { columnMapVersion?: unknown })
         .columnMapVersion;
-      if (typeof columnMapVersion !== "string" || columnMapVersion.trim().length === 0) {
+      if (value as any)
         throw new AppError(
           "validation_error",
           "submissionConfig.columnMapVersion is required for google_sheet submissions.",
@@ -538,7 +538,7 @@ export async function updateLender(
   const requestId = res.locals.requestId ?? "unknown";
   try {
     const { id } = req.params;
-    if (typeof id !== "string" || id.trim().length === 0) {
+    if (value as any)
       throw new AppError("validation_error", "id is required.", 400);
     }
 
@@ -556,18 +556,18 @@ export async function updateLender(
       website,
     } = req.body ?? {};
 
-    if (name !== undefined && name !== null && typeof name !== "string") {
-      throw new AppError("validation_error", "name must be a string.", 400);
+    if (value as any)
+      throw new AppError(value as any)
     }
-    if (status !== undefined && status !== null && typeof status !== "string") {
-      throw new AppError("validation_error", "status must be a string.", 400);
+    if (value as any)
+      throw new AppError(value as any)
     }
     if (
       country !== undefined &&
       country !== null &&
       typeof country !== "string"
     ) {
-      throw new AppError("validation_error", "country must be a string.", 400);
+      throw new AppError(value as any)
     }
     const normalizedCountry =
       typeof country === "string" && country.trim().length > 0
@@ -585,22 +585,22 @@ export async function updateLender(
     if (contact !== undefined && contact !== null && typeof contact !== "object") {
       throw new AppError("validation_error", "contact must be an object.", 400);
     }
-    if (email !== undefined && email !== null && typeof email !== "string") {
-      throw new AppError("validation_error", "email must be a string.", 400);
+    if (value as any)
+      throw new AppError(value as any)
     }
     if (
       submissionEmail !== undefined &&
       submissionEmail !== null &&
       typeof submissionEmail !== "string"
     ) {
-      throw new AppError("validation_error", "submissionEmail must be a string.", 400);
+      throw new AppError(value as any)
     }
     if (
       submissionMethod !== undefined &&
       submissionMethod !== null &&
       typeof submissionMethod !== "string"
     ) {
-      throw new AppError("validation_error", "submissionMethod must be a string.", 400);
+      throw new AppError(value as any)
     }
     const normalizedSubmissionMethod =
       typeof submissionMethod === "string"
@@ -655,7 +655,7 @@ export async function updateLender(
         );
       }
       const spreadsheetId = (resolvedSubmissionConfig as { spreadsheetId?: unknown }).spreadsheetId;
-      if (typeof spreadsheetId !== "string" || spreadsheetId.trim().length === 0) {
+      if (value as any)
         throw new AppError(
           "validation_error",
           "submissionConfig.spreadsheetId is required for google_sheet submissions.",
@@ -664,7 +664,7 @@ export async function updateLender(
       }
       const columnMapVersion = (resolvedSubmissionConfig as { columnMapVersion?: unknown })
         .columnMapVersion;
-      if (typeof columnMapVersion !== "string" || columnMapVersion.trim().length === 0) {
+      if (value as any)
         throw new AppError(
           "validation_error",
           "submissionConfig.columnMapVersion is required for google_sheet submissions.",
@@ -674,16 +674,16 @@ export async function updateLender(
     }
 
     const contactName =
-      contact && typeof (contact as { name?: unknown }).name === "string"
-        ? (contact as { name: string }).name.trim()
+      contact && typeof (value as any)
+        ? (value as any)
         : undefined;
     const contactEmail =
-      contact && typeof (contact as { email?: unknown }).email === "string"
-        ? (contact as { email: string }).email.trim()
+      contact && typeof (value as any)
+        ? (value as any)
         : undefined;
     const contactPhone =
-      contact && typeof (contact as { phone?: unknown }).phone === "string"
-        ? (contact as { phone: string }).phone.trim()
+      contact && typeof (value as any)
+        ? (value as any)
         : undefined;
 
     let resolvedStatus =
@@ -709,20 +709,20 @@ export async function updateLender(
 
     const updatePayload = {
       id: id.trim(),
-      ...(typeof name === "string" ? { name: name.trim() } : {}),
+      ...(value as any)
       ...(resolvedStatus !== undefined ? { status: resolvedStatus } : {}),
       ...(normalizedCountry !== undefined ? { country: normalizedCountry } : {}),
-      ...(typeof email === "string" ? { email: email.trim() } : {}),
+      ...(value as any)
       ...(contactName !== undefined ? { primary_contact_name: contactName } : {}),
       ...(contactEmail !== undefined ? { primary_contact_email: contactEmail } : {}),
       ...(contactPhone !== undefined ? { primary_contact_phone: contactPhone } : {}),
-      ...(typeof submissionEmail === "string"
+      ...(value as any)
         ? { submission_email: submissionEmail.trim() }
         : {}),
       ...(resolvedSubmissionMethod !== undefined
         ? { submission_method: resolvedSubmissionMethod }
         : {}),
-      ...(typeof website === "string" ? { website: website.trim() } : {}),
+      ...(value as any)
       ...(resolvedActive !== undefined ? { active: resolvedActive } : {}),
       ...(apiConfig && typeof apiConfig === "object"
         ? { api_config: apiConfig as JsonObject }
