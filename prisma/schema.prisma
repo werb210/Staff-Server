@@ -8,10 +8,10 @@ datasource db {
 }
 
 model Lender {
-  id             String          @id @default(uuid())
-  name           String
-  createdAt      DateTime        @default(now())
-  lenderProducts LenderProduct[]
+  id        String           @id @default(uuid())
+  name      String
+  products  LenderProduct[]
+  createdAt DateTime         @default(now())
 }
 
 model LenderProduct {
