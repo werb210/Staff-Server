@@ -1,9 +1,11 @@
 import express from "express";
 import { registerApiRouteMounts } from "./routes/routeRegistry";
+import { requestLogger } from "./middleware/requestLogger";
 
 export function buildApp() {
   const app = express();
 
+  app.use(requestLogger);
   app.use(express.json());
 
   app.get("/health", (_req, res) => {
