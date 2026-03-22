@@ -1,9 +1,9 @@
 import type express from "express";
+import type { NextFunction, Request, Response } from "express";
 import { assertCorsConfig, buildApp, registerApiRoutes } from "../app";
 import { assertEnv } from "../config";
 import { warmUpDatabase } from "../db";
 import { assertRequiredSchema } from "../db/schemaAssert";
-import { notFoundHandler } from "../middleware/errors";
 import { logError } from "../observability/logger";
 import { getTwilioClient, getVerifyServiceSid } from "../services/twilio";
 import { seedRequirementsForAllProducts } from "../services/lenderProductRequirementsService";
@@ -120,11 +120,32 @@ export async function createServer(
   }
 
   registerApiRoutes(app);
-  app.use(notFoundHandler);
 
   if (!isTestMode && config.startFollowUpJobs !== false) {
     services.startFollowUpJobs?.();
   }
+
+  // ===============================
+  // JSON 404 handler (MUST BE LAST ROUTE)
+  // ===============================
+  app.use((req: Request, res: Response) => {
+    res.status(404).json({
+      error: "Not Found",
+      path: req.originalUrl,
+      method: req.method,
+    });
+  });
+
+  // ===============================
+  // Global error handler (MUST BE LAST MIDDLEWARE)
+  // ===============================
+  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+    console.error("Unhandled error:", err);
+
+    res.status(err?.status || 500).json({
+      error: err?.message || "Internal Server Error",
+    });
+  });
 
   return app;
 }
