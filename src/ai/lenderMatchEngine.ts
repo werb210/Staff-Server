@@ -35,7 +35,7 @@ export async function matchLenders(input: PrequalInput): Promise<LenderMatch[]> 
      order by lp.updated_at desc`
   );
 
-  const filtered = rows.filter((row: any) => {
+  const filtered = rows.filter((row: ProductRow) => {
     if (requestedAmount && row.min_amount && requestedAmount < row.min_amount) return false;
     if (requestedAmount && row.max_amount && requestedAmount > row.max_amount) return false;
     if (input.province && row.country && row.country === "US" && input.province) return false;
@@ -43,7 +43,7 @@ export async function matchLenders(input: PrequalInput): Promise<LenderMatch[]> 
   });
 
   return filtered
-    .map((row: any) => {
+    .map((row: ProductRow) => {
       const amountScore = scoreAmountFit(requestedAmount, row.min_amount, row.max_amount);
       const maturityScore = input.timeInBusiness && input.timeInBusiness >= 24 ? 0.9 : 0.65;
       const revenueScore = input.revenue && input.revenue >= 120000 ? 0.9 : 0.6;
@@ -57,6 +57,7 @@ export async function matchLenders(input: PrequalInput): Promise<LenderMatch[]> 
         reasoning: `Amount fit checked against ${minText}-${maxText}; weighted by time in business and annual revenue signals.`,
       };
     })
-    .sort((a: any, b: any) => b.likelihoodPercent - a.likelihoodPercent)
+    .sort((a: LenderMatch, b: LenderMatch) => b.likelihoodPercent - a.likelihoodPercent)
     .slice(0, 3);
 }
+
