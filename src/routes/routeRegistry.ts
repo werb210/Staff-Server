@@ -1,5 +1,6 @@
 import { type Router } from "express";
 import { ROLES, type Role } from "../auth/roles";
+import { FLAGS } from "../config/featureFlags";
 import adminRoutes from "./admin";
 import applicationsRoutes from "../modules/applications/applications.routes";
 import bankingRoutes from "./banking";
@@ -56,7 +57,7 @@ const ALL_ROLES: Role[] = [
 export const API_ROUTE_MOUNTS: ApiRouteMount[] = [
   { path: "/_int", router: internalRoutes },
   { path: "/internal/processing", router: internalProcessingRoutes },
-  { path: "/applications", router: applicationsRoutes },
+  ...(FLAGS.USE_LEGACY_APPLICATIONS ? [{ path: "/applications", router: applicationsRoutes }] : []),
   { path: "/calendar", router: calendarRoutes },
   { path: "/calls", router: callsRoutes },
   { path: "/banking", router: bankingRoutes },
@@ -70,7 +71,7 @@ export const API_ROUTE_MOUNTS: ApiRouteMount[] = [
   { path: "/lender", router: lenderRoutes },
   { path: "/lender-submissions", router: lenderSubmissionsRoutes },
   { path: "/lender-products", router: lenderProductsRoutes },
-  { path: "/lenders", router: lendersRoutes },
+  ...(FLAGS.USE_LEGACY_LENDERS ? [{ path: "/lenders", router: lendersRoutes }] : []),
   { path: "/admin", router: adminRoutes },
   { path: "/marketing", router: marketingRoutes },
   { path: "/offers", router: offersRoutes },
@@ -85,9 +86,10 @@ export const API_ROUTE_MOUNTS: ApiRouteMount[] = [
   { path: "/pwa", router: pwaRoutes },
   { path: "/referrals", router: referralsRoutes },
   { path: "/pipeline", router: pipelineRoutes },
-  { path: "/telephony", router: telephonyRoutes },
+  ...(FLAGS.USE_LEGACY_TELEPHONY ? [{ path: "/telephony", router: telephonyRoutes }] : []),
   { path: "/webhooks", router: webhooksRoutes },
   { path: "/website", router: websiteRoutes },
+  { path: "/applications", router: applicationsRoutes },
 ];
 
 export const PORTAL_ROUTE_REQUIREMENTS: Pick<ApiRoute, "method" | "path">[] = [
