@@ -4,15 +4,14 @@ export default defineConfig({
   test: {
     include: [
       'src/**/*.test.ts',
-      'src/**/*.test.js',
-      'src/test/**/*.ts',
-      'src/test/**/*.js',
-      '**/*test*.ts',
-      '**/*test*.js'
+      'src/**/*.test.js'
     ],
     exclude: [
       'node_modules',
-      'dist'
+      'dist',
+      'test-endpoints.js',
+      'vitest.config.ts',
+      'src/test/**'
     ],
     environment: 'node',
     globals: true
