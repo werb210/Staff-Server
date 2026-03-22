@@ -1,16 +1,6 @@
-import { vi } from "vitest";
-
-export default function () {
-  return {
-    verify: {
-      services: () => ({
-        verifications: {
-          create: vi.fn(),
-        },
-        verificationChecks: {
-          create: vi.fn(),
-        },
-      }),
-    },
-  };
-}
+// no vitest dependency → pure stub
+export const mockTwilio = {
+  messages: {
+    create: async () => ({ sid: "mock-sid" }),
+  },
+};
