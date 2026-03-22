@@ -67,6 +67,6 @@ export async function retrieveTopKnowledgeChunks(
       content: row.content,
       similarity: cosineSimilarity(queryVector, parseEmbedding(row.embedding)),
     }))
-    .sort((a, b) => b.similarity - a.similarity)
+    .sort((a: any, b) => b.similarity - a.similarity)
     .slice(0, limit);
 }

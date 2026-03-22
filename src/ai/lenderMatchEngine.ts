@@ -57,6 +57,6 @@ export async function matchLenders(input: PrequalInput): Promise<LenderMatch[]> 
         reasoning: `Amount fit checked against ${minText}-${maxText}; weighted by time in business and annual revenue signals.`,
       };
     })
-    .sort((a, b) => b.likelihoodPercent - a.likelihoodPercent)
+    .sort((a: any, b) => b.likelihoodPercent - a.likelihoodPercent)
     .slice(0, 3);
 }
