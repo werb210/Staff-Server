@@ -89,7 +89,7 @@ export async function startServer() {
   await createOtpSessionsTable();
   registerOtpCleanupJob();
 
-  const expressApp = app as any;
+  const expressApp = app ;
   expressApp?._router?.stack
     ?.filter((r: any) => r.route)
     ?.forEach((r: any) => {

@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 
-const twilioModule = require("twilio") as any;
+const twilioModule = require("twilio") ;
 
 export function incomingCallHandler(_req: Request, res: Response): void {
   const VoiceResponse = twilioModule.twiml.VoiceResponse;

@@ -5,7 +5,7 @@ type RouteKey = string;
 function extractRoutes(app: Express): RouteKey[] {
   const routes: RouteKey[] = [];
 
-  const stack = (app as any)?._router?.stack ?? [];
+  const stack = (app )?._router?.stack ?? [];
 
   stack.forEach((middleware: any) => {
     if (middleware.route) {

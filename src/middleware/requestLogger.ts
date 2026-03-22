@@ -5,7 +5,7 @@ import { appInsights } from '../services/appInsights';
 export function requestLogger(req: Request, res: Response, next: NextFunction) {
   const requestId = randomUUID();
 
-  (req as any).request_id = requestId;
+  (req ).request_id = requestId;
   res.setHeader('x-request-id', requestId);
 
   appInsights.trackRequest({

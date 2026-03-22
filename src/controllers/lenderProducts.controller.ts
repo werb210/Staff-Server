@@ -401,7 +401,7 @@ export async function listLenderProductsHandler(
       typeof req.query.country === "string"
         ? req.query.country.trim().toUpperCase()
         : "";
-    if (queryCountry && !LENDER_COUNTRIES.includes(queryCountry as any)) {
+    if (queryCountry && !LENDER_COUNTRIES.includes(queryCountry )) {
       throw new AppError("validation_error", "country is invalid.", 400);
     }
 
@@ -546,7 +546,7 @@ export async function createLenderProductHandler(
         : null;
     if (
       normalizedCountry &&
-      !LENDER_COUNTRIES.includes(normalizedCountry as any)
+      !LENDER_COUNTRIES.includes(normalizedCountry )
     ) {
       throw new AppError("validation_error", "country is invalid.", 400);
     }
@@ -571,7 +571,7 @@ export async function createLenderProductHandler(
           ? type.trim().toUpperCase()
           : "LOC";
     const resolvedCategory = normalizeCategoryValue(normalizedCategory);
-    if (!LENDER_PRODUCT_CATEGORIES.includes(resolvedCategory as any)) {
+    if (!LENDER_PRODUCT_CATEGORIES.includes(resolvedCategory )) {
       throw new AppError("validation_error", "category is invalid.", 400);
     }
     const termMin = parseAmount(term_min, "term_min");
@@ -711,7 +711,7 @@ export async function updateLenderProductHandler(
         : undefined;
     if (
       normalizedCountry &&
-      !LENDER_COUNTRIES.includes(normalizedCountry as any)
+      !LENDER_COUNTRIES.includes(normalizedCountry )
     ) {
       throw new AppError("validation_error", "country is invalid.", 400);
     }
@@ -739,7 +739,7 @@ export async function updateLenderProductHandler(
     const resolvedCategory = normalizedCategory
       ? normalizeCategoryValue(normalizedCategory)
       : undefined;
-    if (resolvedCategory && !LENDER_PRODUCT_CATEGORIES.includes(resolvedCategory as any)) {
+    if (resolvedCategory && !LENDER_PRODUCT_CATEGORIES.includes(resolvedCategory )) {
       throw new AppError("validation_error", "category is invalid.", 400);
     }
     const termMin = term_min !== undefined ? parseAmount(term_min, "term_min") : undefined;
