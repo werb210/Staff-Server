@@ -14,7 +14,7 @@ import {
   getReportingDailyIntervalMs,
   getReportingHourlyIntervalMs,
   getReportingJobsEnabled,
-} from "../../config";
+} from "../../server/config/env";
 import { runWithRequestContext } from "../../middleware/requestContext";
 import { logError, logInfo } from "../../observability/logger";
 import { type PoolClient } from "pg";

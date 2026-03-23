@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { API_BASE, ALLOWED_ORIGINS } from "../../config/runtime";
+import { API_BASE, ALLOWED_ORIGINS } from "../../server/config/env/runtime";
 
 const router = Router();
 

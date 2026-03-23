@@ -3,7 +3,7 @@ import { pool } from "../../db";
 import { AppError } from "../../middleware/errors";
 import { getCircuitBreaker } from "../../utils/circuitBreaker";
 import type { PoolClient } from "pg";
-import { getRetryPolicyEnabled } from "../../config";
+import { getRetryPolicyEnabled } from "../../server/config/env";
 import { assertRetryAllowed } from "./retryPolicy";
 
 type Queryable = Pick<PoolClient, "query">;

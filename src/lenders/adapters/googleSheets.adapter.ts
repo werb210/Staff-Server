@@ -2,7 +2,7 @@ import { google } from "googleapis";
 import {
   type GoogleSheetsPayload,
   type GoogleSheetsSheetMap,
-} from "../config/merchantGrowth.sheetMap";
+} from "../server/config/env/merchantGrowth.sheetMap";
 import { logError, logInfo } from "../../observability/logger";
 
 export type GoogleSheetsSubmissionResult = {

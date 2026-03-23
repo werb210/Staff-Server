@@ -27,7 +27,7 @@ import {
   assertPipelineTransition,
   resolveNextPipelineStage,
 } from "../modules/applications/applicationLifecycle.service";
-import { getAuditHistoryEnabled } from "../config";
+import { getAuditHistoryEnabled } from "../server/config/env";
 import { listLenders } from "../repositories/lenders.repo";
 import { eventBus } from "../events/eventBus";
 import {

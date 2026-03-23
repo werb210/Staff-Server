@@ -12,7 +12,7 @@ import {
 } from "../../middleware/rateLimit";
 
 const router = Router();
-const clientReadLimiter = clientReadRateLimit();
+const clientReadLimiter = clientReadRateLimit() as any;
 
 router.use((req: any, res: any, next: any) => {
   if (req.method === "GET") {

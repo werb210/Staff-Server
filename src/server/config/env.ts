@@ -81,3 +81,4 @@ export function isTest(): boolean {
 
 // backward compatibility
 export const getAuditHistoryEnabled = () => false;
+
