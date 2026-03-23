@@ -115,3 +115,37 @@ export function getLenderRetryMaxDelayMs(): number {
 export function getLenderRetryMaxCount(): number {
   return 3;
 }
+
+// -------- OCR CONFIG --------
+
+export function getOcrEnabled(): boolean {
+  return true;
+}
+
+export function getOcrProvider(): string {
+  return 'openai';
+}
+
+export function getOcrPollIntervalMs(): number {
+  return 5000;
+}
+
+export function getOcrMaxAttempts(): number {
+  return 5;
+}
+
+export function getOcrLockTimeoutMinutes(): number {
+  return 10;
+}
+
+export function getOcrTimeoutMs(): number {
+  return 30000;
+}
+
+export function getOpenAiOcrModel(): string {
+  return 'gpt-4o-mini';
+}
+
+export function getOpenAiApiKey(): string {
+  return process.env.OPENAI_API_KEY || '';
+}
