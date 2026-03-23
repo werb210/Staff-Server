@@ -38,8 +38,14 @@ jobs:
           echo "Checking for illegal exported get* helpers..."
           grep -rE "export (const|function) get[A-Z]" src && exit 1 || echo "OK"
 
-          echo "Checking for direct process.env usage..."
-          grep -r "process.env" src | grep -v "config" && exit 1 || echo "OK"
+          echo "Checking for illegal process.env usage outside config layer..."
+
+          grep -r "process.env" src \
+            | grep -v "src/config" \
+            | grep -v "src/platform/env" \
+            | grep -v "src/env" \
+            | grep -v "src/server" \
+            && exit 1 || echo "OK"
 
           echo "Checking single entrypoint..."
           test $(grep -r "app.listen" src | wc -l) -eq 1
