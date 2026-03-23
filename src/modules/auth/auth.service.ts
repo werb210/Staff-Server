@@ -30,7 +30,6 @@ import { normalizeOtpPhone } from "./phone";
 import { ensureOtpTableExists } from "../../db/ensureOtpTable";
 import {
   getAccessTokenSecret,
-  getRefreshTokenExpiresIn,
   getRefreshTokenExpiresInMs,
   getRefreshTokenSecret,
   getJwtClockSkewSeconds,
@@ -117,7 +116,7 @@ export function issueRefreshToken(params: {
     type: "refresh",
     jti: randomUUID(),
   };
-  const expiresIn = getRefreshTokenExpiresIn() as SignOptions["expiresIn"];
+  const expiresIn = getRefreshTokenExpiresInMs() as SignOptions["expiresIn"];
   const options: SignOptions = {
     algorithm: "HS256",
   };
