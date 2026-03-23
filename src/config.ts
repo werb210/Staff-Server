@@ -149,3 +149,39 @@ export function getOpenAiOcrModel(): string {
 export function getOpenAiApiKey(): string {
   return process.env.OPENAI_API_KEY || '';
 }
+
+// -------- REPORTING --------
+
+export function getReportingDailyIntervalMs(): number {
+  return 24 * 60 * 60 * 1000; // daily
+}
+
+// -------- RETRY POLICY --------
+
+export function getRetryPolicyEnabled(): boolean {
+  return true;
+}
+
+// -------- OPS KILL SWITCHES --------
+
+export function getOpsKillSwitchReplay(): boolean {
+  return false;
+}
+
+export function getOpsKillSwitchOcr(): boolean {
+  return false;
+}
+
+export function getOpsKillSwitchLenderTransmission(): boolean {
+  return false;
+}
+
+export function getOpsKillSwitchExports(): boolean {
+  return false;
+}
+
+// -------- OCR WORKER --------
+
+export function getOcrWorkerConcurrency(): number {
+  return 2;
+}
