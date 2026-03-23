@@ -27,3 +27,10 @@ export async function testDbConnection(): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * Typed query helper (replaces broken spread version)
+ */
+export function query(text: string, params?: any[]) {
+  return dbClient.query(text, params);
+}
