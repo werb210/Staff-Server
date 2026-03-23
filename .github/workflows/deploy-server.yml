@@ -53,6 +53,12 @@ jobs:
             echo "OK"
           fi
 
+          echo "Checking that config is used instead of process.env in business layers..."
+
+          grep -r "process.env" src \
+            | grep -E "src/(services|routes|modules|middleware|repositories)" \
+            && echo "ERROR: process.env used in business logic. Use config instead." && exit 1 || echo "OK"
+
           echo "Checking single entrypoint..."
           test $(grep -r "app.listen" src | wc -l) -eq 1
 
