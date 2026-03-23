@@ -4,13 +4,14 @@ generator client {
 
 datasource db {
   provider = "sqlite"
+  url      = env("DATABASE_URL")
 }
 
 model Lender {
-  id        String           @id @default(uuid())
+  id        String          @id @default(uuid())
   name      String
   products  LenderProduct[]
-  createdAt DateTime         @default(now())
+  createdAt DateTime        @default(now())
 }
 
 model LenderProduct {
