@@ -1,4 +1,4 @@
-import { getFollowUpJobsEnabled, getFollowUpJobsIntervalMs } from "../../config";
+import { getFollowUpJobsEnabled, getFollowUpJobsIntervalMs } from "../../server/config/env";
 import { logError } from "../../observability/logger";
 import { createFollowUpActionHandlers } from "./followup.actions";
 import { evaluateFollowUpRules } from "./followup.engine";

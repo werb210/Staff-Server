@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { pool } from "../../db";
 import { type PoolClient } from "pg";
-import { getOcrLockTimeoutMinutes } from "../../config";
+import { getOcrLockTimeoutMinutes } from "../../server/config/env";
 import {
   type OcrDocumentResultRecord,
   type OcrJobRecord,

@@ -1,6 +1,6 @@
 import { AppError } from "../../middleware/errors";
 import { recordAuditEvent } from "../audit/audit.service";
-import { getOcrMaxAttempts, getOcrProvider } from "../../config";
+import { getOcrMaxAttempts, getOcrProvider } from "../../server/config/env";
 import {
   findApplicationById,
   findDocumentById,

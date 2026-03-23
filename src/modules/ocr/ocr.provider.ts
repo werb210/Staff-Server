@@ -1,4 +1,4 @@
-import { getOcrTimeoutMs, getOpenAiApiKey, getOpenAiOcrModel } from "../../config";
+import { getOcrTimeoutMs, getOpenAiApiKey, getOpenAiOcrModel } from "../../server/config/env";
 import { logWarn } from "../../observability/logger";
 
 export type OcrExtractionResult = {
