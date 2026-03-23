@@ -133,7 +133,7 @@ function getVoiceStatusCallbackUrl(): string | null {
 function normalizeRestrictedNumbers(): Set<string> {
   const restricted = getVoiceRestrictedNumbers();
   const normalized = restricted
-    .map((entry) => normalizePhoneNumber(entry))
+    .map((entry: any) => normalizePhoneNumber(entry))
     .filter((entry): entry is string => Boolean(entry));
   return new Set(normalized);
 }

@@ -195,3 +195,13 @@ export function getReportingJobsEnabled(): boolean {
 export function getReportingHourlyIntervalMs(): number {
   return 60 * 60 * 1000; // hourly
 }
+
+// -------- META --------
+
+export const COMMIT_SHA = process.env.COMMIT_SHA || 'dev';
+
+// -------- VOICE --------
+
+export function getVoiceRestrictedNumbers(): string[] {
+  return [];
+}
