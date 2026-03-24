@@ -51,6 +51,15 @@ jobs:
       - name: Install
         run: npm ci
 
+      - name: Wait for Postgres
+        run: |
+          for i in {1..10}; do
+            nc -z localhost 5432 && echo "Postgres ready" && exit 0
+            echo "Waiting for Postgres..."
+            sleep 2
+          done
+          echo "Postgres not ready" && exit 1
+
       - name: Generate Prisma client
         run: npx prisma generate
 
@@ -72,13 +81,13 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Smoke + health check
+      - name: Health check
         run: |
           set -euo pipefail
           node dist/index.js &
           PID=$!
           for i in {1..20}; do
-            if curl -sf http://127.0.0.1:3000/healthz >/dev/null; then
+            if curl -f http://localhost:3000/healthz >/dev/null; then
               echo "Health check passed"
               kill "$PID" || true
               wait "$PID" || true

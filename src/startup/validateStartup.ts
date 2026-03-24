@@ -9,7 +9,7 @@ export function validateStartup() {
   }
 
   if (!config.db.url && !config.db.skip) {
-    throw new Error("Missing DATABASE_URL");
+    throw new Error("DATABASE_URL missing");
   }
 
   if (!config.sentry.dsn) {
