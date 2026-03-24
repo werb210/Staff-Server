@@ -1,17 +1,23 @@
-import { Router } from "express";
+import { type Request, Router } from "express";
 import { requireAuth } from "../../middleware/auth";
 import { buildLenderPackage } from "../../services/lenders/packageBuilder";
 import { lenderProductsService } from "../../services/lenderProducts/lenderProducts.service";
 
+interface SendLenderPackageBody {
+  application: unknown;
+  documents: unknown;
+  creditSummary: unknown;
+  [key: string]: unknown;
+}
+
 const router = Router();
 
-router.post("/send", requireAuth, async (req, res) => {
+router.post("/send", requireAuth, async (req: Request<{}, {}, SendLenderPackageBody>, res, next) => {
   try {
     const packageData = buildLenderPackage(req.body);
     res.json({ status: "sent", package: packageData });
   } catch (err) {
-    const error = err instanceof Error ? err.message : "Failed to send package";
-    res.status(500).json({ error });
+    next(err);
   }
 });
 
