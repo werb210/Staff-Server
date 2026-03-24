@@ -37,6 +37,17 @@ function buildStoreKey(req: Request, key: string): string {
   return `${req.method}:${normalizePath(req)}:${key}`;
 }
 
+function duplicateBody(body: unknown): unknown {
+  if (body && typeof body === "object" && !Array.isArray(body)) {
+    return {
+      ...(body as Record<string, unknown>),
+      status: "duplicate",
+    };
+  }
+
+  return { data: body, status: "duplicate" };
+}
+
 export async function idempotencyMiddleware(
   req: Request,
   res: Response,
@@ -62,7 +73,7 @@ export async function idempotencyMiddleware(
     const replay = await fetchStoredResponse(storeKey);
     if (replay) {
       logInfo("idempotent_request_replayed", { key, route: req.path });
-      res.status(replay.statusCode).json(replay.body);
+      res.status(200).json(duplicateBody(replay.body));
       return;
     }
   }
@@ -78,7 +89,7 @@ export async function idempotencyMiddleware(
     }
 
     logInfo("idempotent_request_replayed", { key, route: req.path });
-    res.status(cached.statusCode).json(cached.body);
+    res.status(200).json(duplicateBody(cached.body));
     return;
   }
 

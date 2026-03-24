@@ -1,6 +1,7 @@
 import { type Request, Router } from "express";
 import { z } from "zod";
 import { requireAuth } from "../../middleware/auth";
+import { idempotencyMiddleware } from "../../middleware/idempotency";
 import { buildLenderPackage } from "../../services/lenders/packageBuilder";
 import { lenderProductsService } from "../../services/lenderProducts/lenderProducts.service";
 import { enqueueLenderPackage, getLenderQueue } from "../../queue/lenderQueue";
@@ -16,7 +17,7 @@ type SendLenderPackageBody = z.infer<typeof sendLenderPackageSchema>;
 
 const router = Router();
 
-router.post("/send", requireAuth, async (req: Request<{}, {}, SendLenderPackageBody>, res, next) => {
+router.post("/send", requireAuth, idempotencyMiddleware, async (req: Request<{}, {}, SendLenderPackageBody>, res, next) => {
   try {
     const body = sendLenderPackageSchema.parse(req.body);
     const packageData = buildLenderPackage(body);
