@@ -1,8 +1,20 @@
 import { type NextFunction, type Request, type Response } from "express";
 import { logger } from "../platform/logger";
 
+type ErrorWithStatus = Error & { status?: number };
+
 export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction): void {
-  const message = err instanceof Error ? err.message : "internal_error";
-  logger.error("request_failed", { error: message });
-  res.status(500).json({ ok: false, error: { code: "INTERNAL_SERVER_ERROR", message } });
+  const typedError = err as ErrorWithStatus;
+  const message = typedError?.message || "Internal Server Error";
+  const status = typedError?.status ?? 500;
+
+  logger.error("request_failed", {
+    status,
+    error: message,
+    stack: typedError?.stack,
+  });
+
+  res.status(status).json({
+    error: message,
+  });
 }
