@@ -1,6 +1,7 @@
 import { type Request, type Response, Router } from "express";
 import { z } from "zod";
 import { requireAuth } from "../../middleware/auth";
+import { idempotencyMiddleware } from "../../middleware/idempotency";
 import { createLead, getLeads } from "./lead.service";
 
 const createLeadSchema = z.object({
@@ -27,6 +28,7 @@ const router = Router();
 router.post(
   "/",
   requireAuth,
+  idempotencyMiddleware,
   async (req: Request<{}, {}, CreateLeadBody>, res: Response, next) => {
     const body = createLeadSchema.parse(req.body);
 

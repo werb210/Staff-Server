@@ -29,6 +29,8 @@ async function resetDatabase(): Promise<void> {
 
 beforeEach(async () => {
   await resetDatabase();
+  const { resetIdempotencyStoreForTests } = await import("../src/lib/idempotencyStore");
+  resetIdempotencyStoreForTests();
 });
 
 beforeAll(async () => {
