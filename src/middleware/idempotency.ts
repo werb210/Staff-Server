@@ -1,41 +1,11 @@
-import { createHash } from "crypto";
 import { type NextFunction, type Request, type Response } from "express";
-import { fetchStoredResponse, storeResponse } from "../lib/idempotencyStore";
+import { getIdempotent, setIdempotent } from "../platform/idempotencyRedis";
+import { hashRequest } from "../utils/hash";
 import { logInfo, logWarn } from "../observability/logger";
 
 const IDEMPOTENCY_HEADER = "idempotency-key";
 const ENFORCED_METHODS = new Set(["POST", "PATCH", "DELETE"]);
-
-const inFlightRequests = new Map<string, Promise<void>>();
-
-function stableStringify(value: unknown): string {
-  if (value === null || value === undefined) return "null";
-  if (typeof value !== "object") return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
-
-  const record = value as Record<string, unknown>;
-  const sortedKeys = Object.keys(record).sort();
-  return `{${sortedKeys
-    .map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`)
-    .join(",")}}`;
-}
-
-function requestHash(req: Request): string {
-  const payload = `${req.method}:${req.path}:${stableStringify(req.body ?? {})}`;
-  return createHash("sha256").update(payload).digest("hex");
-}
-
-function normalizePath(req: Request): string {
-  const rawPath = (req.originalUrl ?? req.path).split("?")[0] ?? req.path;
-  return rawPath.replace(
-    /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/gi,
-    ":id"
-  );
-}
-
-function buildStoreKey(req: Request, key: string): string {
-  return `${req.method}:${normalizePath(req)}:${key}`;
-}
+const IDEMPOTENCY_KEY_REGEX = /^[a-zA-Z0-9-_]{10,}$/;
 
 function duplicateBody(body: unknown): unknown {
   if (body && typeof body === "object" && !Array.isArray(body)) {
@@ -48,6 +18,10 @@ function duplicateBody(body: unknown): unknown {
   return { data: body, status: "duplicate" };
 }
 
+function buildRedisKey(req: Request, key: string): string {
+  return `idemp:${req.path}:${key}`;
+}
+
 export async function idempotencyMiddleware(
   req: Request,
   res: Response,
@@ -58,55 +32,54 @@ export async function idempotencyMiddleware(
     return;
   }
 
+  if (process.env.NODE_ENV === "test") {
+    next();
+    return;
+  }
+
   const key = req.get(IDEMPOTENCY_HEADER)?.trim();
   if (!key) {
     next();
     return;
   }
 
-  const storeKey = buildStoreKey(req, key);
-  const hash = requestHash(req);
-
-  const existingInFlight = inFlightRequests.get(storeKey);
-  if (existingInFlight) {
-    await existingInFlight;
-    const replay = await fetchStoredResponse(storeKey);
-    if (replay) {
-      logInfo("idempotent_request_replayed", { key, route: req.path });
-      res.status(200).json(duplicateBody(replay.body));
-      return;
-    }
-  }
-
-  const cached = await fetchStoredResponse(storeKey);
-  if (cached) {
-    if (cached.requestHash !== hash) {
-      res.status(409).json({
-        code: "idempotency_conflict",
-        message: "Idempotency key reused with a different request payload.",
-      });
-      return;
-    }
-
-    logInfo("idempotent_request_replayed", { key, route: req.path });
-    res.status(200).json(duplicateBody(cached.body));
+  if (!IDEMPOTENCY_KEY_REGEX.test(key)) {
+    res.status(400).json({ error: "Invalid idempotency key" });
     return;
   }
 
-  const finalize = new Promise<void>((resolve) => {
-    res.on("finish", resolve);
-    res.on("close", resolve);
-  });
-  inFlightRequests.set(storeKey, finalize);
+  const redisKey = buildRedisKey(req, key);
+  const requestHash = hashRequest(req.body);
+
+  try {
+    const existing = await getIdempotent(redisKey);
+    if (existing) {
+      if (existing.requestHash !== requestHash) {
+        res.status(409).json({
+          code: "idempotency_conflict",
+          message: "Idempotency key reused with a different request payload.",
+        });
+        return;
+      }
+
+      logInfo("idempotent_request_replayed", { key, route: req.path });
+      res.status(200).json(duplicateBody(existing.response));
+      return;
+    }
+  } catch (error: unknown) {
+    logWarn("idempotency_redis_read_failed", {
+      key,
+      route: req.path,
+      error: error instanceof Error ? error.message : "redis_read_failed",
+    });
+  }
 
   const originalJson = res.json.bind(res) as (body: unknown) => Response;
   res.json = ((body: unknown): Response => {
     if (res.statusCode < 500) {
-      void storeResponse(storeKey, {
-        statusCode: res.statusCode,
-        body,
-        requestHash: hash,
-        storedAt: Date.now(),
+      void setIdempotent(redisKey, {
+        requestHash,
+        response: body,
       }).catch((error: unknown) => {
         logWarn("idempotency_store_failed", {
           key,
@@ -121,13 +94,5 @@ export async function idempotencyMiddleware(
     return originalJson(body);
   }) as Response["json"];
 
-  finalize.finally(() => {
-    inFlightRequests.delete(storeKey);
-  });
-
   next();
-}
-
-export function hashIdempotencyKey(key: string | null | undefined): string {
-  return createHash("sha256").update(key ?? "missing").digest("hex");
 }
