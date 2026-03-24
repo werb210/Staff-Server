@@ -44,7 +44,8 @@
     "web-push": "^3.6.7",
     "winston": "^3.19.0",
     "ws": "^8.20.0",
-    "zod": "^4.3.6"
+    "zod": "^4.3.6",
+    "cookie-parser": "^1.4.7"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
@@ -65,7 +66,8 @@
     "ts-node": "^10.9.2",
     "tsx": "^4.21.0",
     "typescript": "^5.0.0",
-    "vitest": "^4.1.0"
+    "vitest": "^4.1.0",
+    "@types/cookie-parser": "^1.4.10"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
