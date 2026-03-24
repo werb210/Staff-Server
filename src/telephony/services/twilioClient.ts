@@ -1,4 +1,4 @@
-import { twilioClient } from "../../platform/twilioClient";
+import { twilioClient } from "../../infra/twilioClient";
 import { config } from "../../config";
 
 export const twilioVoiceGrantConfig = {

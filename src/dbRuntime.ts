@@ -1,5 +1,5 @@
 import { pool } from "./db";
-import { logger } from "./platform/logger";
+import { logger } from "./infra/logger";
 import { config } from "./config";
 
 export function isTestEnv(): boolean {

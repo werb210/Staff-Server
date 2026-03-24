@@ -1,5 +1,5 @@
 import type Redis from "ioredis";
-import { redisClient } from "../platform/redisClient";
+import { redisClient } from "../infra/redisClient";
 
 export function initRedis(): Redis {
   return redisClient;

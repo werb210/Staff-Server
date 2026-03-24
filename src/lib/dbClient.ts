@@ -1,6 +1,6 @@
 import { canExecute, recordFailure } from './circuitBreaker';
 import { retry } from './retry';
-import { dbClient } from '../platform/dbClient';
+import { dbClient } from '../infra/dbClient';
 
 export { dbClient };
 

@@ -12,10 +12,6 @@ process.env.TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID ?? "ACtest";
 process.env.TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN ?? "test-token";
 process.env.TWILIO_PHONE = process.env.TWILIO_PHONE ?? "+10000000000";
 
-vi.mock("../src/routes/routeRegistry", () => ({
-  registerApiRouteMounts: vi.fn(),
-}));
-
 vi.mock("../src/services/lenderProducts/lenderProducts.service", () => ({
   lenderProductsService: {
     list: vi.fn(async () => []),
@@ -23,7 +19,6 @@ vi.mock("../src/services/lenderProducts/lenderProducts.service", () => ({
 }));
 
 async function resetDatabase(): Promise<void> {
-  // isolated test DB reset hook
   return Promise.resolve();
 }
 

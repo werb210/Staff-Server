@@ -1,6 +1,9 @@
 import { startServer } from './server/index';
 import { bootstrapStartup } from './startup/bootstrap';
-import { logger } from './platform/logger';
+import { logger } from './infra/logger';
+import { validateStartup } from './startup/validateStartup';
+
+validateStartup();
 
 async function bootstrap() {
   try {

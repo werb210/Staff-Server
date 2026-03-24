@@ -1,6 +1,6 @@
 import { type NextFunction, type Request, type Response } from "express";
 import { ZodError } from "zod";
-import { logger } from "../platform/logger";
+import { logger } from "../infra/logger";
 import { sendSlackAlert } from "../observability/alerts";
 import { captureException } from "../observability/sentry";
 

@@ -1,4 +1,4 @@
-import { API_ROUTE_MOUNTS } from "../routes/routeRegistry";
+import { API_ROUTE_MOUNTS } from "../routeRegistry";
 import { config } from "../config";
 
 export const API_V1_FROZEN = true;

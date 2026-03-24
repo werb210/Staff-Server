@@ -26,6 +26,18 @@ module.exports = [
           message: "Use config instead of process.env",
         },
       ],
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@/platform/auth",
+              message: "Use middleware/auth only",
+            },
+          ],
+          patterns: ["@/routes/*"],
+        },
+      ],
     },
   },
   {

@@ -1,5 +1,5 @@
 import { type NextFunction, type Request, type Response } from "express";
-import { getIdempotent, setIdempotent } from "../platform/idempotencyRedis";
+import { getIdempotent, setIdempotent } from "../infra/idempotencyRedis";
 import { hashRequest } from "../utils/hash";
 import { logInfo, logWarn } from "../observability/logger";
 import { config } from "../config";

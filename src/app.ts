@@ -1,6 +1,7 @@
 import express from "express";
-import { registerApiRouteMounts } from "./routes/routeRegistry";
-import healthRoutes from "./routes/health";
+import leadRoutes from "./modules/lead/lead.routes";
+import lenderRoutes from "./modules/lender/lender.routes";
+import healthRoutes from "./modules/health/health.routes";
 import { requestContextMiddleware } from "./observability/requestContext";
 import { errorHandler } from "./middleware/errorHandler";
 import { securityHeaders } from "./middleware/security";
@@ -14,8 +15,9 @@ export function buildAppWithApiRoutes() {
   app.use(express.json({ limit: "1mb" }));
   app.use(requestContextMiddleware);
   app.use(httpMetricsMiddleware);
-  app.use(healthRoutes);
-  registerApiRouteMounts(app);
+  app.use("/", healthRoutes);
+  app.use("/api/leads", leadRoutes);
+  app.use("/api/lenders", lenderRoutes);
   app.use(errorHandler);
   return app;
 }

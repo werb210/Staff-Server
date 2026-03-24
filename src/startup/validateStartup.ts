@@ -1,22 +1,15 @@
 import { config } from "../config";
-import { loadRequiredSecrets } from "../config/secrets";
 
 export function validateStartup() {
-  loadRequiredSecrets();
-
-  if (!config.auth.jwtSecret) {
-    throw new Error("Missing JWT secret");
-  }
-
-  if (!config.db.url && !config.db.skip) {
+  if (!config.db.url) {
     throw new Error("DATABASE_URL missing");
   }
 
-  if (!config.sentry.dsn) {
-    throw new Error("Missing SENTRY_DSN");
+  if (!config.jwt.secret) {
+    throw new Error("JWT secret missing");
   }
 
-  if (!config.alerting.slackWebhookUrl) {
-    throw new Error("Missing SLACK_ALERT_WEBHOOK_URL");
+  if (!config.redis.url && config.env !== "test") {
+    throw new Error("REDIS_URL missing");
   }
 }

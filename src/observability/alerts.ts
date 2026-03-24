@@ -1,5 +1,5 @@
 import { config } from "../config";
-import { logger } from "../platform/logger";
+import { logger } from "../infra/logger";
 
 export async function sendSlackAlert(message: string): Promise<void> {
   const webhookUrl = config.alerting.slackWebhookUrl;

@@ -1,6 +1,6 @@
 import { config } from "../config";
-import { dbClient } from "../platform/dbClient";
-import { redisClient } from "../platform/redisClient";
+import { dbClient } from "../infra/dbClient";
+import { redisClient } from "../infra/redisClient";
 import { initializeAppInsights } from "../observability/appInsights";
 import { initializeSentry } from "../observability/sentry";
 
