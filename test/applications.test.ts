@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import type { Express } from "express";
 import { createServer } from "../src/server/createServer";
 
-let cookie: string[];
+let token: string;
 
 describe("Applications", () => {
   let app: Express;
@@ -12,16 +12,16 @@ describe("Applications", () => {
     app = createServer();
 
     const res = await request(app)
-      .post("/api/auth/otp/verify")
-      .send({ otp: "123456" });
+      .post("/auth/otp/verify")
+      .send({ phone: "+12345678901", otp: "123456" });
 
-    cookie = res.headers["set-cookie"] as string[];
+    token = res.body.token as string;
   });
 
   it("should create application", async () => {
     const res = await request(app)
       .post("/api/applications")
-      .set("Cookie", cookie)
+      .set("Authorization", `Bearer ${token}`)
       .send({ name: "Test App" });
 
     expect(res.status).toBe(201);
@@ -32,14 +32,14 @@ describe("Applications", () => {
   it("should fetch application", async () => {
     const create = await request(app)
       .post("/api/applications")
-      .set("Cookie", cookie)
+      .set("Authorization", `Bearer ${token}`)
       .send({ name: "Fetch App" });
 
     const id = create.body.data.id as string;
 
     const res = await request(app)
       .get(`/api/applications/${id}`)
-      .set("Cookie", cookie);
+      .set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);

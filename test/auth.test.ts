@@ -12,20 +12,19 @@ describe("Auth", () => {
 
   it("should start OTP", async () => {
     const res = await request(app)
-      .post("/api/auth/otp/start")
-      .send({ phone: "1234567890" });
+      .post("/auth/otp/start")
+      .send({ phone: "+12345678901" });
 
     expect(res.status).toBe(200);
-    expect(res.body.ok).toBe(true);
+    expect(typeof res.body.token).toBe("string");
   });
 
   it("should verify OTP and return token", async () => {
     const res = await request(app)
-      .post("/api/auth/otp/verify")
-      .send({ otp: "123456" });
+      .post("/auth/otp/verify")
+      .send({ phone: "+12345678901", otp: "123456" });
 
     expect(res.status).toBe(200);
-    expect(res.body.ok).toBe(true);
-    expect(res.body.data.token).toBeDefined();
+    expect(res.body.token).toBeDefined();
   });
 });
