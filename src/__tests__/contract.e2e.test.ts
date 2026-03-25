@@ -19,13 +19,15 @@ describe("server:contract:e2e", () => {
   });
 
   it("full flow works", async () => {
-    await request(app)
+    const start = await request(app)
       .post("/auth/otp/start")
       .send({ phone: "+61400000000" });
 
+    expect(start.status).toBe(200);
+
     const verify = await request(app)
       .post("/auth/otp/verify")
-      .send({ phone: "+61400000000", code: "000000" });
+      .send({ phone: "+61400000000", otp: "000000" });
 
     expect(verify.body.token).toBeTruthy();
 
@@ -33,6 +35,7 @@ describe("server:contract:e2e", () => {
       .get("/telephony/token")
       .set("Authorization", `Bearer ${verify.body.token}`);
 
+    expect(tel.status).toBe(200);
     expect(tel.body.token).toBeTruthy();
   });
 });

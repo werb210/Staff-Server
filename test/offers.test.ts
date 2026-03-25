@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import type { Express } from "express";
 import { createServer } from "../src/server/createServer";
 
-let cookie: string[];
+let token: string;
 let appId: string;
 
 describe("Offers", () => {
@@ -13,14 +13,14 @@ describe("Offers", () => {
     app = createServer();
 
     const auth = await request(app)
-      .post("/api/auth/otp/verify")
-      .send({ otp: "123456" });
+      .post("/auth/otp/verify")
+      .send({ phone: "+12345678901", otp: "123456" });
 
-    cookie = auth.headers["set-cookie"] as string[];
+    token = auth.body.token as string;
 
     const appRes = await request(app)
       .post("/api/applications")
-      .set("Cookie", cookie)
+      .set("Authorization", `Bearer ${token}`)
       .send({ name: "Offer App" });
 
     appId = appRes.body.data.id as string;
@@ -29,7 +29,7 @@ describe("Offers", () => {
   it("should fetch offers", async () => {
     const res = await request(app)
       .get(`/api/offers?applicationId=${appId}`)
-      .set("Cookie", cookie);
+      .set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
