@@ -1,24 +1,15 @@
-import type Redis from "ioredis";
-import { redisClient } from "../platform/redisClient";
+import Redis from "ioredis";
 
-export function initRedis(): Redis {
-  return redisClient;
-}
-
-export const redis = initRedis();
-
-function requireRedis(): Redis {
-  return redis;
-}
+export const redis = new Redis(process.env.REDIS_URL ?? "redis://127.0.0.1:6379");
 
 export async function setOtp(phone: string, code: string) {
-  await requireRedis().set(`otp:${phone}`, code, "EX", 300);
+  await redis.set(`otp:${phone}`, code, "EX", 300);
 }
 
 export async function fetchOtp(phone: string) {
-  return requireRedis().get(`otp:${phone}`);
+  return redis.get(`otp:${phone}`);
 }
 
 export async function deleteOtp(phone: string) {
-  await requireRedis().del(`otp:${phone}`);
+  await redis.del(`otp:${phone}`);
 }

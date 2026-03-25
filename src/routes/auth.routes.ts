@@ -2,6 +2,8 @@ import jwt from "jsonwebtoken";
 import { Router } from "express";
 import crypto from "crypto";
 
+import { redis } from "../lib/redis";
+
 const router = Router();
 const OTP_TTL_MS = 5 * 60 * 1000;
 const OTP_START_RATE_LIMIT_MS = 60 * 1000;
@@ -10,21 +12,19 @@ const OTP_HASH_SECRET = process.env.OTP_HASH_SECRET ?? "otp-dev-secret";
 
 type OtpRecord = {
   codeHash: string;
-  phone: string;
-  createdAt: number;
   attempts: number;
 };
 
-const otpStore: Record<string, OtpRecord> = {};
 const otpRequestStore: Record<string, number> = {};
 
 export function resetOtpStateForTests(): void {
-  Object.keys(otpStore).forEach((phone) => {
-    delete otpStore[phone];
-  });
   Object.keys(otpRequestStore).forEach((phone) => {
     delete otpRequestStore[phone];
   });
+}
+
+function otpKey(phone: string): string {
+  return `otp:${phone}`;
 }
 
 function isPhone(value: unknown): value is string {
@@ -42,7 +42,7 @@ function hashOtp(code: string): string {
     .digest("hex");
 }
 
-router.post("/otp/start", (req, res) => {
+router.post("/otp/start", async (req, res) => {
   const { phone } = req.body as { phone?: unknown };
 
   if (!isPhone(phone)) {
@@ -58,18 +58,18 @@ router.post("/otp/start", (req, res) => {
   }
 
   const code = "123456";
-  otpStore[phone] = {
-    codeHash: hashOtp(code),
-    phone,
-    createdAt: now,
-    attempts: 0,
-  };
+  await redis.set(
+    otpKey(phone),
+    JSON.stringify({ codeHash: hashOtp(code), attempts: 0 }),
+    "PX",
+    OTP_TTL_MS,
+  );
   otpRequestStore[phone] = now;
 
   res.status(200).json({ ok: true });
 });
 
-router.post("/otp/verify", (req, res) => {
+router.post("/otp/verify", async (req, res) => {
   const { phone, code } = req.body as { phone?: unknown; code?: unknown };
 
   if (!isPhone(phone) || !isCode(code)) {
@@ -77,23 +77,26 @@ router.post("/otp/verify", (req, res) => {
     return;
   }
 
-  const otpRecord = otpStore[phone];
-  const now = Date.now();
-
-  if (!otpRecord) {
-    res.status(400).json({ error: "Invalid code" });
+  const data = await redis.get(otpKey(phone));
+  if (!data) {
+    res.status(410).json({ error: "OTP expired" });
     return;
   }
 
-  if (now - otpRecord.createdAt > OTP_TTL_MS) {
-    delete otpStore[phone];
+  let otpRecord: OtpRecord;
+  try {
+    otpRecord = JSON.parse(data) as OtpRecord;
+  } catch {
+    await redis.del(otpKey(phone));
     res.status(410).json({ error: "OTP expired" });
     return;
   }
 
   otpRecord.attempts += 1;
+  await redis.set(otpKey(phone), JSON.stringify(otpRecord), "KEEPTTL");
+
   if (otpRecord.attempts > OTP_MAX_ATTEMPTS) {
-    delete otpStore[phone];
+    await redis.del(otpKey(phone));
     res.status(429).json({ error: "Too many attempts" });
     return;
   }
@@ -103,7 +106,7 @@ router.post("/otp/verify", (req, res) => {
     return;
   }
 
-  delete otpStore[phone];
+  await redis.del(otpKey(phone));
 
   const jwtSecret = process.env.JWT_SECRET;
   if (!jwtSecret) {
