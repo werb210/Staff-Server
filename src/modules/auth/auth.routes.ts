@@ -1,12 +1,11 @@
 import { Router, Request, Response } from "express";
 
 import { otpStore } from "./otpStore";
+import { send } from "../../utils/contractResponse";
 
 const router = Router();
 
-const error = (res: Response, status: number, message: string) => {
-  return res.status(status).json({ error: message });
-};
+const error = (res: Response, status: number, message: string) => send.error(res, status, message);
 
 export function resetOtpStateForTests() {
   otpStore.clear();
@@ -36,7 +35,7 @@ router.post("/otp/start", (req: Request, res: Response) => {
     used: false,
   });
 
-  return res.json({ ok: true });
+  return send.ok(res);
 });
 
 router.post("/otp/verify", (req: Request, res: Response) => {
@@ -93,18 +92,15 @@ router.post("/otp/verify", (req: Request, res: Response) => {
 
   const token = "mock-jwt-token";
 
-  return res.json({ token });
+  return send.ok(res, { token });
 });
 
 router.get("/me", (_req: Request, res: Response) => {
-  return res.status(200).json({
-    ok: true,
-    user: { id: "test-user" },
-  });
+  return send.ok(res);
 });
 
 router.post("/logout", (_req: Request, res: Response) => {
-  return res.status(204).send();
+  return send.ok(res);
 });
 
 export default router;
