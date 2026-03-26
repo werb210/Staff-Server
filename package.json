@@ -9,7 +9,7 @@
     "prisma:generate": "prisma generate",
     "postinstall": "prisma generate",
     "test:endpoints": "node test-endpoints.js",
-    "dev": "tsx src/index.ts",
+    "dev": "ts-node src/index.ts",
     "test": "vitest run",
     "prebuild": "prisma generate || true",
     "lint": "eslint src --ext .ts",
