@@ -36,6 +36,9 @@ export function createServer() {
     // allow non-browser clients (tests, curl, server-to-server)
     if (!origin) {
       res.setHeader("Access-Control-Allow-Origin", "*");
+    } else if (allowedOrigins.length === 0) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Vary", "Origin");
     } else if (allowedOrigins.includes(origin)) {
       res.setHeader("Access-Control-Allow-Origin", origin);
       res.setHeader("Vary", "Origin");
