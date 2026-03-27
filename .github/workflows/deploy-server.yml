@@ -5,89 +5,32 @@ on:
     branches:
       - main
 
-concurrency:
-  group: bf-server-deploy
-  cancel-in-progress: true
-
-env:
-  AZURE_WEBAPP_NAME: boreal-staff-server
-  NODE_VERSION: 20
-  NODE_OPTIONS: --max-old-space-size=4096
-  DEPLOY_TIMEOUT_SECONDS: 300
-
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: 20
 
-      - run: npm ci
+      - name: Install deps
+        run: npm ci
 
-      - run: npm run build
+      - name: Build
+        run: npm run build
 
-      - name: Verify build output
-        run: |
-          ls dist
-          test -f dist/index.js
-
-      - uses: azure/login@v2
+      - name: Azure Login
+        uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Reset OneDeploy state before deploy
-        shell: bash
-        run: |
-          set -euo pipefail
-          RESOURCE_GROUP="$(az webapp list --query \"[?name=='${AZURE_WEBAPP_NAME}'].resourceGroup | [0]\" -o tsv)"
-          if [[ -z "${RESOURCE_GROUP}" ]]; then
-            echo "Unable to find resource group for ${AZURE_WEBAPP_NAME}" >&2
-            exit 1
-          fi
-
-          echo "Restarting ${AZURE_WEBAPP_NAME} in ${RESOURCE_GROUP} (1/2)"
-          az webapp restart --resource-group "${RESOURCE_GROUP}" --name "${AZURE_WEBAPP_NAME}"
-
-          read -r KUDU_USER KUDU_PASS < <(
-            az webapp deployment list-publishing-credentials \
-              --resource-group "${RESOURCE_GROUP}" \
-              --name "${AZURE_WEBAPP_NAME}" \
-              --query "[publishingUserName,publishingPassword]" \
-              --output tsv
-          )
-          KUDU_URL="https://${AZURE_WEBAPP_NAME}.scm.azurewebsites.net/api/command"
-
-          echo "Clearing stale deployments under /home/site/deployments"
-          curl -fsS -u "${KUDU_USER}:${KUDU_PASS}" \
-            -H "Content-Type: application/json" \
-            --data '{"command":"rm -rf /home/site/deployments/*","dir":"/home/site"}' \
-            "${KUDU_URL}"
-
-          echo "Verifying deployment directory is empty"
-          curl -fsS -u "${KUDU_USER}:${KUDU_PASS}" \
-            -H "Content-Type: application/json" \
-            --data '{"command":"if [ -z \"$(ls -A /home/site/deployments 2>/dev/null)\" ]; then echo \"EMPTY\"; else ls -la /home/site/deployments; fi","dir":"/home/site"}' \
-            "${KUDU_URL}" | tee kudu-cleanup-output.json
-          grep -q "EMPTY" kudu-cleanup-output.json
-
-          echo "Restarting ${AZURE_WEBAPP_NAME} in ${RESOURCE_GROUP} (2/2)"
-          az webapp restart --resource-group "${RESOURCE_GROUP}" --name "${AZURE_WEBAPP_NAME}"
-
-      - name: Deploy to Azure Web App
-        shell: bash
-        run: |
-          set -euo pipefail
-          for i in 1 2 3; do
-            echo "Deploy attempt ${i}/3"
-            timeout "${DEPLOY_TIMEOUT_SECONDS}" npx azure-webapps-deploy \
-              --name "${AZURE_WEBAPP_NAME}" \
-              --src-path . && exit 0
-            echo "Attempt ${i} failed; waiting before retry..."
-            sleep 20
-          done
-          echo "Deployment failed after 3 attempts" >&2
-          exit 1
+      - name: Deploy
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: boreal-staff-server
+          package: .
