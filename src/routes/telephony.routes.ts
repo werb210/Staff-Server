@@ -15,21 +15,10 @@ export function assertTwilioConfigured() {
   if (
     !process.env.TWILIO_ACCOUNT_SID
     || !process.env.TWILIO_AUTH_TOKEN
+    || !process.env.TWILIO_VERIFY_SERVICE_SID
   ) {
-    throw new Error("Twilio not configured");
+    throw new Error("Missing Twilio config");
   }
-}
-
-function isTwilioEnabled(): boolean {
-  const hasTwilioCredentials = Boolean(
-    process.env.TWILIO_ACCOUNT_SID
-    && process.env.TWILIO_AUTH_TOKEN
-    && process.env.TWILIO_VOICE_APP_SID
-  );
-
-  return process.env.ENABLE_TWILIO === undefined
-    ? hasTwilioCredentials
-    : process.env.ENABLE_TWILIO === "true" && hasTwilioCredentials;
 }
 
 router.get("/token", requireAuth, async (req, res) => {
@@ -38,9 +27,7 @@ router.get("/token", requireAuth, async (req, res) => {
     return send.error(res, 401, "unauthorized");
   }
 
-  if (!isTwilioEnabled()) {
-    return send.error(res, 503, "Telephony disabled");
-  }
+  assertTwilioConfigured();
 
   const { generateVoiceToken } = await import("../telephony/services/tokenService");
   const token = generateVoiceToken(userId);

@@ -4,18 +4,18 @@ import { config } from "../config";
 
 let client: any | null = null
 
-function isConfigured() {
-  return !!(
-    config.twilio.accountSid &&
-    config.twilio.authToken &&
-    config.twilio.verifyServiceSid
-  )
+function assertTwilioConfigured() {
+  if (
+    !process.env.TWILIO_ACCOUNT_SID
+    || !process.env.TWILIO_AUTH_TOKEN
+    || !process.env.TWILIO_VERIFY_SERVICE_SID
+  ) {
+    throw new Error("Missing Twilio config");
+  }
 }
 
 function fetchClient() {
-  if (!isConfigured()) {
-    throw new Error("Missing required environment variable")
-  }
+  assertTwilioConfigured();
 
   if (!client) {
     client = Twilio(
@@ -32,11 +32,9 @@ export function fetchTwilioClient() {
 }
 
 export function fetchVerifyServiceSid() {
-  if (!config.twilio.verifyServiceSid) {
-    throw new Error("Missing required environment variable")
-  }
+  assertTwilioConfigured();
 
-  return config.twilio.verifyServiceSid
+  return config.twilio.verifyServiceSid as string
 }
 
 export async function startVerification(phone: string) {
@@ -59,11 +57,4 @@ export async function checkVerification(phone: string, code: string) {
       to: phone,
       code,
     })
-}
-
-/**
- * Safe guard for tests / non-Twilio environments
- */
-export function isTwilioAvailable() {
-  return isConfigured()
 }
