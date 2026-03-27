@@ -5,8 +5,12 @@ on:
     branches:
       - main
 
+concurrency:
+  group: bf-server-deploy
+  cancel-in-progress: true
+
 env:
-  AZURE_WEBAPP_NAME: boreal-staff-server
+  AZURE_WEBAPP_NAME: boreal-staff-server-e4hmaqbkb2g5hgfv
   NODE_VERSION: 20
   NODE_OPTIONS: --max-old-space-size=4096
 
@@ -25,13 +29,31 @@ jobs:
 
       - run: npm run build
 
-      - run: ls -la dist
+      - name: Verify build output
+        run: |
+          ls dist
+          test -f dist/index.js
 
       - uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - uses: azure/webapps-deploy@v3
+      - name: Wait before deploy
+        run: sleep 15
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
         with:
-          app-name: boreal-staff-server
+          app-name: boreal-staff-server-e4hmaqbkb2g5hgfv
           package: .
+          clean: true
+
+      - name: Deploy to Azure Web App (retry)
+        run: |
+          for i in 1 2 3; do
+            echo "Attempt $i"
+            npx azure-webapps-deploy \
+              --name boreal-staff-server-e4hmaqbkb2g5hgfv \
+              --src-path . && break
+            sleep 10
+          done
