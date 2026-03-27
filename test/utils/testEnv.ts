@@ -7,6 +7,7 @@ const DEFAULT_TEST_ENV: Record<string, string> = {
   OPENAI_API_KEY: "test-key",
   TWILIO_ACCOUNT_SID: "ACtest",
   TWILIO_AUTH_TOKEN: "test-token",
+  TWILIO_VERIFY_SERVICE_SID: "VAtest",
   TWILIO_PHONE: "+10000000000",
   TWILIO_VOICE_APP_SID: "APtest",
   TWILIO_API_KEY: "SKtest",

@@ -1,5 +1,22 @@
-import { deleteOtp, fetchOtp, storeOtp as persistOtp } from "../services/otpService";
+import { storeOtp as persistOtp } from "../services/otpService";
 import { config } from "../config";
+import twilio from "twilio";
+
+if (
+  !process.env.TWILIO_ACCOUNT_SID
+  || !process.env.TWILIO_AUTH_TOKEN
+  || !process.env.TWILIO_VERIFY_SERVICE_SID
+) {
+  throw new Error("Missing Twilio config");
+}
+
+export const twilioClient = twilio(
+  process.env.TWILIO_ACCOUNT_SID!,
+  process.env.TWILIO_AUTH_TOKEN!
+);
+
+export const verifyServiceSid =
+  process.env.TWILIO_VERIFY_SERVICE_SID!;
 
 function normalizePhone(phone: string): string {
   let p = phone.replace(/\D/g, "");
@@ -8,23 +25,20 @@ function normalizePhone(phone: string): string {
   return `+${p}`;
 }
 
-function generateOtp(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-}
-
 export async function sendOtp(phone: string): Promise<string> {
   if (config.app.testMode === "true") {
     return "000000";
   }
 
   const normalized = normalizePhone(phone);
-  const code = generateOtp();
+  await twilioClient.verify.v2
+    .services(verifyServiceSid)
+    .verifications.create({
+      to: normalized,
+      channel: "sms",
+    });
 
-  await persistOtp(normalized, code);
-
-  console.log("[OTP SEND]", normalized, code);
-
-  return code;
+  return "sent";
 }
 
 export async function storeOtp(phone: string, code: string): Promise<void> {
@@ -41,15 +55,16 @@ export async function verifyOtp(phone: string, code: string): Promise<{ ok: true
   }
 
   const normalized = normalizePhone(phone);
-  const stored = await fetchOtp(normalized);
+  const result = await twilioClient.verify.v2
+    .services(verifyServiceSid)
+    .verificationChecks.create({
+      to: normalized,
+      code,
+    });
 
-  console.log("[OTP VERIFY]", normalized, stored, code);
-
-  if (!stored || stored !== code) {
-    return { ok: false, error: "invalid_code" };
+  if (result.status !== "approved") {
+    throw new Error("Invalid OTP");
   }
-
-  await deleteOtp(normalized);
 
   return { ok: true };
 }

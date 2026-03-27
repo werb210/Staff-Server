@@ -45,4 +45,13 @@ describe("Route registration and prefix integrity", () => {
       expect(res.body).toEqual({ error: "not_found" });
     }
   });
+
+  it("fails without Twilio", () => {
+    const originalSid = process.env.TWILIO_ACCOUNT_SID;
+    delete process.env.TWILIO_ACCOUNT_SID;
+
+    expect(() => createServer()).toThrow();
+
+    process.env.TWILIO_ACCOUNT_SID = originalSid;
+  });
 });
