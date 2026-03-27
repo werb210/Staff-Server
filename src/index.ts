@@ -1,3 +1,5 @@
+console.log("ENTRYPOINT: BOOT");
+
 console.log("ENTRYPOINT: file loaded");
 
 import { createServer } from "./server/createServer";

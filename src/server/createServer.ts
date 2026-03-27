@@ -12,11 +12,17 @@ const requiredEnv = [
 ] as const;
 
 function assertRequiredEnv(): void {
-  for (const key of requiredEnv) {
-    if (!process.env[key]) {
-      throw new Error(`Missing env: ${key}`);
-    }
+  const missing = requiredEnv.filter((key) => !process.env[key]);
+
+  if (missing.length === 0) {
+    return;
   }
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(`Missing env: ${missing.join(", ")}`);
+  }
+
+  console.warn(`[STARTUP WARNING] Missing env: ${missing.join(", ")}`);
 }
 
 export function createServer() {
