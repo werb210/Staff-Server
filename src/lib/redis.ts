@@ -7,6 +7,7 @@ type RedisLike = {
 let client: RedisLike | null = null;
 
 const memoryStore = new Map<string, string>();
+const inMemoryStore = createInMemoryRedis();
 
 function createInMemoryRedis(): RedisLike {
   return {
@@ -23,8 +24,12 @@ function createInMemoryRedis(): RedisLike {
 }
 
 export function getRedis(): RedisLike {
-  if (process.env.NODE_ENV === "test" || !process.env.REDIS_URL) {
-    return createInMemoryRedis();
+  if (process.env.NODE_ENV === "test") {
+    return inMemoryStore;
+  }
+
+  if (!process.env.REDIS_URL) {
+    throw new Error("REDIS_URL required outside test");
   }
 
   if (!client) {

@@ -1,17 +1,25 @@
 import "./env";
 import { createServer } from "./server/createServer";
 
-const required = [
-  "DATABASE_URL",
-  "JWT_SECRET",
-  "JWT_REFRESH_SECRET",
-];
+const requiredEnv = ["DATABASE_URL", "JWT_SECRET"];
 
-for (const key of required) {
-  if (!process.env[key]) {
-    throw new Error(`Missing ${key}`);
+if (process.env.NODE_ENV !== "test") {
+  for (const key of requiredEnv) {
+    if (!process.env[key]) {
+      throw new Error(`Missing env: ${key}`);
+    }
   }
 }
+
+process.on("unhandledRejection", (err) => {
+  console.error(err);
+  process.exit(1);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error(err);
+  process.exit(1);
+});
 
 const app = createServer();
 

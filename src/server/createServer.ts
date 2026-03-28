@@ -42,8 +42,28 @@ export function createServer() {
   app.use("/documents", documentRoutes);
 
   app.use(errorHandler);
-
   app.use((_: Request, res: Response) => fail(res, "not_found", 404));
+
+  const requiredRoutes = ["/health", "/auth", "/telephony", "/crm", "/applications"];
+  const stack = ((app as any)._router?.stack ?? []) as Array<{ route?: { path?: string }; regexp?: RegExp; name?: string }>;
+
+  for (const route of requiredRoutes) {
+    const mounted = stack.some((layer) => {
+      if (layer.route?.path === route) {
+        return true;
+      }
+
+      if (layer.name === "router" && layer.regexp) {
+        return layer.regexp.toString().includes(route.replace("/", "\\/"));
+      }
+
+      return false;
+    });
+
+    if (!mounted) {
+      throw new Error(`Missing route: ${route}`);
+    }
+  }
 
   return app;
 }

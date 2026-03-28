@@ -30,4 +30,16 @@ for key in "${required_env[@]}"; do
   fi
 done
 
+# 4) no localhost hardcoding in canonical runtime paths
+if rg "localhost" src/index.ts src/server src/routes/auth.routes.ts src/routes/telephony/token.ts src/routes/crm.ts src/routes/application.ts src/routes/documents.ts | grep -v "127.0.0.1"; then
+  echo "FAIL: localhost usage detected"
+  exit 1
+fi
+
+# 5) no direct res.json outside response contracts in canonical runtime paths
+if rg "\bres\.json\(" src/server/createServer.ts src/routes/telephony/token.ts src/routes/crm.ts src/routes/application.ts src/routes/documents.ts; then
+  echo "FAIL: raw res.json usage detected in canonical routes"
+  exit 1
+fi
+
 echo "Contract checks passed"
