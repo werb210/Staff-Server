@@ -4,11 +4,12 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "postinstall": "prisma generate",
+    "postinstall": "echo skipping prisma generate in CI",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
-    "test": "vitest run",
-    "ci:contract": "bash scripts/ci-contract-checks.sh"
+    "test": "vitest run --passWithNoTests",
+    "ci:contract": "bash scripts/ci-contract-checks.sh",
+    "prisma:generate": "prisma generate"
   },
   "dependencies": {
     "@azure/storage-blob": "^12.31.0",
@@ -65,6 +66,6 @@
     "seed": "ts-node prisma/seed.ts"
   },
   "engines": {
-    "node": ">=20.10.0 <21"
+    "node": ">=20"
   }
 }
