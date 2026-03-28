@@ -1,7 +1,7 @@
 import type { Response } from "express";
 
 export function ok(res: Response, data?: unknown): Response {
-  return res.json({ success: true, ...(data === undefined ? {} : { data }) });
+  return res.json({ success: true, data });
 }
 
 export function fail(res: Response, error: string, code = 400): Response {
