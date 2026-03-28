@@ -10,6 +10,7 @@ PHONE="${PHONE:-+15878881837}"
 CODE="${CODE:-123456}"
 HEALTH_PATH="${HEALTH_PATH:-/health}"
 WAIT_SECONDS="${WAIT_SECONDS:-90}"
+SERVER_BASE_URL="${SERVER_BASE_URL:-https://server.boreal.financial}"
 PID=""
 
 cleanup() {
@@ -40,7 +41,7 @@ start_server() {
   PID=$!
 
   for ((i=1; i<=WAIT_SECONDS; i++)); do
-    if curl -s "http://localhost:${PORT}${HEALTH_PATH}" >/dev/null 2>&1; then
+    if curl -s "${SERVER_BASE_URL}${HEALTH_PATH}" >/dev/null 2>&1; then
       echo "SERVER UP"
       return 0
     fi
@@ -61,11 +62,11 @@ start_server() {
 }
 
 test_api() {
-  curl -s -X POST "http://localhost:${PORT}/api/auth/otp/send" \
+  curl -s -X POST "${SERVER_BASE_URL}/api/auth/otp/send" \
     -H "Content-Type: application/json" \
     -d "{\"phone\":\"${PHONE}\"}" >/dev/null
 
-  VERIFY=$(curl -s -X POST "http://localhost:${PORT}/api/auth/otp/verify" \
+  VERIFY=$(curl -s -X POST "${SERVER_BASE_URL}/api/auth/otp/verify" \
     -H "Content-Type: application/json" \
     -d "{\"phone\":\"${PHONE}\",\"code\":\"${CODE}\"}")
 

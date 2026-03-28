@@ -181,7 +181,7 @@ Example: list kill switches
 
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8080/api/admin/ops/kill-switches
+  https://server.boreal.financial/api/admin/ops/kill-switches
 ```
 
 ## Replay Procedures
@@ -192,14 +192,14 @@ Start a replay:
 
 ```bash
 curl -X POST -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8080/api/admin/ops/replay/audit_events
+  https://server.boreal.financial/api/admin/ops/replay/audit_events
 ```
 
 Check status:
 
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8080/api/admin/ops/replay/{replayJobId}/status
+  https://server.boreal.financial/api/admin/ops/replay/{replayJobId}/status
 ```
 
 ## Data Export Procedures
@@ -213,7 +213,7 @@ Pipeline summary export (JSON):
 curl -X POST -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"from":"2024-01-01","to":"2024-02-01","format":"json"}' \
-  http://localhost:8080/api/admin/exports/pipeline
+  https://server.boreal.financial/api/admin/exports/pipeline
 ```
 
 Lender performance export (CSV):
@@ -222,7 +222,7 @@ Lender performance export (CSV):
 curl -X POST -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"lenderId":"default","format":"csv"}' \
-  http://localhost:8080/api/admin/exports/lenders
+  https://server.boreal.financial/api/admin/exports/lenders
 ```
 
 Application volume export (CSV):
@@ -231,7 +231,7 @@ Application volume export (CSV):
 curl -X POST -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"productType":"term_loan","format":"csv"}' \
-  http://localhost:8080/api/admin/exports/applications
+  https://server.boreal.financial/api/admin/exports/applications
 ```
 
 ## Backfill utility
@@ -256,20 +256,20 @@ Enable the exports kill switch:
 
 ```bash
 curl -X POST -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8080/api/admin/ops/kill-switches/exports/enable
+  https://server.boreal.financial/api/admin/ops/kill-switches/exports/enable
 ```
 
 Disable the exports kill switch:
 
 ```bash
 curl -X POST -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8080/api/admin/ops/kill-switches/exports/disable
+  https://server.boreal.financial/api/admin/ops/kill-switches/exports/disable
 ```
 
 Internal introspection (no auth):
 
 ```bash
-curl http://localhost:8080/api/_int/ops
+curl https://server.boreal.financial/api/_int/ops
 ```
 
 ## Production safety defaults
@@ -292,5 +292,5 @@ healthcheck:
 Run this before promoting to production:
 
 ```bash
-autocannon -c 50 -d 20 http://localhost:3000/api/leads
+autocannon -c 50 -d 20 https://server.boreal.financial/api/leads
 ```
