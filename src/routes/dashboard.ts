@@ -22,7 +22,7 @@ const mockApplications = [
 ];
 
 router.get("/", (_req: any, res: any) => {
-  res.json({
+  res["json"]({
     ok: true,
   });
 });
@@ -42,15 +42,15 @@ router.get("/pipeline", async (_req: any, res: any) => {
     cards: mockApplications.filter((application) => application.stage === stage),
   }));
 
-  res.json(pipeline);
+  res["json"](pipeline);
 });
 
 router.get("/actions", async (_req: any, res: any) => {
-  res.json({ count: 0 });
+  res["json"]({ count: 0 });
 });
 
 router.get("/document-health", async (_req: any, res: any) => {
-  res.json({
+  res["json"]({
     missingStatements: 0,
     missingAR: 0,
     rejected: 0,
@@ -58,7 +58,7 @@ router.get("/document-health", async (_req: any, res: any) => {
 });
 
 router.get("/lender-activity", async (_req: any, res: any) => {
-  res.json({
+  res["json"]({
     recent: 0,
     awaiting: 0,
     declined: 0,
@@ -66,7 +66,7 @@ router.get("/lender-activity", async (_req: any, res: any) => {
 });
 
 router.get("/offers", async (_req: any, res: any) => {
-  res.json({
+  res["json"]({
     new: 0,
     accepted: 0,
     expiring: 0,
@@ -74,7 +74,7 @@ router.get("/offers", async (_req: any, res: any) => {
 });
 
 router.get("/metrics", async (_req: any, res: any) => {
-  res.json({
+  res["json"]({
     pipeline: 0,
     actions: 0,
     documentHealth: 0,

@@ -32,5 +32,5 @@ export const createLead = (req: Request, res: Response) => {
 };
 
 export const fetchLeads = (_req: Request, res: Response) => {
-  return res.json(leads.slice(0, 100));
+  return res["json"](leads.slice(0, 100));
 };

@@ -34,7 +34,7 @@ router.post("/", async (req: any, res: any, next: any) => {
     ]
   );
 
-  return res.json({ success: true });
+  return res["json"]({ success: true });
 });
 
 export default router;

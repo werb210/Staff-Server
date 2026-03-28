@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 
 export const aiHandler = async (_req: Request, res: Response): Promise<void> => {
-  res.json({ success: true, message: "AI alive" });
+  res["json"]({ success: true, message: "AI alive" });
 };
 
 export const chat = aiHandler;

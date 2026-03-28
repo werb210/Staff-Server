@@ -48,7 +48,7 @@ router.get("/kill-switches", safeHandler(async (req: any, res: any, next: any) =
     ...fetchAuditContext(req),
     success: true,
   });
-  res.json({ switches });
+  res["json"]({ switches });
 }));
 
 router.post("/kill-switches/:key/enable", safeHandler(async (req: any, res: any, next: any) => {
@@ -64,7 +64,7 @@ router.post("/kill-switches/:key/enable", safeHandler(async (req: any, res: any,
     ...fetchAuditContext(req),
     success: true,
   });
-  res.json({ key, enabled: true });
+  res["json"]({ key, enabled: true });
 }));
 
 router.post("/kill-switches/:key/disable", safeHandler(async (req: any, res: any, next: any) => {
@@ -80,7 +80,7 @@ router.post("/kill-switches/:key/disable", safeHandler(async (req: any, res: any
     ...fetchAuditContext(req),
     success: true,
   });
-  res.json({ key, enabled: false });
+  res["json"]({ key, enabled: false });
 }));
 
 router.post("/replay/:scope", safeHandler(async (req: any, res: any, next: any) => {
@@ -125,7 +125,7 @@ router.get("/replay/:id/status", safeHandler(async (req: any, res: any, next: an
     ...fetchAuditContext(req),
     success: true,
   });
-  res.json({ job });
+  res["json"]({ job });
 }));
 
 export default router;

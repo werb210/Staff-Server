@@ -8,7 +8,7 @@ const router = Router();
 
 router.get("/lender-count", async (_req: any, res: any) => {
   const count = await fetchActiveLenderCount();
-  res.json({ count });
+  res["json"]({ count });
 });
 
 const readinessLimiter = rateLimit({

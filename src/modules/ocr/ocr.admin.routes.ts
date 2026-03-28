@@ -87,7 +87,7 @@ router.get("/documents/:documentId/status", async (req: any, res: any, next: any
       ...fetchAuditContext(req),
       success: true,
     });
-    res.json({ job });
+    res["json"]({ job });
   } catch (err) {
     await recordAuditEvent({
       action: "ocr_job_status_viewed",
@@ -117,7 +117,7 @@ router.get("/documents/:documentId/result", async (req: any, res: any, next: any
       ...fetchAuditContext(req),
       success: true,
     });
-    res.json({ result });
+    res["json"]({ result });
   } catch (err) {
     await recordAuditEvent({
       action: "ocr_result_viewed",

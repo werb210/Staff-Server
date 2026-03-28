@@ -67,7 +67,7 @@ router.post("/:id/role", async (req: any, res: any, next: any) => {
       actorId,
       ...buildRequestMetadata(req),
     });
-    res.json({ ok: true });
+    res["json"]({ ok: true });
   } catch (err) {
     next(err);
   }
@@ -89,7 +89,7 @@ router.post("/:id/disable", async (req: any, res: any, next: any) => {
       actorId,
       ...buildRequestMetadata(req),
     });
-    res.json({ ok: true });
+    res["json"]({ ok: true });
   } catch (err) {
     next(err);
   }
@@ -111,7 +111,7 @@ router.post("/:id/enable", async (req: any, res: any, next: any) => {
       actorId,
       ...buildRequestMetadata(req),
     });
-    res.json({ ok: true });
+    res["json"]({ ok: true });
   } catch (err) {
     next(err);
   }

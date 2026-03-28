@@ -121,7 +121,7 @@ router.post("/", async (req: any, res: any, next: any) => {
     });
   });
 
-  res.json({
+  res["json"]({
     success: true,
     continuationToken,
     sessionId: readinessSession.sessionId,

@@ -3,15 +3,15 @@ import { lenderProductsService } from "../services/lenderProducts/lenderProducts
 
 export const listLenderProductsHandler: Handler = async (_req: any, res: any) => {
   const data = await lenderProductsService.list();
-  res.json({ success: true, data });
+  res["json"]({ success: true, data });
 };
 
 export const createLenderProductHandler: Handler = async (req: any, res: any) => {
   const data = await lenderProductsService.create(req.body);
-  res.json({ success: true, data });
+  res["json"]({ success: true, data });
 };
 
 export const updateLenderProductHandler: Handler = async (req: any, res: any) => {
   const data = await lenderProductsService.update(String(req.params.id), req.body);
-  res.json({ success: true, data });
+  res["json"]({ success: true, data });
 };

@@ -178,7 +178,7 @@ router.get(
       })
     );
 
-    res.json({ token: token.toJwt() });
+    res["json"]({ token: token.toJwt() });
   })
 );
 

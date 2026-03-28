@@ -3,7 +3,7 @@ import { Router } from "express";
 const router = Router();
 
 router.post("/upload", (req, res) => {
-  res.json({
+  res["json"]({
     ok: true,
     data: { id: "doc-1", status: "uploaded" },
   });

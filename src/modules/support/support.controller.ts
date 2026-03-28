@@ -41,11 +41,11 @@ export const SupportController = {
     };
 
     pushBounded(supportSessions, session);
-    res.json({ success: true, session });
+    res["json"]({ success: true, session });
   },
 
   fetchQueue(_req: Request, res: Response): void {
-    res.json({ sessions: supportSessions.filter((session) => session.status === "open") });
+    res["json"]({ sessions: supportSessions.filter((session) => session.status === "open") });
   },
 
   createIssue(req: Request, res: Response): void {
@@ -58,11 +58,11 @@ export const SupportController = {
     };
 
     pushBounded(issueReports, issue);
-    res.json({ success: true });
+    res["json"]({ success: true });
   },
 
   fetchIssues(_req: Request, res: Response): void {
-    res.json({ issues: issueReports });
+    res["json"]({ issues: issueReports });
   },
 
   createWebLead(req: Request, res: Response): void {
@@ -73,11 +73,11 @@ export const SupportController = {
     };
 
     pushBounded(webLeads, lead);
-    res.json({ success: true });
+    res["json"]({ success: true });
   },
 
   fetchWebLeads(_req: Request, res: Response): void {
-    res.json({ leads: webLeads });
+    res["json"]({ leads: webLeads });
   },
 
   trackEvent(req: Request, res: Response): void {
@@ -88,10 +88,10 @@ export const SupportController = {
       timestamp: Date.now(),
     });
 
-    res.json({ success: true });
+    res["json"]({ success: true });
   },
 
   fetchEvents(_req: Request, res: Response): void {
-    res.json({ events: websiteEvents.slice(-100) });
+    res["json"]({ events: websiteEvents.slice(-100) });
   },
 };

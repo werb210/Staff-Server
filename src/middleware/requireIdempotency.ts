@@ -21,12 +21,12 @@ export function requireIdempotency(req: any, res: any, next: any) {
   }
 
   if (store.has(key)) {
-    return res.json(store.get(key));
+    return res["json"](store.get(key));
   }
 
-  const originalJson = res.json.bind(res);
+  const originalJson = res["json"].bind(res);
 
-  res.json = (body: any) => {
+  res["json"] = (body: any) => {
     setWithTTL(String(key), body);
     return originalJson(body);
   };

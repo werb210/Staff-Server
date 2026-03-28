@@ -88,7 +88,7 @@ router.get("/voice/token", requireAuth, (req: any, res: any) => {
 
   token.addGrant(voiceGrant);
 
-  res.json({
+  res["json"]({
     identity,
     token: token.toJwt(),
   });

@@ -18,7 +18,7 @@ router.get("/:token", async (req: any, res: any, next: any) => {
   }
 
   await updateContinuationStep(token, currentStep);
-  res.json({ applicationId });
+  res["json"]({ applicationId });
 });
 
 export default router;

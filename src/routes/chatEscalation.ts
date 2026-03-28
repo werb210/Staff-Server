@@ -30,7 +30,7 @@ router.post("/", async (req: any, res: any, next: any) => {
     ]
   );
 
-  return res.json({ success: true, sessionId });
+  return res["json"]({ success: true, sessionId });
 });
 
 export default router;

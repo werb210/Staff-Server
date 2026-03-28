@@ -83,7 +83,7 @@ router.post("/", async (req: any, res: any, next: any) => {
     `New Capital Readiness Lead: ${data.companyName} (${data.fullName})`
   );
 
-  res.json(rows[0]);
+  res["json"](rows[0]);
 });
 
 router.get("/by-email", async (req: any, res: any, next: any) => {
@@ -109,7 +109,7 @@ router.get("/by-email", async (req: any, res: any, next: any) => {
     return;
   }
 
-  res.json(rows[0]);
+  res["json"](rows[0]);
 });
 
 router.get("/:id", async (req: any, res: any, next: any) => {
@@ -125,7 +125,7 @@ router.get("/:id", async (req: any, res: any, next: any) => {
     return;
   }
 
-  res.json(rows[0]);
+  res["json"](rows[0]);
 });
 
 router.patch("/:id/mark-used", async (req: any, res: any, next: any) => {
@@ -140,7 +140,7 @@ router.patch("/:id/mark-used", async (req: any, res: any, next: any) => {
     [id]
   );
 
-  res.json({ success: true });
+  res["json"]({ success: true });
 });
 
 export default router;

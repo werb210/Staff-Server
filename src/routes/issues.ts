@@ -42,13 +42,13 @@ router.post("/", async (req: any, res: any, next: any) => {
 
   pushBounded(issues, issue);
 
-  res.json({ success: true, id: issue.id });
+  res["json"]({ success: true, id: issue.id });
 });
 
 router.patch("/:id/resolve", (req: any, res: any) => {
   const issue = issues.find((entry) => entry.id === req.params.id);
   if (issue) issue.resolved = true;
-  res.json({ success: true });
+  res["json"]({ success: true });
 });
 
 export default router;

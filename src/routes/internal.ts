@@ -32,7 +32,7 @@ router.use(requireCapability([CAPABILITIES.OPS_MANAGE]));
 router.get("/version", (_req: any, res: any) => {
   const commitHash = config.commitSha;
   const buildTimestamp = config.buildTimestamp;
-  res.json({ commitHash, buildTimestamp });
+  res["json"]({ commitHash, buildTimestamp });
 });
 
 router.post("/bootstrap-admin", async (req: any, res: any, next: any) => {
@@ -105,7 +105,7 @@ router.post("/bootstrap-admin", async (req: any, res: any, next: any) => {
 router.get("/ops", async (_req, res, next) => {
   try {
     const switches = await listKillSwitches();
-    res.json({ switches });
+    res["json"]({ switches });
   } catch (err) {
     next(err);
   }
@@ -114,7 +114,7 @@ router.get("/ops", async (_req, res, next) => {
 router.get("/jobs", async (_req, res, next) => {
   try {
     const jobs = await listActiveReplayJobs();
-    res.json({ jobs });
+    res["json"]({ jobs });
   } catch (err) {
     next(err);
   }
@@ -123,7 +123,7 @@ router.get("/jobs", async (_req, res, next) => {
 router.get("/exports/recent", async (_req, res, next) => {
   try {
     const exports = await listRecentExports();
-    res.json({ exports });
+    res["json"]({ exports });
   } catch (err) {
     next(err);
   }

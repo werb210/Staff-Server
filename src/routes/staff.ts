@@ -9,7 +9,7 @@ router.use(requireAuth);
 router.use(requireCapability([CAPABILITIES.STAFF_OVERVIEW]));
 
 router.get("/overview", safeHandler((_req: any, res: any) => {
-  res.json({ ok: true });
+  res["json"]({ ok: true });
 }));
 
 export default router;

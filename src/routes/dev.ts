@@ -3,7 +3,7 @@ import { Router } from "express";
 const router = Router();
 
 router.get("/health", (_req: any, res: any) => {
-  res.json({
+  res["json"]({
     status: "ok",
     service: "bf-server",
     timestamp: new Date().toISOString(),
@@ -11,7 +11,7 @@ router.get("/health", (_req: any, res: any) => {
 });
 
 router.get("/dev/ping", (_req: any, res: any) => {
-  res.json({
+  res["json"]({
     message: "pong",
   });
 });

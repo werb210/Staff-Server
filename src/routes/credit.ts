@@ -71,7 +71,7 @@ router.post("/score", async (req: any, res: any, next: any) => {
     );
   }
 
-  res.json({
+  res["json"]({
     score,
     message: "Preliminary assessment complete.",
   });

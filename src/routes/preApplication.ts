@@ -63,7 +63,7 @@ router.post("/continue-application", async (req: any, res: any, next: any) => {
       expiresIn: "30m",
     });
 
-    return res.json({ continuationToken: token });
+    return res["json"]({ continuationToken: token });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "Failed to create pre-application" });
@@ -109,7 +109,7 @@ router.get("/continue-application", async (req: any, res: any, next: any) => {
       return res.status(404).json({ error: "Invalid session" });
     }
 
-    return res.json(record);
+    return res["json"](record);
   } catch {
     return res.status(401).json({ error: "Invalid token" });
   }
@@ -132,7 +132,7 @@ router.post("/consume-pre-application", async (req: any, res: any, next: any) =>
       [id]
     );
 
-    return res.json({ success: true });
+    return res["json"]({ success: true });
   } catch {
     return res.status(500).json({ error: "Failed to consume" });
   }

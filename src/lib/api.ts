@@ -2,7 +2,7 @@ const api = {
   get: async (url: string, opts?: RequestInit) => {
     const res = await fetch(url, { credentials: "include", ...opts });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
+    return res["json"]();
   },
   post: async (url: string, body?: any, opts?: RequestInit) => {
     const res = await fetch(url, {
@@ -13,7 +13,7 @@ const api = {
       ...opts,
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
+    return res["json"]();
   },
 };
 

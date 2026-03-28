@@ -142,7 +142,7 @@ router.post("/pipeline", safeHandler(async (req: any, res: any, next: any) => {
       ...fetchAuditContext(req),
       success: true,
     });
-    res.json({ data: rows });
+    res["json"]({ data: rows });
   } catch (err) {
     await recordAuditEvent({
       action: "export_pipeline_summary",
@@ -207,7 +207,7 @@ router.post("/lenders", safeHandler(async (req: any, res: any, next: any) => {
       ...fetchAuditContext(req),
       success: true,
     });
-    res.json({ data: rows });
+    res["json"]({ data: rows });
   } catch (err) {
     await recordAuditEvent({
       action: "export_lender_performance",
@@ -272,7 +272,7 @@ router.post("/applications", safeHandler(async (req: any, res: any, next: any) =
       ...fetchAuditContext(req),
       success: true,
     });
-    res.json({ data: rows });
+    res["json"]({ data: rows });
   } catch (err) {
     await recordAuditEvent({
       action: "export_application_volume",

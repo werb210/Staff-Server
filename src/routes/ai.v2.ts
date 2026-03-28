@@ -14,7 +14,7 @@ router.post("/ai/start", async (req: any, res: any, next: any) => {
     [id, req.body.crmContactId ?? null, req.body.source]
   );
 
-  res.json({ sessionId: id });
+  res["json"]({ sessionId: id });
 });
 
 router.post("/ai/message", async (req: any, res: any, next: any) => {
@@ -31,7 +31,7 @@ router.post("/ai/message", async (req: any, res: any, next: any) => {
 
   const reply = await generateAIResponse(sessionId, message);
 
-  res.json(JSON.parse(reply) as unknown);
+  res["json"](JSON.parse(reply) as unknown);
 });
 
 router.post("/ai/escalate", async (req: any, res: any, next: any) => {
@@ -49,7 +49,7 @@ router.post("/ai/escalate", async (req: any, res: any, next: any) => {
     [randomUUID(), sessionId]
   );
 
-  res.json({ status: "queued" });
+  res["json"]({ status: "queued" });
 });
 
 router.post("/ai/close", async (req: any, res: any, next: any) => {
@@ -61,7 +61,7 @@ router.post("/ai/close", async (req: any, res: any, next: any) => {
     [sessionId]
   );
 
-  res.json({ status: "closed" });
+  res["json"]({ status: "closed" });
 });
 
 router.post("/ai/confidence-check", async (req: any, res: any, next: any) => {
@@ -82,7 +82,7 @@ router.post("/ai/confidence-check", async (req: any, res: any, next: any) => {
     ]
   );
 
-  res.json({ ok: true, escalateRecommended: score < 0.65 });
+  res["json"]({ ok: true, escalateRecommended: score < 0.65 });
 });
 
 router.post("/ai/startup-interest", async (req: any, res: any, next: any) => {
@@ -102,7 +102,7 @@ router.post("/ai/startup-interest", async (req: any, res: any, next: any) => {
     ]
   );
 
-  res.json({ ok: true, tags });
+  res["json"]({ ok: true, tags });
 });
 
 export default router;

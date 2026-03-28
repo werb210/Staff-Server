@@ -85,11 +85,11 @@ export const AIKnowledgeController = {
       cleanupFile(file.path);
     }
 
-    res.json({ success: true, sheetId });
+    res["json"]({ success: true, sheetId });
   },
 
   list(_req: Request, res: Response): void {
-    res.json({
+    res["json"]({
       documents: knowledgeDocs.map((doc) => ({
         id: doc.id,
         filename: doc.filename,

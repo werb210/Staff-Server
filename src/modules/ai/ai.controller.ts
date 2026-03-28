@@ -41,7 +41,7 @@ export async function chatHandler(req: Request, res: Response): Promise<void> {
 
   await addMessage(session, "assistant", reply);
 
-  res.json({
+  res["json"]({
     sessionId: session,
     reply,
     message: reply,
