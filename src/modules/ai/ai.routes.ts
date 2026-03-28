@@ -7,7 +7,7 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       // placeholder logic
-      return res.json({ success: true });
+      return res["json"]({ success: true });
     } catch (err) {
       next(err);
     }

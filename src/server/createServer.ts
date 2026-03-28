@@ -33,7 +33,7 @@ export function createServer() {
     })
   );
 
-  app.get("/health", (_req: Request, res: Response) => ok(res));
+  app.get("/health", (_req: Request, res: Response) => res.status(200).send({ success: true }));
 
   app.use("/auth", authRoutes);
   app.use("/telephony", auth, telephonyRoutes);
@@ -61,7 +61,7 @@ export function createServer() {
     });
 
     if (!mounted) {
-      throw new Error(`Missing route: ${route}`);
+      throw new Error(`MISSING_ROUTE: ${route}`);
     }
   }
 

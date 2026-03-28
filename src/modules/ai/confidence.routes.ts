@@ -51,7 +51,7 @@ router.post("/ai/confidence", async (req: any, res: any, next: any) => {
     });
   });
 
-  res.json({
+  res["json"]({
     score,
     message:
       score === "Strong"
@@ -61,7 +61,7 @@ router.post("/ai/confidence", async (req: any, res: any, next: any) => {
 });
 
 router.post("/ai/voice/token", async (_req: any, res: any) => {
-  res.json({ token: "voice-ready-placeholder" });
+  res["json"]({ token: "voice-ready-placeholder" });
 });
 
 export default router;

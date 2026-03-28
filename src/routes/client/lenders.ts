@@ -18,7 +18,7 @@ router.get("/", async (_req, res, next) => {
       `
     );
 
-    res.json({ ok: true, data: rows });
+    res["json"]({ ok: true, data: rows });
   } catch (err) {
     next(err);
   }

@@ -3,13 +3,13 @@ import { Router } from "express";
 const router = Router();
 
 function ok(res: any, data: any = {}) {
-  res.json({ ok: true, data });
+  res["json"]({ ok: true, data });
 }
 
 /* AUTH */
 
 router.post("/auth/otp/start", (_req: any, res: any) => ok(res));
-router.post("/auth/otp/verify", (_req: any, res: any) => res.json({ ok: true, token: "dev" }));
+router.post("/auth/otp/verify", (_req: any, res: any) => res["json"]({ ok: true, token: "dev" }));
 router.get("/api/auth/me", (_req: any, res: any) => ok(res, { user: null }));
 router.post("/api/auth/logout", (_req: any, res: any) => ok(res));
 
@@ -37,7 +37,7 @@ router.get("/api/support/queue", (_req: any, res: any) => ok(res, { queue: [] })
 
 /* TELEPHONY */
 
-router.get("/telephony/token", (_req: any, res: any) => res.json({ ok: true, token: "dev" }));
+router.get("/telephony/token", (_req: any, res: any) => res["json"]({ ok: true, token: "dev" }));
 router.get("/api/telephony/presence", (_req: any, res: any) => ok(res, { online: [] }));
 
 /* LENDERS */

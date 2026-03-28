@@ -14,7 +14,7 @@ router.post("/ai/rule", async (req: any, res: any, next: any) => {
 
   await embedAndStore(pool, content, "rule");
 
-  res.json({ success: true });
+  res["json"]({ success: true });
 });
 
 export default router;

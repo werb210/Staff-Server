@@ -42,7 +42,7 @@ router.get("/events", async (req: any, res: any, next: any) => {
       success: true,
     });
 
-    res.json({ events, limit: parsedLimit, offset: parsedOffset });
+    res["json"]({ events, limit: parsedLimit, offset: parsedOffset });
   } catch (err) {
     next(err);
   }

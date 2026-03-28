@@ -62,7 +62,7 @@ router.post("/send", requireAuth, idempotencyMiddleware, async (req: Request<{},
       }
     }
 
-    res.json({ status: "sent", package: packageData, mode: "sync_fallback" });
+    res["json"]({ status: "sent", package: packageData, mode: "sync_fallback" });
   } catch (err) {
     next(err);
   }
@@ -71,7 +71,7 @@ router.post("/send", requireAuth, idempotencyMiddleware, async (req: Request<{},
 router.get("/products", requireAuth, async (_req, res, next) => {
   try {
     const products = await lenderProductsService.list();
-    res.json(products);
+    res["json"](products);
   } catch (err) {
     next(err);
   }

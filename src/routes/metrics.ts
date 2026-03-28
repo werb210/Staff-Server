@@ -9,7 +9,7 @@ export function trackRequest() {
 }
 
 router.get('/metrics', (_req: any, res: any) => {
-  res.json({
+  res["json"]({
     uptime: process.uptime(),
     requests: requestCount
   });

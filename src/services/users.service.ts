@@ -117,7 +117,7 @@ export async function fetchMe(req: Request, res: Response) {
     return res.status(404).json({ ok: false, error: "user_not_found" });
   }
 
-  res.json({ ok: true, user: normalizeUserRecord(user) });
+  res["json"]({ ok: true, user: normalizeUserRecord(user) });
 }
 
 /**
@@ -130,7 +130,7 @@ export async function updateMe(req: Request, res: Response) {
     const input = updateMeSchema.parse(req.body);
 
     if (Object.keys(input).length === 0) {
-      res.json({ ok: true });
+      res["json"]({ ok: true });
       return;
     }
 
@@ -154,7 +154,7 @@ export async function updateMe(req: Request, res: Response) {
       values
     );
 
-    res.json({ ok: true });
+    res["json"]({ ok: true });
   } catch (err) {
     handleUserError(res, err, requestId);
   }
@@ -204,7 +204,7 @@ export async function listUsers(req: Request, res: Response) {
   );
 
   const users = Array.isArray(rows) ? rows.map(normalizeUserRecord) : [];
-  res.json({ ok: true, users });
+  res["json"]({ ok: true, users });
 }
 
 /**
@@ -217,7 +217,7 @@ export async function adminUpdateUser(req: Request, res: Response) {
     const input = adminUpdateSchema.parse(req.body);
 
     if (Object.keys(input).length === 0) {
-      res.json({ ok: true });
+      res["json"]({ ok: true });
       return;
     }
 
@@ -245,7 +245,7 @@ export async function adminUpdateUser(req: Request, res: Response) {
       throw new AppError("not_found", "User not found.", 404);
     }
 
-    res.json({ ok: true });
+    res["json"]({ ok: true });
   } catch (err) {
     handleUserError(res, err, requestId);
   }

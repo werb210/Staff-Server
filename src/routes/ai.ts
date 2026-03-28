@@ -130,7 +130,7 @@ router.post(
     }
 
     const reply = await generateAIResponse(message);
-    res.json({ reply });
+    res["json"]({ reply });
   })
 );
 
@@ -207,7 +207,7 @@ router.get(
        from ai_knowledge
        order by created_at desc`
     );
-    res.json({ success: true, data: rows });
+    res["json"]({ success: true, data: rows });
   })
 );
 
@@ -238,7 +238,7 @@ router.post(
     existing.push({ title: resolvedTitle, content, createdAt: new Date().toISOString() });
     saveKnowledge(existing);
 
-    res.json({ success: true, data: { saved: true } });
+    res["json"]({ success: true, data: { saved: true } });
   })
 );
 

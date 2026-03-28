@@ -5,7 +5,7 @@ import { registry } from "../../metrics/registry";
 const router = Router();
 
 router.get("/healthz", async (_req, res) => {
-  res.json({ status: "ok" });
+  res["json"]({ status: "ok" });
 });
 
 router.get("/readyz", async (_req, res) => {
@@ -13,7 +13,7 @@ router.get("/readyz", async (_req, res) => {
     // optional DB check
   }
 
-  res.json({ status: "ready" });
+  res["json"]({ status: "ready" });
 });
 
 router.get("/metrics", async (_req, res) => {

@@ -34,7 +34,7 @@ export async function submitContactForm(req: Request, res: Response) {
       message: `New continuation lead: ${companyName}`,
     });
 
-    return res.json({
+    return res["json"]({
       success: true,
       leadId: lead.id,
       redirect: `https://client.boreal.financial/apply?continue=${token}`,

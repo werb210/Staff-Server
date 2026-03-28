@@ -3,7 +3,7 @@ import { Router } from "express";
 const router = Router();
 
 router.get("/", (_req: any, res: any) => {
-  res.json({
+  res["json"]({
     bank: {
       speed: "2-8 weeks",
       flexibility: "Low",

@@ -13,13 +13,13 @@ router.get("/session", async (req: any, res: any, next: any) => {
   const sessionUser = (req as unknown as SessionRequest).session?.user;
 
   if (sessionUser) {
-    return res.json({
+    return res["json"]({
       authenticated: true,
       user: sessionUser,
     });
   }
 
-  return res.json({
+  return res["json"]({
     authenticated: false,
   });
 });
@@ -31,7 +31,7 @@ router.post("/api/client/session/refresh", async (req: any, res: any, next: any)
     return res.status(401).json({ error: "No session" });
   }
 
-  return res.json({
+  return res["json"]({
     success: true,
     session,
   });

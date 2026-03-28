@@ -15,7 +15,7 @@ router.post(
       return res.status(400).json({ error: "callSid required" });
     }
 
-    return res.json({ success: true, callSid, status: status ?? null });
+    return res["json"]({ success: true, callSid, status: status ?? null });
   }
 );
 

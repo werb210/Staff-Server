@@ -72,10 +72,10 @@ router.post("/otp/start", async (req: Request, res: Response) => {
   }
 
   if (process.env.NODE_ENV === "test") {
-    return res.json({ success: true, otp: "123456" });
+    return ok(res, { otp: "123456" });
   }
 
-  return ok(res);
+  return ok(res, { sent: true });
 });
 
 router.post("/otp/verify", async (req: Request, res: Response) => {

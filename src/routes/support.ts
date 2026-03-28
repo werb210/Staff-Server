@@ -52,7 +52,7 @@ router.post("/live", async (req: any, res: any, next: any) => {
     [source, sessionId]
   );
 
-  return res.json({ success: true });
+  return res["json"]({ success: true });
 });
 
 router.get("/live", async (_req: any, res: any) => {
@@ -62,7 +62,7 @@ router.get("/live", async (_req: any, res: any) => {
      where status = 'pending'
      order by created_at desc`
   );
-  res.json(rows);
+  res["json"](rows);
 });
 
 router.get("/live/count", async (_req: any, res: any) => {
@@ -71,7 +71,7 @@ router.get("/live/count", async (_req: any, res: any) => {
      from live_chat_requests
      where status = 'pending'`
   );
-  res.json({ count: Number(rows[0]?.count ?? "0") });
+  res["json"]({ count: Number(rows[0]?.count ?? "0") });
 });
 
 router.post("/human", async (req: any, res: any, next: any) => {
@@ -89,7 +89,7 @@ router.post("/human", async (req: any, res: any, next: any) => {
   });
 
   logger.info("human_chat_request", { message });
-  res.json({ success: true });
+  res["json"]({ success: true });
 });
 
 router.post("/report", async (req: any, res: any, next: any) => {
@@ -149,7 +149,7 @@ router.post("/report", async (req: any, res: any, next: any) => {
   });
 
   logger.info("issue_reported", { description: resolvedDescription ?? null });
-  res.json({ success: true });
+  res["json"]({ success: true });
 });
 
 router.post("/contact", async (req: any, res: any, next: any) => {
@@ -201,7 +201,7 @@ router.post("/contact", async (req: any, res: any, next: any) => {
     )
   );
 
-  return res.json({ success: true });
+  return res["json"]({ success: true });
 });
 
 router.post("/track", async (req: any, res: any, next: any) => {
@@ -211,7 +211,7 @@ router.post("/track", async (req: any, res: any, next: any) => {
   };
 
   logger.info("support_track_event", { event: event ?? null, metadata: metadata ?? null });
-  return res.json({ success: true });
+  return res["json"]({ success: true });
 });
 
 router.post("/session", SupportController.createSession);

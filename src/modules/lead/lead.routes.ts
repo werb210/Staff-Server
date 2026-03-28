@@ -85,7 +85,7 @@ router.post(
 router.get("/", requireAuth, async (_req, res, next) => {
   try {
     const leads = await getLeads();
-    res.json(leads);
+    res["json"](leads);
   } catch (err) {
     next(err);
   }

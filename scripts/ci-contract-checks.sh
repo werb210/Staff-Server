@@ -16,7 +16,7 @@ if ! rg 'app\.get\("/health"' src/server/createServer.ts -n >/dev/null; then
 fi
 
 # 2) Response structure checks
-if ! rg 'return res\.json\(\{ success: true, otp: "123456" \}\)' src/routes/auth.routes.ts -n >/dev/null; then
+if ! rg 'return ok\(res, \{ otp: "123456" \}\)' src/routes/auth.routes.ts -n >/dev/null; then
   echo "Expected deterministic OTP response payload in test mode"
   exit 1
 fi
@@ -36,9 +36,21 @@ if rg "localhost" src/index.ts src/server src/routes/auth.routes.ts src/routes/t
   exit 1
 fi
 
-# 5) no direct res.json outside response contracts in canonical runtime paths
-if rg "\bres\.json\(" src/server/createServer.ts src/routes/telephony/token.ts src/routes/crm.ts src/routes/application.ts src/routes/documents.ts; then
-  echo "FAIL: raw res.json usage detected in canonical routes"
+# 5) no direct res.json usage
+if rg "res\.json" src; then
+  echo "FAIL: raw res.json usage"
+  exit 1
+fi
+
+# 6) force single listener entrypoint
+if [ "$(rg "listen\(" src | wc -l | tr -d ' ')" -ne 1 ]; then
+  echo "FAIL: multiple listeners detected"
+  exit 1
+fi
+
+# 7) block localhost usage in source
+if rg "localhost" src; then
+  echo "FAIL: localhost usage in source"
   exit 1
 fi
 

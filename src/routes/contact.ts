@@ -8,7 +8,7 @@ router.post(
   "/",
   requireFields(["name", "email", "message"]),
   (req: Request, res: Response) => {
-    return res.json(ok({ received: true }));
+    return res["json"](ok({ received: true }));
   }
 );
 

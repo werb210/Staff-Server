@@ -60,8 +60,8 @@ export async function idempotencyMiddleware(
     return;
   }
 
-  const originalJson = res.json.bind(res) as (body: unknown) => Response;
-  res.json = ((body: unknown): Response => {
+  const originalJson = res["json"].bind(res) as (body: unknown) => Response;
+  res["json"] = ((body: unknown): Response => {
     if (res.statusCode < 500) {
       void storeResponse(storageKey, {
         requestHash,

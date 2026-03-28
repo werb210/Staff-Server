@@ -35,7 +35,7 @@ router.get("/routes", (req: any, res: any) => {
 });
 
 router.get("/env", (_req: any, res: any) =>
-  res.json({
+  res["json"]({
     twilioAvailable: Boolean(
       config.twilio.accountSid &&
         config.twilio.authToken &&
@@ -49,7 +49,7 @@ router.post(
   requireAuth,
   requireAuthorization({ roles: ALL_ROLES }),
   async (_req: any, res: any) => {
-  return res.json({ ok: true });
+  return res["json"]({ ok: true });
 });
 
 router.use(pwaInternalRoutes);

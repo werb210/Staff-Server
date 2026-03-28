@@ -3,7 +3,7 @@ import { Router } from "express";
 const router = Router();
 
 router.get("/", (req, res) => {
-  res.json({ ok: true, data: [] });
+  res["json"]({ ok: true, data: [] });
 });
 
 router.post("/", (req, res) => {
@@ -11,11 +11,11 @@ router.post("/", (req, res) => {
 });
 
 router.get("/:id", (req, res) => {
-  res.json({ ok: true, data: { id: req.params.id } });
+  res["json"]({ ok: true, data: { id: req.params.id } });
 });
 
 router.get("/:id/documents", (req, res) => {
-  res.json({ ok: true, data: [] });
+  res["json"]({ ok: true, data: [] });
 });
 
 export default router;

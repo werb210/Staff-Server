@@ -110,7 +110,7 @@ router.post("/capital-readiness", readinessLimiter, async (req: any, res: any, n
     });
   }
 
-  res.json({ score, tier, recommendedProducts: recommendations(score) });
+  res["json"]({ score, tier, recommendedProducts: recommendations(score) });
 });
 
 export default router;

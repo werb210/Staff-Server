@@ -28,7 +28,7 @@ router.get("/applications/:id/transmission-status", async (req: any, res: any, n
       throw new AppError("validation_error", "application id is required.", 400);
     }
     const status = await fetchTransmissionStatus(applicationId);
-    res.json({ transmission: status });
+    res["json"]({ transmission: status });
   } catch (err) {
     next(err);
   }
@@ -48,7 +48,7 @@ router.post("/transmissions/:id/retry", async (req: any, res: any, next: any) =>
       actorUserId: req.user.userId,
       ...buildRequestMetadata(req),
     });
-    res.json({ retry: result });
+    res["json"]({ retry: result });
   } catch (err) {
     next(err);
   }
@@ -68,7 +68,7 @@ router.post("/transmissions/:id/cancel", async (req: any, res: any, next: any) =
       actorUserId: req.user.userId,
       ...buildRequestMetadata(req),
     });
-    res.json({ retry: result });
+    res["json"]({ retry: result });
   } catch (err) {
     next(err);
   }

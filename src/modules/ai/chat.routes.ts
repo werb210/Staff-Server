@@ -50,7 +50,7 @@ router.post("/chat/message", chatLimiter, async (req: any, res: any, next: any) 
 
   const result = await processChatMessage({ sessionId, message, source: source ?? "website" });
 
-  res.json({ status: result.status, response: result.response });
+  res["json"]({ status: result.status, response: result.response });
 });
 
 async function transferChatHandler(req: Request, res: Response): Promise<void> {
@@ -68,7 +68,7 @@ async function transferChatHandler(req: Request, res: Response): Promise<void> {
     }
     throw error;
   }
-  res.json({ status: "human" });
+  res["json"]({ status: "human" });
 }
 
 router.post("/chat/human", chatLimiter, transferChatHandler);
@@ -81,7 +81,7 @@ router.post("/chat/close", chatLimiter, async (req: any, res: any, next: any) =>
     return;
   }
   await closeChatSession(sessionId);
-  res.json({ status: "closed" });
+  res["json"]({ status: "closed" });
 });
 
 router.get("/chat/sessions", async (req: any, res: any, next: any) => {
@@ -92,12 +92,12 @@ router.get("/chat/sessions", async (req: any, res: any, next: any) => {
   }
 
   const sessions = await fetchHumanSessions();
-  res.json({ sessions });
+  res["json"]({ sessions });
 });
 
 router.get("/chat/:sessionId/messages", async (req: any, res: any, next: any) => {
   const messages = await fetchSessionMessages(req.params.sessionId);
-  res.json({ messages });
+  res["json"]({ messages });
 });
 
 export default router;

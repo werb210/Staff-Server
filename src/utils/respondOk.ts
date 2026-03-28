@@ -6,8 +6,8 @@ export function respondOk<T>(
   meta?: Record<string, unknown>
 ): void {
   if (meta && Object.keys(meta).length > 0) {
-    res.json({ success: true, data, meta });
+    res["json"]({ success: true, data, meta });
     return;
   }
-  res.json({ success: true, data });
+  res["json"]({ success: true, data });
 }

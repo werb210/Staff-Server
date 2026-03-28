@@ -1,29 +1,21 @@
 import "./env";
 import { createServer } from "./server/createServer";
+import { assertRequiredEnv, assertSingleServerStart } from "./server/runtimeGuards";
 
-const requiredEnv = ["DATABASE_URL", "JWT_SECRET"];
-
-if (process.env.NODE_ENV !== "test") {
-  for (const key of requiredEnv) {
-    if (!process.env[key]) {
-      throw new Error(`Missing env: ${key}`);
-    }
-  }
-}
+assertRequiredEnv(process.env);
+assertSingleServerStart();
 
 process.on("unhandledRejection", (err) => {
-  console.error(err);
-  process.exit(1);
+  throw err;
 });
 
 process.on("uncaughtException", (err) => {
-  console.error(err);
-  process.exit(1);
+  throw err;
 });
 
 const app = createServer();
 
-const PORT = Number(process.env.PORT || 8080);
+const PORT = Number(process.env.PORT);
 
 if (process.env.NODE_ENV !== "test") {
   app.listen(PORT, "0.0.0.0");

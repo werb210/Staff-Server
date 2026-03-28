@@ -11,7 +11,7 @@ router.post("/ai/escalate", async (_req: any, res: any) => {
     `
   );
 
-  res.json({ status: "queued" });
+  res["json"]({ status: "queued" });
 });
 
 export default router;

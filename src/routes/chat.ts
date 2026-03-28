@@ -19,7 +19,7 @@ router.post("/", async (req: any, res: any, next: any) => {
 
   const response = `AI Response based on knowledge: ${message}`;
 
-  return res.json({ response, context });
+  return res["json"]({ response, context });
 });
 
 router.post("/escalate", async (req: any, res: any, next: any) => {
@@ -45,7 +45,7 @@ router.post("/escalate", async (req: any, res: any, next: any) => {
     transcript: transcript ?? null,
   });
 
-  res.json({ escalated: true });
+  res["json"]({ escalated: true });
 });
 
 export default router;
