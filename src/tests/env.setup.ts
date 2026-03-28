@@ -8,11 +8,11 @@ if (process.env.DATABASE_URL.startsWith("file:")) {
 }
 
 process.env.JWT_SECRET = "test-secret";
-process.env.TWILIO_ACCOUNT_SID = "ACtest";
-process.env.TWILIO_AUTH_TOKEN = "test-token";
+process.env.TWILIO_ACCOUNT_SID = "test";
+process.env.TWILIO_AUTH_TOKEN = "test";
 process.env.TWILIO_VOICE_APP_SID = "test";
 
-process.env.REDIS_URL = "redis://127.0.0.1:6379";
+process.env.REDIS_URL = "";
 process.env.OPENAI_API_KEY = "test-key";
 process.env.TWILIO_PHONE = "+10000000000";
 process.env.TWILIO_API_KEY = "SKtest";
