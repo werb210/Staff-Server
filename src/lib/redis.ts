@@ -1,26 +1,58 @@
-import Redis from "ioredis";
+type RedisLike = {
+  get: (key: string) => Promise<string | null>;
+  set: (key: string, value: string, mode?: string, ttl?: number) => Promise<string>;
+  del: (key: string) => Promise<number>;
+};
 
-const redisUrl = process.env.REDIS_URL;
-if (!redisUrl) {
-  throw new Error("Missing REDIS_URL");
+let client: RedisLike | null = null;
+
+const memoryStore = new Map<string, string>();
+
+function createInMemoryRedis(): RedisLike {
+  return {
+    get: async (key: string) => memoryStore.get(key) ?? null,
+    set: async (key: string, value: string) => {
+      memoryStore.set(key, value);
+      return "OK";
+    },
+    del: async (key: string) => {
+      const existed = memoryStore.delete(key);
+      return existed ? 1 : 0;
+    },
+  };
 }
 
-const redis = new Redis(redisUrl);
+export function getRedis(): RedisLike {
+  if (process.env.NODE_ENV === "test" || !process.env.REDIS_URL) {
+    return createInMemoryRedis();
+  }
 
-export { redis };
+  if (!client) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const Redis = require("ioredis");
+    client = new Redis(process.env.REDIS_URL) as RedisLike;
+  }
+
+  return client;
+}
+
+export const redis = getRedis();
 
 export function resetRedisMock(): void {
-  // no-op: runtime uses Redis only
+  memoryStore.clear();
+  if (process.env.NODE_ENV === "test") {
+    client = null;
+  }
 }
 
 export async function setOtp(phone: string, code: string) {
-  await redis.set(`otp:${phone}`, code, "EX", 300);
+  await getRedis().set(`otp:${phone}`, code, "EX", 300);
 }
 
 export async function fetchOtp(phone: string) {
-  return redis.get(`otp:${phone}`);
+  return getRedis().get(`otp:${phone}`);
 }
 
 export async function deleteOtp(phone: string) {
-  await redis.del(`otp:${phone}`);
+  await getRedis().del(`otp:${phone}`);
 }

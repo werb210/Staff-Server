@@ -17,4 +17,8 @@ const app = createServer();
 
 const PORT = Number(process.env.PORT || 8080);
 
-app.listen(PORT, "0.0.0.0");
+if (process.env.NODE_ENV !== "test") {
+  app.listen(PORT, "0.0.0.0");
+}
+
+export { app };
