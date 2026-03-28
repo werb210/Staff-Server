@@ -1,5 +1,6 @@
-import { type NextFunction, type Request, type RequestHandler, type Response } from "express";
+import { Request, Response, NextFunction, type RequestHandler } from "express";
 import jwt from "jsonwebtoken";
+import { fail } from "../utils/response";
 import { config } from "../config";
 
 type AuthorizationOptions = {
@@ -13,36 +14,26 @@ type AppUser = NonNullable<Request["user"]> & {
 };
 
 export interface AuthRequest extends Request {
-  user?: AppUser;
+  user?: any;
 }
 
-export function auth(req: Request, res: Response, next: NextFunction) {
+export const auth = (req: AuthRequest, res: Response, next: NextFunction) => {
   const header = req.headers.authorization;
 
   if (!header) {
-    return res.status(401).json({ success: false, error: "No token" });
+    return res.status(401).json(fail("No token"));
   }
+
+  const token = header.replace("Bearer ", "");
 
   try {
-    const token = header.split(" ")[1];
-    if (!token) {
-      return res.status(401).json({ success: false, error: "No token" });
-    }
-    req.user = jwt.verify(token, process.env.JWT_SECRET || config.jwt.secret) as Request["user"];
-    return next();
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!);
+    req.user = decoded;
+    next();
   } catch {
-    return res.status(401).json({ success: false, error: "Invalid token" });
+    return res.status(401).json(fail("Invalid token"));
   }
-}
-
-function authErrorBody(req: Request, code: string, message: string) {
-  return {
-    success: false,
-    code,
-    message,
-    requestId: req.requestId ?? req.id ?? "unknown",
-  };
-}
+};
 
 function getCookieToken(cookieHeader: string | undefined): string | null {
   if (!cookieHeader) return null;
@@ -59,12 +50,11 @@ function getCookieToken(cookieHeader: string | undefined): string | null {
 }
 
 export const requireAuth: RequestHandler = (req: Request, res: Response, next: NextFunction) => {
-  const auth = req.headers.authorization;
+  const header = req.headers.authorization;
 
   let token: string | null = null;
-
-  if (auth?.startsWith("Bearer ")) {
-    token = auth.split(" ")[1] ?? null;
+  if (header?.startsWith("Bearer ")) {
+    token = header.replace("Bearer ", "");
   }
 
   if (!token) {
@@ -72,19 +62,15 @@ export const requireAuth: RequestHandler = (req: Request, res: Response, next: N
   }
 
   if (!token) {
-    return res.status(401).json({
-      error: { message: "missing_token", code: "missing_token" },
-    });
+    return res.status(401).json(fail("No token"));
   }
 
   try {
-    const decoded = jwt.verify(token, config.jwt.secret);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || config.jwt.secret);
     req.user = decoded as Request["user"];
     return next();
-  } catch (_err) {
-    return res.status(401).json({
-      error: { message: "invalid_token", code: "invalid_token" },
-    });
+  } catch {
+    return res.status(401).json(fail("Invalid token"));
   }
 };
 
@@ -96,11 +82,11 @@ export function requireAuthorization(options: AuthorizationOptions = {}): Reques
     const user = req.user as AppUser | undefined;
 
     if (!user) {
-      return res.status(401).json(authErrorBody(req, "missing_token", "Missing token"));
+      return res.status(401).json(fail("No token"));
     }
 
     if (requiredRoles.length > 0 && (!user.role || !requiredRoles.includes(user.role))) {
-      return res.status(403).json(authErrorBody(req, "forbidden", "Forbidden"));
+      return res.status(403).json(fail("Forbidden"));
     }
 
     if (requiredCapabilities.length > 0) {
@@ -108,7 +94,7 @@ export function requireAuthorization(options: AuthorizationOptions = {}): Reques
       const allowed = requiredCapabilities.some((capability) => userCapabilities.includes(capability));
 
       if (!allowed) {
-        return res.status(403).json(authErrorBody(req, "forbidden", "Forbidden"));
+        return res.status(403).json(fail("Forbidden"));
       }
     }
 

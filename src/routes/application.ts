@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db } from "../db";
 import { createApplication } from "../modules/applications/applications.repo";
 import { config } from "../config";
+import { ok, fail } from "../utils/response";
 
 const router = Router();
 
@@ -14,11 +15,11 @@ const createApplicationSchema = z.object({
 
 
 router.get("/update", async (_req: any, res: any) => {
-  res.status(200).json({ ok: true });
+  res.status(200).json(ok({}));
 });
 
 router.post("/update", async (_req: any, res: any) => {
-  res.status(200).json({ ok: true });
+  res.status(200).json(ok({}));
 });
 
 router.post("/", async (req: any, res: any, next: any) => {
@@ -31,7 +32,7 @@ router.post("/", async (req: any, res: any, next: any) => {
     );
 
     if (mapped.rows[0]?.application_id) {
-      res.status(200).json({ success: true, applicationId: mapped.rows[0].application_id, reused: true });
+      res.status(200).json(ok({ applicationId: mapped.rows[0].application_id, reused: true }));
       return;
     }
 
@@ -57,7 +58,7 @@ router.post("/", async (req: any, res: any, next: any) => {
 
     const readiness = session.rows[0];
     if (!readiness) {
-      res.status(404).json({ success: false, error: "readiness_session_not_found" });
+      res.status(404).json(fail("readiness_session_not_found"));
       return;
     }
 
@@ -98,13 +99,13 @@ router.post("/", async (req: any, res: any, next: any) => {
       [readiness.id, created.id]
     );
 
-    res.status(201).json({ success: true, applicationId: created.id, leadId: readiness.crm_lead_id, reused: false });
+    res.status(201).json(ok({ applicationId: created.id, leadId: readiness.crm_lead_id, reused: false }));
   } catch (error) {
     if (error instanceof Error && error.name === "ZodError") {
-      res.status(400).json({ success: false, error: "invalid_payload" });
+      res.status(400).json(fail("invalid_payload"));
       return;
     }
-    res.status(500).json({ success: false, error: "server_error" });
+    res.status(500).json(fail("server_error"));
   }
 });
 

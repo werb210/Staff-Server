@@ -1,6 +1,7 @@
-import dotenv from 'dotenv';
-import { config } from "./config";
+const required = ["JWT_SECRET"];
 
-dotenv.config();
-
-console.log('[ENV] NODE_ENV:', config.env);
+required.forEach((key) => {
+  if (!process.env[key]) {
+    throw new Error(`Missing env var: ${key}`);
+  }
+});
