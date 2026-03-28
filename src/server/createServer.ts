@@ -34,6 +34,7 @@ export function createServer() {
   );
 
   app.get("/health", (_req: Request, res: Response) => res.status(200).send({ success: true }));
+  app.get("/", (_req: Request, res: Response) => res.status(200).send("Server is running"));
 
   app.use("/auth", authRoutes);
   app.use("/telephony", auth, telephonyRoutes);

@@ -24,9 +24,6 @@ export function assertRequiredEnv(env: NodeJS.ProcessEnv): void {
     throw new Error("TWILIO_REQUIRED");
   }
 
-  if (!env.PORT) {
-    throw new Error("MISSING_ENV: PORT");
-  }
 }
 
 export function assertSingleServerStart(): void {
