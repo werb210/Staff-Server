@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { EnvSchema as LegacyEnvSchema } from "./schema";
+import { API_BASE_URL } from "./api";
 
 const EnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -52,10 +53,10 @@ export const config = Object.freeze({
   buildTimestamp: parsed.BUILD_TIMESTAMP ?? new Date(0).toISOString(),
 
   api: Object.freeze({
-    baseUrl: parsed.API_BASE_URL,
+    baseUrl: parsed.API_BASE_URL ?? API_BASE_URL,
   }),
   app: Object.freeze({
-    baseUrl: parsed.BASE_URL,
+    baseUrl: parsed.BASE_URL ?? API_BASE_URL,
     testMode: parsed.TEST_MODE,
   }),
   auth: Object.freeze({
@@ -207,9 +208,9 @@ export const config = Object.freeze({
     url: parsed.WEBSITE_URL,
   }),
   urls: Object.freeze({
-    apiBase: parsed.API_BASE_URL,
-    publicBase: parsed.PUBLIC_BASE_URL,
-    clientBase: parsed.CLIENT_BASE_URL,
+    apiBase: parsed.API_BASE_URL ?? API_BASE_URL,
+    publicBase: parsed.PUBLIC_BASE_URL ?? API_BASE_URL,
+    clientBase: parsed.CLIENT_BASE_URL ?? API_BASE_URL,
   }),
   sentry: Object.freeze({
     dsn: env.SENTRY_DSN,

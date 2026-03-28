@@ -11,7 +11,7 @@ function fetchTrustedOrigins(): Set<string> {
   const trustedOrigins = [config.client.url, config.portal.url, config.website.url];
 
   if (config.env !== "production") {
-    trustedOrigins.push("http://localhost", "http://localhost:3000", "http://localhost:5173");
+    trustedOrigins.push("https://server.boreal.financial");
   }
 
   return new Set(

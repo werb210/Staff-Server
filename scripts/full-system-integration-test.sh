@@ -31,6 +31,7 @@ find_repo_dir() {
 SERVER_DIR=$(find_repo_dir "BF-Server")
 PORTAL_DIR=$(find_repo_dir "staff-portal")
 CLIENT_DIR=$(find_repo_dir "client")
+SERVER_BASE_URL="${SERVER_BASE_URL:-https://server.boreal.financial}"
 
 [ -d "$SERVER_DIR" ] || { echo "❌ BF-Server not found"; exit 1; }
 [ -d "$PORTAL_DIR" ] || { echo "❌ staff-portal not found"; exit 1; }
@@ -57,7 +58,7 @@ SERVER_PID=$!
 
 echo "⏳ Waiting for server..."
 for _ in {1..30}; do
-  if curl -s http://localhost:3000/health >/dev/null; then
+  if curl -s "${SERVER_BASE_URL}/health" >/dev/null; then
     echo "✅ Server ready"
     break
   fi
@@ -86,7 +87,7 @@ sleep 5
 
 echo "📲 OTP START..."
 
-curl -c cookies.txt -X POST http://localhost:3000/api/auth/otp/start \
+curl -c cookies.txt -X POST "${SERVER_BASE_URL}/api/auth/otp/start" \
   -H "Content-Type: application/json" \
   -d '{"phone":"+15555555555"}' || {
     echo "❌ OTP START FAILED"
@@ -104,7 +105,7 @@ fi
 
 echo "📲 OTP VERIFY..."
 
-curl -b cookies.txt -c cookies.txt -X POST http://localhost:3000/api/auth/otp/verify \
+curl -b cookies.txt -c cookies.txt -X POST "${SERVER_BASE_URL}/api/auth/otp/verify" \
   -H "Content-Type: application/json" \
   -d "{\"phone\":\"+15555555555\",\"code\":\"$OTP_CODE\"}" || {
     echo "❌ OTP VERIFY FAILED"
@@ -119,7 +120,7 @@ echo "✅ AUTHENTICATED"
 
 echo "📄 Creating application..."
 
-APP_RESPONSE=$(curl -b cookies.txt -s -X POST http://localhost:3000/api/public/application/start \
+APP_RESPONSE=$(curl -b cookies.txt -s -X POST "${SERVER_BASE_URL}/api/public/application/start" \
   -H "Content-Type: application/json" \
   -d '{
     "businessName": "Integration Test Corp",
@@ -151,7 +152,7 @@ echo "📂 Uploading document..."
 
 echo "test file" > /tmp/test.pdf
 
-curl -b cookies.txt -X POST http://localhost:3000/api/documents/upload \
+curl -b cookies.txt -X POST "${SERVER_BASE_URL}/api/documents/upload" \
   -F "file=@/tmp/test.pdf" \
   -F "applicationId=$APP_ID" \
   -F "category=bank_statement" || {
@@ -167,7 +168,7 @@ echo "✅ Document uploaded"
 
 echo "📊 Fetching application..."
 
-curl -b cookies.txt http://localhost:3000/api/applications/"$APP_ID" | grep -q "Integration Test Corp" || {
+curl -b cookies.txt "${SERVER_BASE_URL}/api/applications/$APP_ID" | grep -q "Integration Test Corp" || {
   echo "❌ Application not visible"
   exit 1
 }
@@ -180,7 +181,7 @@ echo "✅ Application visible"
 
 echo "📞 Testing outbound call..."
 
-curl -b cookies.txt -X POST http://localhost:3000/api/telephony/outbound-call \
+curl -b cookies.txt -X POST "${SERVER_BASE_URL}/api/telephony/outbound-call" \
   -H "Content-Type: application/json" \
   -d '{"to":"+15555555555"}' || {
     echo "❌ Call failed"
