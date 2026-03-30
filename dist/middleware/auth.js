@@ -51,7 +51,7 @@ const requireAuth = (req, res, next) => {
         return res.status(401).json((0, response_1.fail)("No token"));
     }
     try {
-        const decoded = jsonwebtoken_1.default.verify(token, process.env.JWT_SECRET || config_1.config.jwt.secret);
+        const decoded = jsonwebtoken_1.default.verify(token, config_1.config.jwt.secret);
         req.user = decoded;
         return next();
     }

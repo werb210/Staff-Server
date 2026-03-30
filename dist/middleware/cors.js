@@ -5,10 +5,15 @@ const config_1 = require("../config");
 function corsMiddleware(req, res, next) {
     const allowed = (config_1.config.cors.allowedOrigins || "")
         .split(",")
-        .map(s => s.trim())
+        .map((s) => s.trim())
         .filter(Boolean);
+    const defaultAllowed = [
+        "https://staff.boreal.financial",
+        "http://localhost:5173",
+    ];
+    const allowedOrigins = allowed.length > 0 ? allowed : defaultAllowed;
     const origin = req.headers.origin;
-    if (origin && allowed.includes(origin)) {
+    if (origin && allowedOrigins.includes(origin)) {
         res.setHeader("Access-Control-Allow-Origin", origin);
     }
     res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type, Idempotency-Key");

@@ -7,6 +7,7 @@ exports.app = void 0;
 exports.buildAppWithApiRoutes = buildAppWithApiRoutes;
 const createServer_1 = require("./server/createServer");
 const express_1 = __importDefault(require("express"));
+const cookie_parser_1 = __importDefault(require("cookie-parser"));
 const routeRegistry_1 = require("./routes/routeRegistry");
 const health_1 = __importDefault(require("./routes/health"));
 const requestContext_1 = require("./observability/requestContext");
@@ -18,6 +19,7 @@ function buildAppWithApiRoutes() {
     const app = (0, express_1.default)();
     app.use(security_1.securityHeaders);
     app.use(cors_1.corsMiddleware);
+    app.use((0, cookie_parser_1.default)());
     app.use(express_1.default.json({ limit: "1mb" }));
     app.use(express_1.default.urlencoded({ limit: "1mb", extended: true }));
     app.use(requestContext_1.requestContextMiddleware);
