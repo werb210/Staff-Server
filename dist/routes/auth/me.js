@@ -45,7 +45,7 @@ async function authMeHandler(req, res) {
     try {
         const user = req.user;
         if (!user) {
-            respondAuthError(res, 401, "missing_token", "Authorization token is required.");
+            respondAuthError(res, 401, "AUTH_REQUIRED", "Authentication required.");
             return;
         }
         let silo = user.silo;

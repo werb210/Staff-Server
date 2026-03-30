@@ -27,6 +27,15 @@ export function resetOtpStateForTests() {
   resetRedisMock();
 }
 
+// HARD endpoint — must always exist
+router.get("/me", (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ code: "AUTH_REQUIRED" });
+  }
+
+  return res.json(req.user);
+});
+
 router.post("/otp/start", async (req: Request, res: Response) => {
   const { phone } = req.body as { phone?: unknown };
 
