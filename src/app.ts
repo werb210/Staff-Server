@@ -2,6 +2,8 @@ import cors from "cors";
 import express from "express";
 
 import { createAuthMiddleware } from "./middleware/auth";
+import { Errors } from "./errors";
+import { requestId } from "./middleware/requestId";
 import apiRoutes from "./routes/api";
 import authRoutes from "./routes/auth.routes";
 import publicRoutes from "./routes/public";
@@ -14,11 +16,13 @@ export function createApp() {
     return res.status(200).json({ status: "ok" });
   });
 
+  app.use(requestId);
+
   app.use(express.json({ limit: "1mb" }));
 
   app.use((err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
     if (err instanceof SyntaxError && "body" in err) {
-      return res.status(400).json({ error: "INVALID_JSON" });
+      return res.status(400).json({ error: Errors.INVALID_JSON });
     }
 
     return next(err);
@@ -49,7 +53,7 @@ export function createApp() {
     console.error(err);
 
     return res.status(500).json({
-      error: "INTERNAL_SERVER_ERROR",
+      error: Errors.INTERNAL,
     });
   });
 

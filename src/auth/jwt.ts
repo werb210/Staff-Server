@@ -3,6 +3,8 @@ import { config } from "../config";
 import { type Role, isRole } from "./roles";
 import { type Capability, isCapability } from "./capabilities";
 import { findAuthUserById, type AuthUser } from "../modules/auth/auth.repo";
+import { getTokenVersion } from "./tokenStore";
+import { Errors } from "../errors";
 
 export type AccessTokenPayload = {
   sub: string;
@@ -142,20 +144,38 @@ export function verifyAccessToken(token: string): AccessTokenPayload {
 
 export function verifyJwt(token: string) {
   try {
-    return jwt.verify(token, process.env.JWT_SECRET!);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as {
+      userId?: string;
+      v?: number;
+      [key: string]: unknown;
+    };
+
+    if (typeof decoded.userId !== "string") {
+      throw new Error(Errors.INVALID_TOKEN);
+    }
+
+    const current = getTokenVersion(decoded.userId);
+    if (decoded.v !== current) {
+      throw new Error(Errors.INVALID_TOKEN);
+    }
+
+    return decoded;
   } catch {
-    throw new Error("INVALID_TOKEN");
+    throw new Error(Errors.INVALID_TOKEN);
   }
 }
 
-export function signJwt(payload: string | object): string {
+export function signJwt(payload: Record<string, unknown>): string {
   const secret = process.env.JWT_SECRET;
 
   if (!secret) {
-    throw new Error("SERVER_MISCONFIG");
+    throw new Error(Errors.SERVER_MISCONFIG);
   }
 
-  return jwt.sign(payload, secret, { expiresIn: "7d" });
+  const userId = typeof payload.userId === "string" ? payload.userId : null;
+  const version = userId ? getTokenVersion(userId) : 0;
+
+  return jwt.sign({ ...payload, v: version }, secret, { expiresIn: "7d" });
 }
 
 export async function verifyAccessTokenWithUser(token: string): Promise<{
