@@ -1,19 +1,23 @@
 import twilio from "twilio";
 
-const {
-  TWILIO_ACCOUNT_SID,
-  TWILIO_AUTH_TOKEN,
-  TWILIO_VERIFY_SERVICE_SID,
-  TWILIO_FROM_NUMBER,
-  TWILIO_CALLER_ID,
-} = process.env;
+const required = [
+  "TWILIO_ACCOUNT_SID",
+  "TWILIO_AUTH_TOKEN",
+  "TWILIO_VERIFY_SERVICE_SID",
+  "TWILIO_FROM_NUMBER",
+];
 
-if (!TWILIO_ACCOUNT_SID) throw new Error("Missing TWILIO_ACCOUNT_SID");
-if (!TWILIO_AUTH_TOKEN) throw new Error("Missing TWILIO_AUTH_TOKEN");
-if (!TWILIO_VERIFY_SERVICE_SID) throw new Error("Missing TWILIO_VERIFY_SERVICE_SID");
-if (!TWILIO_FROM_NUMBER) throw new Error("Missing TWILIO_FROM_NUMBER");
+for (const key of required) {
+  if (!process.env[key]) {
+    throw new Error(`Missing required env: ${key}`);
+  }
+}
 
-export const twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
-export const verifyServiceSid = TWILIO_VERIFY_SERVICE_SID;
-export const fromNumber = TWILIO_FROM_NUMBER;
-export const callerId = TWILIO_CALLER_ID || TWILIO_FROM_NUMBER;
+export const twilioClient = twilio(
+  process.env.TWILIO_ACCOUNT_SID!,
+  process.env.TWILIO_AUTH_TOKEN!
+);
+
+export const verifyServiceSid = process.env.TWILIO_VERIFY_SERVICE_SID!;
+export const fromNumber = process.env.TWILIO_FROM_NUMBER!;
+export const callerId = process.env.TWILIO_CALLER_ID || fromNumber;

@@ -19,8 +19,8 @@ router.post("/send-otp", sendLimiter, async (req, res) => {
       .verifications.create({ to: phone, channel: "sms" });
 
     return res.json({ status: verification.status });
-  } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+  } catch (err) {
+    return res.status(500).json({ error: "Twilio Verify failure" });
   }
 });
 
@@ -42,8 +42,8 @@ router.post("/verify-otp", verifyLimiter, async (req, res) => {
     }
 
     return res.json({ success: true });
-  } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+  } catch (err) {
+    return res.status(500).json({ error: "Twilio Verify failure" });
   }
 });
 

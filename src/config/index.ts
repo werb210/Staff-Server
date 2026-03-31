@@ -9,19 +9,19 @@ const parsed = EnvSchema.parse({
   ...process.env,
 });
 
-const toNumber = (value: string | undefined, fallback: number): number => {
-  if (!value) return fallback;
+const toNumber = (value: string | undefined, defaultValue: number): number => {
+  if (!value) return defaultValue;
   const n = Number(value);
-  return Number.isFinite(n) ? n : fallback;
+  return Number.isFinite(n) ? n : defaultValue;
 };
 
-const toBool = (value: string | undefined, fallback: boolean): boolean => {
-  if (value === undefined) return fallback;
+const toBool = (value: string | undefined, defaultValue: boolean): boolean => {
+  if (value === undefined) return defaultValue;
   return ["1", "true", "yes", "on"].includes(value.toLowerCase());
 };
 
-const csv = (value: string | undefined, fallback: string[]): string[] => {
-  if (!value) return fallback;
+const csv = (value: string | undefined, defaultValue: string[]): string[] => {
+  if (!value) return defaultValue;
   return value.split(",").map((entry) => entry.trim()).filter(Boolean);
 };
 
