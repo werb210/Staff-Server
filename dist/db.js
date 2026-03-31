@@ -1,8 +1,4 @@
 "use strict";
-/**
- * Database module resolver.
- * Uses the production Postgres pool implementation in all environments.
- */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     var desc = Object.getOwnPropertyDescriptor(m, k);
@@ -38,6 +34,23 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.clearDbTestFailureInjection = exports.setDbTestFailureInjection = exports.setDbTestPoolMetricsOverride = exports.fetchInstrumentedClient = exports.warmUpDatabase = exports.checkDb = exports.assertPoolHealthy = exports.dbQuery = exports.fetchClient = exports.query = exports.db = exports.pool = void 0;
+exports.ensureDb = ensureDb;
+exports.isDbReady = isDbReady;
 const dbProd = __importStar(require("./db.prod"));
 const dbImpl = dbProd;
 exports.pool = dbImpl.pool, exports.db = dbImpl.db, exports.query = dbImpl.query, exports.fetchClient = dbImpl.fetchClient, exports.dbQuery = dbImpl.dbQuery, exports.assertPoolHealthy = dbImpl.assertPoolHealthy, exports.checkDb = dbImpl.checkDb, exports.warmUpDatabase = dbImpl.warmUpDatabase, exports.fetchInstrumentedClient = dbImpl.fetchInstrumentedClient, exports.setDbTestPoolMetricsOverride = dbImpl.setDbTestPoolMetricsOverride, exports.setDbTestFailureInjection = dbImpl.setDbTestFailureInjection, exports.clearDbTestFailureInjection = dbImpl.clearDbTestFailureInjection;
+let dbReady = false;
+async function ensureDb() {
+    try {
+        await exports.pool.query("SELECT 1");
+        dbReady = true;
+        console.log("DB connected");
+    }
+    catch {
+        dbReady = false;
+        console.warn("DB unavailable — continuing without DB");
+    }
+}
+function isDbReady() {
+    return dbReady;
+}

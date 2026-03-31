@@ -1,6 +1,7 @@
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
 import { twilioClient, verifyServiceSid } from "../lib/twilioClient";
+import { ok, fail } from "../middleware/response";
 
 const router = Router();
 
@@ -11,16 +12,16 @@ const verifyLimiter = rateLimit({ windowMs: 60 * 1000, max: 5 });
 router.post("/send-otp", sendLimiter, async (req, res) => {
   const { phone } = req.body;
 
-  if (!phone) return res.status(400).json({ error: "phone required" });
+  if (!phone) return fail(res, 400, "phone_required");
 
   try {
     const verification = await twilioClient.verify.v2
       .services(verifyServiceSid)
       .verifications.create({ to: phone, channel: "sms" });
 
-    return res.json({ status: verification.status });
-  } catch (err) {
-    return res.status(500).json({ error: "Twilio Verify failure" });
+    return ok(res, { status: verification.status });
+  } catch (_err) {
+    return fail(res, 500, "twilio_verify_failure");
   }
 });
 
@@ -29,7 +30,7 @@ router.post("/verify-otp", verifyLimiter, async (req, res) => {
   const { phone, code } = req.body;
 
   if (!phone || !code) {
-    return res.status(400).json({ error: "phone and code required" });
+    return fail(res, 400, "phone_and_code_required");
   }
 
   try {
@@ -38,12 +39,12 @@ router.post("/verify-otp", verifyLimiter, async (req, res) => {
       .verificationChecks.create({ to: phone, code });
 
     if (check.status !== "approved") {
-      return res.status(401).json({ success: false });
+      return fail(res, 401, "otp_invalid");
     }
 
-    return res.json({ success: true });
-  } catch (err) {
-    return res.status(500).json({ error: "Twilio Verify failure" });
+    return ok(res, { verified: true });
+  } catch (_err) {
+    return fail(res, 500, "twilio_verify_failure");
   }
 });
 

@@ -1,10 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.successResponse = successResponse;
-exports.errorResponse = errorResponse;
-function successResponse(res, data = {}, message = "ok") {
-    return res.status(200).json({ success: true, message, data });
+exports.ok = ok;
+exports.fail = fail;
+function ok(res, data = {}, message = "ok") {
+    return res.json({ success: true, message, data });
 }
-function errorResponse(res, status = 500, error = "server_error") {
-    return res.status(status).json({ success: false, error });
+function fail(res, status = 500, message = "error") {
+    return res.status(status).json({ success: false, message });
 }

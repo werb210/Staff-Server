@@ -1,40 +1,41 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
-const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
-const publicService_1 = require("../services/publicService");
-const readiness_service_1 = require("../modules/readiness/readiness.service");
-const config_1 = require("../config");
+const db_1 = require("../db");
+const validate_1 = require("../middleware/validate");
+const validation_1 = require("../validation");
 const router = (0, express_1.Router)();
-router.get("/lender-count", async (_req, res) => {
-    const count = await (0, publicService_1.fetchActiveLenderCount)();
-    res["json"]({ count });
+async function createLead(payload) {
+    const normalizedPayload = {
+        ...payload,
+        businessName: payload.businessName ?? payload.companyName,
+    };
+    const parsed = validation_1.LeadSchema.safeParse(normalizedPayload ?? {});
+    if (!parsed.success) {
+        return {};
+    }
+    const data = parsed.data;
+    const result = await (0, db_1.dbQuery)(`insert into crm_leads (email, phone, company_name, product_interest, requested_amount, source)
+       values ($1, $2, $3, $4, $5, 'public_api')
+       returning id`, [data.email, data.phone, data.businessName, data.productType, data.requestedAmount ?? null]);
+    return { leadId: result.rows[0]?.id };
+}
+router.get("/test", (_req, res) => {
+    return res.json({ ok: true });
 });
-const readinessLimiter = (0, express_rate_limit_1.default)({
-    windowMs: 60 * 1000,
-    max: 20,
-    standardHeaders: true,
-    legacyHeaders: false,
-    skip: () => config_1.config.env === "test",
-});
-router.post("/readiness", readinessLimiter, async (req, res) => {
+router.post("/lead", (0, validate_1.requireFields)(["companyName", "email"]), async (req, res, next) => {
     try {
-        const { leadId } = await (0, readiness_service_1.createReadinessLead)(req.body ?? {});
-        res.status(201).json({ leadId, status: "created" });
+        const result = await createLead(req.body);
+        if (!result?.leadId) {
+            return res.status(400).json({ error: "INVALID_INPUT" });
+        }
+        return res.json({ leadId: result.leadId });
     }
     catch (error) {
-        if (error instanceof Error && error.message === "invalid_phone") {
-            res.status(400).json({ error: "Invalid payload" });
-            return;
-        }
-        if (error && typeof error === "object" && "name" in error && error.name === "ZodError") {
-            res.status(400).json({ error: "Invalid payload" });
-            return;
-        }
-        res.status(500).json({ error: "Server error" });
+        return next(error);
     }
+});
+router.all("/lead", (_req, res) => {
+    return res.status(405).json({ error: "METHOD_NOT_ALLOWED" });
 });
 exports.default = router;

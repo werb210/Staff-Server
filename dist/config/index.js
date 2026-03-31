@@ -2,21 +2,28 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.COMMIT_SHA = exports.assertEnv = exports.validateServerEnv = exports.ENV = exports.config = exports.env = void 0;
 const schema_1 = require("./schema");
-const parsed = schema_1.EnvSchema.parse(process.env);
-const toNumber = (value, fallback) => {
+const api_1 = require("./api");
+const parsed = schema_1.EnvSchema.parse({
+    NODE_ENV: process.env.NODE_ENV ?? "development",
+    DATABASE_URL: process.env.DATABASE_URL ?? "postgres://localhost:5432/dev",
+    JWT_SECRET: process.env.JWT_SECRET ?? "dev-secret",
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "dummy",
+    ...process.env,
+});
+const toNumber = (value, defaultValue) => {
     if (!value)
-        return fallback;
+        return defaultValue;
     const n = Number(value);
-    return Number.isFinite(n) ? n : fallback;
+    return Number.isFinite(n) ? n : defaultValue;
 };
-const toBool = (value, fallback) => {
+const toBool = (value, defaultValue) => {
     if (value === undefined)
-        return fallback;
+        return defaultValue;
     return ["1", "true", "yes", "on"].includes(value.toLowerCase());
 };
-const csv = (value, fallback) => {
+const csv = (value, defaultValue) => {
     if (!value)
-        return fallback;
+        return defaultValue;
     return value.split(",").map((entry) => entry.trim()).filter(Boolean);
 };
 exports.env = {
@@ -30,7 +37,7 @@ exports.config = {
     commitSha: parsed.COMMIT_SHA ?? "unknown",
     buildTimestamp: parsed.BUILD_TIMESTAMP ?? new Date(0).toISOString(),
     api: {
-        baseUrl: parsed.API_BASE_URL,
+        baseUrl: api_1.API_BASE,
     },
     app: {
         baseUrl: parsed.BASE_URL,
@@ -156,18 +163,18 @@ exports.config = {
     },
     rateLimit: {
         enabled: parsed.RATE_LIMIT_ENABLED,
-        windowMs: toNumber(parsed.RATE_LIMIT_WINDOW_MS, 60_000),
+        windowMs: toNumber(parsed.RATE_LIMIT_WINDOW_MS, 60000),
         max: toNumber(parsed.RATE_LIMIT_MAX, 100),
     },
     lender: {
         retry: {
             baseDelayMs: toNumber(parsed.LENDER_RETRY_BASE_DELAY_MS, 500),
-            maxDelayMs: toNumber(parsed.LENDER_RETRY_MAX_DELAY_MS, 5_000),
+            maxDelayMs: toNumber(parsed.LENDER_RETRY_MAX_DELAY_MS, 5000),
             maxCount: toNumber(parsed.LENDER_RETRY_MAX_COUNT, 3),
         },
     },
     followUp: {
-        intervalMs: toNumber(parsed.FOLLOW_UP_INTERVAL_MS, 60_000),
+        intervalMs: toNumber(parsed.FOLLOW_UP_INTERVAL_MS, 60000),
         enabled: toBool(parsed.FOLLOW_UP_ENABLED, true),
     },
     documents: {
@@ -177,16 +184,16 @@ exports.config = {
     pwa: {
         pushEnabled: parsed.PWA_PUSH_ENABLED,
         syncMaxActions: toNumber(parsed.PWA_SYNC_MAX_ACTIONS, 100),
-        syncActionMaxBytes: toNumber(parsed.PWA_SYNC_ACTION_MAX_BYTES, 16_384),
-        syncBatchMaxBytes: toNumber(parsed.PWA_SYNC_BATCH_MAX_BYTES, 262_144),
+        syncActionMaxBytes: toNumber(parsed.PWA_SYNC_ACTION_MAX_BYTES, 16384),
+        syncBatchMaxBytes: toNumber(parsed.PWA_SYNC_BATCH_MAX_BYTES, 262144),
         pushPayloadMaxBytes: toNumber(parsed.PWA_PUSH_PAYLOAD_MAX_BYTES, 4096),
     },
     ocr: {
         enabled: toBool(parsed.OCR_ENABLED, true),
         provider: parsed.OCR_PROVIDER ?? "openai",
-        timeoutMs: toNumber(parsed.OCR_TIMEOUT_MS, 30_000),
+        timeoutMs: toNumber(parsed.OCR_TIMEOUT_MS, 30000),
         maxAttempts: toNumber(parsed.OCR_MAX_ATTEMPTS, 3),
-        pollIntervalMs: toNumber(parsed.OCR_POLL_INTERVAL_MS, 5_000),
+        pollIntervalMs: toNumber(parsed.OCR_POLL_INTERVAL_MS, 5000),
         workerConcurrency: toNumber(parsed.OCR_WORKER_CONCURRENCY, 2),
         lockTimeoutMinutes: toNumber(parsed.OCR_LOCK_TIMEOUT_MINUTES, 30),
     },
@@ -205,7 +212,7 @@ exports.config = {
         webhookUrl: parsed.CRM_WEBHOOK_URL,
     },
     urls: {
-        apiBase: parsed.API_BASE_URL,
+        apiBase: api_1.API_BASE,
         publicBase: parsed.PUBLIC_BASE_URL,
         clientBase: parsed.CLIENT_BASE_URL,
     },

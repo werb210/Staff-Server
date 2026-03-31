@@ -1,20 +1,18 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.requestLogger = requestLogger;
-const logger_1 = require("../server/utils/logger");
 const metrics_1 = require("../routes/metrics");
 function requestLogger(req, res, next) {
     (0, metrics_1.trackRequest)();
-    const start = Date.now();
-    res.on('finish', () => {
-        const duration = Date.now() - start;
-        logger_1.logger.info('request', {
-            requestId: req.id,
-            method: req.method,
-            path: req.originalUrl,
-            status: res.statusCode,
-            duration
-        });
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    req.requestId = id;
+    req.id = id;
+    res.setHeader("X-Request-Id", id);
+    console.log({
+        id,
+        method: req.method,
+        path: req.path,
+        time: new Date().toISOString(),
     });
     next();
 }

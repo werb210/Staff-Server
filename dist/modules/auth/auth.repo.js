@@ -100,10 +100,10 @@ async function findAuthUserByPhone(phoneNumber, client, options) {
     if (primaryRes.rows[0]) {
         return primaryRes.rows[0];
     }
-    const fallbackRes = await runAuthQuery(runner, `${selectSql}
+    const secondaryRes = await runAuthQuery(runner, `${selectSql}
      where ${normalizePhoneColumnSql("u.phone")} = $1
      ${orderSql}`, [normalizedDigits]);
-    return fallbackRes.rows[0] ?? null;
+    return secondaryRes.rows[0] ?? null;
 }
 async function findAuthUserByEmail(email, client, options) {
     const runner = client ?? db_1.pool;

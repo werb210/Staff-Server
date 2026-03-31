@@ -7,9 +7,11 @@ exports.AccessTokenVerificationError = exports.AccessTokenSigningError = void 0;
 exports.signAccessToken = signAccessToken;
 exports.verifyAccessToken = verifyAccessToken;
 exports.verifyJwt = verifyJwt;
+exports.signJwt = signJwt;
 exports.verifyAccessTokenWithUser = verifyAccessTokenWithUser;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const config_1 = require("../config");
+const env_1 = require("../config/env");
 const roles_1 = require("./roles");
 const capabilities_1 = require("./capabilities");
 const auth_repo_1 = require("../modules/auth/auth.repo");
@@ -115,12 +117,16 @@ function verifyAccessToken(token) {
 }
 function verifyJwt(token) {
     try {
-        const payload = verifyAccessToken(token);
-        return { sub: payload.sub };
+        return jsonwebtoken_1.default.verify(token, env_1.ENV.JWT_SECRET);
     }
     catch {
-        return { sub: "" };
+        throw new Error("INVALID_TOKEN");
     }
+}
+function signJwt(payload) {
+    return jsonwebtoken_1.default.sign(payload, env_1.ENV.JWT_SECRET, {
+        expiresIn: "1h",
+    });
 }
 async function verifyAccessTokenWithUser(token) {
     const payload = verifyAccessToken(token);

@@ -1,16 +1,25 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.withRetry = withRetry;
 exports.retry = retry;
-async function retry(fn, retries = 3, delay = 200) {
+async function withRetry(fn, options = {}) {
+    const { retries = 3, baseDelayMs = 500, maxDelayMs = 5000 } = options;
     let lastError;
-    for (let i = 0; i < retries; i++) {
+    for (let attempt = 0; attempt <= retries; attempt += 1) {
         try {
             return await fn();
         }
-        catch (err) {
-            lastError = err;
-            await new Promise(res => setTimeout(res, delay));
+        catch (error) {
+            lastError = error;
+            if (attempt === retries) {
+                break;
+            }
+            const delay = Math.min(baseDelayMs * Math.pow(2, attempt), maxDelayMs);
+            await new Promise((resolve) => setTimeout(resolve, delay));
         }
     }
     throw lastError;
+}
+async function retry(fn, retries = 3) {
+    return withRetry(fn, { retries });
 }
