@@ -732,7 +732,6 @@ export async function startOtp(
           });
           sid = verification.sid ?? sid;
         } catch {
-          // Do not fail test-mode OTP generation when provider mocks are unavailable.
         }
       }
 

@@ -114,7 +114,7 @@ export async function findAuthUserByPhone(
     return primaryRes.rows[0];
   }
 
-  const fallbackRes = await runAuthQuery<AuthUser>(
+  const secondaryRes = await runAuthQuery<AuthUser>(
     runner,
     `${selectSql}
      where ${normalizePhoneColumnSql("u.phone")} = $1
@@ -122,7 +122,7 @@ export async function findAuthUserByPhone(
     [normalizedDigits]
   );
 
-  return fallbackRes.rows[0] ?? null;
+  return secondaryRes.rows[0] ?? null;
 }
 
 export async function findAuthUserByEmail(
