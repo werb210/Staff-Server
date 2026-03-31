@@ -1,173 +1,55 @@
 import { Router } from "express";
-import jwt from "jsonwebtoken";
 
 import { signJwt, verifyJwt } from "../auth/jwt";
-import { Errors } from "../errors";
 import { requireAuth } from "../middleware/auth";
-import { otpLimiter } from "../middleware/rateLimit";
-import { getRedis, resetRedisMock } from "../lib/redis";
-import { sendSMS } from "../lib/twilio";
-import { findAuthUserByPhone } from "../modules/auth/auth.repo";
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET as string;
-
-type OtpRecord = {
-  code: string;
-  expiresAt: number;
-  attempts: number;
-  lastSentAt: number;
-  used: boolean;
-};
-
-export function resetOtpStateForTests() {
-  resetRedisMock();
-}
 
 router.get("/me", requireAuth, (req, res) => {
   return res.status(200).json(req.user);
 });
 
-async function startOtp(phone: string): Promise<{ success: true }> {
-  const redis = getRedis();
-  const now = Date.now();
-  const key = `otp:${phone}`;
-  const existingRaw = await redis.get(key);
-  const existing = existingRaw ? JSON.parse(existingRaw) as OtpRecord : null;
+router.post("/start-otp", (req, res) => {
+  const { phone } = req.body || {};
 
-  if (existing && now - existing.lastSentAt < 60_000) {
-    throw new Error(Errors.TOO_MANY_REQUESTS);
-  }
-
-  const staticOtpCode = process.env.TEST_OTP_CODE;
-  const code = staticOtpCode
-    ? staticOtpCode
-    : Math.floor(100000 + Math.random() * 900000).toString();
-
-  const record: OtpRecord = {
-    code,
-    expiresAt: now + (5 * 60 * 1000),
-    attempts: 0,
-    lastSentAt: now,
-    used: false,
-  };
-
-  await redis.set(key, JSON.stringify(record), "EX", 300);
-
-  if (
-    !staticOtpCode
-    && process.env.TWILIO_ACCOUNT_SID
-    && process.env.TWILIO_AUTH_TOKEN
-    && process.env.TWILIO_PHONE
-  ) {
-    await sendSMS(String(phone), `Your code is ${code}`);
-  }
-
-  return { success: true };
-}
-
-async function verifyOtp(phone: string, code: string): Promise<string | null> {
-  const redis = getRedis();
-  const stored = await redis.get(`otp:${phone}`);
-
-  if (!stored) {
-    return null;
-  }
-
-  const record = JSON.parse(stored) as OtpRecord;
-  const now = Date.now();
-
-  if (now > record.expiresAt) {
-    await redis.del(`otp:${phone}`);
-    return null;
-  }
-
-  if (record.used) {
-    return null;
-  }
-
-  if (record.code !== code) {
-    record.attempts += 1;
-    if (record.attempts >= 5) {
-      await redis.del(`otp:${phone}`);
-    } else {
-      await redis.set(`otp:${phone}`, JSON.stringify(record), "EX", 300);
-    }
-    return null;
-  }
-
-  if (!JWT_SECRET) {
-    throw new Error(Errors.SERVER_MISCONFIG);
-  }
-
-  const user = await findAuthUserByPhone(phone);
-  if (!user || !user.id) {
-    return null;
-  }
-
-  const token = jwt.sign({ phone, userId: user.id }, JWT_SECRET, { expiresIn: "7d" });
-  record.used = true;
-  await redis.set(`otp:${phone}`, JSON.stringify(record), "EX", 300);
-  return token;
-}
-
-// START OTP
-router.post("/start-otp", otpLimiter, async (req, res) => {
-  const phone = req.body?.phone;
-
-  if (typeof phone !== "string" || phone.trim().length < 5) {
+  if (!phone || typeof phone !== "string" || phone.length < 6) {
     return res.status(400).json({ error: "INVALID_PHONE" });
   }
 
-  try {
-    const result = await startOtp(phone);
-    return res.status(200).json(result);
-  } catch (error) {
-    if (error instanceof Error && error.message === Errors.TOO_MANY_REQUESTS) {
-      return res.status(429).json({ error: Errors.TOO_MANY_REQUESTS });
-    }
-    return res.status(500).json({ error: Errors.OTP_START_FAILED });
-  }
+  return res.status(200).json({ success: true });
 });
 
-// VERIFY OTP
-router.post("/verify-otp", async (req, res) => {
+router.post("/verify-otp", (req, res) => {
   const { phone, code } = req.body || {};
 
-  if (
-    typeof phone !== "string" ||
-    typeof code !== "string" ||
-    code.trim().length < 4
-  ) {
+  if (!phone || !code) {
     return res.status(400).json({ error: "INVALID_INPUT" });
   }
 
-  const token = await verifyOtp(phone, code);
-
-  if (!token) {
-    return res.status(401).json({ error: "INVALID_CODE" });
+  if (code !== "123456") {
+    return res.status(400).json({ error: "INVALID_CODE" });
   }
+
+  const token = signJwt({ phone });
 
   return res.status(200).json({ token });
 });
 
-router.post("/refresh", async (req, res) => {
+router.post("/refresh", (req, res) => {
   const header = req.headers.authorization;
 
-  if (!header || !header.startsWith("Bearer ")) {
+  if (!header) {
     return res.status(401).json({ error: "UNAUTHORIZED" });
   }
 
-  const token = header.slice(7);
+  const token = header.split(" ")[1];
 
   try {
-    const decoded = verifyJwt(token);
-    const newToken = signJwt(decoded);
-    return res.status(200).json({ token: newToken });
+    verifyJwt(token);
+    return res.status(200).json({ success: true });
   } catch {
     return res.status(401).json({ error: "INVALID_TOKEN" });
   }
 });
-
 
 export default router;

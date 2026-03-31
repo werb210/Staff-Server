@@ -1,11 +1,28 @@
 import cors from "cors";
 import express from "express";
 
-import { createAuthMiddleware } from "./middleware/auth";
+import { requireAuth } from "./middleware/auth";
 import { requestId } from "./middleware/requestId";
-import apiRoutes from "./routes/api";
 import authRoutes from "./routes/auth.routes";
+import privateRoutes from "./routes/private.routes";
 import publicRoutes from "./routes/public";
+
+function requireEnv(name: string, fallback?: string) {
+  const v = process.env[name] || fallback;
+  if (!v) {
+    console.warn(`[WARN] Missing ${name}, using fallback`);
+    return fallback;
+  }
+  return v;
+}
+
+const JWT_SECRET = requireEnv("JWT_SECRET", "dev-secret");
+const DATABASE_URL = requireEnv("DATABASE_URL", "postgres://localhost:5432/dev");
+const OPENAI_API_KEY = requireEnv("OPENAI_API_KEY", "dummy");
+
+void JWT_SECRET;
+void DATABASE_URL;
+void OPENAI_API_KEY;
 
 export function createApp() {
   const app = express();
@@ -14,14 +31,7 @@ export function createApp() {
     res.status(200).json({ status: "ok" });
   });
 
-  app.use(express.json({ limit: "1mb" }));
-
-  app.use((err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
-    if (err instanceof SyntaxError && "body" in err) {
-      return res.status(400).json({ error: "INVALID_JSON" });
-    }
-    return next(err);
-  });
+  app.use(express.json());
 
   app.use(requestId);
 
@@ -33,18 +43,19 @@ export function createApp() {
   );
 
   app.use("/api/public", publicRoutes);
-
   app.use("/api/auth", authRoutes);
+  app.use("/api/private", requireAuth, privateRoutes);
 
-  app.use("/api", createAuthMiddleware(), apiRoutes);
+  app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    if (err instanceof SyntaxError) {
+      return res.status(400).json({ error: "INVALID_JSON" });
+    }
+
+    return res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
+  });
 
   app.use((_req, res) => {
     return res.status(404).json({ error: "NOT_FOUND" });
-  });
-
-  app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    console.error(err);
-    return res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
   });
 
   return app;

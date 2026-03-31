@@ -16,36 +16,33 @@ export interface AuthRequest extends Request {
   user?: Request["user"];
 }
 
-export function createAuthMiddleware(): RequestHandler {
-  return function authMiddleware(req: AuthRequest, res: Response, next: NextFunction) {
-    const header = req.headers.authorization;
+export function requireAuth(req: AuthRequest, res: Response, next: NextFunction) {
+  const header = req.headers.authorization;
 
-    if (!header || !header.startsWith("Bearer ")) {
-      return res.status(401).json({ error: "UNAUTHORIZED" });
-    }
+  if (!header || !header.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "UNAUTHORIZED" });
+  }
 
-    const token = header.slice(7);
+  const token = header.split(" ")[1];
 
-    if (!token || token === "null" || token === "undefined") {
-      return res.status(401).json({ error: "INVALID_TOKEN" });
-    }
+  if (!token || token === "null" || token === "undefined") {
+    return res.status(401).json({ error: "INVALID_TOKEN" });
+  }
 
-    try {
-      const decoded = verifyJwt(token);
-      req.user = decoded as Request["user"];
-      return next();
-    } catch {
-      return res.status(401).json({ error: "INVALID_TOKEN" });
-    }
-  };
+  try {
+    req.user = verifyJwt(token) as Request["user"];
+    return next();
+  } catch {
+    return res.status(401).json({ error: "INVALID_TOKEN" });
+  }
 }
 
-export const authMiddleware: RequestHandler = (req, res, next) => {
-  return createAuthMiddleware()(req, res, next);
-};
+export function createAuthMiddleware(): RequestHandler {
+  return requireAuth;
+}
 
+export const authMiddleware: RequestHandler = requireAuth;
 export const auth = authMiddleware;
-export const requireAuth: RequestHandler = authMiddleware;
 
 export function requireAuthorization(options: AuthorizationOptions = {}): RequestHandler {
   const requiredRoles = options.roles ?? [];

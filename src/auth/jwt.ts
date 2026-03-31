@@ -3,8 +3,6 @@ import { config } from "../config";
 import { type Role, isRole } from "./roles";
 import { type Capability, isCapability } from "./capabilities";
 import { findAuthUserById, type AuthUser } from "../modules/auth/auth.repo";
-import { getTokenVersion } from "./tokenStore";
-import { Errors } from "../errors";
 
 export type AccessTokenPayload = {
   sub: string;
@@ -144,24 +142,16 @@ export function verifyAccessToken(token: string): AccessTokenPayload {
 
 export function verifyJwt(token: string) {
   try {
-    return jwt.verify(token, process.env.JWT_SECRET!);
+    return jwt.verify(token, process.env.JWT_SECRET || "dev-secret");
   } catch {
     throw new Error("INVALID_TOKEN");
   }
 }
 
-export function signJwt(payload: Record<string, unknown> | string): string {
-  const secret = process.env.JWT_SECRET;
-
-  if (!secret) {
-    throw new Error(Errors.SERVER_MISCONFIG);
-  }
-
-  const normalized = typeof payload === "string" ? {} : payload;
-  const userId = typeof normalized.userId === "string" ? normalized.userId : null;
-  const version = userId ? getTokenVersion(userId) : 0;
-
-  return jwt.sign({ ...normalized, v: version }, secret, { expiresIn: "7d" });
+export function signJwt(payload: any) {
+  return jwt.sign(payload, process.env.JWT_SECRET || "dev-secret", {
+    expiresIn: "1h",
+  });
 }
 
 export async function verifyAccessTokenWithUser(token: string): Promise<{

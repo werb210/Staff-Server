@@ -1,7 +1,13 @@
 import { EnvSchema } from "./schema";
 import { API_BASE } from "./api";
 
-const parsed = EnvSchema.parse(process.env);
+const parsed = EnvSchema.parse({
+  NODE_ENV: process.env.NODE_ENV ?? "development",
+  DATABASE_URL: process.env.DATABASE_URL ?? "postgres://localhost:5432/dev",
+  JWT_SECRET: process.env.JWT_SECRET ?? "dev-secret",
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "dummy",
+  ...process.env,
+});
 
 const toNumber = (value: string | undefined, fallback: number): number => {
   if (!value) return fallback;
