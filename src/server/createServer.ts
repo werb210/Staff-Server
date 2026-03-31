@@ -8,12 +8,21 @@ import documentRoutes from "../routes/documents";
 export function createServer() {
   const app = express();
 
-  // Azure health probe target must always be reachable and return a completed 2xx response.
-  app.get("/health", (_req, res) => {
-    res.status(200).set("Content-Type", "text/plain").send("ok");
+  // MUST remain first: bypasses middleware stack and guarantees probe completion.
+  app.use((req, res, next) => {
+    if (req.path === "/health") {
+      res.status(200).type("text/plain").send("ok");
+      return;
+    }
+    next();
   });
 
-  app.use(express.json());
+  // Explicit health route for direct GET semantics.
+  app.get("/health", (_req, res) => {
+    res.status(200).type("text/plain").send("ok");
+  });
+
+  app.use(express.json({ strict: false }));
 
   app.use(
     cors({

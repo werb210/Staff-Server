@@ -7,12 +7,10 @@ const HOST = "0.0.0.0";
 
 process.on("unhandledRejection", (err) => {
   console.error("UNHANDLED REJECTION", err);
-  process.exit(1);
 });
 
 process.on("uncaughtException", (err) => {
   console.error("UNCAUGHT EXCEPTION", err);
-  process.exit(1);
 });
 
 async function boot() {
@@ -23,6 +21,10 @@ async function boot() {
   app.listen(PORT, HOST, () => {
     console.log(`[BOOT] listening on ${HOST}:${PORT}`);
   });
+
+  setInterval(() => {
+    console.log("[ALIVE]");
+  }, 30000);
 }
 
 boot().catch((err) => {
