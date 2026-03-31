@@ -38,112 +38,122 @@ router.post("/otp/start", (req, _res, next) => {
   console.log("[AUTH HIT] /auth/otp/start");
   next();
 }, async (req: Request, res: Response) => {
-  const { phone } = req.body as { phone?: unknown };
+  try {
+    const { phone } = req.body as { phone?: unknown };
 
-  if (!phone) {
-    return res.status(400).json({ error: "phone required" });
-  }
+    if (!phone) {
+      return res.status(400).json({ error: "phone required" });
+    }
 
-  if (!isPhone(phone)) {
-    return fail(res, "invalid_phone", 400);
-  }
+    if (!isPhone(phone)) {
+      return fail(res, "invalid_phone", 400);
+    }
 
-  if (
-    !process.env.TWILIO_ACCOUNT_SID
-    || !process.env.TWILIO_AUTH_TOKEN
-    || !process.env.TWILIO_PHONE
-  ) {
-    return fail(res, "missing_otp_env", 500);
-  }
+    if (
+      !process.env.TWILIO_ACCOUNT_SID
+      || !process.env.TWILIO_AUTH_TOKEN
+      || !process.env.TWILIO_PHONE
+    ) {
+      return fail(res, "missing_otp_env", 500);
+    }
 
-  const redis = getRedis();
-  const now = Date.now();
-  const key = `otp:${phone}`;
-  const existingRaw = await redis.get(key);
-  const existing = existingRaw ? JSON.parse(existingRaw) as OtpRecord : null;
+    const redis = getRedis();
+    const now = Date.now();
+    const key = `otp:${phone}`;
+    const existingRaw = await redis.get(key);
+    const existing = existingRaw ? JSON.parse(existingRaw) as OtpRecord : null;
 
-  if (existing && now - existing.lastSentAt < 60_000) {
-    return fail(res, "Too many requests", 429);
-  }
+    if (existing && now - existing.lastSentAt < 60_000) {
+      return fail(res, "Too many requests", 429);
+    }
 
-  const staticOtpCode = process.env.TEST_OTP_CODE;
-  const code = staticOtpCode
-    ? staticOtpCode
-    : Math.floor(100000 + Math.random() * 900000).toString();
+    const staticOtpCode = process.env.TEST_OTP_CODE;
+    const code = staticOtpCode
+      ? staticOtpCode
+      : Math.floor(100000 + Math.random() * 900000).toString();
 
-  const record: OtpRecord = {
-    code,
-    expiresAt: now + (5 * 60 * 1000),
-    attempts: 0,
-    lastSentAt: now,
-    used: false,
-  };
+    const record: OtpRecord = {
+      code,
+      expiresAt: now + (5 * 60 * 1000),
+      attempts: 0,
+      lastSentAt: now,
+      used: false,
+    };
 
-  await redis.set(key, JSON.stringify(record), "EX", 300);
+    await redis.set(key, JSON.stringify(record), "EX", 300);
 
-  if (!staticOtpCode) {
-    await sendSMS(phone, `Your code is ${code}`);
-  }
+    if (!staticOtpCode) {
+      await sendSMS(phone, `Your code is ${code}`);
+    }
 
-  if (process.env.NODE_ENV === "test") {
+    if (process.env.NODE_ENV === "test") {
+      return res.status(200).json({ ok: true });
+    }
+
     return res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "otp_start_failed" });
   }
-
-  return res.json({ success: true });
 });
 
 router.post("/otp/verify", async (req: Request, res: Response) => {
-  const { phone, code } = req.body as { phone?: unknown; code?: unknown };
+  try {
+    const { phone, code } = req.body as { phone?: unknown; code?: unknown };
 
-  if (!isPhone(phone) || !isCode(code)) {
-    return fail(res, "invalid_payload", 400);
-  }
-
-  const redis = getRedis();
-  const stored = await redis.get(`otp:${phone}`);
-
-  if (!stored) {
-    return fail(res, "Invalid code", 400);
-  }
-
-  const record = JSON.parse(stored) as OtpRecord;
-  const now = Date.now();
-
-  if (now > record.expiresAt) {
-    await redis.del(`otp:${phone}`);
-    return fail(res, "OTP expired", 410);
-  }
-
-  if (record.used) {
-    return fail(res, "Invalid code", 400);
-  }
-
-  if (record.code !== code) {
-    record.attempts += 1;
-    if (record.attempts >= 5) {
-      await redis.del(`otp:${phone}`);
-    } else {
-      await redis.set(`otp:${phone}`, JSON.stringify(record), "EX", 300);
+    if (!isPhone(phone) || !isCode(code)) {
+      return fail(res, "invalid_payload", 400);
     }
-    return fail(res, "Invalid code", 400);
+
+    const redis = getRedis();
+    const stored = await redis.get(`otp:${phone}`);
+
+    if (!stored) {
+      return fail(res, "Invalid code", 400);
+    }
+
+    const record = JSON.parse(stored) as OtpRecord;
+    const now = Date.now();
+
+    if (now > record.expiresAt) {
+      await redis.del(`otp:${phone}`);
+      return fail(res, "OTP expired", 410);
+    }
+
+    if (record.used) {
+      return fail(res, "Invalid code", 400);
+    }
+
+    if (record.code !== code) {
+      record.attempts += 1;
+      if (record.attempts >= 5) {
+        await redis.del(`otp:${phone}`);
+      } else {
+        await redis.set(`otp:${phone}`, JSON.stringify(record), "EX", 300);
+      }
+      return fail(res, "Invalid code", 400);
+    }
+
+    const token = jwt.sign(
+      { phone },
+      JWT_SECRET,
+      { expiresIn: "7d" },
+    );
+
+    res.cookie("session", token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      path: "/",
+    });
+
+    await redis.del(`otp:${phone}`);
+
+    return res.json({ token, user: { phone } });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "otp_verify_failed" });
   }
-
-  const token = jwt.sign(
-    { phone },
-    JWT_SECRET,
-    { expiresIn: "7d" },
-  );
-
-  res.cookie("session", token, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "none",
-    path: "/",
-  });
-
-  await redis.del(`otp:${phone}`);
-
-  return res.json({ token, user: { phone } });
 });
 
 export default router;

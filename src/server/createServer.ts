@@ -6,7 +6,16 @@ import applicationRoutes from "../routes/applications.routes";
 import documentRoutes from "../routes/documents";
 
 export function createServer() {
+  const requiredEnv = ["JWT_SECRET"];
+  requiredEnv.forEach((key) => {
+    if (!process.env[key]) {
+      console.error(`MISSING ENV: ${key}`);
+      process.exit(1);
+    }
+  });
+
   const app = express();
+  const API_PREFIX = "/api";
 
   app.set("trust proxy", 1);
 
@@ -45,7 +54,18 @@ export function createServer() {
     });
   });
 
-  app.use(express.json({ strict: false }));
+  app.use((req, res, next) => {
+    res.setTimeout(10_000, () => {
+      console.error(`[TIMEOUT] ${req.method} ${req.originalUrl}`);
+      if (!res.headersSent) {
+        res.status(504).json({ error: "timeout" });
+      }
+    });
+    next();
+  });
+
+  app.use(express.json({ limit: "10mb", strict: false }));
+  app.use(express.urlencoded({ extended: true }));
 
   const allowedOrigins = [
     "https://boreal-financial-portal.azurewebsites.net",
@@ -101,19 +121,31 @@ export function createServer() {
   apiRouter.use("/applications", applicationRoutes);
   apiRouter.use("/documents", documentRoutes);
 
-  app.use("/api", apiRouter);
-  console.log("API ROUTES MOUNTED AT /api");
+  app.use(API_PREFIX, apiRouter);
+  console.log(`API PREFIX: ${API_PREFIX}`);
 
   app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     console.error("[ERROR]", err);
-    res.status(500).json({
-      error: "internal_error",
+    if (res.headersSent) {
+      return;
+    }
+
+    const message = err instanceof Error ? err.message : "unknown";
+
+    const statusCode = err instanceof SyntaxError ? 400 : 500;
+
+    res.status(statusCode).json({
+      error: statusCode === 400 ? "invalid_json" : "internal_error",
+      message,
     });
   });
 
   app.use((req, res) => {
     console.warn(`[MISS] ${req.method} ${req.originalUrl}`);
-    res.status(404).json({ error: "not_found" });
+    res.status(404).json({
+      error: "not_found",
+      path: req.originalUrl,
+    });
   });
 
   return app;
