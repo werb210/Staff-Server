@@ -1,7 +1,5 @@
 import "dotenv/config";
 import { createServer } from "./server/createServer";
-import { validateEnv } from "./config/env";
-
 const PORT = Number(process.env.PORT || 8080);
 const HOST = "0.0.0.0";
 
@@ -13,22 +11,17 @@ process.on("uncaughtException", (err) => {
   console.error("UNCAUGHT EXCEPTION", err);
 });
 
-async function boot() {
-  validateEnv();
-
-  const app = await createServer();
+function boot() {
+  const app = createServer();
 
   app.listen(PORT, HOST, () => {
-    console.log(`SERVER RUNNING ON PORT ${PORT}`);
-    console.log(`HEALTH: http://localhost:${PORT}/health`);
+    console.log(`SERVER RUNNING ON ${PORT}`);
   });
-
-  setInterval(() => {
-    console.log("[ALIVE]");
-  }, 30000);
 }
 
-boot().catch((err) => {
+try {
+  boot();
+} catch (err) {
   console.error("[FATAL BOOT ERROR]", err);
   process.exit(1);
-});
+}
