@@ -15,14 +15,34 @@ export interface AuthRequest extends Request {
   user?: any;
 }
 
-export const auth = (req: AuthRequest, res: Response, next: NextFunction) => {
+function getToken(req: Request): string | null {
   const header = req.headers.authorization;
-
-  if (!header || !header.startsWith("Bearer ")) {
-    return res.status(401).json({ error: "missing_token" });
+  if (header?.startsWith("Bearer ")) {
+    return header.slice(7);
   }
 
-  const token = header.slice(7);
+  const cookieHeader = req.headers.cookie;
+  if (!cookieHeader) {
+    return null;
+  }
+
+  const sessionCookie = cookieHeader
+    .split(";")
+    .map((cookie) => cookie.trim())
+    .find((cookie) => cookie.startsWith("session="));
+
+  if (!sessionCookie) {
+    return null;
+  }
+
+  return decodeURIComponent(sessionCookie.slice("session=".length));
+}
+
+export const auth = (req: AuthRequest, res: Response, next: NextFunction) => {
+  const token = getToken(req);
+  if (!token) {
+    return res.status(401).json({ error: "missing_token" });
+  }
 
   try {
     const jwtSecret = process.env.JWT_SECRET;
@@ -38,13 +58,10 @@ export const auth = (req: AuthRequest, res: Response, next: NextFunction) => {
 };
 
 export const requireAuth: RequestHandler = (req: Request, res: Response, next: NextFunction) => {
-  const header = req.headers.authorization;
-
-  if (!header || !header.startsWith("Bearer ")) {
+  const token = getToken(req);
+  if (!token) {
     return res.status(401).json({ error: "missing_token" });
   }
-
-  const token = header.slice(7);
 
   try {
     const jwtSecret = process.env.JWT_SECRET;
