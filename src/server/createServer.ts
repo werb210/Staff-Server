@@ -13,6 +13,14 @@ export function createServer() {
     next();
   });
 
+  app.use((req, _res, next) => {
+    console.log("[HEADERS]", {
+      origin: req.headers.origin,
+      auth: req.headers.authorization,
+    });
+    next();
+  });
+
   // MUST remain first: bypasses middleware stack and guarantees probe completion.
   app.use((req, res, next) => {
     if (req.path === "/health") {
@@ -37,9 +45,27 @@ export function createServer() {
 
   app.use(express.json({ strict: false }));
 
+  const allowedOrigins = [
+    "https://boreal-financial-portal.azurewebsites.net",
+    "https://boreal-client.azurewebsites.net",
+    "http://localhost:5173",
+  ];
+
   app.use(
     cors({
-      origin: true,
+      origin: (origin, cb) => {
+        if (!origin) {
+          cb(null, true);
+          return;
+        }
+
+        if (allowedOrigins.includes(origin)) {
+          cb(null, true);
+          return;
+        }
+
+        cb(new Error("CORS BLOCKED"));
+      },
       credentials: true,
     }),
   );
@@ -57,10 +83,19 @@ export function createServer() {
     throw new Error("applicationRoutes failed to load");
   }
 
-  app.use("/api/auth/otp", otpLimiter);
-  app.use("/api/auth", authRoutes);
-  app.use("/api/applications", applicationRoutes);
-  app.use("/api/documents", documentRoutes);
+  const apiRouter = express.Router();
+
+  apiRouter.get("/__ping", (_req, res) => {
+    res.json({ ok: true });
+  });
+
+  apiRouter.use("/auth/otp", otpLimiter);
+  apiRouter.use("/auth", authRoutes);
+  apiRouter.use("/applications", applicationRoutes);
+  apiRouter.use("/documents", documentRoutes);
+
+  app.use("/api", apiRouter);
+  console.log("API ROUTES MOUNTED AT /api");
 
   app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     console.error("[ERROR]", err);
