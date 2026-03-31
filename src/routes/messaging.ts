@@ -1,44 +1,45 @@
 import { Router } from "express";
-
-import { twilioClient } from "../lib/twilioClient";
+import { twilioClient, fromNumber, callerId } from "../lib/twilioClient";
 
 const router = Router();
 
-const from = process.env.TWILIO_FROM_NUMBER;
-if (!from) {
-  throw new Error("Missing TWILIO_FROM_NUMBER");
-}
+// SMS
+router.post("/sms", async (req, res) => {
+  const { to, body } = req.body;
 
-router.post("/sms", async (req, res, next) => {
+  if (!to || !body) return res.status(400).json({ error: "to + body required" });
+
   try {
-    const { to, body } = req.body;
-    if (!to || !body) {
-      return res.status(400).json({ error: "missing fields" });
-    }
+    const msg = await twilioClient.messages.create({
+      to,
+      from: fromNumber,
+      body,
+    });
 
-    const msg = await twilioClient.messages.create({ to, from, body });
-    return res.json({ sid: msg.sid });
-  } catch (error) {
-    return next(error);
+    res.json({ sid: msg.sid });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 
-router.post("/call", async (req, res, next) => {
-  try {
-    const { to, twimlUrl } = req.body;
-    if (!to || !twimlUrl) {
-      return res.status(400).json({ error: "missing fields" });
-    }
+// CALL
+router.post("/call", async (req, res) => {
+  const { to, twimlUrl } = req.body;
 
+  if (!to || !twimlUrl) {
+    return res.status(400).json({ error: "to + twimlUrl required" });
+  }
+
+  try {
     const call = await twilioClient.calls.create({
       to,
-      from: process.env.TWILIO_CALLER_ID || from,
+      from: callerId,
       url: twimlUrl,
     });
 
-    return res.json({ sid: call.sid });
-  } catch (error) {
-    return next(error);
+    res.json({ sid: call.sid });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 
