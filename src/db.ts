@@ -21,3 +21,13 @@ export const {
   setDbTestFailureInjection,
   clearDbTestFailureInjection,
 } = dbImpl;
+
+export async function ensureDb(): Promise<void> {
+  try {
+    await pool.query("SELECT 1");
+    console.log("[DB] connected");
+  } catch (error) {
+    console.error("[DB] connection failed", error);
+    process.exit(1);
+  }
+}
