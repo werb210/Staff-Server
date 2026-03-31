@@ -18,7 +18,6 @@ exports.EnvSchema = zod_1.z
     SENTRY_DSN: zod_1.z.string().min(1).optional(),
     SLACK_ALERT_WEBHOOK_URL: zod_1.z.string().min(1).optional(),
     PORT: numericString.optional(),
-    API_BASE_URL: zod_1.z.string().min(1).optional(),
     PUBLIC_BASE_URL: zod_1.z.string().min(1).optional(),
     CLIENT_BASE_URL: zod_1.z.string().min(1).optional(),
     LOG_LEVEL: zod_1.z.string().min(1).optional(),

@@ -1,68 +1,54 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.requireAuth = exports.auth = void 0;
+exports.auth = exports.authMiddleware = void 0;
+exports.requireAuth = requireAuth;
+exports.createAuthMiddleware = createAuthMiddleware;
 exports.requireAuthorization = requireAuthorization;
 exports.requireCapability = requireCapability;
-const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
-const auth = (req, res, next) => {
+const jwt_1 = require("../auth/jwt");
+const errors_1 = require("../errors");
+function requireAuth(req, res, next) {
     const header = req.headers.authorization;
-    if (!header || !header.startsWith("Bearer ")) {
-        return res.status(401).json({ error: "missing_token" });
+    if (!header) {
+        return res.status(401).json({ error: "UNAUTHORIZED" });
     }
-    const token = header.slice(7);
+    const bearerMatch = header.match(/^Bearer(?:\s+(.+))?$/i);
+    if (!bearerMatch) {
+        return res.status(401).json({ error: "UNAUTHORIZED" });
+    }
+    const token = bearerMatch[1]?.trim();
+    if (!token || token === "null" || token === "undefined") {
+        return res.status(401).json({ error: "INVALID_TOKEN" });
+    }
     try {
-        const jwtSecret = process.env.JWT_SECRET;
-        if (!jwtSecret) {
-            return res.status(401).json({ error: "invalid_token" });
-        }
-        const decoded = jsonwebtoken_1.default.verify(token, jwtSecret);
-        req.user = decoded;
-        next();
-    }
-    catch {
-        return res.status(401).json({ error: "invalid_token" });
-    }
-};
-exports.auth = auth;
-const requireAuth = (req, res, next) => {
-    const header = req.headers.authorization;
-    if (!header || !header.startsWith("Bearer ")) {
-        return res.status(401).json({ error: "missing_token" });
-    }
-    const token = header.slice(7);
-    try {
-        const jwtSecret = process.env.JWT_SECRET;
-        if (!jwtSecret) {
-            return res.status(401).json({ error: "invalid_token" });
-        }
-        const decoded = jsonwebtoken_1.default.verify(token, jwtSecret);
-        req.user = decoded;
+        req.user = (0, jwt_1.verifyJwt)(token);
         return next();
     }
     catch {
-        return res.status(401).json({ error: "invalid_token" });
+        return res.status(401).json({ error: "INVALID_TOKEN" });
     }
-};
-exports.requireAuth = requireAuth;
+}
+function createAuthMiddleware() {
+    return requireAuth;
+}
+exports.authMiddleware = requireAuth;
+exports.auth = exports.authMiddleware;
 function requireAuthorization(options = {}) {
     const requiredRoles = options.roles ?? [];
     const requiredCapabilities = options.capabilities ?? [];
     return (req, res, next) => {
         const user = req.user;
         if (!user) {
-            return res.status(401).json({ error: "missing_token" });
+            return res.status(401).json({ error: errors_1.Errors.UNAUTHORIZED });
         }
         if (requiredRoles.length > 0 && (!user.role || !requiredRoles.includes(user.role))) {
-            return res.status(403).json({ error: "forbidden" });
+            return res.status(403).json({ error: "FORBIDDEN" });
         }
         if (requiredCapabilities.length > 0) {
             const userCapabilities = user.capabilities ?? [];
             const allowed = requiredCapabilities.some((capability) => userCapabilities.includes(capability));
             if (!allowed) {
-                return res.status(403).json({ error: "forbidden" });
+                return res.status(403).json({ error: "FORBIDDEN" });
             }
         }
         return next();

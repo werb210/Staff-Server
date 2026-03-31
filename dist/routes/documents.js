@@ -5,31 +5,42 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const auth_js_1 = require("../middleware/auth.js");
-const response_1 = require("../lib/response");
+const hash_1 = require("../lib/hash");
+const response_1 = require("../middleware/response");
 const toStringSafe_1 = require("../utils/toStringSafe");
+const db_1 = require("../lib/db");
 const router = express_1.default.Router();
-const db = {};
-router.post("/upload", auth_js_1.requireAuth, (req, res) => {
+const inMemoryDb = {};
+router.post("/upload", auth_js_1.requireAuth, async (req, res) => {
     const id = Date.now().toString();
+    const bodyString = JSON.stringify(req.body ?? {});
+    const hash = (0, hash_1.sha256)(Buffer.from(bodyString));
     const doc = {
         id,
         status: "uploaded",
-        metadata: req.body
+        metadata: req.body,
+        hash
     };
-    db[id] = doc;
-    return (0, response_1.ok)(res, doc);
+    inMemoryDb[id] = doc;
+    try {
+        await db_1.queryDb.query("INSERT INTO documents (application_id, filename, hash) VALUES ($1,$2,$3)", [req.body?.applicationId ?? null, req.body?.filename ?? `upload-${id}.json`, hash]);
+    }
+    catch (error) {
+        console.error("document hash insert failed", error);
+    }
+    return (0, response_1.ok)(res, { ...doc, hash });
 });
 router.patch("/:id/accept", auth_js_1.requireAuth, (req, res) => {
-    const doc = db[(0, toStringSafe_1.toStringSafe)(req.params.id)];
+    const doc = inMemoryDb[(0, toStringSafe_1.toStringSafe)(req.params.id)];
     if (!doc)
-        return (0, response_1.fail)(res, "Not found", 404);
+        return (0, response_1.fail)(res, 404, "not_found");
     doc.status = "accepted";
     return (0, response_1.ok)(res, doc);
 });
 router.patch("/:id/reject", auth_js_1.requireAuth, (req, res) => {
-    const doc = db[(0, toStringSafe_1.toStringSafe)(req.params.id)];
+    const doc = inMemoryDb[(0, toStringSafe_1.toStringSafe)(req.params.id)];
     if (!doc)
-        return (0, response_1.fail)(res, "Not found", 404);
+        return (0, response_1.fail)(res, 404, "not_found");
     doc.status = "rejected";
     return (0, response_1.ok)(res, doc);
 });

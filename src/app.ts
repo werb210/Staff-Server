@@ -5,6 +5,10 @@ import { pool } from "./db";
 import internalRoutes from "./routes/internal";
 import authRoutes from "./routes/auth";
 import messagingRoutes from "./routes/messaging";
+import mayaRoutes from "./routes/maya";
+import voiceRoutes from "./routes/voice";
+import smsRoutes from "./routes/sms";
+import { errorHandler } from "./middleware/errorHandler";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -61,6 +65,9 @@ export function createApp() {
 
   app.use("/auth", authRoutes);
   app.use("/comm", messagingRoutes);
+  app.use("/maya", mayaRoutes);
+  app.use("/voice", voiceRoutes);
+  app.use("/sms", smsRoutes);
 
   app.get("/telephony/token", requireAuth, (_req, res) => {
     return res.status(200).json({ token: "real-token" });
@@ -99,6 +106,8 @@ export function createApp() {
 
     return res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
   });
+
+  app.use(errorHandler);
 
   app.use((_req, res) => {
     res.status(404).json({ success: false, error: "not_found" });

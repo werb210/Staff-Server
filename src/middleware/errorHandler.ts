@@ -1,7 +1,9 @@
-import { type NextFunction, type Request, type Response } from "express";
+import type { NextFunction, Request, Response } from "express";
 
-import { fail } from "../lib/response";
-
-export function errorHandler(err: Error, _req: Request, res: Response, _next: NextFunction): Response {
-  return fail(res, err.message || "Internal Server Error", 500);
+export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction) {
+  console.error("ERROR:", err);
+  return res.status(500).json({
+    success: false,
+    message: "internal_error"
+  });
 }

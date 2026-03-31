@@ -8,6 +8,8 @@ const openai_1 = __importDefault(require("openai"));
 const db_1 = require("../../db");
 const retrievalService_1 = require("./retrievalService");
 const config_1 = require("../../config");
+const retry_1 = require("../../lib/retry");
+const deadLetter_1 = require("../../lib/deadLetter");
 const client = new openai_1.default({
     apiKey: config_1.config.openai.apiKey || "test-openai-key",
 });
@@ -44,12 +46,23 @@ ${rules}
 Knowledge:
 ${context}
 `;
-    const response = await client.chat.completions.create({
-        model: config_1.config.openai.model ?? config_1.config.ai.model ?? "gpt-4o-mini",
-        messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userMessage },
-        ],
-    });
+    let response;
+    try {
+        response = await (0, retry_1.withRetry)(() => client.chat.completions.create({
+            model: config_1.config.openai.model ?? config_1.config.ai.model ?? "gpt-4o-mini",
+            messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userMessage },
+            ],
+        }));
+    }
+    catch (error) {
+        await (0, deadLetter_1.pushDeadLetter)({
+            type: "ai_chat_completion",
+            data: { userMessage },
+            error: String(error),
+        });
+        throw error;
+    }
     return response.choices[0]?.message?.content ?? "";
 }
