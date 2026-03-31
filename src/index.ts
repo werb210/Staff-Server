@@ -1,18 +1,14 @@
 import { createApp } from "./app";
-
-function validateEnv() {
-  if (!process.env.PORT) process.env.PORT = "8080";
-}
+import { ENV } from "./config/env";
+import { ensureDb } from "./db";
 
 async function start() {
-  validateEnv();
+  await ensureDb();
 
   const app = createApp();
 
-  const port = Number(process.env.PORT);
-
-  app.listen(port, "0.0.0.0", () => {
-    console.log(`Server running on ${port}`);
+  app.listen(Number(ENV.PORT), "0.0.0.0", () => {
+    console.log(`Running on ${ENV.PORT}`);
   });
 }
 

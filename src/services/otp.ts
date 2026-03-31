@@ -1,0 +1,24 @@
+import twilio from "twilio";
+import { ENV } from "../config/env";
+
+const client = twilio(ENV.TWILIO_ACCOUNT_SID, ENV.TWILIO_AUTH_TOKEN);
+
+export async function sendOtp(phone: string) {
+  return client.verify.v2
+    .services(ENV.TWILIO_VERIFY_SERVICE_SID)
+    .verifications.create({
+      to: phone,
+      channel: "sms",
+    });
+}
+
+export async function checkOtp(phone: string, code: string): Promise<boolean> {
+  const result = await client.verify.v2
+    .services(ENV.TWILIO_VERIFY_SERVICE_SID)
+    .verificationChecks.create({
+      to: phone,
+      code,
+    });
+
+  return result.status === "approved";
+}

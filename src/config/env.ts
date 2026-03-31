@@ -1,15 +1,12 @@
-function required(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`Missing env var: ${name}`);
-  }
-  return value;
-}
+import { z } from "zod";
 
-export function validateEnv(): void {
-  required("JWT_SECRET");
-}
+const schema = z.object({
+  PORT: z.string().default("8080"),
+  DATABASE_URL: z.string().min(1),
+  JWT_SECRET: z.string().min(16),
+  TWILIO_ACCOUNT_SID: z.string().min(1),
+  TWILIO_AUTH_TOKEN: z.string().min(1),
+  TWILIO_VERIFY_SERVICE_SID: z.string().min(1),
+});
 
-export const config = {
-  JWT_SECRET: required("JWT_SECRET"),
-};
+export const ENV = schema.parse(process.env);
