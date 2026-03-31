@@ -8,6 +8,8 @@ import documentRoutes from "../routes/documents";
 export function createServer() {
   const app = express();
 
+  app.set("trust proxy", 1);
+
   app.use((req, _res, next) => {
     console.log(`[REQ] ${req.method} ${req.originalUrl}`);
     next();
@@ -69,6 +71,11 @@ export function createServer() {
       credentials: true,
     }),
   );
+
+  app.use((_req, res, next) => {
+    res.header("Access-Control-Allow-Credentials", "true");
+    next();
+  });
 
   const otpLimiter = rateLimit({
     windowMs: 60 * 1000,
