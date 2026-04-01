@@ -1,15 +1,10 @@
+import "./system/errors";
 import app from "./app";
 import { processDeadLetters } from "./workers/deadLetterWorker";
 import { verifyTwilioSetup } from "./startup/verifyCheck";
 import { initDependencies } from "./system/init";
-
-process.on("unhandledRejection", (err) => {
-  console.error("[UNHANDLED REJECTION]", err);
-});
-
-process.on("uncaughtException", (err) => {
-  console.error("[UNCAUGHT EXCEPTION]", err);
-});
+import { setupShutdown } from "./system/shutdown";
+import { ENV } from "./system/env";
 
 async function start() {
   console.log("[BOOT] Starting server...");
@@ -22,12 +17,14 @@ async function start() {
     );
   }, 15000);
 
-  const PORT = Number(process.env.PORT || 8080);
+  const PORT = Number(ENV.PORT);
 
-  app.listen(PORT, "0.0.0.0", () => {
+  const server = app.listen(PORT, "0.0.0.0", () => {
     console.log(`[BOOT] Server listening on ${PORT}`);
     console.log("[BOOT] Server running");
   });
+
+  setupShutdown(server);
 
   void initDependencies();
 }

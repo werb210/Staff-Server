@@ -19,7 +19,8 @@ import { errorHandler } from "./middleware/errorHandler";
 import { fail, ok } from "./lib/response";
 import { wrap } from "./lib/routeWrap";
 import { ok as envelopeOk } from "./lib/apiResponse";
-import { deps } from "./system/deps";
+import { isReady } from "./system/ready";
+import { timeout } from "./system/timeout";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -40,12 +41,13 @@ export function createApp() {
   const app = express();
 
   app.use(express.json());
+  app.use(timeout(15000));
   app.get("/health", (_req, res) => {
     res.status(200).send("ok");
   });
 
   app.get("/ready", (_req, res) => {
-    if (!deps.db.ready) {
+    if (!isReady()) {
       return res.status(503).json({ status: "degraded" });
     }
     return res.json({ status: "ready" });
