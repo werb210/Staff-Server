@@ -1,4 +1,4 @@
-import express from "express";
+import express, { type RequestHandler } from "express";
 
 import { requireAuth } from "./middleware/auth";
 import { routeAlias } from "./middleware/routeAlias";
@@ -11,6 +11,7 @@ import smsRoutes from "./routes/sms";
 import healthRoutes from "./routes/health";
 import crmRoutes from "./routes/crm";
 import callRoutes from "./routes/calls";
+import twilioRoutes from "./routes/twilio";
 import leadRoutes from "./routes/lead";
 import applicationRoutes from "./routes/application";
 import documentsRoutes from "./routes/documents";
@@ -29,6 +30,18 @@ export function resetOtpStateForTests() {
 
 globalThis.__resetOtpStateForTests = resetOtpStateForTests;
 
+const dialerTokenHandler: RequestHandler = (_req, res) => {
+  return res.redirect(307, "/api/dialer/token");
+};
+
+const callStartHandler: RequestHandler = (_req, res) => {
+  return res.redirect(307, "/api/call/start");
+};
+
+const voiceStatusHandler: RequestHandler = (_req, res) => {
+  return res.redirect(307, "/api/voice/status");
+};
+
 export function createApp() {
   process.env.STRICT_API = "true";
 
@@ -37,8 +50,9 @@ export function createApp() {
   app.use(express.json());
   app.get("/health", (_req, res) => {
     return res.status(200).json({
-      success: true,
       status: "ok",
+      service: "bf-server",
+      timestamp: new Date().toISOString(),
     });
   });
 
@@ -85,6 +99,10 @@ export function createApp() {
     return res.status(200).json({ success: true, data: { ok: true } });
   });
 
+  app.get("/dialer/token", dialerTokenHandler);
+  app.post("/call/start", callStartHandler);
+  app.post("/voice/status", voiceStatusHandler);
+
   app.use("/api/auth", authRoutes);
   app.use("/api/crm", crmRoutes);
   app.use("/api/crm", leadRoutes);
@@ -94,6 +112,7 @@ export function createApp() {
   app.use("/api/maya", mayaRoutes);
   app.use("/api/voice", voiceRoutes);
   app.use("/api/call", callRoutes);
+  app.use("/api", twilioRoutes);
   app.use("/api/comm", messagingRoutes);
   app.use("/api/sms", smsRoutes);
   app.use("/api", healthRoutes);
@@ -110,11 +129,13 @@ export function createApp() {
 
   app.use(errorHandler);
 
-  app.use((req, res) => {
-    res.status(404).json({
-      success: false,
-      error: `Route not found: ${req.method} ${req.url}`,
-    });
+  app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    console.error("UNHANDLED_ERROR", err);
+    res.status(500).json({ error: "internal_error" });
+  });
+
+  app.use((_req: express.Request, res: express.Response) => {
+    res.status(404).json({ error: "not_found" });
   });
 
   return app;
