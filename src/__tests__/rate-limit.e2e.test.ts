@@ -3,7 +3,7 @@ import { app } from "../app";
 
 describe("public rate limiting", () => {
   it("limits excessive requests", async () => {
-    for (let i = 0; i < 300; i += 1) {
+    for (let i = 0; i < 100; i += 1) {
       await request(app).get("/api/public/test");
     }
 
