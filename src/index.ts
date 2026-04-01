@@ -15,11 +15,19 @@ async function start() {
     );
   }, 15000);
 
-  const PORT = Number(process.env.PORT) || 8080;
+  const PORT = Number(process.env.PORT || 8080);
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(JSON.stringify({
+      level: "info",
+      event: "server_start",
+      port: PORT,
+      env: process.env.NODE_ENV || "unknown"
+    }));
   });
 }
 
-start();
+start().catch((err) => {
+  console.error("UNHANDLED_STARTUP_ERROR", err);
+  process.exit(1);
+});
