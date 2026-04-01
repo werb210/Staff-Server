@@ -24,17 +24,14 @@ import { timeout } from "./system/timeout";
 import { requestId } from "./system/requestId";
 import { access } from "./system/access";
 import { incReq, metrics } from "./system/metrics";
+import { rateLimit } from "./system/rateLimit";
 
 declare global {
   // eslint-disable-next-line no-var
   var __resetOtpStateForTests: (() => void) | undefined;
 }
 
-let publicRequestCount = 0;
-
-export function resetOtpStateForTests() {
-  publicRequestCount = 0;
-}
+export function resetOtpStateForTests() {}
 
 globalThis.__resetOtpStateForTests = resetOtpStateForTests;
 
@@ -51,6 +48,14 @@ export function createApp() {
     next();
   });
   app.use(timeout(15000));
+  app.use(rateLimit());
+
+  app.use((req, res, next) => {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "DENY");
+    res.setHeader("X-XSS-Protection", "1; mode=block");
+    next();
+  });
   app.get("/health", (_req, res) => {
     res.status(200).send("ok");
   });
@@ -95,10 +100,6 @@ export function createApp() {
   app.get(
     "/api/public/test",
     wrap(async (_req, res) => {
-      publicRequestCount += 1;
-      if (publicRequestCount > 300) {
-        return fail(res, 429, "RATE_LIMITED");
-      }
       return envelopeOk({ ok: true });
     })
   );
