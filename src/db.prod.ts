@@ -44,18 +44,15 @@ function buildPoolConfig(): PoolConfig {
 
 export const pool: PgPool = new Pool(buildPoolConfig());
 export const db = pool;
-const attachRunQuery = (queryable: Queryable & Record<string, unknown>) => {
+const attachRunQuery = (queryable?: (Queryable & Record<string, unknown>) | null) => {
+  if (!queryable) {
+    return;
+  }
   queryable.runQuery = <T extends QueryResultRow = QueryResultRow>(text: string, params?: any[]) =>
     runQuery<T>(queryable, text, params);
 };
 
 attachRunQuery(pool as unknown as Queryable & Record<string, unknown>);
-const originalPoolConnect = pool.connect.bind(pool);
-(pool as any).connect = async (...args: any[]) => {
-  const client = await (originalPoolConnect as any)(...args);
-  attachRunQuery(client as unknown as Queryable & Record<string, unknown>);
-  return client;
-};
 
 export async function query(text: string, params?: any[]): Promise<QueryResult> {
   const start = Date.now();
@@ -127,7 +124,10 @@ export function setDbTestPoolMetricsOverride(): void {}
 export function setDbTestFailureInjection(): void {}
 export function clearDbTestFailureInjection(): void {}
 
-pool.on("connect", () => logInfo("db_client_connected"));
+pool.on("connect", (client) => {
+  attachRunQuery(client as unknown as Queryable & Record<string, unknown>);
+  logInfo("db_client_connected");
+});
 
 pool.on("error", (err: any) => {
   markNotReady("db_unavailable");
