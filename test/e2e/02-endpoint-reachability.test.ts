@@ -22,10 +22,10 @@ describe("Endpoint reachability", () => {
 
   it("keeps canonical endpoints reachable (not 404)", async () => {
     const endpoints: EndpointCheck[] = [
-      { method: "get", path: "/health" },
-      { method: "post", path: "/auth/otp/start", body: { phone: "+15555550100" } },
-      { method: "post", path: "/auth/otp/verify", body: { phone: "+15555550100", code: "654321" } },
-      { method: "get", path: "/telephony/token", auth: true },
+      { method: "get", path: "/api/health" },
+      { method: "post", path: "/api/auth/otp/start", body: { phone: "+15555550100" } },
+      { method: "post", path: "/api/auth/otp/verify", body: { phone: "+15555550100", code: "654321" } },
+      { method: "get", path: "/api/voice/token", auth: true },
     ];
 
     for (const endpoint of endpoints) {

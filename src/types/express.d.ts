@@ -10,6 +10,7 @@ declare global {
         debug: (...args: any[]) => void;
       };
       user?: any;
+      validated?: any;
     }
   }
 }

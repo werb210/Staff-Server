@@ -18,7 +18,7 @@ describe("System boot", () => {
   it("boots with zero external dependencies", async () => {
     const app = createServer();
 
-    const res = await request(app).get("/health");
+    const res = await request(app).get("/api/health");
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);

@@ -19,7 +19,7 @@ describe("server:contract:e2e", () => {
     expect(res.status).toBe(400);
   });
 
-  it("does not expose /api auth aliases", async () => {
+  it("supports temporary auth aliases", async () => {
     const start = await request(app)
       .post("/api/auth/otp/start")
       .send({ phone: "+61400000000" });
@@ -28,20 +28,20 @@ describe("server:contract:e2e", () => {
       .post("/api/auth/otp/verify")
       .send({ phone: "+61400000000", code: "654321" });
 
-    expect(start.status).toBe(404);
-    expect(verify.status).toBe(404);
+    expect(start.status).not.toBe(404);
+    expect(verify.status).not.toBe(404);
   });
 
   it("rejects missing bearer auth on telephony token", async () => {
     const res = await request(app)
-      .get("/telephony/token");
+      .get("/voice/token");
 
     expect(res.status).toBe(401);
   });
 
   it("rejects cookie-only auth on telephony token", async () => {
     const res = await request(app)
-      .get("/telephony/token")
+      .get("/voice/token")
       .set("Cookie", "token=not-a-bearer-token");
 
     expect(res.status).toBe(401);
@@ -63,7 +63,7 @@ describe("server:contract:e2e", () => {
     expect(typeof verify.body.data.token).toBe("string");
   });
 
-  it("does not expose /api telephony token alias", async () => {
+  it("supports telephony token legacy alias", async () => {
     const res = await request(app)
       .get("/api/telephony/token");
 

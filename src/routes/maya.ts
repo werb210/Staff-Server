@@ -1,19 +1,18 @@
 import express from "express";
-import { ok, fail } from "../middleware/response";
+import { validate } from "../middleware/validate";
+import { ok, fail } from "../lib/response";
+import { MayaMessageSchema } from "../schemas";
 
 const router = express.Router();
 
-// Basic pass-through (wire to OpenAI or agent later)
-router.post("/chat", async (req, res) => {
+router.post("/chat", validate(MayaMessageSchema), async (req, res) => {
   try {
-    const { message } = req.body;
-
-    // Placeholder — replace with real AI agent call
+    const { message } = req.validated as { message: string };
     return ok(res, {
       reply: `Maya received: ${message}`,
     });
-  } catch (e) {
-    return fail(res, 500, "maya_error");
+  } catch {
+    return fail(res, "maya_error", 500);
   }
 });
 

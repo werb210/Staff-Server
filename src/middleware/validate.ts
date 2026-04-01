@@ -1,4 +1,21 @@
-import { NextFunction, Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
+import type { ZodSchema } from "zod";
+
+export function validate<T>(schema: ZodSchema<T>) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const result = schema.safeParse(req.body);
+
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        error: result.error.message,
+      });
+    }
+
+    req.validated = result.data;
+    return next();
+  };
+}
 
 export function requireFields(fields: string[]) {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -8,7 +25,7 @@ export function requireFields(fields: string[]) {
       }
     }
 
-    next();
+    return next();
   };
 }
 
