@@ -71,3 +71,18 @@ A focused validation pass was completed for test integrity after redirect and le
 
 ### Remaining risk boundary
 - Runtime integration risk remains for external providers and production dependencies (for example Twilio and real database runtime), but this is outside the contract test layer validated here.
+
+## 2026-04-01 Validation signal interpretation
+
+### Valid signal
+- `npm test` is the authoritative check for this repository's Vitest-based test suite, and it passed in this validation cycle.
+
+### Invalid signal (ignore)
+- `npm test --runInBand` is not a valid Vitest invocation and should not be used as a failure indicator.
+- Any failure from that flag misuse is tooling-argument noise, not a regression in server behavior or contract integrity.
+
+## Decision and merge posture
+- Documentation and test integrity are aligned with production route contracts after redirect/legacy cleanup.
+- Contract coverage is deterministic and auth-protected, and false positives from legacy route coupling have been removed.
+- Remaining risk is explicitly bounded to external integrations and real runtime dependencies.
+- **Decision:** Approved for merge based on the passing valid suite and corrected documentation boundary.
