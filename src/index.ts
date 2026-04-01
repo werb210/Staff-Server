@@ -15,7 +15,11 @@ async function start() {
   console.log("[BOOT] Starting server...");
 
   if (process.env.NODE_ENV !== "test") {
-    await ensureDb();
+    try {
+      await ensureDb();
+    } catch (err) {
+      console.error("DB unavailable, continuing in degraded mode", err);
+    }
   }
   await verifyTwilioSetup();
 
