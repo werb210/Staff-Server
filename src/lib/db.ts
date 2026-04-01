@@ -39,18 +39,22 @@ export async function runQuery<T extends QueryResultRow = QueryResultRow>(
   initPool();
 
   if (!pool) {
-    throw new Error("DB_POOL_NOT_INITIALIZED");
+    throw new Error("DB_NOT_INITIALIZED");
   }
 
   const client = await pool.connect();
+  let released = false;
   try {
     const result = await client.query<T>(sql, params);
     return result;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    throw new Error(`DB_QUERY_FAILED: ${message}`);
+    throw new Error(`DB_QUERY_FAILED:${message}`);
   } finally {
-    client.release();
+    if (!released) {
+      released = true;
+      client.release();
+    }
   }
 }
 

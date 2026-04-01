@@ -71,7 +71,7 @@ async function handleApplicationSubmit(req: any, res: any) {
 
     const readiness = session.rows[0];
     if (!readiness) {
-      fail(res, "readiness_session_not_found", 404);
+      fail(res, 404, "readiness_session_not_found");
       return;
     }
 
@@ -115,10 +115,10 @@ async function handleApplicationSubmit(req: any, res: any) {
     return ok(res, { applicationId: created.id, leadId: readiness.crm_lead_id, reused: false });
   } catch (error) {
     if (error instanceof Error && error.name === "ZodError") {
-      fail(res, "invalid_payload", 400);
+      fail(res, 400, "invalid_payload");
       return;
     }
-    fail(res, "server_error", 500);
+    fail(res, 500, "server_error");
   }
 }
 

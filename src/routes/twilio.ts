@@ -7,6 +7,7 @@ import { requireAuth, requireAuthorization } from "../middleware/auth";
 import { CAPABILITIES } from "../auth/capabilities";
 import { ROLES } from "../auth/roles";
 import { AppError } from "../middleware/errors";
+import { fail, ok } from "../lib/response";
 import { safeHandler } from "../middleware/safeHandler";
 import { pool } from "../db";
 import { updateCallStatus } from "../modules/calls/calls.service";
@@ -160,8 +161,7 @@ router.get(
     );
 
     if (Number(activeCalls.rows[0]?.count ?? "0") > 0) {
-      res.status(409).json({ code: "active_call_in_progress" });
-      return;
+      return fail(res, 409, "active_call_in_progress");
     }
 
     const token = new AccessToken(
@@ -178,7 +178,7 @@ router.get(
       })
     );
 
-    res["json"]({ token: token.toJwt() });
+    return ok(res, { token: token.toJwt() });
   })
 );
 

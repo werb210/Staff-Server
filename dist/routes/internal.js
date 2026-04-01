@@ -12,6 +12,7 @@ const errors_1 = require("../middleware/errors");
 const logger_1 = require("../observability/logger");
 const auth_1 = require("../middleware/auth");
 const capabilities_1 = require("../auth/capabilities");
+const response_1 = require("../lib/response");
 const router = (0, express_1.Router)();
 let bootstrapAdminDisabled = false;
 function buildRequestMetadata(req) {
@@ -30,7 +31,7 @@ router.use((0, auth_1.requireCapability)([capabilities_1.CAPABILITIES.OPS_MANAGE
 router.get("/version", (_req, res) => {
     const commitHash = config_1.config.commitSha;
     const buildTimestamp = config_1.config.buildTimestamp;
-    res["json"]({ commitHash, buildTimestamp });
+    return (0, response_1.ok)(res, { commitHash, buildTimestamp });
 });
 router.post("/bootstrap-admin", async (req, res, next) => {
     try {
@@ -64,7 +65,7 @@ router.post("/bootstrap-admin", async (req, res, next) => {
             email: user.email,
             role: user.role,
         });
-        res.status(201).json({
+        return (0, response_1.ok)(res, {
             ok: true,
             user: {
                 id: user.id,
@@ -80,7 +81,7 @@ router.post("/bootstrap-admin", async (req, res, next) => {
 router.get("/ops", async (_req, res, next) => {
     try {
         const switches = await (0, ops_service_1.listKillSwitches)();
-        res["json"]({ switches });
+        return (0, response_1.ok)(res, { switches });
     }
     catch (err) {
         next(err);
@@ -89,7 +90,7 @@ router.get("/ops", async (_req, res, next) => {
 router.get("/jobs", async (_req, res, next) => {
     try {
         const jobs = await (0, replay_service_1.listActiveReplayJobs)();
-        res["json"]({ jobs });
+        return (0, response_1.ok)(res, { jobs });
     }
     catch (err) {
         next(err);
@@ -98,7 +99,7 @@ router.get("/jobs", async (_req, res, next) => {
 router.get("/exports/recent", async (_req, res, next) => {
     try {
         const exports = await (0, export_service_1.listRecentExports)();
-        res["json"]({ exports });
+        return (0, response_1.ok)(res, { exports });
     }
     catch (err) {
         next(err);
@@ -110,7 +111,7 @@ router.get("/failed-jobs", async (_req, res, next) => {
        FROM failed_jobs
        ORDER BY created_at DESC
        LIMIT 100`);
-        res.json(result.rows);
+        return (0, response_1.ok)(res, result.rows);
     }
     catch (err) {
         next(err);

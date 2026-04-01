@@ -1,7 +1,17 @@
-export function ok(data: unknown) {
-  return { status: "ok", data, error: null };
+import type { Response } from "express";
+
+export function ok(res: Response, data: unknown): Response {
+  res.locals.__wrapped = true;
+  return res.status(200).json({ status: "ok", data });
 }
 
-export function fail(code: string, message: string) {
-  return { status: "error", data: null, error: { code, message } };
+export function fail(res: Response, code: number, message: string): Response {
+  res.locals.__wrapped = true;
+  return res.status(code).json({
+    status: "error",
+    error: {
+      code: String(code),
+      message,
+    },
+  });
 }

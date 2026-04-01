@@ -126,33 +126,19 @@ export function createApp() {
   app.use("/api/internal", internalRoutes);
 
   app.use((req, res) => {
-    if (!res.locals.__wrapped) {
-      return res.status(500).json({
-        status: "error",
-        error: { code: "UNWRAPPED_RESPONSE", message: "Response not wrapped" },
-      });
+    if (!res.headersSent && !res.locals.__wrapped) {
+      return fail(res, 500, "UNWRAPPED_RESPONSE");
     }
     return undefined;
   });
 
   app.use(errorHandler);
 
-  app.use((err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
-    if (res.headersSent) return next(err);
-
-    res.locals.__wrapped = true;
-
-    return res.status(500).json({
-      status: "error",
-      error: {
-        code: "INTERNAL_ERROR",
-        message: err instanceof Error ? err.message : "Internal server error",
-      },
-    });
-  });
-
   app.use((_req: express.Request, res: express.Response) => {
-    return fail(res, 410, "LEGACY_ROUTE_DISABLED");
+    if (!res.headersSent) {
+      return fail(res, 500, "UNHANDLED_ROUTE");
+    }
+    return undefined;
   });
 
   return app;

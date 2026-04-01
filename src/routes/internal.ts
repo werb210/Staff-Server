@@ -10,6 +10,7 @@ import { AppError } from "../middleware/errors";
 import { logInfo, logWarn } from "../observability/logger";
 import { requireAuth, requireCapability } from "../middleware/auth";
 import { CAPABILITIES } from "../auth/capabilities";
+import { ok } from "../lib/response";
 
 const router = Router();
 let bootstrapAdminDisabled = false;
@@ -32,7 +33,7 @@ router.use(requireCapability([CAPABILITIES.OPS_MANAGE]));
 router.get("/version", (_req: any, res: any) => {
   const commitHash = config.commitSha;
   const buildTimestamp = config.buildTimestamp;
-  res["json"]({ commitHash, buildTimestamp });
+  return ok(res, { commitHash, buildTimestamp });
 });
 
 router.post("/bootstrap-admin", async (req: any, res: any, next: any) => {
@@ -89,7 +90,7 @@ router.post("/bootstrap-admin", async (req: any, res: any, next: any) => {
       role: user.role,
     });
 
-    res.status(201).json({
+    return ok(res, {
       ok: true,
       user: {
         id: user.id,
@@ -105,7 +106,7 @@ router.post("/bootstrap-admin", async (req: any, res: any, next: any) => {
 router.get("/ops", async (_req, res, next) => {
   try {
     const switches = await listKillSwitches();
-    res["json"]({ switches });
+    return ok(res, { switches });
   } catch (err) {
     next(err);
   }
@@ -114,7 +115,7 @@ router.get("/ops", async (_req, res, next) => {
 router.get("/jobs", async (_req, res, next) => {
   try {
     const jobs = await listActiveReplayJobs();
-    res["json"]({ jobs });
+    return ok(res, { jobs });
   } catch (err) {
     next(err);
   }
@@ -123,7 +124,7 @@ router.get("/jobs", async (_req, res, next) => {
 router.get("/exports/recent", async (_req, res, next) => {
   try {
     const exports = await listRecentExports();
-    res["json"]({ exports });
+    return ok(res, { exports });
   } catch (err) {
     next(err);
   }
@@ -138,7 +139,7 @@ router.get("/failed-jobs", async (_req, res, next) => {
        LIMIT 100`
     );
 
-    res.json(result.rows);
+    return ok(res, result.rows);
   } catch (err) {
     next(err);
   }

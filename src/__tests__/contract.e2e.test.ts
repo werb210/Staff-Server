@@ -17,13 +17,23 @@ describe("server:contract:e2e", () => {
     vi.spyOn(pool, "query").mockResolvedValue({ rows: [{ count: "0" }] } as never);
   });
 
+  function expectContractEnvelope(body: any) {
+    expect(body).toHaveProperty("status");
+    if (body.status === "ok") {
+      expect(body).toHaveProperty("data");
+      return;
+    }
+
+    expect(body).toHaveProperty("error");
+  }
+
   it("supports canonical dialer token route", async () => {
     const res = await request(app)
       .get("/dialer/token")
       .set("Authorization", authHeader());
 
     expect(res.status).toBe(200);
-    expect(res.body).toBeDefined();
+    expectContractEnvelope(res.body);
   });
 
   it("supports canonical call start route", async () => {
@@ -33,7 +43,7 @@ describe("server:contract:e2e", () => {
       .send({ to: "+61400000000" });
 
     expect(res.status).toBe(200);
-    expect(res.body).toBeDefined();
+    expectContractEnvelope(res.body);
   });
 
   it("supports canonical voice status route", async () => {
@@ -43,6 +53,6 @@ describe("server:contract:e2e", () => {
       .send({ callId: "call-123", status: "completed" });
 
     expect(res.status).toBe(200);
-    expect(res.body).toBeDefined();
+    expectContractEnvelope(res.body);
   });
 });

@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { twilioClient, twilioEnabled, fromNumber, callerId } from "../lib/twilioClient";
+import { fail, ok } from "../lib/response";
 
 const router = Router();
 
@@ -7,9 +8,9 @@ const router = Router();
 router.post("/sms", async (req, res) => {
   const { to, body } = req.body;
 
-  if (!to || !body) return res.status(400).json({ error: "to + body required" });
+  if (!to || !body) return fail(res, 400, "to + body required");
   if (!twilioEnabled || !twilioClient) {
-    return res.status(503).json({ success: false, message: "twilio_not_configured" });
+    return fail(res, 503, "twilio_not_configured");
   }
 
   try {
@@ -19,9 +20,9 @@ router.post("/sms", async (req, res) => {
       body,
     });
 
-    res.json({ sid: msg.sid });
+    return ok(res, { sid: msg.sid });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return fail(res, 500, err?.message ?? "unknown_error");
   }
 });
 
@@ -30,10 +31,10 @@ router.post("/call", async (req, res) => {
   const { to, twimlUrl } = req.body;
 
   if (!to || !twimlUrl) {
-    return res.status(400).json({ error: "to + twimlUrl required" });
+    return fail(res, 400, "to + twimlUrl required");
   }
   if (!twilioEnabled || !twilioClient) {
-    return res.status(503).json({ success: false, message: "twilio_not_configured" });
+    return fail(res, 503, "twilio_not_configured");
   }
 
   try {
@@ -43,9 +44,9 @@ router.post("/call", async (req, res) => {
       url: twimlUrl,
     });
 
-    res.json({ sid: call.sid });
+    return ok(res, { sid: call.sid });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return fail(res, 500, err?.message ?? "unknown_error");
   }
 });
 

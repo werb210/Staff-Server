@@ -2,6 +2,7 @@ import { Router } from "express";
 import { dbQuery } from "../db";
 import { requireFields } from "../middleware/validate";
 import { LeadSchema } from "../validation";
+import { fail, ok } from "../lib/response";
 
 const router = Router();
 
@@ -38,7 +39,7 @@ async function createLead(payload: LeadPayload): Promise<{ leadId?: string }> {
 }
 
 router.get("/test", (_req, res) => {
-  return res.json({ ok: true });
+  return ok(res, { ok: true });
 });
 
 router.post(
@@ -49,10 +50,10 @@ router.post(
       const result = await createLead(req.body);
 
       if (!result?.leadId) {
-        return res.status(400).json({ error: "INVALID_INPUT" });
+        return fail(res, 400, "INVALID_INPUT");
       }
 
-      return res.json({ leadId: result.leadId });
+      return ok(res, { leadId: result.leadId });
     } catch (error) {
       return next(error);
     }
@@ -60,7 +61,7 @@ router.post(
 );
 
 router.all("/lead", (_req, res) => {
-  return res.status(405).json({ error: "METHOD_NOT_ALLOWED" });
+  return fail(res, 405, "METHOD_NOT_ALLOWED");
 });
 
 export default router;

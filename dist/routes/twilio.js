@@ -13,6 +13,7 @@ const auth_1 = require("../middleware/auth");
 const capabilities_1 = require("../auth/capabilities");
 const roles_1 = require("../auth/roles");
 const errors_1 = require("../middleware/errors");
+const response_1 = require("../lib/response");
 const safeHandler_1 = require("../middleware/safeHandler");
 const db_1 = require("../db");
 const calls_service_1 = require("../modules/calls/calls.service");
@@ -136,15 +137,14 @@ router.get("/dialer/token", auth_1.requireAuth, (0, auth_1.requireAuthorization)
        where staff_user_id = $1
          and status in ('ringing', 'in_progress')`, [identity]);
     if (Number(activeCalls.rows[0]?.count ?? "0") > 0) {
-        res.status(409).json({ code: "active_call_in_progress" });
-        return;
+        return (0, response_1.fail)(res, 409, "active_call_in_progress");
     }
     const token = new AccessToken_1.default(config_1.config.twilio.accountSid ?? "", config_1.config.twilio.apiKey ?? "", config_1.config.twilio.apiSecret ?? "", { identity, ttl: 3600 });
     token.addGrant(new AccessToken_2.VoiceGrant({
         outgoingApplicationSid: config_1.config.twilio.voiceAppSid,
         incomingAllow: true,
     }));
-    res["json"]({ token: token.toJwt() });
+    return (0, response_1.ok)(res, { token: token.toJwt() });
 }));
 router.post("/twilio/voice", dialerRateLimit, (0, safeHandler_1.safeHandler)(async (req, res, next) => {
     assertValidTwilioSignature(req);
