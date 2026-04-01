@@ -35,6 +35,13 @@ export function createApp() {
   const app = express();
 
   app.use(express.json());
+  app.get("/health", (_req, res) => {
+    return res.status(200).json({
+      success: true,
+      status: "ok",
+    });
+  });
+
   app.use((req, res, next) => {
     console.log("REQ:", req.method, req.path);
     const originalJson = res.json.bind(res);
