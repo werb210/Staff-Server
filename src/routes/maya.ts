@@ -23,7 +23,7 @@ async function handleMayaMessage(req: any, res: any) {
       reply: `Maya received: ${message}`,
     });
   } catch {
-    return fail(res, "maya_error", 500);
+    return fail(res, 500, "maya_error");
   }
 }
 

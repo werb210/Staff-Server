@@ -41,7 +41,7 @@ async function handleApplicationSubmit(req, res) {
        from readiness_sessions where id = $1 limit 1`, [sessionId]);
         const readiness = session.rows[0];
         if (!readiness) {
-            (0, response_1.fail)(res, "readiness_session_not_found", 404);
+            (0, response_1.fail)(res, 404, "readiness_session_not_found");
             return;
         }
         const created = await (0, applications_repo_1.createApplication)({
@@ -76,10 +76,10 @@ async function handleApplicationSubmit(req, res) {
     }
     catch (error) {
         if (error instanceof Error && error.name === "ZodError") {
-            (0, response_1.fail)(res, "invalid_payload", 400);
+            (0, response_1.fail)(res, 400, "invalid_payload");
             return;
         }
-        (0, response_1.fail)(res, "server_error", 500);
+        (0, response_1.fail)(res, 500, "server_error");
     }
 }
 router.post("/", (0, validate_1.validate)(createApplicationSchema), handleApplicationSubmit);

@@ -91,29 +91,17 @@ function createApp() {
     }));
     app.use("/api/internal", internal_1.default);
     app.use((req, res) => {
-        if (!res.locals.__wrapped) {
-            return res.status(500).json({
-                status: "error",
-                error: { code: "UNWRAPPED_RESPONSE", message: "Response not wrapped" },
-            });
+        if (!res.headersSent && !res.locals.__wrapped) {
+            return (0, response_1.fail)(res, 500, "UNWRAPPED_RESPONSE");
         }
         return undefined;
     });
     app.use(errorHandler_1.errorHandler);
-    app.use((err, _req, res, next) => {
-        if (res.headersSent)
-            return next(err);
-        res.locals.__wrapped = true;
-        return res.status(500).json({
-            status: "error",
-            error: {
-                code: "INTERNAL_ERROR",
-                message: err instanceof Error ? err.message : "Internal server error",
-            },
-        });
-    });
     app.use((_req, res) => {
-        return (0, response_1.fail)(res, 410, "LEGACY_ROUTE_DISABLED");
+        if (!res.headersSent) {
+            return (0, response_1.fail)(res, 500, "UNHANDLED_ROUTE");
+        }
+        return undefined;
     });
     return app;
 }
