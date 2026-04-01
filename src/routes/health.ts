@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { deps } from "../system/deps";
+import { isReady } from "../system/ready";
 
 const router = Router();
 
@@ -12,7 +12,7 @@ router.get("/healthz", (_req, res) => {
 });
 
 router.get("/ready", (_req, res) => {
-  if (!deps.db.ready) {
+  if (!isReady()) {
     return res.status(503).json({ status: "degraded" });
   }
 
@@ -20,7 +20,7 @@ router.get("/ready", (_req, res) => {
 });
 
 router.get("/readyz", (_req, res) => {
-  if (!deps.db.ready) {
+  if (!isReady()) {
     return res.status(503).json({ status: "degraded" });
   }
 
