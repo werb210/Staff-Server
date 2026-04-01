@@ -22,6 +22,7 @@ jest.mock("../src/db", () => {
 });
 
 beforeEach(() => {
+  jest.clearAllMocks();
   const { runAI } = require("./mocks/openaiClientMock");
   runAI.mockReset();
 });

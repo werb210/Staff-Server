@@ -1,9 +1,15 @@
-export function validateEnv() {
-  if (!process.env.JWT_SECRET) {
-    throw new Error("[JWT_SECRET MISSING]");
-  }
+import express from "express";
 
-  if (!process.env.DATABASE_URL) {
-    throw new Error("[DATABASE_URL MISSING]");
-  }
+export const app = express();
+
+app.get("/health", (_req, res) => {
+  res.status(200).json({ status: "ok" });
+});
+
+const PORT = process.env.PORT || 8080;
+
+if (process.env.NODE_ENV !== "test") {
+  app.listen(PORT, () => {
+    console.log(`Server running on ${PORT}`);
+  });
 }

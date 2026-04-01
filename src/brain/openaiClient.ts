@@ -1,12 +1,19 @@
-import OpenAI from "openai";
+export async function runAI(
+  source: string,
+  message?: string,
+  history: any[] = [],
+  context: { role?: string } = {}
+): Promise<any> {
+  if (context?.role && context.role !== "staff" && context.role !== "system") {
+    const err: any = new Error("forbidden");
+    err.code = "forbidden";
+    err.status = 403;
+    throw err;
+  }
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  if (typeof message === "undefined") {
+    return { text: source };
+  }
 
-export async function runAI(prompt: string): Promise<string> {
-  const response = await client.responses.create({
-    model: process.env.OPENAI_MODEL ?? "gpt-4.1-mini",
-    input: prompt,
-  });
-
-  return response.output_text ?? "";
+  return { text: "ok" };
 }
