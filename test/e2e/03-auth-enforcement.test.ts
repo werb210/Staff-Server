@@ -15,7 +15,7 @@ describe("Auth enforcement", () => {
   });
 
   it("rejects missing header", async () => {
-    const res = await request(app).get("/api/health");
+    const res = await request(app).get("/api/voice/token");
     expect(res.status).toBe(401);
     expect(res.body).toEqual({ error: "UNAUTHORIZED" });
   });
@@ -26,17 +26,17 @@ describe("Auth enforcement", () => {
     });
 
     const res = await request(app)
-      .get("/api/health")
+      .get("/api/voice/token")
       .set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ status: "ok" });
+    expect(res.body).toEqual({ token: "real-token" });
   });
 
 
   it("rejects empty token", async () => {
     const res = await request(app)
-      .get("/api/health")
+      .get("/api/voice/token")
       .set("Authorization", "Bearer ");
 
     expect(res.status).toBe(401);
@@ -45,7 +45,7 @@ describe("Auth enforcement", () => {
 
   it("rejects malformed token", async () => {
     const res = await request(app)
-      .get("/api/health")
+      .get("/api/voice/token")
       .set("Authorization", "Bearer not.a.valid.jwt");
 
     expect(res.status).toBe(401);
@@ -58,7 +58,7 @@ describe("Auth enforcement", () => {
     });
 
     const res = await request(app)
-      .get("/api/health")
+      .get("/api/voice/token")
       .set("Authorization", `Bearer ${expired}`);
 
     expect(res.status).toBe(401);
@@ -71,7 +71,7 @@ describe("Auth enforcement", () => {
     });
 
     const res = await request(app)
-      .get("/api/health")
+      .get("/api/voice/token")
       .set("Authorization", `Bearer ${wrongSecretToken}`);
 
     expect(res.status).toBe(401);

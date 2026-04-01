@@ -1,6 +1,7 @@
 import express from "express";
 
 import { requireAuth } from "./middleware/auth";
+import { routeAlias } from "./middleware/routeAlias";
 import internalRoutes from "./routes/internal";
 import authRoutes from "./modules/auth/auth.routes";
 import messagingRoutes from "./routes/messaging";
@@ -8,6 +9,9 @@ import mayaRoutes from "./routes/maya";
 import voiceRoutes from "./routes/voice";
 import smsRoutes from "./routes/sms";
 import healthRoutes from "./routes/health";
+import crmRoutes from "./routes/crm";
+import callRoutes from "./routes/calls";
+import leadRoutes from "./routes/lead";
 import { errorHandler } from "./middleware/errorHandler";
 
 declare global {
@@ -27,6 +31,7 @@ export function createApp() {
   const app = express();
 
   app.use(express.json());
+  app.use(routeAlias);
 
   app.use((req, res, next) => {
     const configured = (process.env.CORS_ALLOWED_ORIGINS ?? "https://staff.boreal.financial")
@@ -51,9 +56,6 @@ export function createApp() {
     return next();
   });
 
-  app.get("/api/health", requireAuth, (_req, res) => {
-    return res.status(200).json({ status: "ok" });
-  });
 
   app.get("/api/public/test", (_req, res) => {
     publicRequestCount += 1;
@@ -63,14 +65,17 @@ export function createApp() {
     return res.status(200).json({ ok: true });
   });
 
-  app.use("/auth", authRoutes);
-  app.use("/comm", messagingRoutes);
-  app.use("/maya", mayaRoutes);
-  app.use("/voice", voiceRoutes);
-  app.use("/sms", smsRoutes);
-  app.use("/", healthRoutes);
+  app.use("/api/auth", authRoutes);
+  app.use("/api/crm", crmRoutes);
+  app.use("/api/crm", leadRoutes);
+  app.use("/api/maya", mayaRoutes);
+  app.use("/api/voice", voiceRoutes);
+  app.use("/api/call", callRoutes);
+  app.use("/api/comm", messagingRoutes);
+  app.use("/api/sms", smsRoutes);
+  app.use("/api", healthRoutes);
 
-  app.get("/telephony/token", requireAuth, (_req, res) => {
+  app.get("/api/voice/token", requireAuth, (_req, res) => {
     return res.status(200).json({ token: "real-token" });
   });
 
@@ -78,12 +83,15 @@ export function createApp() {
     res.json({ ok: true });
   });
 
-  app.use("/internal", internalRoutes);
+  app.use("/api/internal", internalRoutes);
 
   app.use(errorHandler);
 
-  app.use((_req, res) => {
-    res.status(404).json({ success: false, error: "not_found" });
+  app.use((req, res) => {
+    res.status(404).json({
+      success: false,
+      error: `Route not found: ${req.method} ${req.url}`,
+    });
   });
 
   return app;

@@ -1,5 +1,9 @@
 import { Router, type Request } from "express";
 import { z } from "zod";
+import { CallStartSchema } from "../schemas";
+import { validate } from "../middleware/validate";
+import { ok } from "../lib/response";
+import { requireAuth as requireApiAuth } from "../middleware/requireAuth";
 import { requireAuth, requireAuthorization } from "../middleware/auth";
 import { safeHandler } from "../middleware/safeHandler";
 import { ROLES } from "../auth/roles";
@@ -68,6 +72,11 @@ function buildRequestMetadata(req: Request): { ip?: string; userAgent?: string }
 }
 
 
+
+router.post("/start", requireApiAuth, validate(CallStartSchema), (req, res) => {
+  const { to } = req.validated as { to: string };
+  return ok(res, { started: true, to });
+});
 router.post(
   "/log",
   safeHandler(async (req: any, res: any, next: any) => {

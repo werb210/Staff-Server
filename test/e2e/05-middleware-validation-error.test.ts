@@ -13,7 +13,7 @@ describe("Middleware execution, validation, and error handling", () => {
 
   it("executes CORS middleware and exposes expected headers", async () => {
     const res = await request(app)
-      .get("/health")
+      .get("/api/health")
       .set("Origin", "https://staff.boreal.financial");
 
     expect(res.headers["access-control-allow-origin"]).toBe(
@@ -22,7 +22,7 @@ describe("Middleware execution, validation, and error handling", () => {
   });
 
   it("returns validation failures on malformed OTP payloads", async () => {
-    const res = await request(app).post("/auth/otp/start").send({ phone: "" });
+    const res = await request(app).post("/api/auth/otp/start").send({ phone: "" });
 
     expect(res.status).toBe(400);
     expect(res.body).toEqual({ success: false, error: "invalid_payload" });
@@ -35,6 +35,7 @@ describe("Middleware execution, validation, and error handling", () => {
       .set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(404);
-    expect(res.body).toEqual({ success: false, error: "not_found" });
+    expect(res.body.success).toBe(false);
+    expect(res.body.error).toContain("Route not found:");
   });
 });

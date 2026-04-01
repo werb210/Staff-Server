@@ -17,11 +17,11 @@ describe("Route registration and prefix integrity", () => {
     app = createServer();
   });
 
-  it("registers only canonical auth and telephony prefixes", async () => {
+  it("registers canonical /api routes", async () => {
     const routeChecks: RouteCheck[] = [
-      { method: "get", path: "/health", expectedStatus: 200 },
-      { method: "post", path: "/auth/otp/start", expectedStatus: 200, body: { phone: "+15555550100" } },
-      { method: "get", path: "/telephony/token", expectedStatus: 401 },
+      { method: "get", path: "/api/health", expectedStatus: 200 },
+      { method: "post", path: "/api/auth/otp/start", expectedStatus: 200, body: { phone: "+15555550100" } },
+      { method: "get", path: "/api/voice/token", expectedStatus: 401 },
     ];
 
     for (const check of routeChecks) {
@@ -31,17 +31,11 @@ describe("Route registration and prefix integrity", () => {
     }
   });
 
-  it("rejects legacy route prefixes with 404", async () => {
-    const malformedPaths = [
-      "/api/auth/otp/start",
-      "/api/telephony/token",
-      "/auth/auth/otp/start",
-    ];
+  it("keeps legacy aliases functional during migration", async () => {
+    const authStart = await request(app).post("/auth/otp/start").send({ phone: "+15555550100" });
+    expect(authStart.status).not.toBe(404);
 
-    for (const path of malformedPaths) {
-      const res = await request(app).get(path);
-      expect(res.status).toBe(404);
-      expect(res.body).toEqual({ success: false, error: "not_found" });
-    }
+    const voiceToken = await request(app).get("/voice/token");
+    expect(voiceToken.status).toBe(401);
   });
 });
