@@ -1,30 +1,26 @@
 import type { NextFunction, Request, Response } from "express";
 import type { ZodSchema } from "zod";
+import { fail } from "../utils/http/respond";
 
-export function validate<T>(schema: ZodSchema<T>) {
+export function validate<T>(schema: ZodSchema<T>, target: "body" | "params" | "query" = "body") {
   return (req: Request, res: Response, next: NextFunction) => {
-    const isUploadRoute = req.originalUrl.split("?")[0] === "/api/documents/upload";
-    if (
-      req.method === "POST" &&
-      !req.is("application/json") &&
-      !isUploadRoute
-    ) {
-      return res.status(415).json({
-        success: false,
-        error: "JSON_REQUIRED",
-      });
+    if (target === "body") {
+      const isUploadRoute = req.originalUrl.split("?")[0] === "/api/documents/upload";
+      if (req.method === "POST" && !req.is("application/json") && !isUploadRoute) {
+        return fail(res, "JSON body required", 415, "JSON_REQUIRED");
+      }
     }
 
-    const result = schema.safeParse(req.body);
-
+    const result = schema.safeParse(req[target]);
     if (!result.success) {
-      return res.status(400).json({
-        success: false,
-        error: result.error.message,
-      });
+      return fail(res, "Validation failed", 422, "VALIDATION_ERROR", result.error);
     }
 
-    req.validated = result.data;
+    Object.assign(req, { [target]: result.data });
+    if (target === "body") {
+      req.validated = result.data;
+    }
+
     return next();
   };
 }
@@ -33,7 +29,7 @@ export function requireFields(fields: string[]) {
   return (req: Request, res: Response, next: NextFunction) => {
     for (const field of fields) {
       if (!req.body || (req.body as Record<string, unknown>)[field] === undefined) {
-        return res.status(400).json({ success: false, error: "INVALID_INPUT" });
+        return fail(res, "Validation failed", 422, "VALIDATION_ERROR", { missingField: field });
       }
     }
 
@@ -48,7 +44,7 @@ export const validationErrorHandler = (
   next: NextFunction,
 ) => {
   if (err?.type === "validation") {
-    return res.status(400).json({ success: false, error: "INVALID_INPUT" });
+    return fail(res, "Validation failed", 422, "VALIDATION_ERROR");
   }
 
   return next(err);

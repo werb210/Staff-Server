@@ -1,11 +1,12 @@
 import express from "express";
 import { runQuery } from "./lib/db";
 import { CONFIG } from "./system/config";
+import { ok } from "./utils/http/respond";
 
 export const app = express();
 
 app.get("/health", (_req, res) => {
-  res.status(200).json({ status: "ok" });
+  return ok(res, { status: "ok" });
 });
 
 const PORT = CONFIG.PORT;
