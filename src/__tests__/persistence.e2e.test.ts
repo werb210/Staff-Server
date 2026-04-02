@@ -141,6 +141,27 @@ describe("server persistence e2e", () => {
     expect(res.body.data).toHaveProperty("id", leads[0]?.id);
   });
 
+  it("rejects lead creation with invalid email", async () => {
+    const res = await request(app).post("/api/v1/crm/lead").set("Authorization", authHeader()).send({
+      name: "Ada Lovelace",
+      email: "not-an-email",
+      phone: "+15550001111",
+    });
+
+    expect(res.status).toBe(400);
+    expect(leads).toHaveLength(0);
+  });
+
+  it("rejects lead creation when a required field is missing", async () => {
+    const res = await request(app).post("/api/v1/crm/lead").set("Authorization", authHeader()).send({
+      name: "Ada Lovelace",
+      email: "ada@example.com",
+    });
+
+    expect(res.status).toBe(400);
+    expect(leads).toHaveLength(0);
+  });
+
   it("persists call creation and status updates", async () => {
     const start = await request(app)
       .post("/api/v1/call/start")
