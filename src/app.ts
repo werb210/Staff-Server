@@ -3,6 +3,7 @@ import express from "express";
 import { requireAuth } from "./middleware/auth";
 import { routeAlias } from "./middleware/routeAlias";
 import internalRoutes from "./routes/internal";
+import routes from "./routes";
 import authRoutes from "./modules/auth/auth.routes";
 import messagingRoutes from "./routes/messaging";
 import mayaRoutes from "./routes/maya";
@@ -100,6 +101,8 @@ export function createApp() {
 
     return next();
   });
+
+  app.use("/api/v1", routes);
 
   app.get(
     "/api/v1/public/test",
