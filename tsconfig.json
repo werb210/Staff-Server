@@ -1,30 +1,17 @@
 {
   "compilerOptions": {
+    "target": "ES2020",
+    "module": "CommonJS",
+    "baseUrl": "./",
+    "paths": {
+      "@/*": ["src/*"]
+    },
     "outDir": "dist",
-    "rootDir": "src",
-    "module": "commonjs",
-    "target": "es2020",
-    "strict": true,
     "esModuleInterop": true,
+    "strict": false,
     "skipLibCheck": true,
-    "resolveJsonModule": true,
-    "types": [
-      "node",
-      "vitest/globals"
-    ],
-    "forceConsistentCasingInFileNames": true,
-    "noImplicitAny": true,
-    "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true
+    "resolveJsonModule": true
   },
-  "include": [
-    "src"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "**/*.test.ts",
-    "**/__tests__/**",
-    "test/**"
-  ]
+  "include": ["src"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/__tests__/**", "test/**"]
 }

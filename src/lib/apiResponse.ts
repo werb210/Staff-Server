@@ -1,4 +1,4 @@
-import type { ApiResponse } from "@boreal/shared-contract";
+import type { ApiResponse } from "@/contracts";
 
 export function ok<T>(data: T): ApiResponse<T> {
   return { status: "ok", data };
