@@ -15,6 +15,9 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   }
   try {
     const { JWT_SECRET } = getEnv();
+    if (!JWT_SECRET) {
+      return res.status(401).json({ status: "error", error: "unauthorized" });
+    }
     const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded;
     return next();

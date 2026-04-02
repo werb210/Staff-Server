@@ -74,6 +74,9 @@ router.post("/verify", async (req: Request, res: Response) => {
   }
 
   const { JWT_SECRET } = getEnv();
+  if (!JWT_SECRET) {
+    return res.status(401).json({ error: "unauthorized" });
+  }
   const token = jwt.sign(
     { phone },
     JWT_SECRET,

@@ -1,28 +1,24 @@
 import { Request, Response, NextFunction } from "express";
 
-type Handler = (req: Request, res: Response, next: NextFunction) => any;
-
-export function routeWrap(handler: Handler) {
+export function routeWrap(
+  handler: (req: Request, res: Response) => Promise<any>
+) {
   return async (req: Request, res: Response, next: NextFunction) => {
     const rid = (req as any).rid;
 
     try {
-      const result = await handler(req, res, next);
+      const data = await handler(req, res);
 
-      if (res.headersSent) return;
-
-      res.status(200).json({
+      res.json({
         status: "ok",
+        data,
         rid,
-        ...(result !== undefined ? { data: result } : {}),
       });
     } catch (err: any) {
-      const status = err?.status ?? 500;
-
-      res.status(status).json({
+      res.status(500).json({
         status: "error",
+        error: err.message || "Internal error",
         rid,
-        error: err?.message || "Internal error",
       });
     }
   };

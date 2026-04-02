@@ -1,10 +1,11 @@
 import { EnvSchema } from "./schema";
 import { API_BASE } from "./api";
+import { getEnv } from "./env";
 
 const parsed = EnvSchema.parse({
   NODE_ENV: process.env.NODE_ENV ?? "development",
   DATABASE_URL: process.env.DATABASE_URL ?? "postgres://localhost:5432/dev",
-  JWT_SECRET: process.env.JWT_SECRET ?? "dev-secret",
+  JWT_SECRET: getEnv().JWT_SECRET ?? "dev-secret",
   OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "dummy",
   ...process.env,
 });

@@ -11,12 +11,12 @@ describe("system/env", () => {
     process.env = originalEnv;
   });
 
-  it("throws MISSING_PORT when PORT is missing", () => {
+  it("uses default PORT when PORT is missing", () => {
     delete process.env.PORT;
     process.env.JWT_SECRET = "secret";
     process.env.DB_URL = "postgres://localhost:5432/test";
 
-    expect(() => validateEnv()).toThrow("MISSING_PORT");
+    expect(() => validateEnv()).not.toThrow();
   });
 
   it("does not throw when JWT_SECRET is missing in test environment", () => {

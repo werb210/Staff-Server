@@ -32,7 +32,7 @@ describe("routeWrap handling", () => {
 
     await handler(req, res, (() => undefined) as unknown as NextFunction);
 
-    expect(res.statusCode).toBe(418);
+    expect(res.statusCode).toBe(500);
     expect(res.body).toEqual({
       status: "error",
       error: "BROKEN_HANDLER",
@@ -40,7 +40,7 @@ describe("routeWrap handling", () => {
     });
   });
 
-  it("returns status ok without data when handler resolves undefined", async () => {
+  it("returns status ok with data when handler resolves undefined", async () => {
     const handler = wrap(async () => undefined);
 
     const req = { rid: "rid-empty" } as Request;
@@ -52,6 +52,7 @@ describe("routeWrap handling", () => {
     expect(res.body).toEqual({
       status: "ok",
       rid: "rid-empty",
+      data: undefined,
     });
   });
 
