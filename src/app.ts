@@ -16,7 +16,7 @@ import leadRoutes from "./routes/lead";
 import applicationRoutes from "./routes/application";
 import documentsRoutes from "./routes/documents";
 import { errorHandler } from "./middleware/errorHandler";
-import { fail, ok } from "./lib/response";
+import { fail } from "./lib/response";
 import { wrap } from "./lib/routeWrap";
 import { ok as envelopeOk } from "./lib/apiResponse";
 import { timeout } from "./system/timeout";
@@ -25,6 +25,7 @@ import { access } from "./system/access";
 import { incReq, metrics } from "./system/metrics";
 import { rateLimit } from "./system/rateLimit";
 import { CONFIG } from "./system/config";
+import { fail as systemFail } from "./system/response";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -49,6 +50,16 @@ export function createApp() {
   });
   app.use(timeout(CONFIG.REQUEST_TIMEOUT_MS));
   app.use(rateLimit());
+  app.use((req, res, next) => {
+    if (["POST", "PUT", "PATCH"].includes(req.method)) {
+      const body = req.body;
+      if (body === undefined || body === null || typeof body !== "object" || Array.isArray(body)) {
+        res.locals.__wrapped = true;
+        return res.status(400).json(systemFail("INVALID_REQUEST_BODY", (req as express.Request & { rid?: string }).rid));
+      }
+    }
+    return next();
+  });
 
   app.use((req, res, next) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
@@ -91,32 +102,29 @@ export function createApp() {
   });
 
   app.get(
-    "/api/public/test",
+    "/api/v1/public/test",
     wrap(async (_req, res) => {
       return envelopeOk({ ok: true });
     })
   );
 
-  app.use("/api/auth", authRoutes);
-  app.use("/api/crm", crmRoutes);
-  app.use("/api/crm", leadRoutes);
-  app.use("/api", leadRoutes);
-  app.use("/api/application", applicationRoutes);
-  app.use("/api/documents", documentsRoutes);
-  app.use("/voice", voiceRoutes);
-  app.use("/call", callRoutes);
+  app.use("/api/v1/auth", authRoutes);
+  app.use("/api/v1/crm", crmRoutes);
+  app.use("/api/v1/crm", leadRoutes);
+  app.use("/api/v1/application", applicationRoutes);
+  app.use("/api/v1/documents", documentsRoutes);
   app.use("/", twilioRoutes);
 
-  app.use("/api/maya", mayaRoutes);
-  app.use("/api/voice", voiceRoutes);
-  app.use("/api/call", callRoutes);
-  app.use("/api", twilioRoutes);
-  app.use("/api/comm", messagingRoutes);
-  app.use("/api/sms", smsRoutes);
-  app.use("/api", healthRoutes);
+  app.use("/api/v1/maya", mayaRoutes);
+  app.use("/api/v1/voice", voiceRoutes);
+  app.use("/api/v1/call", callRoutes);
+  app.use("/api/v1", twilioRoutes);
+  app.use("/api/v1/comm", messagingRoutes);
+  app.use("/api/v1/sms", smsRoutes);
+  app.use("/api/v1", healthRoutes);
 
   app.get(
-    "/api/voice/token",
+    "/api/v1/voice/token",
     requireAuth,
     wrap(async () => {
       return envelopeOk({ token: "real-token" });
@@ -124,14 +132,14 @@ export function createApp() {
   );
 
   app.use(
-    "/api/private",
+    "/api/v1/private",
     requireAuth,
     wrap(async () => {
       return envelopeOk({ ok: true });
     })
   );
 
-  app.use("/api/internal", internalRoutes);
+  app.use("/api/v1/internal", internalRoutes);
 
   app.use((req, res) => {
     if (!res.headersSent && !res.locals.__wrapped) {

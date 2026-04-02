@@ -6,11 +6,15 @@ export function wrap(handler: (req: Request, res: Response) => Promise<any> | an
     try {
       const result = await handler(req, res);
       if (!res.headersSent) {
-        res.json(ok(result));
+        res.json(ok(result, (req as Request & { rid?: string }).rid));
       }
     } catch (err: any) {
       if (!res.headersSent) {
-        res.status(err.status || 500).json(fail(err));
+        const status = err.status || 500;
+        if (status === 429) {
+          res.setHeader("Retry-After", "1");
+        }
+        res.status(status).json(fail(err, (req as Request & { rid?: string }).rid));
       }
     }
   };

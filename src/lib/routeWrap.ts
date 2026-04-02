@@ -1,4 +1,5 @@
 import type { NextFunction, Request, RequestHandler, Response } from "express";
+import { fail, ok } from "../system/response";
 
 type RouteHandler = (req: Request, res: Response, next: NextFunction) => unknown | Promise<unknown>;
 
@@ -40,11 +41,10 @@ function formatErrorMessage(value: unknown): string {
 }
 
 function sendError(res: Response, statusCode: number, error: unknown, rid?: string): void {
-  res.status(statusCode).json({
-    status: "error",
-    error: formatErrorMessage(error),
-    rid,
-  });
+  if (statusCode === 429) {
+    res.setHeader("Retry-After", "1");
+  }
+  res.status(statusCode).json(fail(formatErrorMessage(error), rid));
 }
 
 export function wrap(handler: RouteHandler): RequestHandler {
@@ -69,7 +69,7 @@ export function wrap(handler: RouteHandler): RequestHandler {
       }
 
       if (result.status === "ok") {
-        res.json(result);
+        res.json(ok(result.data, rid));
         return;
       }
 

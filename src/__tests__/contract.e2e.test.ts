@@ -19,17 +19,19 @@ describe("server:contract:e2e", () => {
 
   function expectContractEnvelope(body: any) {
     expect(body).toHaveProperty("status");
+    expect(typeof body.rid).toBe("string");
     if (body.status === "ok") {
       expect(body).toHaveProperty("data");
       return;
     }
 
     expect(body).toHaveProperty("error");
+    expect(typeof body.error).toBe("string");
   }
 
   it("supports canonical dialer token route", async () => {
     const res = await request(app)
-      .get("/dialer/token")
+      .get("/api/v1/voice/token")
       .set("Authorization", authHeader());
 
     expect(res.status).toBe(200);
@@ -38,7 +40,7 @@ describe("server:contract:e2e", () => {
 
   it("supports canonical call start route", async () => {
     const res = await request(app)
-      .post("/call/start")
+      .post("/api/v1/call/start")
       .set("Authorization", authHeader())
       .send({ to: "+61400000000" });
 
@@ -48,11 +50,19 @@ describe("server:contract:e2e", () => {
 
   it("supports canonical voice status route", async () => {
     const res = await request(app)
-      .post("/voice/status")
+      .post("/api/v1/voice/status")
       .set("Authorization", authHeader())
       .send({ callId: "call-123", status: "completed" });
 
     expect(res.status).toBe(200);
     expectContractEnvelope(res.body);
+  });
+
+  it("returns structured errors for legacy route aliases", async () => {
+    const res = await request(app).get("/api/public/test");
+
+    expect(res.status).toBe(410);
+    expectContractEnvelope(res.body);
+    expect(res.body.error).toBe("LEGACY_ROUTE_DISABLED");
   });
 });
