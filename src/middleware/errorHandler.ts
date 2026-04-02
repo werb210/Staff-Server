@@ -1,12 +1,19 @@
 import type { NextFunction, Request, Response } from "express";
-import { fail } from "../utils/http/respond";
+import { error } from "../lib/response";
 
-export function errorHandler(
-  err: unknown,
-  _req: Request,
-  res: Response,
-  _next: NextFunction,
-): Response {
-  const message = err instanceof Error ? err.message : "Unexpected server error";
-  return fail(res, message, 500, "INTERNAL_ERROR", err);
+export function errorHandler(err: unknown, req: Request, res: Response, next: NextFunction): Response | void {
+  const headerRid = req.headers["x-request-id"];
+  const rid = req.id ?? req.rid ?? (typeof headerRid === "string" ? headerRid : undefined);
+
+  console.error("SERVER ERROR:", {
+    rid,
+    path: req.path,
+    error: err,
+  });
+
+  if (res.headersSent) {
+    return next(err);
+  }
+
+  return res.status(500).json(error("Internal server error", rid));
 }
