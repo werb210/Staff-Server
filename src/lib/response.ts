@@ -1,12 +1,10 @@
 import type { Response } from "express";
-import { fail as failEnvelope, ok as okEnvelope } from "../system/response";
+import { fail as failResponse, ok as okResponse } from "../utils/http/respond";
 
 export function ok(res: Response, data: unknown): Response {
-  res.locals.__wrapped = true;
-  return res.status(200).json(okEnvelope(data, res.locals.requestId));
+  return okResponse(res, data);
 }
 
-export function fail(res: Response, code: number, message: string): Response {
-  res.locals.__wrapped = true;
-  return res.status(code).json(failEnvelope(message, res.locals.requestId));
+export function fail(res: Response, code: number, message: string, details?: unknown): Response {
+  return failResponse(res, message, code, undefined, details);
 }

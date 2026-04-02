@@ -18,16 +18,14 @@ import leadRoutes from "./routes/lead";
 import applicationRoutes from "./routes/application";
 import documentsRoutes from "./routes/documents";
 import { errorHandler } from "./middleware/errorHandler";
-import { fail } from "./lib/response";
+import { fail, ok } from "./utils/http/respond";
 import { wrap } from "./lib/routeWrap";
-import { ok as envelopeOk } from "./lib/apiResponse";
 import { timeout } from "./system/timeout";
 import { requestId } from "./system/requestId";
 import { access } from "./system/access";
 import { incReq, metrics } from "./system/metrics";
 import { rateLimit } from "./system/rateLimit";
 import { CONFIG } from "./system/config";
-import { fail as systemFail } from "./system/response";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -58,7 +56,7 @@ export function createApp() {
       const body = req.body;
       if (body === undefined || body === null || typeof body !== "object" || Array.isArray(body)) {
         res.locals.__wrapped = true;
-        return res.status(400).json(systemFail("INVALID_REQUEST_BODY", (req as express.Request & { rid?: string }).rid));
+        return fail(res, "Invalid request body", 400, "INVALID_REQUEST_BODY");
       }
     }
     return next();
@@ -75,7 +73,7 @@ export function createApp() {
   app.get("/ready", ready);
 
   app.get("/metrics", (_req, res) => {
-    return res.json(metrics());
+    return ok(res, metrics());
   });
 
   app.use(routeAlias);
@@ -85,7 +83,7 @@ export function createApp() {
   app.get(
     "/api/v1/public/test",
     wrap(async (_req, res) => {
-      return envelopeOk({ ok: true });
+      return { ok: true };
     })
   );
 
@@ -108,7 +106,7 @@ export function createApp() {
     "/api/v1/voice/token",
     requireAuth,
     wrap(async () => {
-      return envelopeOk({ token: "real-token" });
+      return { token: "real-token" };
     })
   );
 
@@ -116,7 +114,7 @@ export function createApp() {
     "/api/v1/private",
     requireAuth,
     wrap(async () => {
-      return envelopeOk({ ok: true });
+      return { ok: true };
     })
   );
 
@@ -124,19 +122,19 @@ export function createApp() {
 
   app.use((req, res) => {
     if (!res.headersSent && !res.locals.__wrapped) {
-      return fail(res, 500, "UNWRAPPED_RESPONSE");
+      return fail(res, "Unwrapped response", 500, "UNWRAPPED_RESPONSE");
+    }
+    return undefined;
+  });
+
+  app.use((_req: express.Request, res: express.Response) => {
+    if (!res.headersSent) {
+      return fail(res, "Route not found", 404, "NOT_FOUND");
     }
     return undefined;
   });
 
   app.use(errorHandler);
-
-  app.use((_req: express.Request, res: express.Response) => {
-    if (!res.headersSent) {
-      return fail(res, 500, "UNHANDLED_ROUTE");
-    }
-    return undefined;
-  });
 
   return app;
 }

@@ -1,10 +1,11 @@
-import type { Request, Response, NextFunction } from "express";
+import type { NextFunction, Request, Response } from "express";
+import { fail } from "../utils/http/respond";
 
 export function timeout(ms = 15000) {
   return (_req: Request, res: Response, next: NextFunction) => {
     const id = setTimeout(() => {
       if (!res.headersSent) {
-        res.status(503).json({ status: "error", error: "TIMEOUT" });
+        fail(res, "Request timeout", 503, "TIMEOUT");
       }
     }, ms);
 
