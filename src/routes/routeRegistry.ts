@@ -32,7 +32,6 @@ import telephonyRoutes from "../telephony/routes/telephonyRoutes";
 import webhooksRoutes from "./webhooks";
 import websiteRoutes from "./website";
 import { mount } from "./_canonicalMount";
-import { config } from "../config";
 
 export type ApiRoute = {
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -166,8 +165,4 @@ export function registerApiRouteMounts(app: Router): void {
   });
 
   app.use("/api/v1", apiRouter);
-
-  if (config.flags.allowUnfrozenApiV1) {
-    app.use("/api", apiRouter);
-  }
 }

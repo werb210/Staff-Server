@@ -1,5 +1,6 @@
 import { type NextFunction, type Request, type Response } from "express";
 import { CONFIG } from "./config";
+import { fail } from "./response";
 
 type RateEntry = {
   count: number;
@@ -36,7 +37,8 @@ export function rateLimit() {
     hits.set(key, entry);
 
     if (entry.count > limit) {
-      return res.status(429).json({ status: "error", error: "RATE_LIMIT" });
+      res.setHeader("Retry-After", "1");
+      return res.status(429).json(fail("RATE_LIMIT", (req as Request & { rid?: string }).rid));
     }
 
     return next();
