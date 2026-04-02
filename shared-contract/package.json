@@ -1,0 +1,13 @@
+{
+  "name": "@boreal/shared-contract",
+  "version": "1.0.0",
+  "main": "dist/api.js",
+  "types": "dist/api.d.ts",
+  "files": [
+    "dist",
+    "src"
+  ],
+  "dependencies": {
+    "zod": "^4.3.6"
+  }
+}

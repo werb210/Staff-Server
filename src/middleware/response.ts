@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
+import { ApiResponseSchema } from "@boreal/shared-contract";
 import { error, ok } from "../lib/response";
 
 type WrappedBody = {
@@ -22,6 +23,17 @@ function resolveRid(req: Request): string | undefined {
   return undefined;
 }
 
+function sendValidatedResponse(res: Response, payload: unknown): Response {
+  const validated = ApiResponseSchema.safeParse(payload);
+
+  if (!validated.success) {
+    console.error("INVALID RESPONSE SHAPE:", payload);
+    return res.status(500).json(error("Invalid response shape", resolveRid(res.req)));
+  }
+
+  return res.json(validated.data);
+}
+
 export function wrap(handler: WrappedHandler) {
   return async (req: Request, res: Response, next: NextFunction) => {
     const rid = resolveRid(req);
@@ -33,13 +45,10 @@ export function wrap(handler: WrappedHandler) {
         return;
       }
 
-      if (!result || typeof result !== "object" || !("status" in (result as WrappedBody))) {
-        res.locals.__wrapped = true;
-        return res.json(ok(result ?? null, rid));
-      }
+      const payload = !result || typeof result !== "object" || !("status" in (result as WrappedBody)) ? ok(result ?? null, rid) : result;
 
       res.locals.__wrapped = true;
-      return res.json(result);
+      return sendValidatedResponse(res, payload);
     } catch (err) {
       return next(err);
     }
@@ -48,7 +57,9 @@ export function wrap(handler: WrappedHandler) {
 
 export function okResponse(res: Response, data?: unknown, statusCode = 200): Response {
   res.locals.__wrapped = true;
-  return res.status(statusCode).json(ok(data ?? null, (res.getHeader("x-request-id") as string | undefined) ?? undefined));
+  return res
+    .status(statusCode)
+    .json(ok(data ?? null, (res.getHeader("x-request-id") as string | undefined) ?? undefined));
 }
 
 export function fail(res: Response, a: number | string, b?: string | number): Response {
