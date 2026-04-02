@@ -10,7 +10,7 @@ import messagingRoutes from "./routes/messaging";
 import mayaRoutes from "./routes/maya";
 import voiceRoutes from "./routes/voice";
 import smsRoutes from "./routes/sms";
-import healthRoutes, { health, ready } from "./routes/health";
+import healthRoutes from "./routes/health";
 import crmRoutes from "./routes/crm";
 import callRoutes from "./routes/calls";
 import twilioRoutes from "./routes/twilio";
@@ -18,7 +18,7 @@ import leadRoutes from "./routes/lead";
 import applicationRoutes from "./routes/application";
 import documentsRoutes from "./routes/documents";
 import { errorHandler } from "./middleware/errorHandler";
-import { fail, ok } from "./utils/http/respond";
+import { fail } from "./utils/http/respond";
 import { wrap } from "./lib/routeWrap";
 import { timeout } from "./system/timeout";
 import { requestId } from "./system/requestId";
@@ -26,6 +26,7 @@ import { access } from "./system/access";
 import { incReq, metrics } from "./system/metrics";
 import { rateLimit } from "./system/rateLimit";
 import { CONFIG } from "./system/config";
+import { deps } from "./system/deps";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -68,12 +69,20 @@ export function createApp() {
     res.setHeader("X-XSS-Protection", "1; mode=block");
     next();
   });
-  app.get("/health", health);
+  app.get("/health", (_req, res) => {
+    res.status(200).json({ status: "ok" });
+  });
 
-  app.get("/ready", ready);
+  app.get("/ready", (_req, res) => {
+    if (!deps.db.ready) {
+      return res.status(503).json({ status: "not_ready" });
+    }
+
+    return res.status(200).json({ status: "ready" });
+  });
 
   app.get("/metrics", (_req, res) => {
-    return ok(res, metrics());
+    return res.status(200).json(metrics());
   });
 
   app.use(routeAlias);
