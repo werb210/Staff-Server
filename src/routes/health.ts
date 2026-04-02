@@ -1,20 +1,20 @@
 import { Router } from "express";
 import { isReady } from "../system/ready";
 import type { Request, Response } from "express";
-import { fail, ok } from "../utils/http/respond";
+import { error, ok } from "../lib/response";
 
 const router = Router();
 
 export function health(_req: Request, res: Response) {
-  return ok(res, { status: "ok" });
+  return res.json({ status: "ok" });
 }
 
-export function ready(_req: Request, res: Response) {
+export function ready(req: Request, res: Response) {
   if (!isReady()) {
-    return fail(res, "Service not ready", 503, "NOT_READY");
+    return res.status(503).json(error("NOT_READY", (req as Request & { rid?: string }).rid));
   }
 
-  return ok(res, { status: "ready" });
+  return res.json(ok({ status: "ready" }, (req as Request & { rid?: string }).rid));
 }
 
 router.get("/health", health);

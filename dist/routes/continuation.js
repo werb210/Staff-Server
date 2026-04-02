@@ -5,6 +5,7 @@ const express_1 = require("express");
 const db_1 = require("../db");
 const smsService_1 = require("../services/smsService");
 const leadUpsert_service_1 = require("../modules/crm/leadUpsert.service");
+const clean_1 = require("../utils/clean");
 const router = (0, express_1.Router)();
 router.post("/", async (req, res, next) => {
     const data = (req.body ?? {});
@@ -42,21 +43,21 @@ router.post("/", async (req, res, next) => {
         data.arOutstanding ?? null,
         data.existingDebt ?? null,
     ]);
-    await (0, leadUpsert_service_1.upsertCrmLead)({
+    await (0, leadUpsert_service_1.upsertCrmLead)((0, clean_1.stripUndefined)({
         companyName: data.companyName,
         fullName: data.fullName,
         email: data.email,
         phone: data.phone,
         industry: data.industry,
-        yearsInBusiness: data.yearsInBusiness,
-        monthlyRevenue: data.monthlyRevenue,
-        annualRevenue: data.annualRevenue,
-        arOutstanding: data.arOutstanding,
-        existingDebt: data.existingDebt,
+        yearsInBusiness: (0, clean_1.toNullable)(data.yearsInBusiness),
+        monthlyRevenue: (0, clean_1.toNullable)(data.monthlyRevenue),
+        annualRevenue: (0, clean_1.toNullable)(data.annualRevenue),
+        arOutstanding: (0, clean_1.toNullable)(data.arOutstanding),
+        existingDebt: (0, clean_1.toNullable)(data.existingDebt),
         source: "capital_readiness",
         tags: ["readiness"],
         activityType: "capital_readiness_submission",
-    });
+    }));
     await (0, smsService_1.sendSMS)("+15878881837", `New Capital Readiness Lead: ${data.companyName} (${data.fullName})`);
     res["json"](rows[0]);
 });

@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const redis_js_1 = require("../../lib/redis.js");
+const env_1 = require("../../config/env");
 const router = express_1.default.Router();
 let twilioClient = null;
 function getTwilioClient() {
@@ -37,22 +38,23 @@ router.post("/start", async (req, res) => {
         to: phone,
         from: process.env.TWILIO_PHONE,
     });
-    return res.status(200).json({ success: true });
+    return res.status(200).json({ status: "ok", data: { sent: true } });
 });
 router.post("/verify", async (req, res) => {
     const { phone, code } = req.body;
     if (!isPhone(phone) || !isCode(code)) {
         return res.status(400).json({ error: "invalid_payload" });
     }
-    if (!process.env.JWT_SECRET) {
-        return res.status(500).json({ error: "missing_jwt_secret" });
-    }
     const redis = (0, redis_js_1.getRedis)();
     const stored = await redis.get(`otp:${phone}`);
     if (!stored || stored !== code) {
         return res.status(400).json({ error: "Invalid code" });
     }
-    const token = jsonwebtoken_1.default.sign({ phone }, process.env.JWT_SECRET, { expiresIn: "1d" });
+    const { JWT_SECRET } = (0, env_1.getEnv)();
+    if (!JWT_SECRET) {
+        return res.status(401).json({ error: "unauthorized" });
+    }
+    const token = jsonwebtoken_1.default.sign({ phone }, JWT_SECRET, { expiresIn: "1d" });
     await redis.del(`otp:${phone}`);
     return res.status(200).json({ token });
 });

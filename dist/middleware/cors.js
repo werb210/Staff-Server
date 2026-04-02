@@ -1,26 +1,11 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.corsMiddleware = corsMiddleware;
-const config_1 = require("../config");
-function corsMiddleware(req, res, next) {
-    const allowed = (config_1.config.cors.allowedOrigins || "")
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
-    const defaultAllowed = [
-        "https://staff.boreal.financial",
-        "http://localhost:5173",
-    ];
-    const allowedOrigins = allowed.length > 0 ? allowed : defaultAllowed;
-    const origin = req.headers.origin;
-    if (origin && allowedOrigins.includes(origin)) {
-        res.setHeader("Access-Control-Allow-Origin", origin);
-    }
-    res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type, Idempotency-Key");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
-    res.setHeader("Access-Control-Allow-Credentials", "true");
-    if (req.method === "OPTIONS") {
-        return res.status(204).end();
-    }
-    next();
-}
+exports.corsMiddleware = void 0;
+const cors_1 = __importDefault(require("cors"));
+exports.corsMiddleware = (0, cors_1.default)({
+    origin: ["https://boreal.financial", "https://portal.boreal.financial"],
+    credentials: true,
+});

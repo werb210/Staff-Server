@@ -17,8 +17,8 @@ router.post("/incoming", (_req, res) => {
   res.send(voiceResponse.toString());
 });
 
-router.post("/status", requireAuth, validate(CallStatusSchema), (_req, res) => {
-  return ok(res, { received: true });
+router.post("/status", requireAuth, validate(CallStatusSchema), (req, res) => {
+  return res.json(ok({ received: true }, (req as any).rid));
 });
 
 export default router;

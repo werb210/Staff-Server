@@ -15,6 +15,7 @@ const errors_1 = require("../middleware/errors");
 const logger_1 = require("../observability/logger");
 const appInsights_1 = require("../observability/appInsights");
 const requestContext_1 = require("../observability/requestContext");
+const clean_1 = require("../utils/clean");
 let pushConfigured = false;
 let pushInitAttempted = false;
 let cachedStatus = { configured: false, enabled: true };
@@ -123,12 +124,12 @@ function initializePushService() {
     const subject = config_1.config.security.vapidSubject;
     if (!publicKey || !privateKey || !subject) {
         const error = "missing_vapid";
-        cachedStatus = {
+        cachedStatus = (0, clean_1.stripUndefined)({
             configured: false,
             enabled,
             error,
             subject,
-        };
+        });
         if (config_1.config.isProduction) {
             throw new Error("VAPID configuration is required in production when push is enabled.");
         }
@@ -147,12 +148,12 @@ function initializePushService() {
         return cachedStatus;
     }
     catch (error) {
-        const status = {
+        const status = (0, clean_1.stripUndefined)({
             configured: false,
             enabled,
             error: error instanceof Error ? error.message : "invalid_vapid",
             subject,
-        };
+        });
         cachedStatus = status;
         if (config_1.config.isProduction) {
             throw error instanceof Error ? error : new Error("invalid_vapid");

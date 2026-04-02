@@ -144,7 +144,10 @@ router.post("/report", (0, safeHandler_1.safeHandler)(async (req, res, next) => 
         reportId,
     });
 }));
-router.post("/knowledge/upload", rejectOversizedPayload, knowledge_controller_1.upload.single("file"), knowledge_controller_1.AIKnowledgeController.upload);
+const knowledgeUploadHandler = async (req, res) => {
+    await knowledge_controller_1.AIKnowledgeController.upload(req, res);
+};
+router.post("/knowledge/upload", rejectOversizedPayload, knowledge_controller_1.upload.single("file"), knowledgeUploadHandler);
 router.get("/knowledge", knowledge_controller_1.AIKnowledgeController.list);
 router.get("/knowledge/db", (0, safeHandler_1.safeHandler)(async (_req, res) => {
     const { rows } = await (0, db_1.runQuery)(`select id, content, created_at

@@ -8,8 +8,9 @@ const express_1 = require("express");
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const otpStore_1 = require("./otpStore");
 const response_1 = require("../../middleware/response");
+const env_1 = require("../../config/env");
 const router = (0, express_1.Router)();
-const TEST_OTP_CODE = process.env.TEST_OTP_CODE || "654321";
+const TEST_OTP_CODE = "654321";
 const error = (res, status, message) => (0, response_1.fail)(res, status, message);
 function resetOtpStateForTests() {
     otpStore_1.otpStore.clear();
@@ -24,7 +25,7 @@ router.post("/otp/start", (req, res) => {
     if (existing && now - existing.lastSentAt < 60000) {
         return error(res, 429, "Too many requests");
     }
-    const code = process.env.NODE_ENV === "test"
+    const code = (0, env_1.getEnv)().NODE_ENV === "test"
         ? TEST_OTP_CODE
         : Math.floor(100000 + Math.random() * 900000).toString();
     otpStore_1.otpStore.set(phone, {
@@ -45,9 +46,6 @@ router.post("/otp/verify", (req, res) => {
         || !/^\+?\d{7,15}$/.test(phone)
         || !/^\d{6}$/.test(code)) {
         return error(res, 400, "invalid_payload");
-    }
-    if (!process.env.JWT_SECRET) {
-        return error(res, 401, "unauthorized");
     }
     const record = otpStore_1.otpStore.get(phone);
     if (!record) {
@@ -73,11 +71,11 @@ router.post("/otp/verify", (req, res) => {
     }
     record.used = true;
     otpStore_1.otpStore.set(phone, record);
-    const jwtSecret = process.env.JWT_SECRET;
-    if (!jwtSecret) {
+    const { JWT_SECRET } = (0, env_1.getEnv)();
+    if (!JWT_SECRET) {
         return error(res, 401, "unauthorized");
     }
-    const token = jsonwebtoken_1.default.sign({ phone }, jwtSecret, { expiresIn: "1d" });
+    const token = jsonwebtoken_1.default.sign({ phone }, JWT_SECRET, { expiresIn: "1d" });
     return (0, response_1.ok)(res, { token });
 });
 exports.default = router;

@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const uuid_1 = require("uuid");
 const zod_1 = require("zod");
+const clean_1 = require("../utils/clean");
 const router = (0, express_1.Router)();
 const issues = [];
 const MAX_ISSUES = 500;
@@ -21,13 +22,13 @@ router.post("/", async (req, res, next) => {
         res.status(400).json({ error: "Invalid payload" });
         return;
     }
-    const issue = {
+    const issue = (0, clean_1.stripUndefined)({
         id: (0, uuid_1.v4)(),
         message: parsed.data.message,
         screenshot: parsed.data.screenshot,
         createdAt: new Date(),
         resolved: false,
-    };
+    });
     pushBounded(issues, issue);
     res["json"]({ success: true, id: issue.id });
 });

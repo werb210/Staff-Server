@@ -12,6 +12,7 @@ const db_1 = require("../../db");
 const phone_1 = require("../auth/phone");
 const applications_repo_1 = require("../applications/applications.repo");
 const leadUpsert_service_1 = require("../crm/leadUpsert.service");
+const clean_1 = require("../../utils/clean");
 const readinessSourceSchema = zod_1.z.enum(["website", "client"]);
 const numericFromUnknown = zod_1.z.preprocess((value) => {
     if (value === null || value === undefined || value === "") {
@@ -124,22 +125,22 @@ async function createReadinessLead(input) {
         email,
         phone,
     });
-    await (0, leadUpsert_service_1.upsertCrmLead)({
+    await (0, leadUpsert_service_1.upsertCrmLead)((0, clean_1.stripUndefined)({
         companyName: parsed.companyName,
         fullName: parsed.fullName,
         email,
         phone,
         industry: parsed.industry,
-        yearsInBusiness: parsed.yearsInBusiness,
-        monthlyRevenue: parsed.monthlyRevenue,
-        annualRevenue: parsed.annualRevenue,
-        arOutstanding: parsed.arOutstanding,
-        existingDebt: parsed.existingDebt,
+        yearsInBusiness: (0, clean_1.toNullable)(parsed.yearsInBusiness),
+        monthlyRevenue: (0, clean_1.toNullable)(parsed.monthlyRevenue),
+        annualRevenue: (0, clean_1.toNullable)(parsed.annualRevenue),
+        arOutstanding: (0, clean_1.toNullable)(parsed.arOutstanding),
+        existingDebt: (0, clean_1.toNullable)(parsed.existingDebt),
         source: `readiness_${source}`,
         tags: ["readiness"],
         activityType: "readiness_submission",
         activityPayload: { source },
-    });
+    }));
     await (0, db_1.dbQuery)(`insert into readiness_leads (
       id,
       company_name,

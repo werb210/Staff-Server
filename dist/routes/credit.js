@@ -5,6 +5,7 @@ const zod_1 = require("zod");
 const crmService_1 = require("../services/crmService");
 const smsService_1 = require("../services/smsService");
 const config_1 = require("../config");
+const clean_1 = require("../utils/clean");
 const router = (0, express_1.Router)();
 const creditSchema = zod_1.z.object({
     companyName: zod_1.z.string().min(1),
@@ -33,7 +34,7 @@ router.post("/score", async (req, res, next) => {
     if (!existingDebt)
         score += 10;
     score = Math.min(score, 85);
-    await (0, crmService_1.createCRMLead)({
+    await (0, crmService_1.createCRMLead)((0, clean_1.stripUndefined)({
         companyName,
         fullName,
         email,
@@ -48,7 +49,7 @@ router.post("/score", async (req, res, next) => {
             existingDebt,
             score,
         },
-    });
+    }));
     if (config_1.config.intake.smsNumber) {
         await (0, smsService_1.sendSMS)(config_1.config.intake.smsNumber, `New Credit Check Lead: ${companyName} (${score})`);
     }

@@ -12,6 +12,7 @@ const readinessSession_service_1 = require("../modules/readiness/readinessSessio
 const leadUpsert_service_1 = require("../modules/crm/leadUpsert.service");
 const retry_1 = require("../utils/retry");
 const logger_1 = require("../observability/logger");
+const clean_1 = require("../utils/clean");
 const router = (0, express_1.Router)();
 const payloadSchema = zod_1.z.object({
     companyName: zod_1.z.string().min(1),
@@ -57,23 +58,23 @@ router.post("/", async (req, res, next) => {
         pipelineState_1.ApplicationStage.RECEIVED,
         "website_credit_readiness",
     ]);
-    const crmLead = await (0, leadUpsert_service_1.upsertCrmLead)({
+    const crmLead = await (0, leadUpsert_service_1.upsertCrmLead)((0, clean_1.stripUndefined)({
         companyName,
         fullName,
         phone,
         email,
         industry,
-        yearsInBusiness,
-        monthlyRevenue,
-        annualRevenue,
-        arOutstanding,
-        existingDebt,
+        yearsInBusiness: (0, clean_1.toNullable)(yearsInBusiness),
+        monthlyRevenue: (0, clean_1.toNullable)(monthlyRevenue),
+        annualRevenue: (0, clean_1.toNullable)(annualRevenue),
+        arOutstanding: (0, clean_1.toNullable)(arOutstanding),
+        existingDebt: (0, clean_1.toNullable)(existingDebt),
         source: "website_credit_readiness",
         tags: ["readiness"],
         activityType: "credit_readiness_submission",
         activityPayload: { applicationId },
-    });
-    const readinessSession = await (0, readinessSession_service_1.createOrReuseReadinessSession)({
+    }));
+    const readinessSession = await (0, readinessSession_service_1.createOrReuseReadinessSession)((0, clean_1.stripUndefined)({
         companyName,
         fullName,
         phone,
@@ -84,7 +85,7 @@ router.post("/", async (req, res, next) => {
         annualRevenue,
         arOutstanding,
         existingDebt,
-    });
+    }));
     const continuationToken = await (0, continuation_1.createContinuation)(applicationId);
     await (0, retry_1.retry)(() => (0, sms_service_1.sendSms)({
         to: "+15878881837",

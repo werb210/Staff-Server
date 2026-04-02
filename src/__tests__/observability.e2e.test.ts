@@ -47,7 +47,8 @@ describe("server:observability:e2e", () => {
 
     const metricsResponse = await request(app).get("/metrics");
     expect(metricsResponse.status).toBe(200);
-    expect(metricsResponse.body).toEqual({
+    expect(metricsResponse.body.status).toBe("ok");
+    expect(metricsResponse.body.data).toEqual({
       requests: 3,
       errors: 0,
     });

@@ -93,10 +93,14 @@ export function createApp() {
     res.json({ status: "ok" });
   });
 
-  app.get("/metrics", (_req, res) => {
+  app.get("/metrics", (req, res) => {
     res.json({
-      requests: metrics().requests,
-      errors: metrics().errors,
+      status: "ok",
+      rid: (req as any).rid,
+      data: {
+        requests: metrics().requests,
+        errors: metrics().errors,
+      },
     });
   });
 

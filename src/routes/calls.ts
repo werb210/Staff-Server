@@ -83,7 +83,7 @@ router.post("/start", requireApiAuth, validate(CallStartSchema), async (req, res
       ...buildRequestMetadata(req),
     });
 
-    return ok(res, { started: true, to, callId: record.id, status: record.status });
+    return res.json(ok({ started: true, to, callId: record.id, status: record.status }, (req as any).rid));
   } catch (error) {
     return next(error);
   }
@@ -121,7 +121,7 @@ router.post(
       ...buildRequestMetadata(req),
     });
 
-    res.status(201).json({ ok: true, call: updated ?? record });
+    res.status(201).json(ok({ call: updated ?? record }, req.rid));
   })
 );
 
@@ -146,7 +146,7 @@ router.post(
     };
     const record = await startCall(startPayload);
 
-    res.status(201).json({ ok: true, call: record });
+    res.status(201).json(ok({ call: record }, req.rid));
   })
 );
 
@@ -175,7 +175,7 @@ router.post(
     };
     const updated = await updateCallStatus(updatePayload);
 
-    res.status(200).json({ ok: true, call: updated });
+    res.status(200).json(ok({ call: updated }, req.rid));
   })
 );
 
@@ -203,7 +203,7 @@ router.post(
     };
     const updated = await endCall(endPayload);
 
-    res.status(200).json({ ok: true, call: updated });
+    res.status(200).json(ok({ call: updated }, req.rid));
   })
 );
 
@@ -224,7 +224,7 @@ router.get(
     }
 
     const calls = await listCalls({ contactId, applicationId });
-    res.status(200).json({ ok: true, calls });
+    res.status(200).json(ok({ calls }, req.rid));
   })
 );
 
