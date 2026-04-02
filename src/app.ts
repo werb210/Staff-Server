@@ -1,7 +1,7 @@
 import express from "express";
 import { corsMiddleware } from "./middleware/cors";
 
-import { requireAuth } from "./middleware/auth";
+import { requireAuth } from "./middleware/requireAuth";
 import { routeAlias } from "./middleware/routeAlias";
 import internalRoutes from "./routes/internal";
 import router from "./routes";
@@ -18,10 +18,9 @@ import leadRoutes from "./routes/lead";
 import applicationRoutes from "./routes/application";
 import documentsRoutes from "./routes/documents";
 import { errorHandler } from "./middleware/errorHandler";
-import { fail } from "./utils/http/respond";
-import { wrap } from "./lib/routeWrap";
+import { fail, wrap } from "./middleware/response";
 import { timeout } from "./system/timeout";
-import { requestId } from "./middleware/requestId";
+import { requestContext } from "./middleware/requestContext";
 import { access } from "./system/access";
 import { incReq, metrics } from "./system/metrics";
 import { rateLimit } from "./system/rateLimit";
@@ -42,7 +41,10 @@ export function createApp() {
 
   const app = express();
 
-  app.use(express.json());
+  app.use(requestContext);
+  app.use(corsMiddleware);
+  app.use(express.json({ limit: "2mb" }));
+
   app.use((req, res, next) => {
     const originalJson = res.json;
 
@@ -55,7 +57,7 @@ export function createApp() {
 
     next();
   });
-  app.use(requestId);
+
   app.use(access());
   app.use((req, _res, next) => {
     incReq();
@@ -63,13 +65,12 @@ export function createApp() {
   });
   app.use(timeout(CONFIG.REQUEST_TIMEOUT_MS));
   app.use(rateLimit());
-  app.use(corsMiddleware);
   app.use((req, res, next) => {
     if (["POST", "PUT", "PATCH"].includes(req.method)) {
       const body = req.body;
       if (body === undefined || body === null || typeof body !== "object" || Array.isArray(body)) {
         res.locals.__wrapped = true;
-        return fail(res, "Invalid request body", 400, "INVALID_REQUEST_BODY");
+        return fail(res, "Invalid request body", 400);
       }
     }
     return next();
@@ -81,28 +82,34 @@ export function createApp() {
     res.setHeader("X-XSS-Protection", "1; mode=block");
     next();
   });
-  app.get("/health", (_req, res) => {
-    res.status(200).json({ status: "ok" });
-  });
 
-  app.get("/ready", (_req, res) => {
-    if (!deps.db.ready) {
-      return res.status(503).json({ status: "not_ready" });
-    }
+  app.get(
+    "/health",
+    wrap(async () => {
+      return { healthy: true };
+    }),
+  );
 
-    res.json({ status: "ok" });
-  });
+  app.get(
+    "/ready",
+    wrap(async (_req, res) => {
+      if (!deps.db.ready) {
+        res.status(503);
+        return { status: "error", error: "not_ready" };
+      }
+      return { ready: true };
+    }),
+  );
 
-  app.get("/metrics", (req, res) => {
-    res.json({
-      status: "ok",
-      rid: (req as any).rid,
-      data: {
+  app.get(
+    "/metrics",
+    wrap(async () => {
+      return {
         requests: metrics().requests,
         errors: metrics().errors,
-      },
-    });
-  });
+      };
+    }),
+  );
 
   app.use(routeAlias);
 
@@ -110,9 +117,9 @@ export function createApp() {
 
   app.get(
     "/api/v1/public/test",
-    wrap(async (_req, _res) => {
+    wrap(async () => {
       return { ok: true };
-    })
+    }),
   );
 
   app.use("/api/v1/auth", authRoutes);
@@ -135,7 +142,7 @@ export function createApp() {
     requireAuth,
     wrap(async () => {
       return { token: "real-token" };
-    })
+    }),
   );
 
   app.use(
@@ -143,21 +150,21 @@ export function createApp() {
     requireAuth,
     wrap(async () => {
       return { ok: true };
-    })
+    }),
   );
 
   app.use("/api/v1/internal", internalRoutes);
 
   app.use((req, res) => {
     if (!res.headersSent && !res.locals.__wrapped) {
-      return fail(res, "Unwrapped response", 500, "UNWRAPPED_RESPONSE");
+      return fail(res, "Unwrapped response", 500);
     }
     return undefined;
   });
 
   app.use((_req: express.Request, res: express.Response) => {
     if (!res.headersSent) {
-      return fail(res, "Route not found", 404, "NOT_FOUND");
+      return fail(res, "Route not found", 404);
     }
     return undefined;
   });

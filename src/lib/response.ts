@@ -1,7 +1,15 @@
-export function ok(data?: any, rid?: string) {
-  return { status: "ok", ...(rid ? { rid } : {}), ...(data !== undefined ? { data } : {}) };
+export function ok(data: any, rid?: string) {
+  return {
+    status: "ok",
+    data,
+    rid,
+  };
 }
 
 export function error(message: string, rid?: string) {
-  return { status: "error", ...(rid ? { rid } : {}), error: message };
+  return {
+    status: "error",
+    error: message,
+    rid,
+  };
 }
