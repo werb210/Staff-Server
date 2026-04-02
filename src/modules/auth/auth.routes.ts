@@ -7,7 +7,7 @@ import { getEnv } from "../../config/env";
 
 const router = Router();
 
-const TEST_OTP_CODE = process.env.TEST_OTP_CODE || "654321";
+const TEST_OTP_CODE = "654321";
 
 const error = (res: Response, status: number, message: string) =>
   fail(res, status, message);
@@ -30,7 +30,7 @@ router.post("/otp/start", (req: Request, res: Response) => {
     return error(res, 429, "Too many requests");
   }
 
-  const code = process.env.NODE_ENV === "test"
+  const code = getEnv().NODE_ENV === "test"
     ? TEST_OTP_CODE
     : Math.floor(100000 + Math.random() * 900000).toString();
 
@@ -92,6 +92,9 @@ router.post("/otp/verify", (req: Request, res: Response) => {
   otpStore.set(phone, record);
 
   const { JWT_SECRET } = getEnv();
+  if (!JWT_SECRET) {
+    return error(res, 401, "unauthorized");
+  }
   const token = jwt.sign({ phone }, JWT_SECRET, { expiresIn: "1d" });
 
   return ok(res, { token });

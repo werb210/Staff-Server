@@ -2,7 +2,7 @@ import { z } from "zod";
 
 const schema = z.object({
   PORT: z.string().default("8080"),
-  JWT_SECRET: z.string().min(10),
+  JWT_SECRET: z.string().optional(),
   NODE_ENV: z.enum(["development", "test", "production"]),
 });
 

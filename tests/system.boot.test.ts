@@ -21,7 +21,7 @@ describe("System boot", () => {
     const res = await request(app).get("/api/health");
 
     expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
+    expect(res.body.status).toBe("ok");
     expect(res.body.data.server).toBe("ok");
     expect(["configured", "missing"]).toContain(res.body.data.twilio);
     expect(["ok", "degraded"]).toContain(res.body.data.db);
