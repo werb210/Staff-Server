@@ -27,22 +27,23 @@ describe("routeWrap handling", () => {
       throw Object.assign(new Error("BROKEN_HANDLER"), { status: 418 });
     });
 
-    const req = {} as Request;
+    const req = { rid: "test-rid" } as Request;
     const res = createMockRes();
 
     await handler(req, res);
 
-    expect(res.statusCode).toBe(500);
+    expect(res.statusCode).toBe(418);
     expect(res.body).toEqual({
       status: "error",
+      rid: "test-rid",
       error: "BROKEN_HANDLER",
     });
   });
 
-  it("returns status ok with data when handler resolves undefined", async () => {
+  it("returns status ok without data when handler resolves undefined", async () => {
     const handler = wrap(async () => undefined);
 
-    const req = {} as Request;
+    const req = { rid: "test-rid" } as Request;
     const res = createMockRes();
 
     await handler(req, res);
@@ -50,14 +51,14 @@ describe("routeWrap handling", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({
       status: "ok",
-      data: undefined,
+      rid: "test-rid",
     });
   });
 
   it("returns wrapped data payload for successful responses", async () => {
     const handler = wrap(async () => ({ ok: true }));
 
-    const req = {} as Request;
+    const req = { rid: "test-rid" } as Request;
     const res = createMockRes();
 
     await handler(req, res);
@@ -65,6 +66,7 @@ describe("routeWrap handling", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({
       status: "ok",
+      rid: "test-rid",
       data: { ok: true },
     });
   });

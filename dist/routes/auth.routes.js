@@ -48,6 +48,9 @@ router.post("/refresh", async (req, res) => {
         return res.status(401).json({ error: "UNAUTHORIZED" });
     }
     const token = header.split(" ")[1];
+    if (!token) {
+        return res.status(401).json({ error: "UNAUTHORIZED" });
+    }
     try {
         const payload = (0, jwt_1.verifyJwt)(token);
         const newToken = (0, jwt_1.signJwt)(payload);

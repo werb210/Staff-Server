@@ -4,15 +4,16 @@ exports.health = health;
 exports.ready = ready;
 const express_1 = require("express");
 const ready_1 = require("../system/ready");
+const response_1 = require("../lib/response");
 const router = (0, express_1.Router)();
 function health(_req, res) {
-    return res.status(200).json({ status: "ok" });
+    return res.json({ status: "ok" });
 }
-function ready(_req, res) {
+function ready(req, res) {
     if (!(0, ready_1.isReady)()) {
-        return res.status(503).json({ status: "not_ready" });
+        return res.status(503).json((0, response_1.error)("NOT_READY", req.rid));
     }
-    return res.json({ status: "ready" });
+    return res.json((0, response_1.ok)({ status: "ready" }, req.rid));
 }
 router.get("/health", health);
 router.get("/healthz", health);

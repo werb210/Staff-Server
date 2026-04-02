@@ -5,6 +5,7 @@ const zod_1 = require("zod");
 const auth_1 = require("../../middleware/auth");
 const idempotency_1 = require("../../middleware/idempotency");
 const lead_service_1 = require("./lead.service");
+const clean_1 = require("../../utils/clean");
 const createLeadSchema = zod_1.z.object({
     source: zod_1.z.string().trim().min(1),
     companyName: zod_1.z.string().trim().optional(),
@@ -46,7 +47,7 @@ router.post("/", auth_1.requireAuth, idempotency_1.idempotencyMiddleware, async 
     }
     const body = parseResult.data;
     try {
-        const lead = await (0, lead_service_1.createLead)({
+        const lead = await (0, lead_service_1.createLead)((0, clean_1.stripUndefined)({
             source: body.source,
             companyName: body.companyName,
             fullName: body.fullName,
@@ -61,7 +62,7 @@ router.post("/", auth_1.requireAuth, idempotency_1.idempotencyMiddleware, async 
             industryInterest: body.industryInterest,
             notes: body.notes,
             tags: body.tags,
-        });
+        }));
         res.status(201).json(lead);
     }
     catch (err) {

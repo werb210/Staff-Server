@@ -6,6 +6,7 @@ const validate_1 = require("../middleware/validate");
 const validation_1 = require("../validation");
 const apiResponse_1 = require("../lib/apiResponse");
 const routeWrap_1 = require("../lib/routeWrap");
+const clean_1 = require("../utils/clean");
 const router = (0, express_1.Router)();
 async function createLead(payload) {
     const normalizedPayload = {
@@ -20,7 +21,7 @@ async function createLead(payload) {
     const result = await (0, db_1.dbQuery)(`insert into crm_leads (email, phone, company_name, product_interest, requested_amount, source)
        values ($1, $2, $3, $4, $5, 'public_api')
        returning id`, [data.email, data.phone, data.businessName, data.productType, data.requestedAmount ?? null]);
-    return { leadId: result.rows[0]?.id };
+    return (0, clean_1.stripUndefined)({ leadId: result.rows[0]?.id });
 }
 router.get("/test", (0, routeWrap_1.wrap)(async () => (0, apiResponse_1.ok)({ ok: true })));
 router.post("/lead", (0, validate_1.requireFields)(["companyName", "email"]), (0, routeWrap_1.wrap)(async (req, res) => {

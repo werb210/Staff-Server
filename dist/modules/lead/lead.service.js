@@ -4,6 +4,7 @@ exports.getLeads = void 0;
 exports.createLead = createLead;
 const db_1 = require("../../db");
 const crm_service_1 = require("../crm/crm.service");
+const clean_1 = require("../../utils/clean");
 async function createLead(payload) {
     if (payload.source === "exit_intent") {
         const email = typeof payload.email === "string" ? payload.email.trim() : "";
@@ -13,7 +14,7 @@ async function createLead(payload) {
         await (0, db_1.dbQuery)(`insert into crm_leads (email, source) values ($1, 'exit_intent')`, [email]);
         return { success: true };
     }
-    return (0, crm_service_1.createCrmLead)({
+    return (0, crm_service_1.createCrmLead)((0, clean_1.stripUndefined)({
         companyName: payload.companyName ?? "",
         fullName: payload.fullName ?? "",
         email: payload.email ?? "",
@@ -28,6 +29,6 @@ async function createLead(payload) {
         source: payload.source,
         notes: payload.notes,
         tags: Array.isArray(payload.tags) ? payload.tags : [],
-    });
+    }));
 }
 exports.getLeads = crm_service_1.listCrmLeads;

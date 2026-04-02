@@ -10,6 +10,7 @@ exports.upsertLead = upsertLead;
 const db_1 = require("../../db");
 const audit_service_1 = require("../audit/audit.service");
 const ai_service_1 = require("./ai.service");
+const clean_1 = require("../../utils/clean");
 const chat_repo_1 = require("./chat.repo");
 const MAX_MESSAGE_LENGTH = 2000;
 const MAX_MESSAGES_BEFORE_COMPRESSION = 30;
@@ -64,7 +65,7 @@ async function upsertLead(params) {
 }
 async function startChatSession(params) {
     const leadId = await upsertLead({ ...(params.lead ?? {}), tag: "chat_intake" });
-    return (0, chat_repo_1.createSession)({ source: params.source, channel: params.channel, leadId });
+    return (0, chat_repo_1.createSession)((0, clean_1.stripUndefined)({ source: params.source, channel: params.channel, leadId }));
 }
 async function processChatMessage(params) {
     assertMessageLength(params.message);

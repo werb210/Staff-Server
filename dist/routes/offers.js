@@ -45,6 +45,9 @@ router.post("/", (0, safeHandler_1.safeHandler)(async (req, res, next) => {
         typeof req.body?.notes === "string" ? req.body.notes : null,
     ]);
     const offer = result.rows[0];
+    if (!offer) {
+        throw new errors_1.AppError("create_failed", "Offer could not be created.", 500);
+    }
     eventBus_1.eventBus.emit("offer_created", { offerId: offer.id, applicationId });
     res.status(201).json({ offer });
 }));

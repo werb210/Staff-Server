@@ -1,21 +1,23 @@
-import { Request, Response } from "express";
+import type { Request, Response } from "express";
+import { error, ok } from "./response";
 
 export function routeWrap(handler: (req: Request, res: Response) => Promise<any>) {
   return async (req: Request, res: Response) => {
-    try {
-      const data = await handler(req, res);
+    const rid =
+      (req as Request & { id?: string; rid?: string }).id ||
+      (req as Request & { id?: string; rid?: string }).rid ||
+      (req.headers["x-request-id"] as string | undefined);
 
-      return res.json({
-        status: "ok",
-        data,
-      });
+    try {
+      const result = await handler(req, res);
+
+      if (res.headersSent) return;
+
+      return res.json(ok(result, rid));
     } catch (err: any) {
       console.error("ROUTE ERROR:", err);
 
-      return res.status(500).json({
-        status: "error",
-        error: err?.message || "Internal error",
-      });
+      return res.status(err?.status || 500).json(error(err?.message || "Internal error", rid));
     }
   };
 }

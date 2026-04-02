@@ -75,7 +75,7 @@ router.post("/start", requireAuth_1.requireAuth, (0, validate_1.validate)(schema
             staffUserId: req.user?.userId ?? null,
             ...buildRequestMetadata(req),
         });
-        return (0, response_1.ok)(res, { started: true, to, callId: record.id, status: record.status });
+        return res.json((0, response_1.ok)({ started: true, to, callId: record.id, status: record.status }, req.rid));
     }
     catch (error) {
         return next(error);
@@ -109,7 +109,7 @@ router.post("/log", (0, safeHandler_1.safeHandler)(async (req, res, next) => {
         actorUserId: parsed.data.staff_id,
         ...buildRequestMetadata(req),
     });
-    res.status(201).json({ ok: true, call: updated ?? record });
+    res.status(201).json((0, response_1.ok)({ call: updated ?? record }, req.rid));
 }));
 router.post("/start", auth_1.requireAuth, (0, auth_1.requireAuthorization)({ roles: [roles_1.ROLES.ADMIN, roles_1.ROLES.STAFF] }), (0, safeHandler_1.safeHandler)(async (req, res, next) => {
     const parsed = callStartSchema.safeParse(req.body ?? {});
@@ -126,7 +126,7 @@ router.post("/start", auth_1.requireAuth, (0, auth_1.requireAuthorization)({ rol
         ...buildRequestMetadata(req),
     };
     const record = await (0, calls_service_1.startCall)(startPayload);
-    res.status(201).json({ ok: true, call: record });
+    res.status(201).json((0, response_1.ok)({ call: record }, req.rid));
 }));
 router.post("/:id/status", auth_1.requireAuth, (0, auth_1.requireAuthorization)({ roles: [roles_1.ROLES.ADMIN, roles_1.ROLES.STAFF] }), (0, safeHandler_1.safeHandler)(async (req, res, next) => {
     const id = (0, toStringSafe_1.toStringSafe)(req.params.id);
@@ -147,7 +147,7 @@ router.post("/:id/status", auth_1.requireAuth, (0, auth_1.requireAuthorization)(
         ...buildRequestMetadata(req),
     };
     const updated = await (0, calls_service_1.updateCallStatus)(updatePayload);
-    res.status(200).json({ ok: true, call: updated });
+    res.status(200).json((0, response_1.ok)({ call: updated }, req.rid));
 }));
 router.post("/:id/end", auth_1.requireAuth, (0, auth_1.requireAuthorization)({ roles: [roles_1.ROLES.ADMIN, roles_1.ROLES.STAFF] }), (0, safeHandler_1.safeHandler)(async (req, res, next) => {
     const id = (0, toStringSafe_1.toStringSafe)(req.params.id);
@@ -167,7 +167,7 @@ router.post("/:id/end", auth_1.requireAuth, (0, auth_1.requireAuthorization)({ r
         ...buildRequestMetadata(req),
     };
     const updated = await (0, calls_service_1.endCall)(endPayload);
-    res.status(200).json({ ok: true, call: updated });
+    res.status(200).json((0, response_1.ok)({ call: updated }, req.rid));
 }));
 router.get("/", auth_1.requireAuth, (0, auth_1.requireAuthorization)({ roles: [roles_1.ROLES.ADMIN, roles_1.ROLES.STAFF] }), (0, safeHandler_1.safeHandler)(async (req, res, next) => {
     const contactId = typeof (0, toStringSafe_1.toStringSafe)(req.query.contactId) === "string" ? (0, toStringSafe_1.toStringSafe)(req.query.contactId) : null;
@@ -179,6 +179,6 @@ router.get("/", auth_1.requireAuth, (0, auth_1.requireAuthorization)({ roles: [r
         throw new errors_1.AppError("validation_error", "Invalid applicationId.", 400);
     }
     const calls = await (0, calls_service_1.listCalls)({ contactId, applicationId });
-    res.status(200).json({ ok: true, calls });
+    res.status(200).json((0, response_1.ok)({ calls }, req.rid));
 }));
 exports.default = router;

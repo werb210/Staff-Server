@@ -21,6 +21,7 @@ const calls_repo_1 = require("../modules/calls/calls.repo");
 const voicemail_repo_1 = require("../modules/voice/voicemail.repo");
 const logger_1 = require("../observability/logger");
 const config_1 = require("../config");
+const clean_1 = require("../utils/clean");
 const router = (0, express_1.Router)();
 const oneMinuteMs = 60000;
 const RATE_BUCKET_TTL_MS = 5 * oneMinuteMs;
@@ -140,10 +141,10 @@ router.get("/dialer/token", auth_1.requireAuth, (0, auth_1.requireAuthorization)
         return (0, apiResponse_1.fail)(null, "active_call_in_progress");
     }
     const token = new AccessToken_1.default(config_1.config.twilio.accountSid ?? "", config_1.config.twilio.apiKey ?? "", config_1.config.twilio.apiSecret ?? "", { identity, ttl: 3600 });
-    token.addGrant(new AccessToken_2.VoiceGrant({
+    token.addGrant(new AccessToken_2.VoiceGrant((0, clean_1.stripUndefined)({
         outgoingApplicationSid: config_1.config.twilio.voiceAppSid,
         incomingAllow: true,
-    }));
+    })));
     return (0, apiResponse_1.ok)({ token: token.toJwt() });
 }));
 router.post("/twilio/voice", dialerRateLimit, (0, routeWrap_1.wrap)(async (req, res) => {
@@ -250,15 +251,15 @@ router.post("/twilio/status", dialerRateLimit, (0, routeWrap_1.wrap)(async (req,
         status = "completed";
     const durationSeconds = typeof req.body?.CallDuration === "string" ? Number(req.body.CallDuration) : undefined;
     const isCompleted = callStatus === "completed";
-    await (0, calls_service_1.updateCallStatus)({
+    await (0, calls_service_1.updateCallStatus)((0, clean_1.stripUndefined)({
         id: found.id,
         status,
-        durationSeconds,
-        errorCode: typeof req.body?.ErrorCode === "string" ? req.body.ErrorCode : undefined,
-        errorMessage: typeof req.body?.ErrorMessage === "string" ? req.body.ErrorMessage : undefined,
-        fromNumber: typeof req.body?.From === "string" ? req.body.From : undefined,
-        toNumber: typeof req.body?.To === "string" ? req.body.To : undefined,
-    });
+        durationSeconds: (0, clean_1.toNullable)(durationSeconds),
+        errorCode: (0, clean_1.toNullable)(typeof req.body?.ErrorCode === "string" ? req.body.ErrorCode : undefined),
+        errorMessage: (0, clean_1.toNullable)(typeof req.body?.ErrorMessage === "string" ? req.body.ErrorMessage : undefined),
+        fromNumber: (0, clean_1.toNullable)(typeof req.body?.From === "string" ? req.body.From : undefined),
+        toNumber: (0, clean_1.toNullable)(typeof req.body?.To === "string" ? req.body.To : undefined),
+    }));
     const priceEstimateCents = isCompleted && typeof durationSeconds === "number" ? durationSeconds * 3 : null;
     await (0, db_1.runQuery)(`update call_logs
        set answered = $1,

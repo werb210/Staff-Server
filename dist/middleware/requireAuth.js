@@ -1,27 +1,18 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.requireAuth = requireAuth;
-const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
+const env_1 = require("../config/env");
+const response_1 = require("../lib/response");
 function requireAuth(req, res, next) {
-    const header = req.headers.authorization;
-    if (!header || !header.startsWith("Bearer ")) {
-        return res.status(401).json({ success: false, error: "Missing token" });
+    const { JWT_SECRET } = (0, env_1.getEnv)();
+    const rid = req.id ?? req.rid;
+    if (!JWT_SECRET) {
+        return res.status(500).json((0, response_1.error)("Auth not configured", rid));
     }
-    const token = header.split(" ")[1];
-    const jwtSecret = process.env.JWT_SECRET;
-    if (!jwtSecret) {
-        return res.status(401).json({ success: false, error: "Invalid token" });
+    const auth = req.headers.authorization;
+    if (!auth) {
+        return res.status(401).json((0, response_1.error)("Unauthorized", rid));
     }
-    try {
-        const decoded = jsonwebtoken_1.default.verify(token, jwtSecret);
-        req.user = decoded;
-        return next();
-    }
-    catch {
-        return res.status(401).json({ success: false, error: "Invalid token" });
-    }
+    return next();
 }
 exports.default = requireAuth;

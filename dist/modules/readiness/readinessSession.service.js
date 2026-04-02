@@ -5,6 +5,7 @@ exports.fetchActiveReadinessSessionByToken = fetchActiveReadinessSessionByToken;
 const node_crypto_1 = require("node:crypto");
 const db_1 = require("../../db");
 const leadUpsert_service_1 = require("../crm/leadUpsert.service");
+const clean_1 = require("../../utils/clean");
 function normalizeEmail(email) {
     return email.trim().toLowerCase();
 }
@@ -48,22 +49,22 @@ async function createOrReuseReadinessSession(payload) {
      order by created_at desc
      limit 1`, [email, normalizedPhone]);
     const startupInterest = String(payload.industry ?? "").toLowerCase().includes("startup");
-    const crmLead = await (0, leadUpsert_service_1.upsertCrmLead)({
+    const crmLead = await (0, leadUpsert_service_1.upsertCrmLead)((0, clean_1.stripUndefined)({
         companyName: payload.companyName,
         fullName: payload.fullName,
         email,
         phone: payload.phone,
         industry: payload.industry,
-        yearsInBusiness: payload.yearsInBusiness,
-        monthlyRevenue: payload.monthlyRevenue,
-        annualRevenue: payload.annualRevenue,
-        arOutstanding: payload.arOutstanding,
-        existingDebt: payload.existingDebt,
+        yearsInBusiness: (0, clean_1.toNullable)(payload.yearsInBusiness),
+        monthlyRevenue: (0, clean_1.toNullable)(payload.monthlyRevenue),
+        annualRevenue: (0, clean_1.toNullable)(payload.annualRevenue),
+        arOutstanding: (0, clean_1.toNullable)(payload.arOutstanding),
+        existingDebt: (0, clean_1.toNullable)(payload.existingDebt),
         source: "credit_readiness",
         tags: startupInterest ? ["readiness", "startup_interest"] : ["readiness"],
         activityType: "readiness_submission",
         activityPayload: { email },
-    });
+    }));
     if (existing.rows[0]) {
         await (0, db_1.dbQuery)(`update readiness_sessions
        set crm_lead_id = $2,

@@ -117,14 +117,20 @@ function verifyAccessToken(token) {
 }
 function verifyJwt(token) {
     try {
-        return jsonwebtoken_1.default.verify(token, env_1.ENV.JWT_SECRET);
+        const { JWT_SECRET: secret } = (0, env_1.getEnv)();
+        if (!secret)
+            throw new Error("INVALID_TOKEN");
+        return jsonwebtoken_1.default.verify(token, secret);
     }
     catch {
         throw new Error("INVALID_TOKEN");
     }
 }
 function signJwt(payload) {
-    return jsonwebtoken_1.default.sign(payload, env_1.ENV.JWT_SECRET, {
+    const { JWT_SECRET: secret } = (0, env_1.getEnv)();
+    if (!secret)
+        throw new Error("INVALID_TOKEN");
+    return jsonwebtoken_1.default.sign(payload, secret, {
         expiresIn: "1h",
     });
 }

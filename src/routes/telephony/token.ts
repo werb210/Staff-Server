@@ -4,9 +4,9 @@ import { ok } from "../../lib/response";
 
 const router = express.Router();
 
-router.get("/token", (_req: any, res: any) => {
+router.get("/token", (req: any, res: any) => {
   const token = "real-token";
-  return ok(res, { token });
+  return res.json(ok({ token }, req.rid));
 });
 
 export default router;

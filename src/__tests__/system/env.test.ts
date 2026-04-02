@@ -1,3 +1,4 @@
+import { resetEnvCacheForTests } from "../../config/env";
 import { validateEnv } from "../../system/env";
 
 describe("system/env", () => {
@@ -5,10 +6,12 @@ describe("system/env", () => {
 
   beforeEach(() => {
     process.env = { ...originalEnv };
+    resetEnvCacheForTests();
   });
 
   afterEach(() => {
     process.env = originalEnv;
+    resetEnvCacheForTests();
   });
 
   it("uses default PORT when PORT is missing", () => {

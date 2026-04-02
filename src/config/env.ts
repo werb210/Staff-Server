@@ -2,11 +2,11 @@ import { z } from "zod";
 
 const schema = z.object({
   PORT: z.string().optional(),
-  NODE_ENV: z.string().optional(),
+  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   JWT_SECRET: z.string().optional(),
 });
 
-let cached: z.infer<typeof schema> | null = null;
+let cached: z.infer<typeof schema> | undefined;
 
 export function getEnv() {
   if (!cached) {
@@ -18,5 +18,10 @@ export function getEnv() {
         (process.env.NODE_ENV === "test" ? "test-secret" : undefined),
     });
   }
+
   return cached;
+}
+
+export function resetEnvCacheForTests() {
+  cached = undefined;
 }
