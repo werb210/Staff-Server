@@ -1,12 +1,5 @@
-import { deps } from "./deps";
+import type { Deps } from "./deps";
 
-let lastReady = 0;
-
-export function isReady() {
-  if (deps.db.ready) {
-    lastReady = Date.now();
-    return true;
-  }
-
-  return Date.now() - lastReady < 5000;
+export function isReady(deps: Deps): boolean {
+  return deps.db.ready === true;
 }

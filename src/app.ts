@@ -37,10 +37,24 @@ export function resetOtpStateForTests() {}
 
 globalThis.__resetOtpStateForTests = resetOtpStateForTests;
 
+function registerCommonMiddleware(app: express.Express) {
+  app.use(requestContext);
+  app.use(access());
+  app.use((req, _res, next) => {
+    incReq();
+    next();
+  });
+  app.use((req, res, next) => {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "DENY");
+    res.setHeader("X-XSS-Protection", "1; mode=block");
+    next();
+  });
+}
+
 function registerApiRoutes(app: express.Express) {
   process.env.STRICT_API = CONFIG.STRICT_API;
 
-  app.use(requestContext);
   app.use(corsMiddleware);
   app.use(express.json({ limit: "2mb" }));
 
@@ -57,11 +71,6 @@ function registerApiRoutes(app: express.Express) {
     next();
   });
 
-  app.use(access());
-  app.use((req, _res, next) => {
-    incReq();
-    next();
-  });
   app.use(timeout(CONFIG.REQUEST_TIMEOUT_MS));
   app.use(rateLimit());
   app.use((req, res, next) => {
@@ -73,13 +82,6 @@ function registerApiRoutes(app: express.Express) {
       }
     }
     return next();
-  });
-
-  app.use((req, res, next) => {
-    res.setHeader("X-Content-Type-Options", "nosniff");
-    res.setHeader("X-Frame-Options", "DENY");
-    res.setHeader("X-XSS-Protection", "1; mode=block");
-    next();
   });
 
   app.get(
@@ -155,17 +157,22 @@ function registerApiRoutes(app: express.Express) {
 export function createApp(deps: Deps) {
   const app = express();
 
-  // SINGLE shared reference used everywhere
+  // CRITICAL: attach SAME object reference used in tests
   app.locals.deps = deps;
+
+  // OPTIONAL HARD LOCK: prevent accidental reassignment
   Object.defineProperty(app.locals, "deps", {
     writable: false,
     configurable: false,
   });
 
-  // register routes AFTER deps is attached
+  registerCommonMiddleware(app);
+
+  // health + readiness FIRST (no wrappers)
   app.use("/health", healthRouter);
   app.use("/ready", readyRouter);
 
+  // register remaining routes AFTER
   registerApiRoutes(app);
 
   return app;
