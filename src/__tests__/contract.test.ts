@@ -1,4 +1,4 @@
-import { ApiResponseSchema } from "@boreal/shared-contract";
+import { ApiResponseSchema } from "@/contracts";
 
 test("response contract stays valid", () => {
   const sample = {

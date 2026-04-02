@@ -1,14 +1,20 @@
-import { createApp } from "./app";
-import { deps } from "./system/deps";
+import express from "express";
+import healthRouter from "./routes/health";
 
-export const app = createApp(deps);
+const app = express();
 
-if (require.main === module) {
-  const PORT = process.env.PORT || 8080;
+app.use(express.json());
 
-  app.listen(PORT, () => {
-    console.log(`Server listening on ${PORT}`);
-  });
-}
+// MUST BE FIRST
+app.use("/health", healthRouter);
 
-export default app;
+// BASIC READY
+app.get("/ready", (_req, res) => {
+  res.status(200).send("ready");
+});
+
+const PORT = process.env.PORT || 8080;
+
+app.listen(PORT, () => {
+  console.log(`Server listening on ${PORT}`);
+});
