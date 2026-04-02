@@ -1,3 +1,4 @@
+import { ApiResponseSchema } from "@boreal/shared-contract";
 import { API_BASE } from "../config/api";
 
 type ApiMethod = "get" | "post";
@@ -9,6 +10,29 @@ const logRequest = (method: ApiMethod, path: string): void => {
     url: buildUrl(path),
     method,
   });
+};
+
+const safeJson = async (res: Response): Promise<unknown> => {
+  try {
+    return await res.json();
+  } catch {
+    return null;
+  }
+};
+
+const parseApiResponse = async (res: Response): Promise<unknown> => {
+  const json = await safeJson(res);
+  const parsed = ApiResponseSchema.safeParse(json);
+
+  if (!parsed.success) {
+    throw new Error("API contract violation");
+  }
+
+  if (parsed.data.status !== "ok") {
+    throw new Error(parsed.data.error);
+  }
+
+  return parsed.data.data;
 };
 
 export const apiFetch = (path: string, options?: RequestInit) => {
@@ -23,9 +47,9 @@ const api = {
     logRequest("get", path);
     const res = await fetch(buildUrl(path), { ...opts });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res["json"]();
+    return parseApiResponse(res);
   },
-  post: async (path: string, body?: any, opts?: RequestInit) => {
+  post: async (path: string, body?: unknown, opts?: RequestInit) => {
     logRequest("post", path);
     const res = await fetch(buildUrl(path), {
       method: "POST",
@@ -34,7 +58,7 @@ const api = {
       ...opts,
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res["json"]();
+    return parseApiResponse(res);
   },
 };
 
@@ -43,9 +67,9 @@ export default api;
 /**
  * REQUIRED: restore named exports expected by client
  */
-export const safeApiFetch = async (...args: any[]) => {
+export const safeApiFetch = async (...args: unknown[]) => {
   try {
-    return await (api.get as (...apiArgs: any[]) => Promise<any>)(...args);
+    return await (api.get as (...apiArgs: unknown[]) => Promise<unknown>)(...args);
   } catch (err) {
     console.error("safeApiFetch error", err);
     return null;

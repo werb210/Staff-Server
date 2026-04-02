@@ -1,15 +1,12 @@
-import type { ApiError, ApiSuccess } from "../types/api";
+import type { ApiResponse } from "@boreal/shared-contract";
 
-export function ok<T>(data: T): ApiSuccess<T> {
-  return { success: true, data };
+export function ok<T>(data: T): ApiResponse<T> {
+  return { status: "ok", data };
 }
 
-export function fail(_res: unknown, code: string, message?: string): ApiError {
+export function fail(_res: unknown, code: string, message?: string): ApiResponse<never> {
   return {
-    success: false,
-    error: {
-      message: message ?? code,
-      code,
-    },
+    status: "error",
+    error: message ?? code,
   };
 }
