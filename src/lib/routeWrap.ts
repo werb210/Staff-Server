@@ -1,65 +1,75 @@
 import type { NextFunction, Request, RequestHandler, Response } from "express";
-import type { ApiResponse } from "../types/api";
-import { asyncHandler } from "../utils/http/asyncHandler";
-import { fail, ok } from "../utils/http/respond";
 
-type RouteHandler = (req: Request, res: Response, next: NextFunction) => unknown | Promise<unknown>;
+type AsyncHandler = (req: Request, res: Response, next: NextFunction) => Promise<unknown> | unknown;
 
-function isApiResponse(value: unknown): value is ApiResponse<unknown> {
+type LegacyApiResponse = {
+  success: boolean;
+  data?: unknown;
+  error?: { message?: string; code?: string } | string;
+};
+
+function isLegacyApiResponse(value: unknown): value is LegacyApiResponse {
   return Boolean(value && typeof value === "object" && "success" in value);
 }
 
-function isLegacyEnvelope(value: unknown): value is { status: "ok"; data: unknown } | { status: "error"; error: unknown } {
+function isStatusEnvelope(value: unknown): value is { status: "ok" | "error"; data?: unknown; error?: unknown } {
   return Boolean(value && typeof value === "object" && "status" in value);
 }
 
-function toMessage(error: unknown): string {
-  if (typeof error === "string" && error.trim()) {
-    return error;
-  }
+export function wrap(handler: AsyncHandler): RequestHandler {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const rid = (req as any).rid;
 
-  if (error && typeof error === "object" && "message" in error) {
-    const message = (error as { message?: unknown }).message;
-    if (typeof message === "string" && message.trim()) {
-      return message;
-    }
-  }
+    try {
+      const result = await handler(req, res, next);
 
-  return "Unexpected server error";
-}
+      if (res.headersSent) return;
 
-export function wrap(handler: RouteHandler): RequestHandler {
-  return asyncHandler(async (req, res, next) => {
-    const result = await handler(req, res, next);
+      if (result === undefined) {
+        throw new Error("EMPTY_RESPONSE");
+      }
 
-    if (res.headersSent) {
-      return;
-    }
+      if (isStatusEnvelope(result)) {
+        if (result.status === "ok") {
+          res.status(200).json({ status: "ok", rid, ...(result.data !== undefined ? { data: result.data } : {}) });
+          return;
+        }
 
-    if (result === undefined) {
-      throw new Error("EMPTY_RESPONSE");
-    }
-
-    if (isApiResponse(result)) {
-      if (result.success) {
-        ok(res, result.data);
+        const statusError =
+          typeof result.error === "string"
+            ? result.error
+            : result.error && typeof result.error === "object" && "message" in result.error
+              ? String((result.error as { message?: unknown }).message ?? "Internal Server Error")
+              : "Internal Server Error";
+        res.status(400).json({ status: "error", rid, error: statusError });
         return;
       }
 
-      fail(res, result.error.message, 400, result.error.code, result.error.details);
-      return;
-    }
+      if (isLegacyApiResponse(result)) {
+        if (result.success) {
+          res.status(200).json({ status: "ok", rid, ...(result.data !== undefined ? { data: result.data } : {}) });
+          return;
+        }
 
-    if (isLegacyEnvelope(result)) {
-      if (result.status === "ok") {
-        ok(res, result.data);
+        const legacyError = typeof result.error === "string" ? result.error : result.error?.message || "Internal Server Error";
+        res.status(400).json({ status: "error", rid, error: legacyError });
         return;
       }
 
-      fail(res, toMessage(result.error), 400);
-      return;
-    }
+      res.status(200).json({
+        status: "ok",
+        rid,
+        ...(result !== undefined ? { data: result } : {}),
+      });
+    } catch (err: any) {
+      const statusCode = err?.status || err?.statusCode || 500;
 
-    ok(res, result);
-  });
+      console.error("[ERROR]", { rid, err });
+      res.status(statusCode).json({
+        status: "error",
+        rid,
+        error: err?.message || "Internal Server Error",
+      });
+    }
+  };
 }
