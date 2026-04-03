@@ -25,23 +25,23 @@ describe("server:readiness:e2e", () => {
     deps.db.ready = false;
     const notReady = await request(app).get("/health");
     expect(notReady.status).toBe(200);
-    expect(notReady.body).toEqual({ status: "ok" });
+    expect(notReady.body).toEqual({ status: "ok", data: {} });
 
     deps.db.ready = true;
     const ready = await request(app).get("/health");
     expect(ready.status).toBe(200);
-    expect(ready.body).toEqual({ status: "ok" });
+    expect(ready.body).toEqual({ status: "ok", data: {} });
   });
 
   it("returns 503 from /ready when not ready and 200 when ready", async () => {
     deps.db.ready = false;
     const notReady = await request(app).get("/ready");
     expect(notReady.status).toBe(503);
-    expect(notReady.body).toEqual({ status: "not_ready" });
+    expect(notReady.body).toEqual({ status: "error", error: "not_ready" });
 
     deps.db.ready = true;
     const ready = await request(app).get("/ready");
     expect(ready.status).toBe(200);
-    expect(ready.body).toEqual({ status: "ok" });
+    expect(ready.body).toEqual({ status: "ok", data: {} });
   });
 });

@@ -19,7 +19,7 @@ describe("Auth enforcement", () => {
     expect(res.status).toBe(401);
     expect(res.body).toEqual({
       status: "error",
-      error: { code: "401", message: "Unauthorized" },
+      error: "Unauthorized",
     });
   });
 
@@ -44,7 +44,7 @@ describe("Auth enforcement", () => {
     expect(res.status).toBe(401);
     expect(res.body).toEqual({
       status: "error",
-      error: { code: "401", message: "Unauthorized" },
+      error: "Unauthorized",
     });
   });
 
@@ -56,7 +56,7 @@ describe("Auth enforcement", () => {
     expect(res.status).toBe(401);
     expect(res.body).toEqual({
       status: "error",
-      error: { code: "401", message: "Unauthorized" },
+      error: "Unauthorized",
     });
   });
 
@@ -72,7 +72,7 @@ describe("Auth enforcement", () => {
     expect(res.status).toBe(401);
     expect(res.body).toEqual({
       status: "error",
-      error: { code: "401", message: "Unauthorized" },
+      error: "Unauthorized",
     });
   });
 
@@ -88,7 +88,7 @@ describe("Auth enforcement", () => {
     expect(res.status).toBe(401);
     expect(res.body).toEqual({
       status: "error",
-      error: { code: "401", message: "Unauthorized" },
+      error: "Unauthorized",
     });
   });
 
@@ -97,8 +97,6 @@ describe("Auth enforcement", () => {
 
     expect(res.status).toBe(401);
     expect(res.body).toHaveProperty("status", "error");
-    expect(res.body).toHaveProperty("error");
-    expect(res.body.error).toHaveProperty("code");
-    expect(res.body.error).toHaveProperty("message");
+    expect(typeof res.body.error).toBe("string");
   });
 });

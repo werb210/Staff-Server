@@ -21,7 +21,7 @@ describe("auth middleware enforcement", () => {
     const res = await request(app).post("/api/v1/leads").send({ leadId: "1" });
 
     expect(res.status).toBe(401);
-    expect(res.body).toEqual({ status: "error", error: { code: "401", message: "Unauthorized" } });
+    expect(res.body).toEqual({ status: "error", error: "Unauthorized" });
   });
 
   it("returns success with valid JWT token", async () => {
