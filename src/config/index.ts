@@ -34,7 +34,7 @@ export const env = {
 
 export const config = {
   env: parsed.NODE_ENV,
-  port: env.PORT ?? 3000,
+  port: env.PORT ?? 8080,
   isProduction: parsed.NODE_ENV === "production",
   logLevel: parsed.LOG_LEVEL,
   commitSha: parsed.COMMIT_SHA ?? "unknown",

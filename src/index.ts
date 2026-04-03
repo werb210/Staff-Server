@@ -1,28 +1,36 @@
-import app from "./app";
+import cors from "cors";
+import express from "express";
 
-const port = process.env.PORT || 8080;
+const app = express();
 
-console.log("🔥 SERVER BOOT START");
+app.use(cors({
+  origin: true,
+  credentials: true,
+}));
+app.use(express.json());
 
-app.listen(port, () => {
-  console.log(`🚀 SERVER RUNNING ON ${port}`);
+app.get("/health", (_req, res) => {
+  res.status(200).send("OK");
 });
 
-(async () => {
-  console.log("⏳ INIT START");
+app.get("/", (_req, res) => {
+  res.status(200).send("SERVER RUNNING");
+});
 
+void (async () => {
   try {
-    const { initDb } = await import("./db/init");
-    await Promise.race([
-      initDb(),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("DB timeout")), 5000)
-      ),
-    ]);
-
-    console.log("✅ DB READY");
+    const routes = await import("./routes/index.js");
+    if (routes?.default) {
+      app.use("/api", routes.default);
+    }
+    console.log("Routes loaded");
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("⚠️ DB FAILED (non-blocking)", message);
+    console.error("Failed to load routes:", err);
   }
 })();
+
+const PORT = Number(process.env.PORT) || 8080;
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server listening on port ${PORT}`);
+});
