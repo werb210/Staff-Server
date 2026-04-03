@@ -1,3 +1,6 @@
+require("module-alias/register");
+console.log("🚀 BOOT START");
+
 import crypto from "node:crypto";
 
 import cors from "cors";
@@ -6,6 +9,7 @@ import jwt from "jsonwebtoken";
 
 import { getEnv } from "./config/env";
 import { runQuery } from "./db";
+import { initDb } from "./db/init";
 import { wrap } from "@/lib/routeWrap";
 import { deps } from "@/system/deps";
 import { incErr, incReq, metrics } from "@/system/metrics";
@@ -370,5 +374,16 @@ export function createApp() {
 
 export const buildApp = createApp;
 export const app = createApp();
+
+if (process.env.NODE_ENV !== "test") {
+  const PORT = Number(process.env.PORT) || 8080;
+  void (async () => {
+    await initDb();
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on port ${PORT}`);
+      console.log("✅ BOOT COMPLETE");
+    });
+  })();
+}
 
 export default app;
