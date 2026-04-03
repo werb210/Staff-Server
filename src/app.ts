@@ -35,7 +35,7 @@ function rid(): string {
 }
 
 function apiError(res: Response, statusCode: number, code: string, message: string) {
-  return res.status(statusCode).json({ status: "error", error: { code, message } });
+  return res.status(statusCode).json({ status: "error", error: message || code });
 }
 
 function v1Ok(res: Response, data: unknown, requestId?: string) {
@@ -50,7 +50,7 @@ function v1Err(res: Response, statusCode: number, message: string, requestId?: s
 
 function createMockCall() {
   return {
-    callId: `mock-call-${Date.now()}`,
+    callId: `mock-${Date.now()}`,
     status: "queued",
   };
 }
@@ -145,14 +145,14 @@ export function createApp() {
   });
 
   app.get("/health", (_req, res) => {
-    return res.status(200).json({ status: "ok" });
+    return res.status(200).json({ status: "ok", data: {} });
   });
 
   app.get("/ready", (_req, res) => {
     if (!deps.db.ready) {
-      return res.status(503).json({ status: "not_ready" });
+      return res.status(503).json({ status: "error", error: "not_ready" });
     }
-    return res.status(200).json({ status: "ok" });
+    return res.status(200).json({ status: "ok", data: {} });
   });
 
   app.get("/metrics", (_req, res) => {
@@ -292,13 +292,13 @@ export function createApp() {
       if (isDependencyFailure) {
         if (!isProd) {
           return res.status(200).json({
-            success: true,
+            status: "ok",
             data: createMockCall(),
           });
         }
 
         return res.status(503).json({
-          success: false,
+          status: "error",
           error: "Voice service unavailable",
         });
       }
@@ -306,7 +306,7 @@ export function createApp() {
     }
 
     return res.status(200).json({
-      success: true,
+      status: "ok",
       data: {
         callId,
         status: "queued",

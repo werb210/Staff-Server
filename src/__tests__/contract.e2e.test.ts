@@ -45,7 +45,7 @@ describe("server:contract:e2e", () => {
       .send({ to: "+61400000000" });
 
     expect(res.status).toBe(200);
-    expect(res.body).toHaveProperty("success", true);
+    expect(res.body).toHaveProperty("status", "ok");
     expect(res.body).toHaveProperty("data");
     expect(res.body.data).toHaveProperty("callId");
     expect(res.body.data).toHaveProperty("status", "queued");

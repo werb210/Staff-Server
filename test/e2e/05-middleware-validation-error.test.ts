@@ -38,7 +38,7 @@ describe("Middleware execution, validation, and error handling", () => {
     expect(res.status).toBe(410);
     expect(res.body).toEqual({
       status: "error",
-      error: { code: "410", message: "LEGACY_ROUTE_DISABLED" },
+      error: "LEGACY_ROUTE_DISABLED",
     });
   });
 });
