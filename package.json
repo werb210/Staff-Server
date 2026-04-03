@@ -18,7 +18,8 @@
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc --noEmit",
     "prebuild": "node scripts/no-raw-response-check.js",
-    "test:e2e": "concurrently \"npm run dev\" \"vitest run src/e2e\""
+    "test:e2e": "concurrently \"npm run dev\" \"vitest run src/e2e\"",
+    "e2e": "tsx src/e2e.ts"
   },
   "dependencies": {
     "@azure/storage-blob": "^12.31.0",
@@ -51,7 +52,8 @@
     "web-push": "^3.6.7",
     "winston": "^3.19.0",
     "ws": "^8.20.0",
-    "zod": "^4.3.6"
+    "zod": "^4.3.6",
+    "execa": "^8.0.1"
   },
   "devDependencies": {
     "@rollup/rollup-linux-x64-gnu": "^4.13.0",
