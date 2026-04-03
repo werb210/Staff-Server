@@ -1,5 +1,5 @@
 require("module-alias/register");
-console.log("🚀 BOOT START");
+console.log("🔥 PROCESS STARTED");
 
 import crypto from "node:crypto";
 
@@ -377,13 +377,28 @@ export const app = createApp();
 
 if (process.env.NODE_ENV !== "test") {
   const PORT = Number(process.env.PORT) || 8080;
-  void (async () => {
-    await initDb();
-    app.listen(PORT, "0.0.0.0", () => {
-      console.log(`Server running on port ${PORT}`);
-      console.log("✅ BOOT COMPLETE");
-    });
-  })();
+  console.log("⏳ INIT START");
+
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`🚀 SERVER RUNNING ON ${PORT}`);
+    console.log("✅ SERVER READY");
+  });
+
+  async function bootstrap() {
+    try {
+      await Promise.race([
+        initDb(),
+        new Promise((_, reject) => {
+          setTimeout(() => reject(new Error("DB timeout")), 5000);
+        }),
+      ]);
+      console.log("✅ DB connected");
+    } catch (err) {
+      console.error("❌ DB failed, continuing without blocking", err);
+    }
+  }
+
+  void bootstrap();
 }
 
 export default app;
