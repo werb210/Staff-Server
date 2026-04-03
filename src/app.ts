@@ -289,16 +289,29 @@ export function createApp() {
       );
     } catch (error: any) {
       const isDependencyFailure = error?.status === 503 || error?.message === "DB_NOT_READY";
-      if (isDependencyFailure && !isProd) {
-        return v1Ok(res, createMockCall(), (req as Request & { rid?: string }).rid);
-      }
       if (isDependencyFailure) {
-        return v1Err(res, 503, "Voice service unavailable", (req as Request & { rid?: string }).rid);
+        if (!isProd) {
+          return res.status(200).json({
+            success: true,
+            data: createMockCall(),
+          });
+        }
+
+        return res.status(503).json({
+          success: false,
+          error: "Voice service unavailable",
+        });
       }
       throw error;
     }
 
-    return v1Ok(res, { callId, started: true }, (req as Request & { rid?: string }).rid);
+    return res.status(200).json({
+      success: true,
+      data: {
+        callId,
+        status: "queued",
+      },
+    });
   }));
   app.post("/api/v1/calls/start", (_req, res) => res.status(200).json({ status: "ok", data: { started: true } }));
   app.post("/api/v1/voice/status", (req, res) => v1Ok(res, { accepted: true }, (req as Request & { rid?: string }).rid));
