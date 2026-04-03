@@ -45,7 +45,10 @@ describe("server:contract:e2e", () => {
       .send({ to: "+61400000000" });
 
     expect(res.status).toBe(200);
-    expectContractEnvelope(res.body);
+    expect(res.body).toHaveProperty("success", true);
+    expect(res.body).toHaveProperty("data");
+    expect(res.body.data).toHaveProperty("callId");
+    expect(res.body.data).toHaveProperty("status", "queued");
   });
 
   it("supports canonical voice status route", async () => {
