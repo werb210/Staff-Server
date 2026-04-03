@@ -1,3 +1,4 @@
+require("module-alias/register");
 import { app } from "./app";
 import { initDb } from "@/db/init";
 
