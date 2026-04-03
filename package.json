@@ -4,6 +4,7 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
+    "typecheck": "tsc --noEmit",
     "prestart": "node -e \"require('fs').existsSync('./dist/app.js') || process.exit(1)\"",
     "start": "node dist/app.js"
   },
