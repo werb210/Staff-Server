@@ -14,7 +14,7 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Not Found' });
 });
 
-const PORT = config.port || 3000;
+const PORT = config.port || Number(process.env.PORT) || 8080;
 
 function startServer() {
   app.listen(PORT, () => {
