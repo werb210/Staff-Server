@@ -54,6 +54,20 @@ app.post("/api/auth/logout", (_req, res) => {
   return res.status(200).json({ success: true });
 });
 
+
+app.post("/api/applications", (req, res) => {
+  const { businessName, amount } = req.body;
+
+  if (!businessName || !amount) {
+    return res.status(400).json({ error: "missing fields" });
+  }
+
+  return res.status(200).json({
+    success: true,
+    id: "app-e2e-1",
+  });
+});
+
 // --- FALLBACK (prevents Azure SPA bleed) ---
 app.use((req, res) => {
   res.status(404).json({
