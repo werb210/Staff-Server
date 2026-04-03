@@ -22,14 +22,25 @@ router.post("/send-otp", sendLimiter, async (req, res) => {
     return fail(res, "twilio_not_configured", 503);
   }
 
-  try {
-    const verification = await twilioClient.verify.v2
-      .services(verifyServiceSid)
-      .verifications.create({ to: phone, channel: "sms" });
+  const client = twilioClient;
 
-    return ok(res, { status: verification.status });
-  } catch (_err) {
-    return fail(res, "twilio_verify_failure", 500);
+  try {
+    const verification = await client.verify.v2
+      .services(process.env.TWILIO_VERIFY_SERVICE_SID!)
+      .verifications.create({
+        to: phone,
+        channel: "sms",
+      });
+
+    return ok(res, { sid: verification.sid });
+  } catch (err: any) {
+    console.error("❌ TWILIO ERROR:", {
+      message: err.message,
+      code: err.code,
+      moreInfo: err.moreInfo,
+    });
+
+    return fail(res, "twilio_verify_failure");
   }
 });
 
@@ -53,8 +64,14 @@ router.post("/verify-otp", verifyLimiter, async (req, res) => {
     }
 
     return ok(res, { verified: true });
-  } catch (_err) {
-    return fail(res, "twilio_verify_failure", 500);
+  } catch (err: any) {
+    console.error("❌ TWILIO VERIFY CHECK ERROR:", {
+      message: err.message,
+      code: err.code,
+      moreInfo: err.moreInfo,
+    });
+
+    return fail(res, "twilio_verify_failure");
   }
 });
 
