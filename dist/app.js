@@ -45,10 +45,7 @@ function createApp() {
     app.use(express_1.default.json());
     app.use(cors_1.corsMiddleware);
     app.get("/", (_req, res) => {
-        res.status(200).json({
-            status: "ok",
-            service: "boreal-staff-server",
-        });
+        res.status(200).send("OK");
     });
     app.use("/api/auth", auth_1.default);
     app.use("/api/v1", routes_1.default);
@@ -59,4 +56,10 @@ function resetOtpStateForTests() {
     // No in-process OTP store is used by this app.
 }
 const app = createApp();
+if (require.main === module) {
+    const port = Number(process.env.PORT) || 8080;
+    app.listen(port, "0.0.0.0", () => {
+        console.log(`SERVER STARTED ON ${port}`);
+    });
+}
 exports.default = app;
