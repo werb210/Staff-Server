@@ -11,6 +11,14 @@ const routes_1 = __importDefault(require("./routes"));
 const response_1 = require("./lib/response");
 function createApp() {
     const app = (0, express_1.default)();
+    const allowedHost = "server.boreal.financial";
+    app.use((req, res, next) => {
+        const host = req.headers.host;
+        if (!host || host !== allowedHost) {
+            return res.status(403).send("Forbidden");
+        }
+        next();
+    });
     app.disable("x-powered-by");
     app.set("trust proxy", 1);
     app.use(express_1.default.json());

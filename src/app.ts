@@ -6,6 +6,17 @@ import { fail } from "./lib/response";
 
 export function createApp() {
   const app = express();
+  const allowedHost = "server.boreal.financial";
+
+  app.use((req, res, next) => {
+    const host = req.headers.host;
+
+    if (!host || host !== allowedHost) {
+      return res.status(403).send("Forbidden");
+    }
+
+    next();
+  });
 
   app.disable("x-powered-by");
   app.set("trust proxy", 1);
