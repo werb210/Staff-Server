@@ -7,7 +7,6 @@ import { requireAuth } from "../middleware/auth";
 import { twilioClient, twilioEnabled, verifyServiceSid } from "../lib/twilioClient";
 import { fail, ok } from "../lib/response";
 
-const { JWT_SECRET } = getEnv();
 const router = Router();
 
 const sendLimiter = rateLimit({ windowMs: 60 * 1000, max: 3 });
@@ -66,6 +65,7 @@ router.post("/otp/verify", verifyLimiter, async (req, res) => {
       return fail(res, "otp_invalid", 401);
     }
 
+    const { JWT_SECRET } = getEnv();
     const token = jwt.sign(
       { phone },
       JWT_SECRET,
