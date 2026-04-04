@@ -56,7 +56,7 @@ void (async () => {
     }
     void redis;
     const port = Number(process.env.PORT) || 8080;
-    app_1.default.listen(port, () => {
-        console.log(`SERVER RUNNING ON ${port}`);
+    app_1.default.listen(port, "0.0.0.0", () => {
+        console.log(`SERVER STARTED ON ${port}`);
     });
 })();

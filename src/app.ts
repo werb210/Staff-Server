@@ -50,10 +50,7 @@ export function createApp() {
   app.use(corsMiddleware);
 
   app.get("/", (_req, res) => {
-    res.status(200).json({
-      status: "ok",
-      service: "boreal-staff-server",
-    });
+    res.status(200).send("OK");
   });
 
   app.use("/api/auth", authRouter);
@@ -69,5 +66,13 @@ export function resetOtpStateForTests() {
 }
 
 const app = createApp();
+
+if (require.main === module) {
+  const port = Number(process.env.PORT) || 8080;
+
+  app.listen(port, "0.0.0.0", () => {
+    console.log(`SERVER STARTED ON ${port}`);
+  });
+}
 
 export default app;

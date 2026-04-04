@@ -57,7 +57,7 @@ void (async () => {
 
   const port = Number(process.env.PORT) || 8080;
 
-  app.listen(port, () => {
-    console.log(`SERVER RUNNING ON ${port}`);
+  app.listen(port, "0.0.0.0", () => {
+    console.log(`SERVER STARTED ON ${port}`);
   });
 })();
