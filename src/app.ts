@@ -2,16 +2,27 @@ import express from "express";
 
 import { corsMiddleware } from "./middleware/cors";
 import routes from "./routes";
+import authRouter from "./routes/auth";
 import { fail } from "./lib/response";
 
 export function createApp() {
   const app = express();
-  const allowedHost = "server.boreal.financial";
 
   app.use((req, res, next) => {
     const host = req.headers.host || "";
 
-    if (!host.startsWith(allowedHost)) {
+    const allowedHosts = [
+      "server.boreal.financial",
+    ];
+
+    if (process.env.NODE_ENV !== "production") {
+      allowedHosts.push(
+        "localhost:3000",
+        "127.0.0.1:3000",
+      );
+    }
+
+    if (!allowedHosts.includes(host)) {
       return res.status(403).send("Forbidden");
     }
 
@@ -41,7 +52,7 @@ export function createApp() {
     });
   });
 
-  app.use("/api/auth", require("./routes/auth").default);
+  app.use("/api/auth", authRouter);
   app.use("/api/v1", routes);
 
   app.use((_req, res) => fail(res, "not_found", 404));

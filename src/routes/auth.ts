@@ -1,10 +1,13 @@
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
+import jwt from "jsonwebtoken";
 
+import { getEnv } from "../config/env";
 import { requireAuth } from "../middleware/auth";
 import { twilioClient, twilioEnabled, verifyServiceSid } from "../lib/twilioClient";
 import { fail, ok } from "../lib/response";
 
+const { JWT_SECRET } = getEnv();
 const router = Router();
 
 const sendLimiter = rateLimit({ windowMs: 60 * 1000, max: 3 });
@@ -14,7 +17,7 @@ export function resetOtpStateForTests() {
   // Twilio Verify owns OTP state in production; nothing to clear in process.
 }
 
-router.post("/send-otp", sendLimiter, async (req, res) => {
+router.post("/otp/start", sendLimiter, async (req, res) => {
   const { phone } = req.body;
 
   if (!phone) return fail(res, "phone_required");
@@ -44,7 +47,7 @@ router.post("/send-otp", sendLimiter, async (req, res) => {
   }
 });
 
-router.post("/verify-otp", verifyLimiter, async (req, res) => {
+router.post("/otp/verify", verifyLimiter, async (req, res) => {
   const { phone, code } = req.body;
 
   if (!phone || !code) {
@@ -63,7 +66,16 @@ router.post("/verify-otp", verifyLimiter, async (req, res) => {
       return fail(res, "otp_invalid", 401);
     }
 
-    return ok(res, { verified: true });
+    const token = jwt.sign(
+      { phone },
+      JWT_SECRET,
+      { expiresIn: "7d" },
+    );
+
+    return ok(res, {
+      verified: true,
+      token,
+    });
   } catch (err: any) {
     console.error("❌ TWILIO VERIFY CHECK ERROR:", {
       message: err.message,
