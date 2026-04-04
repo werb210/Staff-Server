@@ -1,4 +1,3 @@
-"use strict";
 process.env.NODE_ENV = "test";
 process.env.SKIP_DB_CONNECTION = "true";
 delete process.env.DATABASE_URL;

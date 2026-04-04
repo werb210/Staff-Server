@@ -1,4 +1,3 @@
-"use strict";
 console.log("BOOT START");
 process.on("uncaughtException", (err) => {
     console.error("UNCAUGHT", err);
