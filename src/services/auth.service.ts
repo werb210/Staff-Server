@@ -22,6 +22,6 @@ export function issueToken(user: any) {
   return jwt.sign(
     { id: user.id, phone: user.phone },
     process.env.JWT_SECRET!,
-    { expiresIn: process.env.JWT_EXPIRES_IN }
+    { expiresIn: '1h' }
   );
 }

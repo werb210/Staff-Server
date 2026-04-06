@@ -1,11 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
-
-export function errorHandler(err: any, req: Request, res: Response, next: NextFunction) {
+export function errorHandler(err: any, req: any, res: any, next: any) {
   console.error(err);
-
-  res.status(err.status || 500).json({
-    error: process.env.NODE_ENV === 'production'
-      ? 'Internal Server Error'
-      : err.message
-  });
+  res.status(500).json({ error: 'Internal server error' });
 }

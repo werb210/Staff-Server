@@ -5,7 +5,6 @@ export const authRoutes = Router();
 
 authRoutes.post('/otp/start', async (req, res) => {
   const { phone } = req.body;
-
   await startOtp(phone);
   res.json({ success: true });
 });
