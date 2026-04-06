@@ -1,17 +1,24 @@
-import { Router } from "express";
-import { body } from "express-validator";
-import { login } from "../controllers/auth.controller";
+import { Router } from 'express';
+import { storeOtp, verifyOtp, issueToken } from '../services/auth.service';
 
-const router = Router();
+export const authRoutes = Router();
 
-router.post(
-  "/login",
-  [body("email").isEmail().withMessage("email must be valid")],
-  login
-);
+authRoutes.post('/otp/start', async (req, res) => {
+  const { phone } = req.body;
 
-export default router;
+  const code = '123456'; // replace with real provider later
+  await storeOtp(phone, code);
 
-export function resetOtpStateForTests() {
-  // compatibility no-op
-}
+  res.json({ success: true });
+});
+
+authRoutes.post('/otp/verify', async (req, res) => {
+  const { phone, code } = req.body;
+
+  const valid = await verifyOtp(phone, code);
+  if (!valid) return res.status(401).json({ error: 'Invalid OTP' });
+
+  const token = issueToken({ phone });
+
+  res.json({ token });
+});
