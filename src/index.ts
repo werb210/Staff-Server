@@ -3,11 +3,11 @@ console.log("PORT ENV:", process.env.PORT);
 console.log("NODE ENV:", process.env.NODE_ENV);
 
 process.on("uncaughtException", (err) => {
-  console.error("UNCAUGHT", err);
+  console.error("UNCAUGHT:", err);
 });
 
 process.on("unhandledRejection", (err) => {
-  console.error("UNHANDLED", err);
+  console.error("REJECTION:", err);
 });
 
 console.log("LOADING ENV...");
@@ -64,7 +64,7 @@ void (async () => {
 
     void redis;
 
-    const port = Number(process.env.PORT) || 8080;
+    const port = process.env.PORT || 3000;
 
     const startGuard = setTimeout(() => {
       console.error("SERVER DID NOT START — EXITING");
@@ -73,7 +73,7 @@ void (async () => {
 
     app.listen(port, "0.0.0.0", () => {
       clearTimeout(startGuard);
-      console.log(`SERVER STARTED ON ${port}`);
+      console.log(`Server running on port ${port}`);
     });
   } catch (err) {
     console.error("FATAL STARTUP ERROR:", err);
