@@ -6,9 +6,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const crypto_1 = __importDefault(require("crypto"));
 const express_1 = require("express");
 const config_1 = require("../config");
-const dbClient_1 = require("../lib/dbClient");
+const db_1 = require("../db");
 const redis_1 = require("../lib/redis");
-const otpService_1 = require("../services/otpService");
+const redis_2 = require("../lib/redis");
 const systemCheckRouter = (0, express_1.Router)();
 function toErrorMessage(error) {
     if (error instanceof Error && error.message) {
@@ -32,7 +32,7 @@ systemCheckRouter.get("/system-check", async (_req, res) => {
         },
     };
     try {
-        await dbClient_1.pool.query("SELECT 1");
+        await db_1.pool.query("SELECT 1");
         tests.db.status = "ok";
     }
     catch (error) {
@@ -42,17 +42,17 @@ systemCheckRouter.get("/system-check", async (_req, res) => {
     try {
         userId = crypto_1.default.randomUUID();
         const email = `system-check+${Date.now()}@example.com`;
-        await dbClient_1.pool.query(`
+        await db_1.pool.query(`
         INSERT INTO users (id, email, password_hash, role, active)
         VALUES ($1, $2, $3, $4, $5)
       `, [userId, email, "system-check", "admin", true]);
-        const read = await dbClient_1.pool.query(`
+        const read = await db_1.pool.query(`
         SELECT id
         FROM users
         WHERE id = $1
         LIMIT 1
       `, [userId]);
-        await dbClient_1.pool.query("DELETE FROM users WHERE id = $1", [userId]);
+        await db_1.pool.query("DELETE FROM users WHERE id = $1", [userId]);
         userId = null;
         tests.users.status = (read.rowCount ?? 0) > 0 ? "ok" : "fail";
         if (tests.users.status === "fail") {
@@ -63,7 +63,7 @@ systemCheckRouter.get("/system-check", async (_req, res) => {
         tests.users = { status: "fail", error: toErrorMessage(error) };
         if (userId) {
             try {
-                await dbClient_1.pool.query("DELETE FROM users WHERE id = $1", [userId]);
+                await db_1.pool.query("DELETE FROM users WHERE id = $1", [userId]);
             }
             catch {
                 // best-effort cleanup
@@ -71,14 +71,14 @@ systemCheckRouter.get("/system-check", async (_req, res) => {
         }
     }
     try {
-        const result = await dbClient_1.pool.query("SELECT count(*)::int AS count FROM lenders");
+        const result = await db_1.pool.query("SELECT count(*)::int AS count FROM lenders");
         tests.lenders = { status: "ok", count: result.rows[0]?.count ?? 0 };
     }
     catch (error) {
         tests.lenders = { status: "fail", error: toErrorMessage(error) };
     }
     try {
-        const result = await dbClient_1.pool.query("SELECT count(*)::int AS count FROM lender_products");
+        const result = await db_1.pool.query("SELECT count(*)::int AS count FROM lender_products");
         tests.products = { status: "ok", count: result.rows[0]?.count ?? 0 };
     }
     catch (error) {
@@ -87,8 +87,8 @@ systemCheckRouter.get("/system-check", async (_req, res) => {
     try {
         const phone = "+15555550123";
         const expected = tests.otp.expected;
-        await (0, otpService_1.storeOtp)(phone, expected);
-        const stored = await (0, otpService_1.fetchOtp)(phone);
+        await (0, redis_2.storeOtp)(phone, expected);
+        const stored = await (0, redis_2.fetchOtp)(phone);
         tests.otp.stored = stored;
         tests.otp.status = stored === expected ? "ok" : "fail";
     }

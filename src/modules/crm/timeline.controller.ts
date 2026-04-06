@@ -1,5 +1,5 @@
 import { type Request, type Response } from "express";
-import { respondOk } from "../../utils/respondOk";
+import { respondOk } from "../../lib/response";
 import { listCrmTimeline } from "./timeline.repo";
 
 export async function handleListCrmTimeline(

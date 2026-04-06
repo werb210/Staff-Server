@@ -8,15 +8,15 @@ const VoiceResponse_1 = __importDefault(require("twilio/lib/twiml/VoiceResponse"
 const requireAuth_1 = require("../middleware/requireAuth");
 const validate_1 = require("../middleware/validate");
 const schemas_1 = require("../schemas");
-const respond_1 = require("../lib/respond");
+const response_1 = require("../lib/response");
 const router = express_1.default.Router();
 router.post("/incoming", (_req, res) => {
     const voiceResponse = new VoiceResponse_1.default();
     voiceResponse.say("Connecting you to Maya.");
     voiceResponse.dial().client("maya-agent");
-    return (0, respond_1.ok)(res, voiceResponse.toString());
+    return (0, response_1.ok)(res, voiceResponse.toString());
 });
 router.post("/status", requireAuth_1.requireAuth, (0, validate_1.validate)(schemas_1.CallStatusSchema), (req, res) => {
-    return (0, respond_1.ok)(res, { received: true });
+    return (0, response_1.ok)(res, { received: true });
 });
 exports.default = router;

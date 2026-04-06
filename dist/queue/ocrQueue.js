@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ocrQueue = exports.OCR_QUEUE_NAME = void 0;
 const bullmq_1 = require("bullmq");
-const redis_1 = require("./redis");
+const redis_1 = require("../lib/redis");
 exports.OCR_QUEUE_NAME = "ocr-processing";
 exports.ocrQueue = new bullmq_1.Queue(exports.OCR_QUEUE_NAME, {
     connection: redis_1.redisConnection,

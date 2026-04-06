@@ -37,6 +37,8 @@ export function getEnv() {
   return cached;
 }
 
+export const env = getEnv();
+
 export function validateRuntimeEnvOrExit() {
   return getEnv();
 }

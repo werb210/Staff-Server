@@ -1,11 +1,15 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.storeOtp = exports.redisConnection = void 0;
 exports.getRedisOrNull = getRedisOrNull;
 exports.getRedis = getRedis;
 exports.resetRedisMock = resetRedisMock;
 exports.setOtp = setOtp;
 exports.fetchOtp = fetchOtp;
 exports.deleteOtp = deleteOtp;
+exports.redisConnection = {
+    url: process.env.REDIS_URL ?? "redis://127.0.0.1:6379",
+};
 let client = null;
 const memoryStore = new Map();
 const inMemoryStore = createInMemoryRedis();
@@ -57,6 +61,7 @@ function resetRedisMock() {
 async function setOtp(phone, code) {
     await getRedis().set(`otp:${phone}`, code, "EX", 300);
 }
+exports.storeOtp = setOtp;
 async function fetchOtp(phone) {
     return getRedis().get(`otp:${phone}`);
 }

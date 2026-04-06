@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = envCheck;
-const logger_1 = require("../server/utils/logger");
+const logger_1 = require("../observability/logger");
 const config_1 = require("../config");
 function envCheck(_req, res, next) {
     if (config_1.config.env === "test") {

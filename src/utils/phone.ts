@@ -27,3 +27,11 @@ export function tryNormalizePhone(phone: unknown): string | null {
     return null;
   }
 }
+
+export function normalizePhoneNumber(phone: string): string {
+  return normalizePhone(phone);
+}
+
+export function normalizeOtpPhone(phone: unknown): string | null {
+  return tryNormalizePhone(phone);
+}

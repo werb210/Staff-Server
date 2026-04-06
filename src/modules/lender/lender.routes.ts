@@ -5,7 +5,7 @@ import { idempotencyMiddleware } from "../../middleware/idempotency";
 import { buildLenderPackage } from "../../services/lenders/packageBuilder";
 import { lenderProductsService } from "../../services/lenderProducts/lenderProducts.service";
 import { enqueueLenderPackage, getLenderQueue } from "../../queue/lenderQueue";
-import { logger } from "../../server/utils/logger";
+import { logger } from "../../observability/logger";
 
 const sendLenderPackageSchema = z.object({
   application: z.object({}).passthrough(),

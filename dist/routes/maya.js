@@ -5,7 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const validate_1 = require("../middleware/validate");
-const apiResponse_1 = require("../lib/apiResponse");
+const response_1 = require("../lib/response");
 const schemas_1 = require("../schemas");
 const routeWrap_1 = require("../lib/routeWrap");
 const router = express_1.default.Router();
@@ -17,7 +17,7 @@ function requireMayaMessage(req, res, next) {
 }
 async function handleMayaMessage(req, res) {
     const { message } = req.validated;
-    return (0, apiResponse_1.ok)({
+    return (0, response_1.ok)({
         reply: `Maya received: ${message}`,
     });
 }

@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.sendSlackAlert = sendSlackAlert;
 const config_1 = require("../config");
-const logger_1 = require("../platform/logger");
+const logger_1 = require("../observability/logger");
 const deadLetter_1 = require("../lib/deadLetter");
 const retry_1 = require("../lib/retry");
 async function sendSlackAlert(message) {

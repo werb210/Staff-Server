@@ -9,7 +9,7 @@ if (!runRealDbIntegration) {
 
     beforeAll(async () => {
       process.env.NODE_ENV = "development";
-      const { runQuery } = await import("../lib/db");
+      const { runQuery } = await import("../db");
       await expect(runQuery("SELECT 1")).resolves.toBeDefined();
     });
 
@@ -18,14 +18,14 @@ if (!runRealDbIntegration) {
     });
 
     test("real db connection works", async () => {
-      const { runQuery } = await import("../lib/db");
+      const { runQuery } = await import("../db");
       const res = await runQuery("SELECT 1 as ok");
       expect(res.rows).toHaveLength(1);
       expect(res.rows[0]).toEqual({ ok: 1 });
     });
 
     test("real db supports basic deterministic query behavior", async () => {
-      const { runQuery } = await import("../lib/db");
+      const { runQuery } = await import("../db");
       const marker = `from_real_test_${Date.now()}`;
       const insert = await runQuery(`INSERT INTO health_check (status) VALUES ($1) RETURNING status`, [marker]);
       expect(insert.rows[0]).toEqual({ status: marker });

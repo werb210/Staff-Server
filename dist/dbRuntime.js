@@ -6,7 +6,7 @@ exports.isDbConnectionFailure = isDbConnectionFailure;
 exports.fetchDbFailureCategory = fetchDbFailureCategory;
 exports.cancelDbWork = cancelDbWork;
 const db_1 = require("./db");
-const logger_1 = require("./platform/logger");
+const logger_1 = require("./observability/logger");
 const config_1 = require("./config");
 function isTestEnv() {
     return config_1.config.env === "test";

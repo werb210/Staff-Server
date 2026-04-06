@@ -2,7 +2,7 @@ import { type NextFunction, type Request, type Response } from "express";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { config } from "../config";
-import { logger } from "../server/utils/logger";
+import { logger } from "../observability/logger";
 
 function isLoopback(req: Request): boolean {
   const ip = req.ip || "";

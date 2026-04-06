@@ -1,7 +1,7 @@
 import AccessToken from "twilio/lib/jwt/AccessToken";
 import { AppError } from "../../middleware/errors";
 import { logError, logInfo, logWarn } from "../../observability/logger";
-import { normalizePhoneNumber } from "../auth/phone";
+import { normalizePhoneNumber } from "../../utils/phone";
 import { startCall, updateCallStatus, updateCallRecording } from "../calls/calls.service";
 import { findCallLogByTwilioSid } from "../calls/calls.repo";
 import { fetchTwilioClient } from "../../services/twilio";

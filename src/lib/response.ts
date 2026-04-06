@@ -26,8 +26,15 @@ export function ok(first: unknown, second?: unknown): Response | { status: "ok";
 }
 
 export function fail(first: Response, second: unknown, third?: number): Response;
+export function fail(first: Response, second: unknown, third?: number, fourth?: string): Response;
 export function fail(first: unknown, second?: string): { status: "error"; error: string; rid?: string };
-export function fail(first: unknown, second?: unknown, third = 400): Response | { status: "error"; error: string; rid?: string } {
+export function fail(
+  first: unknown,
+  second?: unknown,
+  third = 400,
+  _code?: string,
+  _details?: unknown,
+): Response | { status: "error"; error: string; rid?: string } {
   if (isResponse(first)) {
     const message = typeof second === "string" ? second : "error";
     return first.status(third).json({ status: "error", error: message });
@@ -46,4 +53,12 @@ export function error(message: string, rid?: string) {
     error: message,
     rid,
   };
+}
+
+export function respondOk<T>(
+  res: Response,
+  data: T,
+  _meta?: Record<string, unknown>,
+): Response {
+  return ok(res, data);
 }

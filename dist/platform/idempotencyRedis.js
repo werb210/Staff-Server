@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getIdempotent = getIdempotent;
 exports.setIdempotent = setIdempotent;
-const redis_1 = require("./redis");
+const redis_1 = require("../lib/redis");
 const TTL_SECONDS = 60 * 60;
 async function getIdempotent(key) {
     const redis = (0, redis_1.getRedis)();

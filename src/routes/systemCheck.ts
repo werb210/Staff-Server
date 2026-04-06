@@ -2,9 +2,9 @@ import crypto from "crypto";
 import { Router } from "express";
 import { config } from "../config";
 
-import { pool } from "../lib/dbClient";
+import { pool } from "../db";
 import { getRedisOrNull } from "../lib/redis";
-import { fetchOtp, storeOtp } from "../services/otpService";
+import { fetchOtp, storeOtp } from "../lib/redis";
 
 type TestStatus = "ok" | "fail";
 type RedisStatus = TestStatus | "missing";

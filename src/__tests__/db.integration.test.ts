@@ -1,4 +1,4 @@
-import { pool, runQuery } from "../lib/db";
+import { pool, runQuery } from "../db";
 
 describe("test db integration", () => {
   test("fails hard when db pool is not initialized", async () => {

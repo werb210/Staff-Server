@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.access = access;
-const logger_1 = require("./logger");
+const logger_1 = require("../observability/logger");
 const metrics_1 = require("./metrics");
 function access() {
     return (req, res, next) => {
@@ -10,7 +10,7 @@ function access() {
             if (res.statusCode >= 500) {
                 (0, metrics_1.incErr)();
             }
-            (0, logger_1.log)("info", "request", {
+            logger_1.logger.info("request", {
                 rid: req.rid,
                 method: req.method,
                 path: req.originalUrl,

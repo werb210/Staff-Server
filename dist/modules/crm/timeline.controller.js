@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.handleListCrmTimeline = handleListCrmTimeline;
-const respondOk_1 = require("../../utils/respondOk");
+const response_1 = require("../../lib/response");
 const timeline_repo_1 = require("./timeline.repo");
 async function handleListCrmTimeline(req, res) {
     const page = Number(req.query.page) || 1;
@@ -18,7 +18,7 @@ async function handleListCrmTimeline(req, res) {
         limit,
         offset,
     });
-    (0, respondOk_1.respondOk)(res, {
+    (0, response_1.respondOk)(res, {
         entries,
         total: entries.length,
     }, {

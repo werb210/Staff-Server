@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.resetRateLimitForTests = resetRateLimitForTests;
 exports.rateLimit = rateLimit;
 const config_1 = require("./config");
-const response_1 = require("./response");
+const response_1 = require("../lib/response");
 const hits = new Map();
 function resetRateLimitForTests() {
     hits.clear();

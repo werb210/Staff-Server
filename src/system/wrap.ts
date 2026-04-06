@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
-import { fail, ok } from "./response";
-import { ok as respondOk, error as respondError } from "../lib/respond";
+import { fail, ok } from "../lib/response";
+import { ok as respondOk, fail as respondFail } from "../lib/response";
 
 export function wrap(handler: (req: Request, res: Response) => Promise<any> | any) {
   return async (req: Request, res: Response) => {
@@ -15,7 +15,7 @@ export function wrap(handler: (req: Request, res: Response) => Promise<any> | an
         if (status === 429) {
           res.setHeader("Retry-After", "1");
         }
-        respondError(res, fail(err, (req as Request & { rid?: string }).rid).error, status);
+        respondFail(res, fail(err, (req as Request & { rid?: string }).rid).error, status);
       }
     }
   };

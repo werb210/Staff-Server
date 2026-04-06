@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.executeTool = executeTool;
-const db_1 = require("../lib/db");
+const db_1 = require("../db");
 async function executeTool(callId, name, params, fn) {
     let attempts = 0;
     while (attempts < 3) {

@@ -6,7 +6,7 @@ const zod_1 = require("zod");
 const db_1 = require("../db");
 const applications_repo_1 = require("../modules/applications/applications.repo");
 const config_1 = require("../config");
-const apiResponse_1 = require("../lib/apiResponse");
+const response_1 = require("../lib/response");
 const validate_1 = require("../middleware/validate");
 const routeWrap_1 = require("../lib/routeWrap");
 const router = (0, express_1.Router)();
@@ -14,8 +14,8 @@ const createApplicationSchema = zod_1.z.object({
     sessionId: zod_1.z.string().uuid(),
     source: zod_1.z.string().trim().optional(),
 });
-router.get("/update", (0, routeWrap_1.wrap)(async () => (0, apiResponse_1.ok)({})));
-router.post("/update", (0, routeWrap_1.wrap)(async () => (0, apiResponse_1.ok)({})));
+router.get("/update", (0, routeWrap_1.wrap)(async () => (0, response_1.ok)({})));
+router.post("/update", (0, routeWrap_1.wrap)(async () => (0, response_1.ok)({})));
 function enforceSubmitPayload(req, res, next) {
     if (!req.body?.businessType || !req.body?.applicantName) {
         return next(new Error("INVALID_APPLICATION_PAYLOAD"));
@@ -26,14 +26,14 @@ async function handleApplicationSubmit(req, res) {
     const { sessionId, source } = req.validated;
     const mapped = await db_1.db.query(`select application_id from readiness_application_mappings where readiness_session_id = $1 limit 1`, [sessionId]);
     if (mapped.rows[0]?.application_id) {
-        return (0, apiResponse_1.ok)({ applicationId: mapped.rows[0].application_id, reused: true });
+        return (0, response_1.ok)({ applicationId: mapped.rows[0].application_id, reused: true });
     }
     const session = await db_1.db.query(`select id, crm_lead_id, company_name, full_name, email, phone, industry, years_in_business,
               monthly_revenue, annual_revenue, ar_outstanding, existing_debt
        from readiness_sessions where id = $1 limit 1`, [sessionId]);
     const readiness = session.rows[0];
     if (!readiness) {
-        return (0, apiResponse_1.fail)(res, "readiness_session_not_found");
+        return (0, response_1.fail)(res, "readiness_session_not_found");
     }
     const created = await (0, applications_repo_1.createApplication)({
         ownerUserId: config_1.config.client.submissionOwnerUserId,
@@ -63,7 +63,7 @@ async function handleApplicationSubmit(req, res) {
     await db_1.db.query(`update readiness_sessions
        set converted_application_id = $2, is_active = false, updated_at = now()
        where id = $1`, [readiness.id, created.id]);
-    return (0, apiResponse_1.ok)({ applicationId: created.id, leadId: readiness.crm_lead_id, reused: false });
+    return (0, response_1.ok)({ applicationId: created.id, leadId: readiness.crm_lead_id, reused: false });
 }
 router.post("/", (0, validate_1.validate)(createApplicationSchema), (0, routeWrap_1.wrap)(handleApplicationSubmit));
 router.post("/submit", enforceSubmitPayload, (0, validate_1.validate)(createApplicationSchema), (0, routeWrap_1.wrap)(handleApplicationSubmit));

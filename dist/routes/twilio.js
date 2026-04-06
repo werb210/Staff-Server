@@ -13,7 +13,7 @@ const auth_1 = require("../middleware/auth");
 const capabilities_1 = require("../auth/capabilities");
 const roles_1 = require("../auth/roles");
 const errors_1 = require("../middleware/errors");
-const apiResponse_1 = require("../lib/apiResponse");
+const response_1 = require("../lib/response");
 const routeWrap_1 = require("../lib/routeWrap");
 const db_1 = require("../db");
 const calls_service_1 = require("../modules/calls/calls.service");
@@ -138,14 +138,14 @@ router.get("/dialer/token", auth_1.requireAuth, (0, auth_1.requireAuthorization)
        where staff_user_id = $1
          and status in ('ringing', 'in_progress')`, [identity]);
     if (Number(activeCalls.rows[0]?.count ?? "0") > 0) {
-        return (0, apiResponse_1.fail)(null, "active_call_in_progress");
+        return (0, response_1.fail)(null, "active_call_in_progress");
     }
     const token = new AccessToken_1.default(config_1.config.twilio.accountSid ?? "", config_1.config.twilio.apiKey ?? "", config_1.config.twilio.apiSecret ?? "", { identity, ttl: 3600 });
     token.addGrant(new AccessToken_2.VoiceGrant((0, clean_1.stripUndefined)({
         outgoingApplicationSid: config_1.config.twilio.voiceAppSid,
         incomingAllow: true,
     })));
-    return (0, apiResponse_1.ok)({ token: token.toJwt() });
+    return (0, response_1.ok)({ token: token.toJwt() });
 }));
 router.post("/twilio/voice", dialerRateLimit, (0, routeWrap_1.wrap)(async (req, res) => {
     assertValidTwilioSignature(req);
@@ -229,7 +229,7 @@ router.post("/twilio/recording", dialerRateLimit, (0, routeWrap_1.wrap)(async (r
         duration: null,
         call_sid: callSid,
     });
-    return (0, apiResponse_1.ok)({ ok: true });
+    return (0, response_1.ok)({ ok: true });
 }));
 router.post("/twilio/status", dialerRateLimit, (0, routeWrap_1.wrap)(async (req, res) => {
     assertValidTwilioSignature(req);
@@ -240,7 +240,7 @@ router.post("/twilio/status", dialerRateLimit, (0, routeWrap_1.wrap)(async (req,
     }
     const found = await (0, calls_repo_1.findCallLogByTwilioSid)(callSid);
     if (!found) {
-        return (0, apiResponse_1.ok)({ ok: true });
+        return (0, response_1.ok)({ ok: true });
     }
     let status = "failed";
     if (callStatus === "ringing")
@@ -292,6 +292,6 @@ router.post("/twilio/status", dialerRateLimit, (0, routeWrap_1.wrap)(async (req,
             ended_reason: callStatus,
         });
     }
-    return (0, apiResponse_1.ok)({ ok: true });
+    return (0, response_1.ok)({ ok: true });
 }));
 exports.default = router;

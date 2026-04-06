@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.lenderProductsService = void 0;
-const db_1 = require("../../lib/db");
+const db_1 = require("../../db");
 exports.lenderProductsService = {
     async list() {
         const prisma = (await (0, db_1.getPrisma)());

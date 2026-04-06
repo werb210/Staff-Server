@@ -2,6 +2,11 @@ type RedisLike = {
   get: (key: string) => Promise<string | null>;
   set: (key: string, value: string, mode?: string, ttl?: number) => Promise<string>;
   del: (key: string) => Promise<number>;
+  ping?: () => Promise<string>;
+};
+
+export const redisConnection: { url: string } = {
+  url: process.env.REDIS_URL ?? "redis://127.0.0.1:6379",
 };
 
 let client: RedisLike | null = null;
@@ -64,6 +69,8 @@ export function resetRedisMock(): void {
 export async function setOtp(phone: string, code: string) {
   await getRedis().set(`otp:${phone}`, code, "EX", 300);
 }
+
+export const storeOtp = setOtp;
 
 export async function fetchOtp(phone: string) {
   return getRedis().get(`otp:${phone}`);

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { db } from "../db";
 import { createApplication } from "../modules/applications/applications.repo";
 import { config } from "../config";
-import { fail, ok } from "../lib/apiResponse";
+import { fail, ok } from "../lib/response";
 import { validate } from "../middleware/validate";
 import { wrap } from "../lib/routeWrap";
 
