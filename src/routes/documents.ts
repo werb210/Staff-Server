@@ -4,7 +4,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { sha256 } from "../lib/hash";
 import { ok, fail } from "../middleware/response";
 import { toStringSafe } from "../utils/toStringSafe";
-import { runQuery } from "../lib/db";
+import { runQuery } from "../db";
 import { validate } from "../middleware/validate";
 
 const router = express.Router();

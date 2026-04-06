@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireAuth, requireCapability } from "../middleware/auth";
 import { CAPABILITIES } from "../auth/capabilities";
 import { safeHandler } from "../middleware/safeHandler";
-import { respondOk } from "../utils/respondOk";
+import { respondOk } from "../lib/response";
 import { submitReferral } from "../modules/referrals/referrals.service";
 import { AppError } from "../middleware/errors";
 

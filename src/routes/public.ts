@@ -2,7 +2,7 @@ import { Router } from "express";
 import { dbQuery } from "../db";
 import { requireFields } from "../middleware/validate";
 import { LeadSchema } from "../validation";
-import { fail, ok } from "../lib/apiResponse";
+import { fail, ok } from "../lib/response";
 import { wrap } from "../lib/routeWrap";
 import { stripUndefined } from "../utils/clean";
 

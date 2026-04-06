@@ -10,7 +10,7 @@ import { AppError } from "../middleware/errors";
 import { logInfo, logWarn } from "../observability/logger";
 import { requireAuth, requireCapability } from "../middleware/auth";
 import { CAPABILITIES } from "../auth/capabilities";
-import { ok } from "../lib/apiResponse";
+import { ok } from "../lib/response";
 import { wrap } from "../lib/routeWrap";
 
 const router = Router();

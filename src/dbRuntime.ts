@@ -1,5 +1,5 @@
 import { pool, runQuery } from "./db";
-import { logger } from "./platform/logger";
+import { logger } from "./observability/logger";
 import { config } from "./config";
 
 export function isTestEnv(): boolean {

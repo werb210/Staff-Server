@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { dbQuery } from "../../db";
-import { normalizePhoneNumber } from "../auth/phone";
+import { normalizePhoneNumber } from "../../utils/phone";
 import { createApplication } from "../applications/applications.repo";
 import { upsertCrmLead } from "../crm/leadUpsert.service";
 import { stripUndefined, toNullable } from "../../utils/clean";

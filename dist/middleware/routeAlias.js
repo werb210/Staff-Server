@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.routeAlias = routeAlias;
-const response_1 = require("../system/response");
+const response_1 = require("../lib/response");
 const CANONICAL_NON_API_ROUTES = new Set([
     "/health",
     "/ready",

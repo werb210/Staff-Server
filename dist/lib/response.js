@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ok = ok;
 exports.fail = fail;
 exports.error = error;
+exports.respondOk = respondOk;
 function isResponse(value) {
     return Boolean(value
         && typeof value === "object"
@@ -19,7 +20,7 @@ function ok(first, second) {
         rid: typeof second === "string" ? second : undefined,
     };
 }
-function fail(first, second, third = 400) {
+function fail(first, second, third = 400, _code, _details) {
     if (isResponse(first)) {
         const message = typeof second === "string" ? second : "error";
         return first.status(third).json({ status: "error", error: message });
@@ -36,4 +37,7 @@ function error(message, rid) {
         error: message,
         rid,
     };
+}
+function respondOk(res, data, _meta) {
+    return ok(res, data);
 }

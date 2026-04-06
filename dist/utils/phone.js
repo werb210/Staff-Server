@@ -2,6 +2,8 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.normalizePhone = normalizePhone;
 exports.tryNormalizePhone = tryNormalizePhone;
+exports.normalizePhoneNumber = normalizePhoneNumber;
+exports.normalizeOtpPhone = normalizeOtpPhone;
 function normalizePhone(phone) {
     if (typeof phone !== "string") {
         throw new Error("Invalid phone number format");
@@ -25,4 +27,10 @@ function tryNormalizePhone(phone) {
     catch {
         return null;
     }
+}
+function normalizePhoneNumber(phone) {
+    return normalizePhone(phone);
+}
+function normalizeOtpPhone(phone) {
+    return tryNormalizePhone(phone);
 }

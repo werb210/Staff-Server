@@ -1,13 +1,20 @@
-import { testDbConnection } from '../lib/dbClient';
+import { dbQuery } from "../db";
 
 export async function dbHealth() {
-  const ok = await testDbConnection();
+  let ok = false;
+  try {
+    await dbQuery("SELECT 1");
+    ok = true;
+  } catch {
+    ok = false;
+  }
   return { db: ok ? 'ok' : 'fail' };
 }
 
 export async function assertDatabaseHealthy(): Promise<void> {
-  const ok = await testDbConnection();
-  if (!ok) {
+  try {
+    await dbQuery("SELECT 1");
+  } catch {
     throw new Error('database_not_healthy');
   }
 }

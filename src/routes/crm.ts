@@ -2,7 +2,7 @@ import { Router } from "express";
 import { requireAuth, requireCapability } from "../middleware/auth";
 import { CAPABILITIES } from "../auth/capabilities";
 import { safeHandler } from "../middleware/safeHandler";
-import { respondOk } from "../utils/respondOk";
+import { respondOk } from "../lib/response";
 import { handleListCrmTimeline } from "../modules/crm/timeline.controller";
 import { SupportController } from "../modules/support/support.controller";
 

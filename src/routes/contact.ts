@@ -1,6 +1,6 @@
 import express, { Request, Response } from "express";
 import { requireFields } from "../middleware/validate.js";
-import { ok } from "../utils/response.js";
+import { ok } from "../lib/response";
 
 const router = express.Router();
 

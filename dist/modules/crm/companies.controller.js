@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.handleListCompanies = handleListCompanies;
 exports.handleGetCompanyById = handleGetCompanyById;
 const logger_1 = require("../../observability/logger");
-const respondOk_1 = require("../../utils/respondOk");
+const response_1 = require("../../lib/response");
 const companies_service_1 = require("./companies.service");
 const toStringSafe_1 = require("../../utils/toStringSafe");
 function logCrmError(event, error) {
@@ -16,11 +16,11 @@ function logCrmError(event, error) {
 async function handleListCompanies(_req, res) {
     try {
         const companies = await (0, companies_service_1.fetchCompanies)();
-        (0, respondOk_1.respondOk)(res, companies);
+        (0, response_1.respondOk)(res, companies);
     }
     catch (error) {
         logCrmError("crm_companies_list_failed", error);
-        (0, respondOk_1.respondOk)(res, []);
+        (0, response_1.respondOk)(res, []);
     }
 }
 async function handleGetCompanyById(req, res) {
@@ -43,10 +43,10 @@ async function handleGetCompanyById(req, res) {
             });
             return;
         }
-        (0, respondOk_1.respondOk)(res, company);
+        (0, response_1.respondOk)(res, company);
     }
     catch (error) {
         logCrmError("crm_companies_fetch_failed", error);
-        (0, respondOk_1.respondOk)(res, []);
+        (0, response_1.respondOk)(res, []);
     }
 }

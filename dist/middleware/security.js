@@ -9,7 +9,7 @@ exports.productionLogger = productionLogger;
 const helmet_1 = __importDefault(require("helmet"));
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const config_1 = require("../config");
-const logger_1 = require("../server/utils/logger");
+const logger_1 = require("../observability/logger");
 function isLoopback(req) {
     const ip = req.ip || "";
     return ip === "127.0.0.1" || ip === "::1" || ip.startsWith("::ffff:127.0.0.1");

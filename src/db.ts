@@ -57,6 +57,10 @@ export async function ensureDb(): Promise<void> {
   }
 }
 
+export async function getPrisma() {
+  throw new Error("Prisma not implemented");
+}
+
 export function isDbReady(): boolean {
   return deps.db.ready;
 }
@@ -77,6 +81,7 @@ const dbExports = {
   setDbTestPoolMetricsOverride,
   setDbTestFailureInjection,
   clearDbTestFailureInjection,
+  getPrisma,
 };
 
 export default dbExports;

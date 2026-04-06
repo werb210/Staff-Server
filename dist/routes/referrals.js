@@ -5,7 +5,7 @@ const zod_1 = require("zod");
 const auth_1 = require("../middleware/auth");
 const capabilities_1 = require("../auth/capabilities");
 const safeHandler_1 = require("../middleware/safeHandler");
-const respondOk_1 = require("../utils/respondOk");
+const response_1 = require("../lib/response");
 const referrals_service_1 = require("../modules/referrals/referrals.service");
 const errors_1 = require("../middleware/errors");
 const router = (0, express_1.Router)();
@@ -35,6 +35,6 @@ router.post("/", (0, safeHandler_1.safeHandler)(async (req, res, next) => {
         referrerId: req.user?.userId ?? null,
     });
     res.status(201);
-    (0, respondOk_1.respondOk)(res, result);
+    (0, response_1.respondOk)(res, result);
 }));
 exports.default = router;

@@ -10,7 +10,7 @@ import { saveKnowledge as saveKnowledgeDb } from "../services/aiKnowledgeService
 import { loadKnowledge, saveKnowledge } from "../modules/ai/knowledge.service";
 import { AIKnowledgeController, upload as knowledgeUpload } from "../modules/ai/knowledge.controller";
 import { chatHandler } from "../modules/ai/ai.controller";
-import { logger } from "../server/utils/logger";
+import { logger } from "../observability/logger";
 import { generateAIResponse } from "../services/ai/aiService";
 
 const router = Router();

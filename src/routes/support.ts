@@ -6,7 +6,7 @@ import { dbQuery } from "../db";
 import { fetchTwilioClient } from "../services/twilio";
 import { pushLeadToCRM } from "../services/crmWebhook";
 import { SupportController } from "../modules/support/support.controller";
-import { logger } from "../server/utils/logger";
+import { logger } from "../observability/logger";
 import { config } from "../config";
 import { safeCall } from "../lib/circuitBreaker";
 

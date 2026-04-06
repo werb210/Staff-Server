@@ -1,6 +1,6 @@
 import express from "express";
 import { validate } from "../middleware/validate";
-import { ok } from "../lib/apiResponse";
+import { ok } from "../lib/response";
 import { MayaMessageSchema } from "../schemas";
 import { wrap } from "../lib/routeWrap";
 

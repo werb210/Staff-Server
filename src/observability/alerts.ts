@@ -1,5 +1,5 @@
 import { config } from "../config";
-import { logger } from "../platform/logger";
+import { logger } from "../observability/logger";
 import { pushDeadLetter } from "../lib/deadLetter";
 import { withRetry } from "../lib/retry";
 

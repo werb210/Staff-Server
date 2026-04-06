@@ -1,4 +1,4 @@
-import { getPrisma } from "../../lib/db";
+import { getPrisma } from "../../db";
 import {
   CreateLenderProductDTO,
   UpdateLenderProductDTO,

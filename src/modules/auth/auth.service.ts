@@ -26,7 +26,7 @@ import { pool, runQuery } from "../../db";
 import { type Role, isRole } from "../../auth/roles";
 import { logError, logInfo, logWarn } from "../../observability/logger";
 import { fetchRequestId } from "../../middleware/requestContext";
-import { normalizeOtpPhone } from "./phone";
+import { normalizeOtpPhone } from "../../utils/phone";
 import { ensureOtpTableExists } from "../../db/ensureOtpTable";
 import { config } from "../../config";
 import {

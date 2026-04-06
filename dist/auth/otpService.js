@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.sendOtp = sendOtp;
 exports.storeOtp = storeOtp;
 exports.verifyOtp = verifyOtp;
-const otpService_1 = require("../services/otpService");
+const redis_1 = require("../lib/redis");
 const config_1 = require("../config");
 function normalizePhone(phone) {
     let p = phone.replace(/\D/g, "");
@@ -22,13 +22,13 @@ async function sendOtp(phone) {
     }
     const normalized = normalizePhone(phone);
     const code = generateOtp();
-    await (0, otpService_1.storeOtp)(normalized, code);
+    await (0, redis_1.storeOtp)(normalized, code);
     console.log("[OTP SEND]", normalized, code);
     return code;
 }
 async function storeOtp(phone, code) {
     const normalized = normalizePhone(phone);
-    await (0, otpService_1.storeOtp)(normalized, code);
+    await (0, redis_1.storeOtp)(normalized, code);
     console.log("[OTP SEND]", normalized, code);
 }
 async function verifyOtp(phone, code) {
@@ -36,11 +36,11 @@ async function verifyOtp(phone, code) {
         return code === "000000" ? { ok: true } : { ok: false, error: "invalid_code" };
     }
     const normalized = normalizePhone(phone);
-    const stored = await (0, otpService_1.fetchOtp)(normalized);
+    const stored = await (0, redis_1.fetchOtp)(normalized);
     console.log("[OTP VERIFY]", normalized, stored, code);
     if (!stored || stored !== code) {
         return { ok: false, error: "invalid_code" };
     }
-    await (0, otpService_1.deleteOtp)(normalized);
+    await (0, redis_1.deleteOtp)(normalized);
     return { ok: true };
 }

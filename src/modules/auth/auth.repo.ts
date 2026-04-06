@@ -3,8 +3,8 @@ import { pool, runQuery } from "../../db";
 import { type PoolClient, type QueryResult, type QueryResultRow } from "pg";
 import { type Role } from "../../auth/roles";
 import { AppError } from "../../middleware/errors";
-import { normalizePhoneNumber } from "./phone";
-import { logger } from "../../server/utils/logger";
+import { normalizePhoneNumber } from "../../utils/phone";
+import { logger } from "../../observability/logger";
 import { config } from "../../config";
 
 type Queryable = Pick<PoolClient, "query" | "runQuery">;

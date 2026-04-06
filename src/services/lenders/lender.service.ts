@@ -1,4 +1,4 @@
-import { getPrisma } from "../../lib/db";
+import { getPrisma } from "../../db";
 
 export const lenderService = {
   async list() {

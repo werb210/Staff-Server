@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.env = void 0;
 exports.getEnv = getEnv;
 exports.validateRuntimeEnvOrExit = validateRuntimeEnvOrExit;
 exports.resetEnvCacheForTests = resetEnvCacheForTests;
@@ -37,6 +38,7 @@ function getEnv() {
     }
     return cached;
 }
+exports.env = getEnv();
 function validateRuntimeEnvOrExit() {
     return getEnv();
 }

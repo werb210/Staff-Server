@@ -1,5 +1,5 @@
 import { type NextFunction, type Request, type Response } from "express";
-import { log } from "./logger";
+import { logger } from "../observability/logger";
 import { incErr } from "./metrics";
 
 export function access() {
@@ -11,7 +11,7 @@ export function access() {
         incErr();
       }
 
-      log("info", "request", {
+      logger.info("request", {
         rid: (req as Request & { rid?: string }).rid,
         method: req.method,
         path: req.originalUrl,

@@ -7,7 +7,7 @@ import { requireAuth, requireAuthorization } from "../middleware/auth";
 import { CAPABILITIES } from "../auth/capabilities";
 import { ROLES } from "../auth/roles";
 import { AppError } from "../middleware/errors";
-import { fail, ok } from "../lib/apiResponse";
+import { fail, ok } from "../lib/response";
 import { wrap } from "../lib/routeWrap";
 import { pool, runQuery } from "../db";
 import { updateCallStatus } from "../modules/calls/calls.service";

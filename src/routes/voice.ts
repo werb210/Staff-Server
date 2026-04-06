@@ -3,7 +3,7 @@ import VoiceResponse from "twilio/lib/twiml/VoiceResponse";
 import { requireAuth } from "../middleware/requireAuth";
 import { validate } from "../middleware/validate";
 import { CallStatusSchema } from "../schemas";
-import { ok as respondOk } from "../lib/respond";
+import { ok as respondOk } from "../lib/response";
 
 const router = express.Router();
 

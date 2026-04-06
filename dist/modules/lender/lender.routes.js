@@ -7,7 +7,7 @@ const idempotency_1 = require("../../middleware/idempotency");
 const packageBuilder_1 = require("../../services/lenders/packageBuilder");
 const lenderProducts_service_1 = require("../../services/lenderProducts/lenderProducts.service");
 const lenderQueue_1 = require("../../queue/lenderQueue");
-const logger_1 = require("../../server/utils/logger");
+const logger_1 = require("../../observability/logger");
 const sendLenderPackageSchema = zod_1.z.object({
     application: zod_1.z.object({}).passthrough(),
     documents: zod_1.z.array(zod_1.z.unknown()),

@@ -40,6 +40,7 @@ exports.query = query;
 exports.dbQuery = dbQuery;
 exports.safeQuery = safeQuery;
 exports.ensureDb = ensureDb;
+exports.getPrisma = getPrisma;
 exports.isDbReady = isDbReady;
 const dbProd = __importStar(require("./db.prod"));
 const index_1 = require("./db/index");
@@ -73,6 +74,9 @@ async function ensureDb() {
         throw error;
     }
 }
+async function getPrisma() {
+    throw new Error("Prisma not implemented");
+}
 function isDbReady() {
     return deps_1.deps.db.ready;
 }
@@ -92,5 +96,6 @@ const dbExports = {
     setDbTestPoolMetricsOverride: exports.setDbTestPoolMetricsOverride,
     setDbTestFailureInjection: exports.setDbTestFailureInjection,
     clearDbTestFailureInjection: exports.clearDbTestFailureInjection,
+    getPrisma,
 };
 exports.default = dbExports;

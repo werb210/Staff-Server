@@ -30,8 +30,8 @@ exports.updateUserRoleById = updateUserRoleById;
 const crypto_1 = require("crypto");
 const db_1 = require("../../db");
 const errors_1 = require("../../middleware/errors");
-const phone_1 = require("./phone");
-const logger_1 = require("../../server/utils/logger");
+const phone_1 = require("../../utils/phone");
+const logger_1 = require("../../observability/logger");
 const config_1 = require("../../config");
 async function runAuthQuery(runner, text, params) {
     try {
