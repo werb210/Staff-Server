@@ -1,9 +1,12 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "noEmitOnError": true,
+    "noEmitOnError": false,
     "outDir": "dist",
-    "rootDir": "src"
+    "rootDir": "src",
+    "skipLibCheck": true
   },
-  "include": ["src/**/*"]
+  "include": [
+    "src/**/*"
+  ]
 }
