@@ -28,7 +28,9 @@ jobs:
         run: npm run lint
 
       - name: Build
-        run: npm run build
+        run: |
+          npm ci
+          npm run build
 
       - name: Verify dist completeness
         run: node scripts/verify-build.js

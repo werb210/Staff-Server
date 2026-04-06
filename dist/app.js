@@ -58,10 +58,4 @@ function resetOtpStateForTests() {
     // No in-process OTP store is used by this app.
 }
 const app = createApp();
-if (require.main === module) {
-    const port = Number(process.env.PORT) || 8080;
-    app.listen(port, "0.0.0.0", () => {
-        console.log(`SERVER STARTED ON ${port}`);
-    });
-}
 exports.default = app;
