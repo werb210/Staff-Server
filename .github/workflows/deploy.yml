@@ -18,11 +18,11 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install deps
-        run: npm ci
-
       - name: Build
-        run: npm run build
+        run: |
+          npm ci
+          npm run build
+
 
       - name: Verify dist completeness
         run: node scripts/verify-build.js

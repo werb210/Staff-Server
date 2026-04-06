@@ -1,5 +1,7 @@
 "use strict";
 console.log("BOOT START");
+console.log("PORT ENV:", process.env.PORT);
+console.log("NODE ENV:", process.env.NODE_ENV);
 process.on("uncaughtException", (err) => {
     console.error("UNCAUGHT", err);
 });
@@ -28,39 +30,45 @@ function runStartupSelfTest() {
 validateRuntimeEnvOrExit();
 runStartupSelfTest();
 void (async () => {
-    if (process.env.SKIP_DATABASE === "true") {
-        console.log("DB SKIPPED");
-    }
-    else {
-        try {
-            await initDb();
-            console.log("DB CONNECTED");
-        }
-        catch (err) {
-            console.error("DB FAILED:", err);
-        }
-    }
-    let redis;
     try {
-        if (process.env.REDIS_URL) {
-            redis = new Redis(process.env.REDIS_URL);
-            console.log("REDIS CONNECTING");
+        if (process.env.SKIP_DATABASE === "true") {
+            console.log("DB SKIPPED");
         }
         else {
-            console.log("REDIS SKIPPED");
+            try {
+                await initDb();
+                console.log("DB CONNECTED");
+            }
+            catch (err) {
+                console.error("DB FAILED:", err);
+            }
         }
+        let redis;
+        try {
+            if (process.env.REDIS_URL) {
+                redis = new Redis(process.env.REDIS_URL);
+                console.log("REDIS CONNECTING");
+            }
+            else {
+                console.log("REDIS SKIPPED");
+            }
+        }
+        catch (err) {
+            console.error("REDIS FAILED:", err);
+        }
+        void redis;
+        const port = Number(process.env.PORT) || 8080;
+        const startGuard = setTimeout(() => {
+            console.error("SERVER DID NOT START — EXITING");
+            process.exit(1);
+        }, 15000);
+        app.listen(port, "0.0.0.0", () => {
+            clearTimeout(startGuard);
+            console.log(`SERVER STARTED ON ${port}`);
+        });
     }
     catch (err) {
-        console.error("REDIS FAILED:", err);
-    }
-    void redis;
-    const port = Number(process.env.PORT) || 8080;
-    const startGuard = setTimeout(() => {
-        console.error("SERVER DID NOT START — EXITING");
+        console.error("FATAL STARTUP ERROR:", err);
         process.exit(1);
-    }, 15000);
-    app.listen(port, "0.0.0.0", () => {
-        clearTimeout(startGuard);
-        console.log(`SERVER STARTED ON ${port}`);
-    });
+    }
 })();
