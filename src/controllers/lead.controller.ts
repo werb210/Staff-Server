@@ -11,16 +11,17 @@ function pushBounded<T>(arr: T[], item: T): void {
 }
 
 export const createLead = (req: Request, res: Response) => {
-  const body: CreateLeadDTO = req.body;
+  const lead = (req.body || {}) as CreateLeadDTO & { address?: Record<string, unknown> };
+  lead.address ||= {};
 
-  if (!body.companyName || !body.fullName || !body.email) {
+  if (!lead.companyName || !lead.fullName || !lead.email) {
     return res.status(400).json({ message: "Missing required fields" });
   }
 
   const newLead: Lead = {
     id: uuidv4(),
     createdAt: new Date(),
-    ...body,
+    ...lead,
   };
 
   pushBounded(leads, newLead);
