@@ -87,9 +87,12 @@ router.post("/start", async (req: Request, res: Response) => {
   }
 
   if (
-    !process.env.TWILIO_ACCOUNT_SID
-    || !process.env.TWILIO_AUTH_TOKEN
-    || !process.env.TWILIO_PHONE
+    process.env.NODE_ENV !== "test"
+    && (
+      !process.env.TWILIO_ACCOUNT_SID
+      || !process.env.TWILIO_AUTH_TOKEN
+      || !process.env.TWILIO_PHONE
+    )
   ) {
     return res.status(500).json(fail("missing_otp_env", rid));
   }
