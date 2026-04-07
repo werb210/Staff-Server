@@ -24,15 +24,13 @@ console.log("STARTING SERVER...");
 
 let isReady = false;
 
-// ✅ FIXED TYPES HERE
+// health endpoints
 app.get("/health", (_req: Request, res: Response) => {
   res.status(200).send("ok");
 });
 
 app.get("/ready", (_req: Request, res: Response) => {
-  if (isReady) {
-    return res.status(200).send("ready");
-  }
+  if (isReady) return res.status(200).send("ready");
   return res.status(503).send("not ready");
 });
 
@@ -50,6 +48,14 @@ function runStartupSelfTest() {
 validateRuntimeEnvOrExit();
 runStartupSelfTest();
 
+const port = Number(process.env.PORT) || 8080;
+
+// 🚨 START SERVER IMMEDIATELY
+app.listen(port, "0.0.0.0", () => {
+  console.log(`SERVER STARTED ON ${port}`);
+});
+
+// 🚨 THEN initialize dependencies (non-blocking)
 void (async () => {
   if (process.env.SKIP_DATABASE === "true") {
     console.log("DB SKIPPED");
@@ -62,12 +68,11 @@ void (async () => {
     }
   }
 
-  let redis;
-
   try {
     if (process.env.REDIS_URL) {
-      redis = new Redis(process.env.REDIS_URL);
-      console.log("REDIS CONNECTING");
+      const redis = new Redis(process.env.REDIS_URL);
+      console.log("REDIS CONNECTED");
+      void redis;
     } else {
       console.log("REDIS SKIPPED");
     }
@@ -75,18 +80,5 @@ void (async () => {
     console.error("REDIS FAILED:", err);
   }
 
-  void redis;
-
-  const port = Number(process.env.PORT) || 8080;
-
-  const startGuard = setTimeout(() => {
-    console.error("SERVER DID NOT START — EXITING");
-    process.exit(1);
-  }, 15000);
-
-  app.listen(port, "0.0.0.0", () => {
-    clearTimeout(startGuard);
-    console.log(`SERVER STARTED ON ${port}`);
-    isReady = true;
-  });
+  isReady = true;
 })();
