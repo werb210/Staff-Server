@@ -76,3 +76,7 @@ export function createApp() {
 
   return app;
 }
+
+export function resetOtpStateForTests() {
+  // no-op — OTP is now handled in route layer (redis / stateless)
+}
