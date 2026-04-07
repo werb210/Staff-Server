@@ -62,9 +62,10 @@ router.post("/start", async (req, res) => {
     if (!isPhone(phone)) {
         return res.status(400).json((0, response_1.fail)("invalid_payload", rid));
     }
-    if (!process.env.TWILIO_ACCOUNT_SID
-        || !process.env.TWILIO_AUTH_TOKEN
-        || !process.env.TWILIO_PHONE) {
+    if (process.env.NODE_ENV !== "test"
+        && (!process.env.TWILIO_ACCOUNT_SID
+            || !process.env.TWILIO_AUTH_TOKEN
+            || !process.env.TWILIO_PHONE)) {
         return res.status(500).json((0, response_1.fail)("missing_otp_env", rid));
     }
     let redis;

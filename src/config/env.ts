@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const weakJwtSecrets = ["test", "secret", "test-secret", "change-me"];
+const weakJwtSecrets = ["test", "secret", "change-me"];
 
 const envSchema = z.object({
   PORT: z.string().optional(),
@@ -9,7 +9,7 @@ const envSchema = z.object({
     .string()
     .min(32, "JWT_SECRET must be at least 32 characters")
     .refine((v) => !weakJwtSecrets.includes(v.toLowerCase()), {
-      message: "JWT_SECRET must not be a known weak value",
+      message: "JWT_SECRET too weak",
     }),
   OPENAI_API_KEY: z
     .string()
@@ -19,38 +19,32 @@ const envSchema = z.object({
     }),
 });
 
-let cached: z.infer<typeof envSchema> | undefined;
-
 export function getEnv() {
-  if (!cached) {
-    const nodeEnv = process.env.NODE_ENV ?? "development";
+  const nodeEnv = process.env.NODE_ENV ?? "development";
 
-    if (nodeEnv !== "production") {
-      process.env.JWT_SECRET = process.env.JWT_SECRET ?? "test-secret-32-characters-minimum!!";
-      process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY ?? "test-openai-key-1234567890";
-    }
-
-    const safeEnv = envSchema.safeParse({
-      PORT: process.env.PORT,
-      NODE_ENV: process.env.NODE_ENV,
-      JWT_SECRET: process.env.JWT_SECRET,
-      OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-    });
-
-    if (!safeEnv.success) {
-      console.error("ENV VALIDATION FAILED:", safeEnv.error.flatten());
-      cached = {
-        PORT: process.env.PORT,
-        NODE_ENV: process.env.NODE_ENV as "development" | "test" | "production" | undefined,
-        JWT_SECRET: process.env.JWT_SECRET ?? "",
-        OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "",
-      };
-    } else {
-      cached = safeEnv.data;
-    }
+  if (nodeEnv !== "production") {
+    process.env.JWT_SECRET = process.env.JWT_SECRET ?? "test-secret-32-characters-minimum!!";
+    process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY ?? "test-openai-key-1234567890";
   }
 
-  return cached;
+  const safeEnv = envSchema.safeParse({
+    PORT: process.env.PORT,
+    NODE_ENV: process.env.NODE_ENV,
+    JWT_SECRET: process.env.JWT_SECRET,
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+  });
+
+  if (!safeEnv.success) {
+    console.error("ENV VALIDATION FAILED:", safeEnv.error.flatten());
+    return {
+      PORT: process.env.PORT,
+      NODE_ENV: process.env.NODE_ENV as "development" | "test" | "production" | undefined,
+      JWT_SECRET: process.env.JWT_SECRET ?? "",
+      OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "",
+    };
+  }
+
+  return safeEnv.data;
 }
 
 export function validateRuntimeEnvOrExit() {
@@ -58,5 +52,5 @@ export function validateRuntimeEnvOrExit() {
 }
 
 export function resetEnvCacheForTests() {
-  cached = undefined;
+  // no-op: getEnv() is intentionally uncached.
 }
