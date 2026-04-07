@@ -6,29 +6,44 @@ type OTPRecord = {
   used: boolean;
 };
 
-const store = new Map<string, OTPRecord>();
+type OtpGlobalStore = Record<string, OTPRecord>;
+
+const globalScope = globalThis as typeof globalThis & {
+  __BF_OTP_STORE__?: OtpGlobalStore;
+};
+
+const store = globalScope.__BF_OTP_STORE__ ||= {};
 const OTP_TTL_MS = 10 * 60 * 1000;
 const MAX_OTP_STORE_ITEMS = 1000;
 
 export const otpStore = {
   set(phone: string, record: OTPRecord) {
-    store.set(phone, record);
-    setTimeout(() => store.delete(phone), OTP_TTL_MS).unref();
-    if (store.size > MAX_OTP_STORE_ITEMS) {
-      const firstKey = store.keys().next().value;
+    store[phone] = record;
+    setTimeout(() => {
+      delete store[phone];
+    }, OTP_TTL_MS).unref();
+
+    const keys = Object.keys(store);
+    if (keys.length > MAX_OTP_STORE_ITEMS) {
+      const firstKey = keys[0];
       if (firstKey) {
-        store.delete(firstKey);
+        delete store[firstKey];
       }
     }
   },
   get(phone: string) {
-    return store.get(phone);
+    return store[phone];
   },
   delete(phone: string) {
-    store.delete(phone);
+    delete store[phone];
   },
   clear() {
-    store.clear();
+    for (const key of Object.keys(store)) {
+      delete store[key];
+    }
+  },
+  records() {
+    return store;
   },
 };
 

@@ -9,9 +9,18 @@ import { registerApiRouteMounts } from "./routes/routeRegistry";
 import { fail, ok } from "./lib/response";
 import { getEnv } from "./config/env";
 import routeAlias from "./middleware/routeAlias";
-import { deps } from "./system/deps";
+import { otpStore } from "./modules/auth/otpStore";
+import { deps, globalState } from "./system/deps";
 
 const allowedProductionHosts: string[] = ["server.boreal.financial"];
+
+function healthResponse(req: express.Request, data: Record<string, unknown> = {}) {
+  return {
+    status: "ok" as const,
+    data,
+    rid: (req as any).rid,
+  };
+}
 
 function voiceStatusHandler(req: express.Request, res: express.Response) {
   return res.json(ok({}, (req as any).rid));
@@ -39,6 +48,11 @@ export function createApp() {
     (req as any).rid = rid;
     (req as any).id = rid;
     res.setHeader("x-request-id", rid);
+    next();
+  });
+
+  app.use((req, res, next) => {
+    res.setHeader("content-type", "application/json");
     next();
   });
 
@@ -76,8 +90,23 @@ export function createApp() {
   });
 
   app.use((req, res, next) => {
+    if (req.path.startsWith("/api/public")) {
+      return res.status(410).json(fail("LEGACY_ROUTE_DISABLED", (req as any).rid));
+    }
+    return next();
+  });
+
+  app.use((req, res, next) => {
     if (req.path.startsWith("/api")) {
-      res.setHeader("access-control-allow-origin", "*");
+      const configuredOrigins = (process.env.CORS_ALLOWED_ORIGINS ?? "")
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean);
+      const origin = req.header("origin");
+      const allowOrigin = origin && configuredOrigins.includes(origin) ? origin : configuredOrigins[0] ?? "*";
+
+      res.setHeader("access-control-allow-origin", allowOrigin);
+      res.setHeader("access-control-allow-credentials", "true");
       res.setHeader("access-control-allow-headers", "content-type, authorization");
       if (req.method === "OPTIONS") {
         return res.status(200).end();
@@ -87,18 +116,18 @@ export function createApp() {
   });
 
   app.get("/health", (req, res) => {
-    return res.status(200).json(ok({}, (req as any).rid));
+    return res.status(200).json(healthResponse(req));
   });
 
   app.get("/ready", (req, res) => {
     if (!deps.db.ready) {
       return res.status(503).json(fail("not_ready", (req as any).rid));
     }
-    return res.status(200).json(ok({}, (req as any).rid));
+    return res.status(200).json(healthResponse(req));
   });
 
   app.get("/api/_int/health", (req, res) => {
-    res.json(ok({ uptime: process.uptime() }, (req as any).rid));
+    res.json(healthResponse(req, { uptime: process.uptime() }));
   });
 
   app.use((req, res, next) => {
@@ -123,7 +152,7 @@ export function createApp() {
     }
 
     if (!allowedProductionHosts.includes(normalized)) {
-      return res.status(403).send("Forbidden");
+      return res.status(403).json(fail("Forbidden", (req as any).rid));
     }
 
     return next();
@@ -137,20 +166,15 @@ export function createApp() {
   app.use(routeAlias);
 
   app.get("/", (_req, res) => {
-    res.status(200).send("OK");
+    res.status(200).json(healthResponse(_req));
   });
 
   const apiHealthHandler = (req: any, res: any) => {
-    const skipDb = process.env.SKIP_DB_CONNECTION === "true";
-    if (!deps.db.ready && !skipDb) {
-      return res.status(503).json(fail("DB_UNAVAILABLE", req.rid));
-    }
-
-    return res.status(200).json(ok({
+    return res.status(200).json(healthResponse(req, {
       server: "ok",
       db: deps.db.ready ? "ok" : "degraded",
       twilio: process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE ? "configured" : "missing",
-    }, req.rid));
+    }));
   };
 
   app.get("/api/health", apiHealthHandler);
@@ -158,6 +182,12 @@ export function createApp() {
 
   app.get("/metrics", (req, res) => {
     return res.status(200).json(ok({ requests: deps.metrics.requests, errors: deps.metrics.errors }, (req as any).rid));
+  });
+
+  app.get("/metrics/reset", (req, res) => {
+    globalState.metrics.requests = 0;
+    globalState.metrics.errors = 0;
+    return res.json(ok({}, (req as any).rid));
   });
 
   app.use("/api/auth", authRouter);
@@ -172,24 +202,22 @@ export function createApp() {
   app.post("/api/v1/call/start", callStartHandler);
 
   {
-    let windowStart = Date.now();
-    let count = 0;
-
     function limiter(req: express.Request, res: express.Response, next: express.NextFunction) {
-      const now = Date.now();
-      if (now - windowStart > 1000) {
-        windowStart = now;
-        count = 0;
+      const now = Math.floor(Date.now() / 1000);
+
+      if (globalState.rateLimit.window !== now) {
+        globalState.rateLimit.window = now;
+        globalState.rateLimit.count = 0;
       }
 
-      count++;
+      globalState.rateLimit.count += 1;
 
-      if (count > 100) {
+      if (globalState.rateLimit.count > 100) {
         res.setHeader("retry-after", "1");
         return res.status(429).json(fail("Too many requests", (req as any).rid));
       }
 
-      next();
+      return next();
     }
 
     app.use("/api/v1/public/test", limiter);
@@ -197,6 +225,19 @@ export function createApp() {
   }
 
   registerApiRouteMounts(app);
+
+  app.use((_req, _res, next) => {
+    const now = Date.now();
+    const store = otpStore.records();
+
+    Object.keys(store).forEach((key) => {
+      if (now > (store[key]?.expiresAt ?? Number.POSITIVE_INFINITY)) {
+        delete store[key];
+      }
+    });
+
+    next();
+  });
 
   app.use((req: any, res) => {
     res.status(404).json(fail("not_found", req.rid));

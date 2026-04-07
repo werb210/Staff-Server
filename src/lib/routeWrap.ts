@@ -4,7 +4,7 @@ export function wrap(fn: (req: Request, res: Response, next: NextFunction) => un
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       const result = await fn(req, res, next);
-      if (result) {
+      if (!res.headersSent && result) {
         res.json(result);
       }
     } catch (err) {
