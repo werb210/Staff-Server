@@ -1,64 +1,24 @@
-import type { Response } from "express";
-
-type MaybeResponse = Response | unknown;
-
-function isResponse(value: unknown): value is Response {
-  return Boolean(
-    value
-      && typeof value === "object"
-      && "status" in (value as Record<string, unknown>)
-      && "json" in (value as Record<string, unknown>),
-  );
+export function ok(data: unknown, rid?: string) {
+  return { status: "ok" as const, data, rid };
 }
 
-export function ok(first: Response, second: unknown): Response;
-export function ok(first: unknown, second?: string): { status: "ok"; data: unknown; rid?: string };
-export function ok(first: unknown, second?: unknown): Response | { status: "ok"; data: unknown; rid?: string } {
-  if (isResponse(first)) {
-    return first.status(200).json({ status: "ok", data: second });
-  }
-
-  return {
-    status: "ok" as const,
-    data: first,
-    rid: typeof second === "string" ? second : undefined,
-  };
-}
-
-export function fail(first: Response, second: unknown, third?: number): Response;
-export function fail(first: Response, second: unknown, third?: number, fourth?: string): Response;
-export function fail(first: unknown, second?: string): { status: "error"; error: string; rid?: string };
-export function fail(
-  first: unknown,
-  second?: unknown,
-  third = 400,
-  _code?: string,
-  _details?: unknown,
-): Response | { status: "error"; error: string; rid?: string } {
-  if (isResponse(first)) {
-    const message = typeof second === "string" ? second : "error";
-    return first.status(third).json({ status: "error", error: message });
-  }
-
+export function fail(error: unknown, rid?: string) {
   return {
     status: "error" as const,
-    error: first instanceof Error ? first.message : String(first),
-    rid: typeof second === "string" ? second : undefined,
+    error: error instanceof Error ? error.message : String(error),
+    rid,
   };
 }
 
 export function error(message: string, rid?: string) {
   return {
-    status: "error",
+    status: "error" as const,
     error: message,
     rid,
   };
 }
 
-export function respondOk<T>(
-  res: Response,
-  data: T,
-  _meta?: Record<string, unknown>,
-): Response {
-  return ok(res, data);
+
+export function respondOk(res: any, data: unknown) {
+  return res.status(200).json(ok(data, res?.getHeader?.("x-request-id") as string | undefined));
 }

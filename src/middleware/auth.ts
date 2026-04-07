@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction, type RequestHandler } from "express";
 import jwt from "jsonwebtoken";
 import { getEnv } from "../config/env";
+import { fail } from "../lib/response";
 
 type AuthorizationOptions = {
   roles?: string[];
@@ -20,31 +21,22 @@ export function auth(req: Request, res: Response, next: NextFunction) {
   const token = req.headers.authorization?.replace("Bearer ", "");
 
   if (!token) {
-    return res.status(401).json({
-      status: "error",
-      error: "NO_TOKEN",
-    });
+    return res.status(401).json(fail("Unauthorized", (req as any).rid));
+  }
+
+  const { JWT_SECRET } = getEnv();
+
+  if (!JWT_SECRET) {
+    return res.status(401).json(fail("Unauthorized", (req as any).rid));
   }
 
   try {
-    const { JWT_SECRET } = getEnv();
-
-    if (!JWT_SECRET) {
-      return res.status(500).json({
-        status: "error",
-        error: "Auth not configured",
-      });
-    }
-
     const decoded = jwt.verify(token, JWT_SECRET);
     (req as any).user = decoded;
 
     next();
   } catch {
-    return res.status(401).json({
-      status: "error",
-      error: "INVALID_TOKEN",
-    });
+    return res.status(401).json(fail("Unauthorized", (req as any).rid));
   }
 }
 
