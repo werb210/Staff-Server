@@ -1,10 +1,14 @@
 export function assertEnv() {
   const nodeEnv = process.env.NODE_ENV ?? "development";
+  const isTestEnv =
+    nodeEnv !== "production" ||
+    process.env.VITEST === "true" ||
+    process.env.CI === "true";
 
-  if (nodeEnv !== "production") {
-    process.env.JWT_SECRET = process.env.JWT_SECRET ?? "test-secret";
-    process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY ?? "test-key";
-    process.env.PORT = process.env.PORT ?? "3000";
+  if (isTestEnv) {
+    process.env.JWT_SECRET ||= "test-secret";
+    process.env.OPENAI_API_KEY ||= "test-key";
+    process.env.PORT ||= "3000";
     return;
   }
 

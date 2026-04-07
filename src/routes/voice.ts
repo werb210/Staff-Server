@@ -34,7 +34,10 @@ router.get("/token", (req, res) => {
   }
 
   try {
-    jwt.verify(token, secret);
+    const decoded = jwt.verify(token, secret) as { sub?: string; role?: string } | undefined;
+    if ((!decoded?.sub && !(decoded as any)?.userId) || !decoded?.role) {
+      return unauthorized(req, res);
+    }
   } catch {
     return unauthorized(req, res);
   }

@@ -26,6 +26,7 @@ type OtpSession = {
   code: string;
   expiresAt: number;
   invalidAttempts: number;
+  lastSentAt: number;
 };
 
 const isPhone = (value: unknown): value is string => (
@@ -60,6 +61,7 @@ async function readSession(phone: string): Promise<OtpSession | null> {
       code: parsed.code,
       expiresAt: Number(parsed.expiresAt) || 0,
       invalidAttempts: Number(parsed.invalidAttempts) || 0,
+      lastSentAt: Number(parsed.lastSentAt) || 0,
     };
   } catch {
     return null;
@@ -84,9 +86,13 @@ router.post("/start", async (req: Request, res: Response) => {
     !process.env.TWILIO_ACCOUNT_SID
     || !process.env.TWILIO_AUTH_TOKEN
     || !process.env.TWILIO_PHONE
-    || !process.env.REDIS_URL
   ) {
     return res.status(500).json(fail("missing_otp_env", rid));
+  }
+
+  const existing = await readSession(phone);
+  if (existing && Date.now() - existing.lastSentAt < 60_000) {
+    return res.status(429).json(fail("Too many requests", rid));
   }
 
   const code = generateOtpCode();
@@ -96,6 +102,7 @@ router.post("/start", async (req: Request, res: Response) => {
     code,
     expiresAt,
     invalidAttempts: 0,
+    lastSentAt: Date.now(),
   });
 
   await getTwilioClient().messages.create({
@@ -124,18 +131,22 @@ router.post("/verify", async (req: Request, res: Response) => {
 
   if (Date.now() > session.expiresAt) {
     await redis.del(sessionKey(phone));
-    return res.status(400).json(fail("Code expired", rid));
+    return res.status(410).json(fail("OTP expired", rid));
   }
 
   if (session.code !== code) {
     session.invalidAttempts += 1;
+    if (session.invalidAttempts >= 5) {
+      await redis.del(sessionKey(phone));
+      return res.status(400).json(fail("Invalid code", rid));
+    }
     await writeSession(phone, session);
     return res.status(400).json(fail("Invalid code", rid));
   }
 
   const { JWT_SECRET } = getEnv();
   if (!JWT_SECRET) {
-    return res.status(401).json(fail("Unauthorized", rid));
+    return res.status(401).json(fail("unauthorized", rid));
   }
   const token = jwt.sign(
     { phone },

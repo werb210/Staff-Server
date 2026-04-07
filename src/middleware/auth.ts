@@ -56,11 +56,11 @@ export function requireAuthorization(options: AuthorizationOptions = {}): Reques
     const user = req.user as AppUser | undefined;
 
     if (!user) {
-      return res.status(401).json({ status: "error", error: "NO_TOKEN" });
+      return res.status(401).json(fail("NO_TOKEN", (req as any).rid));
     }
 
     if (requiredRoles.length > 0 && (!user.role || !requiredRoles.includes(user.role))) {
-      return res.status(403).json({ status: "error", error: "FORBIDDEN" });
+      return res.status(403).json(fail("FORBIDDEN", (req as any).rid));
     }
 
     if (requiredCapabilities.length > 0) {
@@ -68,7 +68,7 @@ export function requireAuthorization(options: AuthorizationOptions = {}): Reques
       const allowed = requiredCapabilities.some((capability) => userCapabilities.includes(capability));
 
       if (!allowed) {
-        return res.status(403).json({ status: "error", error: "FORBIDDEN" });
+        return res.status(403).json(fail("FORBIDDEN", (req as any).rid));
       }
     }
 
