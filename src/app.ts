@@ -1,6 +1,5 @@
 import express from "express";
 
-import { corsMiddleware } from "./middleware/cors";
 import authRouter from "./routes/auth";
 import routes from "./routes";
 import { fail } from "./lib/response";
@@ -11,6 +10,24 @@ const allowedProductionHosts: string[] = ["server.boreal.financial"];
 
 export function createApp() {
   const app = express();
+
+  app.options("*", (req, res) => {
+    const origin = req.headers.origin;
+
+    if (!origin) {
+      return res.status(410).json({
+        status: "error",
+        error: "LEGACY_ROUTE_DEPRECATED",
+      });
+    }
+
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+    return res.sendStatus(204);
+  });
 
   app.get("/health", (_req, res) => {
     res.status(200).json({
@@ -82,27 +99,9 @@ export function createApp() {
   app.disable("x-powered-by");
   app.set("trust proxy", 1);
   app.use(express.json());
-  app.use(corsMiddleware);
 
   app.get("/", (_req, res) => {
     res.status(200).send("OK");
-  });
-
-  app.options("*", (req, res) => {
-    const origin = req.headers.origin;
-
-    if (!origin) {
-      return res.status(410).json({
-        status: "error",
-        error: "LEGACY_ROUTE_DEPRECATED",
-      });
-    }
-
-    res.header("Access-Control-Allow-Origin", origin);
-    res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
-    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
-
-    return res.sendStatus(204);
   });
 
   app.use("/api/auth", authRouter);
@@ -111,12 +110,16 @@ export function createApp() {
 
   app.use((_req, res) => fail(res, "not_found", 404));
 
-  app.use((err: any, _req: any, res: any, _next: any) => {
+  app.use((err: any, _req: any, res: any, next: any) => {
+    if (res.headersSent) {
+      return next(err);
+    }
+
     console.error("GLOBAL ERROR:", err);
 
     return res.status(500).json({
       status: "error",
-      error: err?.message || "internal_error",
+      error: err?.message || "INTERNAL_SERVER_ERROR",
     });
   });
 

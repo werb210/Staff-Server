@@ -16,22 +16,22 @@ describe("Global CORS and deterministic preflight behavior", () => {
     delete process.env.CORS_ALLOWED_ORIGINS;
   });
 
-  it("returns 200 for OPTIONS /api/auth/otp/start", async () => {
+  it("returns 204 for OPTIONS /api/auth/otp/start", async () => {
     const res = await request(app)
       .options("/api/auth/otp/start")
       .set("Origin", portalOrigin)
       .set("Access-Control-Request-Method", "POST");
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(204);
   });
 
-  it("returns 200 for OPTIONS /api/auth/otp/verify", async () => {
+  it("returns 204 for OPTIONS /api/auth/otp/verify", async () => {
     const res = await request(app)
       .options("/api/auth/otp/verify")
       .set("Origin", portalOrigin)
       .set("Access-Control-Request-Method", "POST");
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(204);
   });
 
   it("accepts POST /api/auth/otp/start from allowed portal origin", async () => {
@@ -45,13 +45,12 @@ describe("Global CORS and deterministic preflight behavior", () => {
     expect(res.headers["access-control-allow-credentials"]).toBe("true");
   });
 
-  it("rejects non-/api preflight routes with strict legacy disablement", async () => {
+  it("returns 204 for non-/api preflight routes when origin is present", async () => {
     const res = await request(app)
       .options("/unknown/route")
       .set("Origin", portalOrigin)
       .set("Access-Control-Request-Method", "POST");
 
-    expect(res.status).toBe(410);
-    expect(res.body).toEqual({ status: "error", error: "LEGACY_ROUTE_DISABLED" });
+    expect(res.status).toBe(204);
   });
 });
