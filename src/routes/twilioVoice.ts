@@ -1,7 +1,6 @@
 import express, { Router } from "express";
 import twilio from "twilio";
 import { twilioWebhookValidation } from "../middleware/twilioWebhookValidation";
-import { ok } from "../lib/response";
 
 const router = Router();
 
@@ -36,7 +35,7 @@ router.post(
   dial.client("staff_portal");
   dial.client("staff_mobile");
 
-    return ok(res, response.toString());
+    return res.type("text/xml").send(response.toString());
   }
 );
 
