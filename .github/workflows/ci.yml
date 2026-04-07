@@ -47,35 +47,10 @@ jobs:
       - name: Prune dev dependencies
         run: npm prune --omit=dev
 
-      - name: Configure App Service SCM settings (disable Oryx/Kudu build)
-        if: github.ref == 'refs/heads/main'
-        uses: azure/appservice-settings@v1
-        with:
-          app-name: boreal-staff-server
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          app-settings-json: |
-            [
-              {
-                "name": "SCM_DO_BUILD_DURING_DEPLOYMENT",
-                "value": "false",
-                "slotSetting": false
-              },
-              {
-                "name": "ENABLE_ORYX_BUILD",
-                "value": "false",
-                "slotSetting": false
-              },
-              {
-                "name": "SCM_COMMAND_IDLE_TIMEOUT",
-                "value": "600",
-                "slotSetting": false
-              },
-              {
-                "name": "SCM_LOGSTREAM_TIMEOUT",
-                "value": "1800",
-                "slotSetting": false
-              }
-            ]
+      - name: Assemble deploy package
+        run: |
+          mkdir deploy
+          cp -r dist package.json package-lock.json node_modules deploy/
 
       - name: Deploy to Azure Web App
         if: github.ref == 'refs/heads/main'
@@ -83,4 +58,4 @@ jobs:
         with:
           app-name: boreal-staff-server
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: .
+          package: ./deploy
