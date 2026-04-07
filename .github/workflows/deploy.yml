@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      SCM_DO_BUILD_DURING_DEPLOYMENT: false   # 🔴 disables Azure rebuild (critical)
+      SCM_DO_BUILD_DURING_DEPLOYMENT: false
 
     steps:
       - uses: actions/checkout@v4
@@ -20,25 +20,20 @@ jobs:
         with:
           node-version: '20.x'
 
-      # ✅ CLEAN INSTALL
       - name: Install deps
         run: npm ci
 
-      # ✅ BUILD LOCALLY (NOT IN AZURE)
       - name: Build
         run: npm run build
 
-      # ✅ REMOVE DEV BLOAT (prevents zip crash)
       - name: Prune dev deps
         run: npm prune --omit=dev
 
-      # ✅ VERIFY BUILD
       - name: Verify build
         run: |
           node scripts/verify-build.js
           node -e "require('./dist/routes'); require('./dist/routes/auth'); require('./dist/config/env');"
 
-      # ✅ PACKAGE CLEANLY (prevents node_modules tar failure)
       - name: Create deployment package
         run: |
           zip -r release.zip . \
@@ -48,7 +43,12 @@ jobs:
                "test/*" \
                ".github/*"
 
-      # ✅ DEPLOY ZIP ONLY (no rebuild, no Oryx)
+      # 🔴 THIS IS THE FIX
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
       - name: Deploy to Azure
         uses: azure/webapps-deploy@v3
         with:
