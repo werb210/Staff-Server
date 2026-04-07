@@ -11,7 +11,7 @@ router.post("/lead", async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error("createLead failed:", err);
-    res.status(500).json({ error: "create_lead_failed" });
+    res.status(500).json({ status: "error", error: "create_lead_failed" });
   }
 });
 
@@ -21,7 +21,7 @@ router.post("/call/start", async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error("startCall failed:", err);
-    res.status(500).json({ error: "call_start_failed" });
+    res.status(500).json({ status: "error", error: "call_start_failed" });
   }
 });
 
@@ -31,7 +31,7 @@ router.post("/call/status", async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error("updateCallStatus failed:", err);
-    res.status(500).json({ error: "call_status_failed" });
+    res.status(500).json({ status: "error", error: "call_status_failed" });
   }
 });
 
@@ -41,7 +41,7 @@ router.post("/message", async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error("sendMessage failed:", err);
-    res.status(500).json({ error: "message_failed" });
+    res.status(500).json({ status: "error", error: "message_failed" });
   }
 });
 

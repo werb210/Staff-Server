@@ -8,7 +8,7 @@ app.get("/health", (_req, res) => {
     res.status(200).send("ok");
 });
 app.get("/ready", (_req, res) => {
-    res.status(200).send("ready");
+    res.status(200).json({ status: "ready" });
 });
 void (async () => {
     try {

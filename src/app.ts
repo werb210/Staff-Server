@@ -16,6 +16,12 @@ export function createApp() {
     res.status(200).send("healthy");
   });
 
+  app.get("/api/health", (_req, res) => {
+    res.status(200).json({
+      status: "ok",
+    });
+  });
+
   app.get("/api/_int/health", (_req, res) => {
     res.json({
       status: "ok",
@@ -27,6 +33,7 @@ export function createApp() {
     if (
       req.path === "/" ||
       req.path === "/health" ||
+      req.path === "/api/health" ||
       req.path === "/api/_int/health"
     ) {
       return next();
@@ -58,11 +65,37 @@ export function createApp() {
     res.status(200).send("OK");
   });
 
+  app.options("*", (req, res) => {
+    const origin = req.headers.origin;
+
+    if (!origin) {
+      return res.status(410).json({
+        status: "error",
+        error: "LEGACY_ROUTE_DEPRECATED",
+      });
+    }
+
+    res.header("Access-Control-Allow-Origin", origin);
+    res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+    return res.sendStatus(204);
+  });
+
   app.use("/api/auth", authRouter);
   app.use("/api/v1", routes);
   registerApiRouteMounts(app);
 
   app.use((_req, res) => fail(res, "not_found", 404));
+
+  app.use((err: any, _req: any, res: any, _next: any) => {
+    console.error("GLOBAL ERROR:", err);
+
+    return res.status(500).json({
+      status: "error",
+      error: err?.message || "internal_error",
+    });
+  });
 
   return app;
 }
