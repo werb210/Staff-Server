@@ -55,17 +55,21 @@ Use the default startup behavior on App Service (leave **Startup Command** blank
 When deploying from GitHub Actions, deploy the repository root (`package: .`) so Azure has
 access to `package.json`, `node_modules`, and local file dependencies before running `npm start`.
 
-Recommended app settings for Node 20 + Oryx build on App Service:
+Recommended app settings for GitHub Actions build + package deployment on App Service:
 
 ```bash
 az webapp config appsettings set \
   --resource-group <your-rg> \
   --name <your-app-name> \
   --settings \
-    SCM_DO_BUILD_DURING_DEPLOYMENT=true \
-    ENABLE_ORYX_BUILD=true \
+    SCM_DO_BUILD_DURING_DEPLOYMENT=false \
+    ENABLE_ORYX_BUILD=false \
+    SCM_COMMAND_IDLE_TIMEOUT=600 \
+    SCM_LOGSTREAM_TIMEOUT=1800 \
     WEBSITE_NODE_DEFAULT_VERSION=20
 ```
+
+After saving these settings, restart the App Service before redeploying.
 
 Avoid static-site startup modes (such as `serve` or SPA defaults) so
 `/api/*` requests are handled by the Node server process.
