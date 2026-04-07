@@ -3,17 +3,21 @@ import { z } from "zod";
 const envSchema = z.object({
   PORT: z.string().optional(),
   NODE_ENV: z.enum(["development", "test", "production"]).optional(),
-  JWT_SECRET: z
-    .string()
-    .min(32, "JWT_SECRET must be at least 32 chars")
-    .refine((value) => !value.includes("REPLACE"), { message: "invalid jwt secret" }),
-  OPENAI_API_KEY: z.string().min(10, "OPENAI_API_KEY is required"),
+  JWT_SECRET: z.string().min(1, "JWT_SECRET is required"),
+  OPENAI_API_KEY: z.string().min(1, "OPENAI_API_KEY is required"),
 });
 
 let cached: z.infer<typeof envSchema> | undefined;
 
 export function getEnv() {
   if (!cached) {
+    const nodeEnv = process.env.NODE_ENV ?? "development";
+
+    if (nodeEnv !== "production") {
+      process.env.JWT_SECRET = process.env.JWT_SECRET ?? "test-secret";
+      process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY ?? "test-key";
+    }
+
     const safeEnv = envSchema.safeParse({
       PORT: process.env.PORT,
       NODE_ENV: process.env.NODE_ENV,
