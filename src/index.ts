@@ -20,6 +20,22 @@ const Redis = require("ioredis");
 
 console.log("STARTING SERVER...");
 
+// 🔴 STATE FLAGS (critical for health)
+let isReady = false;
+
+// ✅ HARD HEALTH ENDPOINT (ALWAYS FAST)
+app.get("/health", (_req, res) => {
+  res.status(200).send("ok");
+});
+
+// ✅ READINESS ENDPOINT (real status)
+app.get("/ready", (_req, res) => {
+  if (isReady) {
+    return res.status(200).send("ready");
+  }
+  return res.status(503).send("not ready");
+});
+
 function runStartupSelfTest() {
   try {
     require("./routes");
@@ -71,5 +87,8 @@ void (async () => {
   app.listen(port, "0.0.0.0", () => {
     clearTimeout(startGuard);
     console.log(`SERVER STARTED ON ${port}`);
+
+    // 🔴 mark ready ONLY after server actually listening
+    isReady = true;
   });
 })();
