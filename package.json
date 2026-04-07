@@ -44,7 +44,8 @@
     "web-push": "^3.6.7",
     "winston": "^3.19.0",
     "ws": "^8.20.0",
-    "zod": "^4.3.6"
+    "zod": "^4.3.6",
+    "typescript": "^5.9.3"
   },
   "devDependencies": {
     "@rollup/rollup-linux-x64-gnu": "^4.13.0",
@@ -68,7 +69,6 @@
     "supertest": "^6.3.0",
     "ts-node": "^10.9.2",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3",
     "vite": "^4.5.0",
     "vitest": "^0.34.6"
   },
