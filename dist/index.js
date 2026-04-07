@@ -12,7 +12,9 @@ app.get("/ready", (_req, res) => {
 });
 void (async () => {
     try {
-        await (0, verifyRuntime_1.verifyRuntime)();
+        if (process.env.NODE_ENV !== "test") {
+            await (0, verifyRuntime_1.verifyRuntime)();
+        }
     }
     catch (err) {
         const message = err instanceof Error ? err.message : String(err);

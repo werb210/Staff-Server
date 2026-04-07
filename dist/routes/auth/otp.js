@@ -5,7 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
-const redis_js_1 = require("../../lib/redis.js");
+const redis_1 = require("../../lib/redis");
 const env_1 = require("../../config/env");
 const router = express_1.default.Router();
 let twilioClient = null;
@@ -34,7 +34,7 @@ router.post("/start", async (req, res) => {
         return res.status(500).json({ error: "missing_otp_env" });
     }
     const code = Math.floor(100000 + Math.random() * 900000).toString();
-    const redis = (0, redis_js_1.getRedis)();
+    const redis = (0, redis_1.getRedis)();
     await redis.set(`otp:${phone}`, code, "EX", 300);
     await getTwilioClient().messages.create({
         body: `Your code is ${code}`,
@@ -48,7 +48,7 @@ router.post("/verify", async (req, res) => {
     if (!isPhone(phone) || !isCode(code)) {
         return res.status(400).json({ error: "invalid_payload" });
     }
-    const redis = (0, redis_js_1.getRedis)();
+    const redis = (0, redis_1.getRedis)();
     const stored = await redis.get(`otp:${phone}`);
     if (!stored || stored !== code) {
         return res.status(400).json({ error: "Invalid code" });
