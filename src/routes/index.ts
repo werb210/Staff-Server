@@ -2,7 +2,7 @@ import { Router } from "express";
 import { createLead } from "../modules/lead/lead.service";
 import { startCall, updateCallStatus } from "../modules/calls/calls.service";
 import { sendMessage } from "../modules/messaging/service";
-import { requireAuth } from "../middleware/requireAuth";
+import { requireAuth } from "../middleware/auth";
 
 const router = Router();
 
