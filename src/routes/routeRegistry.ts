@@ -165,5 +165,6 @@ export function registerApiRouteMounts(app: Router): void {
     mount(apiRouter, entry.path, entry.router);
   });
 
+  app.use("/api", apiRouter);
   app.use("/api/v1", apiRouter);
 }
