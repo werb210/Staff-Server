@@ -11,3 +11,7 @@ const rateLimit_1 = require("../system/rateLimit");
     (0, app_1.resetOtpStateForTests)();
     (0, rateLimit_1.resetRateLimitForTests)();
 });
+(0, vitest_1.afterEach)(() => {
+    vitest_1.vi.clearAllMocks();
+    vitest_1.vi.resetModules();
+});

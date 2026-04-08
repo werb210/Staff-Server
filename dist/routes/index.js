@@ -26,7 +26,7 @@ router.post("/call/start", auth_1.requireAuth, async (req, res) => {
         res.status(500).json({ status: "error", error: "call_start_failed" });
     }
 });
-router.post("/call/status", async (req, res) => {
+router.post("/call/status", auth_1.requireAuth, async (req, res) => {
     try {
         const result = await (0, calls_service_1.updateCallStatus)(req.body);
         res.json(result);
@@ -36,7 +36,7 @@ router.post("/call/status", async (req, res) => {
         res.status(500).json({ status: "error", error: "call_status_failed" });
     }
 });
-router.post("/message", async (req, res) => {
+router.post("/message", auth_1.requireAuth, async (req, res) => {
     try {
         const result = await (0, service_1.sendMessage)(req.body);
         res.json(result);

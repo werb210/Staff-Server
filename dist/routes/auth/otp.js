@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
+const crypto_1 = require("crypto");
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const redis_1 = require("../../lib/redis");
 const env_1 = require("../../config/env");
@@ -33,9 +34,12 @@ router.post("/start", async (req, res) => {
         }
         return res.status(500).json({ error: "missing_otp_env" });
     }
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const code = (0, crypto_1.randomInt)(100000, 1000000).toString();
     const redis = (0, redis_1.getRedis)();
     await redis.set(`otp:${phone}`, code, "EX", 300);
+    if (process.env.NODE_ENV === "test") {
+        return res.status(200).json({ status: "ok", data: { sent: true } });
+    }
     await getTwilioClient().messages.create({
         body: `Your code is ${code}`,
         to: phone,

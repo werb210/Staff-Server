@@ -3,14 +3,18 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getEnv = getEnv;
 exports.validateRuntimeEnvOrExit = validateRuntimeEnvOrExit;
 exports.resetEnvCacheForTests = resetEnvCacheForTests;
-const TEST_JWT_SECRET = "test-secret";
 let cached;
 function getEnv() {
     if (!cached) {
+        const nodeEnv = process.env.NODE_ENV;
+        const jwtSecret = process.env.JWT_SECRET;
+        if (!jwtSecret && nodeEnv !== "test") {
+            throw new Error("❌ Missing env: JWT_SECRET");
+        }
         cached = {
             PORT: process.env.PORT,
-            NODE_ENV: process.env.NODE_ENV,
-            JWT_SECRET: process.env.JWT_SECRET || TEST_JWT_SECRET,
+            NODE_ENV: nodeEnv,
+            JWT_SECRET: jwtSecret ?? "test-secret",
             OPENAI_API_KEY: process.env.OPENAI_API_KEY,
         };
     }
@@ -20,8 +24,7 @@ function validateRuntimeEnvOrExit() {
     const required = ["DATABASE_URL", "JWT_SECRET", "OPENAI_API_KEY"];
     for (const key of required) {
         if (!process.env[key]) {
-            console.error(`❌ Missing env: ${key}`);
-            process.exit(1);
+            throw new Error(`❌ Missing env: ${key}`);
         }
     }
     return getEnv();

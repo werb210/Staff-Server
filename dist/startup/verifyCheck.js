@@ -13,6 +13,6 @@ async function verifyTwilioSetup() {
     }
     catch (err) {
         console.error("Twilio Verify FAILED");
-        process.exit(1);
+        throw err;
     }
 }

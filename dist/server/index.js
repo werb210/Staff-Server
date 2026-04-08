@@ -19,6 +19,6 @@ async function start() {
 if (require.main === module) {
     start().catch((err) => {
         console.error(err);
-        process.exit(1);
+        throw err;
     });
 }

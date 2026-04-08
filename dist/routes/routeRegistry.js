@@ -152,5 +152,6 @@ function registerApiRouteMounts(app) {
     exports.API_ROUTE_MOUNTS.forEach((entry) => {
         (0, _canonicalMount_1.mount)(apiRouter, entry.path, entry.router);
     });
+    app.use("/api", apiRouter);
     app.use("/api/v1", apiRouter);
 }

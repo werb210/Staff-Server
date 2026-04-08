@@ -11,8 +11,12 @@ function setupShutdown(server) {
         catch {
             // noop
         }
-        server.close(() => process.exit(0));
-        setTimeout(() => process.exit(1), 10000);
+        server.close(() => {
+            console.log("[SHUTDOWN] server closed");
+        });
+        setTimeout(() => {
+            throw new Error("Forced shutdown timeout exceeded");
+        }, 10000);
     };
     process.on("SIGINT", shutdown);
     process.on("SIGTERM", shutdown);
