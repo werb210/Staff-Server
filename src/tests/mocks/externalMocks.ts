@@ -50,6 +50,14 @@ vi.mock("ioredis", () => {
   return { default: Redis };
 });
 
-global.fetch = vi.fn(() => {
+const fetchMock = vi.fn(() => {
   throw new Error("Real network call blocked in test");
 }) as unknown as typeof global.fetch;
+
+Object.defineProperty(global, "fetch", {
+  configurable: false,
+  writable: false,
+  value: fetchMock,
+});
+
+Object.freeze(global.fetch);
