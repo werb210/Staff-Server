@@ -36,5 +36,8 @@ jobs:
       - name: Verify startup requires
         run: node -e "require('./dist/routes'); require('./dist/routes/auth'); require('./dist/config/env');"
 
+      - name: Test guard
+        run: npm run test:guard
+
       - name: Test
-        run: npm run test
+        run: npm run test:ci

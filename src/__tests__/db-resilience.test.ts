@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { deps } from "../system/deps";
 const { queryMock } = vi.hoisted(() => ({ queryMock: vi.fn() }));
 
 vi.mock("../db", async () => {
@@ -16,11 +15,12 @@ vi.mock("../db", async () => {
 describe("db resilience", () => {
   beforeEach(() => {
     queryMock.mockReset();
-    deps.db.ready = false;
-    deps.db.error = null;
   });
 
   it("keeps server alive when DB is unavailable during init", async () => {
+    const { deps } = await import("../system/deps");
+    deps.db.ready = false;
+    deps.db.error = null;
     queryMock.mockRejectedValue(new Error("offline"));
     const { initDependencies } = await import("../system/init");
 
@@ -29,6 +29,9 @@ describe("db resilience", () => {
   });
 
   it("marks DB ready when connectivity succeeds before retries are exhausted", async () => {
+    const { deps } = await import("../system/deps");
+    deps.db.ready = false;
+    deps.db.error = null;
     queryMock
       .mockRejectedValueOnce(new Error("offline"))
       .mockRejectedValueOnce(new Error("offline"))
@@ -41,6 +44,9 @@ describe("db resilience", () => {
   });
 
   it("throws a 503 error when querying while DB is not ready", async () => {
+    const { deps } = await import("../system/deps");
+    deps.db.ready = false;
+    deps.db.error = null;
     const { safeQuery } = await import("../db");
     await expect(safeQuery("select 1")).rejects.toMatchObject({
       message: "DB_NOT_READY",

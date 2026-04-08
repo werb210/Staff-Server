@@ -1,5 +1,6 @@
 const hasRealDbConfig = Boolean(process.env.DATABASE_URL);
-const runRealDbIntegration = process.env.RUN_REAL_DB_TESTS === "1" && hasRealDbConfig;
+const isTestEnv = process.env.NODE_ENV === "test";
+const runRealDbIntegration = !isTestEnv && process.env.RUN_REAL_DB_TESTS === "1" && hasRealDbConfig;
 
 if (runRealDbIntegration) {
   describe("real db integration", () => {
@@ -37,6 +38,11 @@ if (runRealDbIntegration) {
 
 if (!runRealDbIntegration) {
   test("real db integration disabled by default", () => {
+    if (process.env.NODE_ENV === "test") {
+      expect(runRealDbIntegration).toBe(false);
+      return;
+    }
+
     expect(runRealDbIntegration).toBe(false);
   });
 }

@@ -10,7 +10,7 @@
     "lint": "node scripts/guard-getenv-scope.js",
     "test": "vitest run --passWithNoTests=false",
     "test:guard": "node scripts/guard-tests.js",
-    "test:ci": "npm run test:guard && vitest run --reporter=verbose"
+    "test:ci": "vitest run --reporter=verbose"
   },
   "dependencies": {
     "@azure/storage-blob": "^12.31.0",

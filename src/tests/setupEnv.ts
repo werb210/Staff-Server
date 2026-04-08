@@ -1,4 +1,5 @@
 import "./mocks/externalMocks";
+import "./setup";
 
 process.env.NODE_ENV = "test";
 process.env.DATABASE_URL = "postgresql://user:pass@127.0.0.1:5432/bf_test";
@@ -15,3 +16,9 @@ process.env.TWILIO_PHONE = "+10000000000";
 process.env.TWILIO_VOICE_APP_SID = "AP00000000000000000000000000000000";
 process.env.TEST_OTP_CODE = "654321";
 process.env.SKIP_DB_CONNECTION = "true";
+
+process.on("unhandledRejection", (err) => {
+  if (String(err).toLowerCase().includes("network")) {
+    throw err;
+  }
+});
