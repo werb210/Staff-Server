@@ -1,5 +1,5 @@
 import request from "supertest";
-import { buildApp } from "../app";
+import { buildApp } from "../server";
 
 describe("End-to-End Application Flow", () => {
   let app: any;
