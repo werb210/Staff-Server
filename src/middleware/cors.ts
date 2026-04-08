@@ -9,8 +9,19 @@ const allowedProductionOrigins = [
   "https://server.boreal.financial",
 ];
 
+function getEnvOrigins(): string[] {
+  const raw = process.env.CORS_ALLOWED_ORIGINS;
+  if (!raw) return [];
+  return raw
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0);
+}
+
 function isAllowedOrigin(origin: string, nodeEnv: string | undefined): boolean {
-  if (allowedProductionOrigins.includes(origin)) {
+  const configuredOrigins = getEnvOrigins();
+
+  if (allowedProductionOrigins.includes(origin) || configuredOrigins.includes(origin)) {
     return true;
   }
 

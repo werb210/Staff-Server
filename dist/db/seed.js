@@ -138,6 +138,6 @@ if (require.main === module) {
         .catch(async (err) => {
         process.stderr.write(`${String(err)}\n`);
         await db_1.pool.end();
-        process.exit(1);
+        throw err;
     });
 }

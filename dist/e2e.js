@@ -93,7 +93,9 @@ async function main() {
             });
             await server.catch(() => undefined);
         }
-        process.exit(exitCode);
+        if (exitCode !== 0) {
+            throw new Error("E2E checks failed");
+        }
     }
 }
 void main();

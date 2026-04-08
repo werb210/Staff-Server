@@ -4,7 +4,7 @@ import type { Express } from "express";
 import { createServer } from "../../src/server/createServer";
 
 describe("Global CORS and deterministic preflight behavior", () => {
-  const portalOrigin = "https://staff.boreal.financial";
+  const portalOrigin = "https://qa-cors-origin.example";
   let app: Express;
 
   beforeAll(() => {

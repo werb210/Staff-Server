@@ -2,7 +2,7 @@ import request from "supertest";
 import type { Express } from "express";
 
 import { createServer } from "../../src/server/createServer";
-import { resetOtpStateForTests } from "../../src/routes/auth.routes";
+import { resetOtpStateForTests } from "../../src/app";
 import { clearJwtSecretForAuthFailure } from "../utils/testEnv";
 
 describe("OTP flows", () => {

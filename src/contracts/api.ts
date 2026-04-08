@@ -1,8 +1,8 @@
 export const API_ROUTES = {
-  health: "/api/v1/health",
+  health: "/api/health",
   auth: {
-    otpStart: "/api/v1/auth/otp/start",
-    otpVerify: "/api/v1/auth/otp/verify",
+    otpStart: "/api/auth/otp/start",
+    otpVerify: "/api/auth/otp/verify",
   },
   application: {
     create: "/api/v1/applications",

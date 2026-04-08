@@ -1,5 +1,3 @@
-const TEST_JWT_SECRET = "test-secret";
-
 type Env = {
   PORT?: string;
   NODE_ENV?: "development" | "test" | "production";
@@ -11,10 +9,17 @@ let cached: Env | undefined;
 
 export function getEnv(): Env {
   if (!cached) {
+    const nodeEnv = process.env.NODE_ENV as Env["NODE_ENV"];
+    const jwtSecret = process.env.JWT_SECRET;
+
+    if (!jwtSecret && nodeEnv !== "test") {
+      throw new Error("❌ Missing env: JWT_SECRET");
+    }
+
     cached = {
       PORT: process.env.PORT,
-      NODE_ENV: process.env.NODE_ENV as Env["NODE_ENV"],
-      JWT_SECRET: process.env.JWT_SECRET || TEST_JWT_SECRET,
+      NODE_ENV: nodeEnv,
+      JWT_SECRET: jwtSecret ?? "test-secret",
       OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     };
   }

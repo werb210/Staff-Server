@@ -1,4 +1,5 @@
 import express, { type Request, type Response } from "express";
+import { randomInt } from "crypto";
 import jwt from "jsonwebtoken";
 
 import { getRedis } from "../../lib/redis";
@@ -49,7 +50,7 @@ router.post("/start", async (req: Request, res: Response) => {
     return res.status(500).json({ error: "missing_otp_env" });
   }
 
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  const code = randomInt(100000, 1000000).toString();
   const redis = getRedis();
 
   await redis.set(`otp:${phone}`, code, "EX", 300);

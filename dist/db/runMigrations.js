@@ -6,10 +6,9 @@ const migrate_1 = require("./migrate");
         console.log("Starting migrations...");
         await (0, migrate_1.runMigrations)();
         console.log("Migrations completed");
-        process.exit(0);
     }
     catch (err) {
         console.error("Migration failure:", err);
-        process.exit(1);
+        throw err;
     }
 })();
