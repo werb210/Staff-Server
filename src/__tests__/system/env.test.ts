@@ -1,32 +1,38 @@
-import { resetEnvCacheForTests } from "../../config/env";
 import { validateEnv } from "../../system/env";
 
 describe("system/env", () => {
-  const originalEnv = process.env;
+  const originalEnv = { ...process.env };
 
   beforeEach(() => {
-    process.env = { ...originalEnv };
-    resetEnvCacheForTests();
+    Object.assign(process.env, {
+      ...originalEnv,
+      JWT_SECRET: "test-secret",
+    });
   });
 
   afterEach(() => {
-    process.env = originalEnv;
-    resetEnvCacheForTests();
+    Object.assign(process.env, originalEnv);
   });
 
   it("uses default PORT when PORT is missing", () => {
-    delete process.env.PORT;
-    process.env.JWT_SECRET = "secret";
-    process.env.DB_URL = "postgres://localhost:5432/test";
+    Object.assign(process.env, {
+      ...originalEnv,
+      JWT_SECRET: "secret",
+      DB_URL: "postgres://localhost:5432/test",
+      PORT: undefined,
+    });
 
     expect(() => validateEnv()).not.toThrow();
   });
 
   it("does not throw when JWT_SECRET is missing in test environment", () => {
-    process.env.NODE_ENV = "test";
-    process.env.PORT = String(Date.now());
-    delete process.env.JWT_SECRET;
-    process.env.DB_URL = "postgres://localhost:5432/test";
+    Object.assign(process.env, {
+      ...originalEnv,
+      NODE_ENV: "test",
+      PORT: String(Date.now()),
+      JWT_SECRET: undefined,
+      DB_URL: "postgres://localhost:5432/test",
+    });
 
     expect(() => validateEnv()).not.toThrow();
   });

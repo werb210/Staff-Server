@@ -1,29 +1,22 @@
-const DEFAULT_TEST_ENV: Record<string, string> = {
-  NODE_ENV: "test",
-  SKIP_DB_CONNECTION: "true",
-  TEST_DB_URL: "postgres://postgres:postgres@localhost:5432/test",
-  JWT_SECRET: "test-secret",
-  REDIS_URL: "",
-  OPENAI_API_KEY: "test-key",
-  TWILIO_ACCOUNT_SID: "test",
-  TWILIO_AUTH_TOKEN: "test",
-  TWILIO_PHONE: "+10000000000",
-  TWILIO_VOICE_APP_SID: "APtest",
-  TWILIO_API_KEY: "SKtest",
-  TWILIO_API_SECRET: "secret",
-  TEST_OTP_CODE: "654321",
-};
+export function loadTestEnv(overrides: Record<string, string> = {}) {
+  const base = {
+    NODE_ENV: "test",
+    CI: "true",
+    PORT: "3001",
+    JWT_SECRET: "test-secret",
+    DATABASE_URL: "postgres://test:test@localhost:5432/test",
+    OPENAI_API_KEY: "test-key",
+  };
 
-export function loadTestEnv(overrides: Partial<Record<string, string>> = {}): void {
-  const merged = { ...DEFAULT_TEST_ENV, ...overrides };
+  const merged = { ...base, ...overrides };
+
+  // DO NOT mutate original env object directly if frozen
+  const newEnv = { ...process.env };
 
   for (const [key, value] of Object.entries(merged)) {
-    process.env[key] = value;
+    newEnv[key] = value;
   }
 
-  process.env.DATABASE_URL = process.env.TEST_DB_URL;
-}
-
-export function clearJwtSecretForAuthFailure(): void {
-  delete process.env.JWT_SECRET;
+  // replace env reference safely
+  Object.assign(process.env, newEnv);
 }

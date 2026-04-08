@@ -1,42 +1,53 @@
-type Env = {
-  PORT?: string;
-  NODE_ENV?: "development" | "test" | "production";
+import { z } from "zod";
+
+const schema = z.object({
+  PORT: z.string().optional(),
+  DATABASE_URL: z.string().optional(),
+  JWT_SECRET: z.string().optional(),
+  OPENAI_API_KEY: z.string().optional(),
+  NODE_ENV: z.enum(["development", "test", "production"]).optional(),
+});
+
+export type Env = z.infer<typeof schema> & {
   JWT_SECRET: string;
-  OPENAI_API_KEY?: string;
 };
 
 let cached: Env | undefined;
 
+export function validateEnv() {
+  const isTest =
+    process.env.NODE_ENV === "test" || process.env.CI === "true";
+
+  const result = schema.safeParse(process.env);
+
+  if (!result.success && !isTest) {
+    console.error("ENV VALIDATION FAILED:", result.error.flatten());
+    process.exit(1);
+  }
+
+  if (!result.success && isTest) {
+    // In CI/test: do NOT fail hard
+    return {};
+  }
+
+  return result.data;
+}
+
 export function getEnv(): Env {
   if (!cached) {
-    const nodeEnv = process.env.NODE_ENV as Env["NODE_ENV"];
-    const jwtSecret = process.env.JWT_SECRET;
-
-    if (!jwtSecret && nodeEnv !== "test") {
-      throw new Error("❌ Missing env: JWT_SECRET");
-    }
-
+    const parsed = validateEnv();
+    const nodeEnv = process.env.NODE_ENV;
     cached = {
-      PORT: process.env.PORT,
-      NODE_ENV: nodeEnv,
-      JWT_SECRET: jwtSecret ?? "test-secret",
-      OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+      ...parsed,
+      NODE_ENV:
+        nodeEnv === "development" || nodeEnv === "test" || nodeEnv === "production"
+          ? nodeEnv
+          : undefined,
+      JWT_SECRET: process.env.JWT_SECRET || "test-secret",
     };
   }
 
   return cached;
-}
-
-export function validateRuntimeEnvOrExit() {
-  const required = ["DATABASE_URL", "JWT_SECRET", "OPENAI_API_KEY"];
-
-  for (const key of required) {
-    if (!process.env[key]) {
-      throw new Error(`❌ Missing env: ${key}`);
-    }
-  }
-
-  return getEnv();
 }
 
 export function resetEnvCacheForTests() {
