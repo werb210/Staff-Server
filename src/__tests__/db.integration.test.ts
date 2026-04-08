@@ -1,8 +1,19 @@
-import { pool, runQuery } from "../lib/db";
+import { runQuery } from "../lib/db";
+import { captureOriginalEnv, restoreEnv, unsetEnv } from "../../test/utils/testEnv";
 
 describe("test db integration", () => {
+  let originalEnv = captureOriginalEnv();
+
+  beforeEach(() => {
+    originalEnv = captureOriginalEnv();
+  });
+
+  afterEach(() => {
+    restoreEnv(originalEnv);
+  });
+
   test("fails hard when db pool is not initialized", async () => {
-    delete process.env.DATABASE_URL;
+    unsetEnv(["DATABASE_URL"]);
     await expect(runQuery("SELECT 1")).rejects.toThrow("DB_POOL_NOT_INITIALIZED");
   });
 

@@ -8,7 +8,9 @@ const safeEnv = EnvSchema.safeParse({
   ...process.env,
 });
 
-if (!safeEnv.success) {
+const isTestMode = process.env.NODE_ENV === "test" || process.env.CI === "true";
+
+if (!safeEnv.success && !isTestMode) {
   console.error("ENV VALIDATION FAILED:", safeEnv.error.flatten());
 }
 

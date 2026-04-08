@@ -1,20 +1,19 @@
 import request from "supertest";
 import jwt from "jsonwebtoken";
 import { createApp } from "../app";
+import { applyEnv, captureOriginalEnv, restoreEnv } from "../../test/utils/testEnv";
 
 describe("auth middleware enforcement", () => {
   const app = createApp();
-  const originalEnv = { ...process.env };
+  let originalEnv = captureOriginalEnv();
 
   beforeEach(() => {
-    Object.assign(process.env, {
-      ...originalEnv,
-      JWT_SECRET: "test-secret",
-    });
+    originalEnv = captureOriginalEnv();
+    applyEnv({ JWT_SECRET: "test-secret" });
   });
 
   afterEach(() => {
-    Object.assign(process.env, originalEnv);
+    restoreEnv(originalEnv);
   });
 
   it("returns canonical 401 envelope when auth header is missing", async () => {

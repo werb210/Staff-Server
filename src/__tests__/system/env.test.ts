@@ -1,22 +1,20 @@
 import { validateEnv } from "../../system/env";
+import { applyEnv, captureOriginalEnv, restoreEnv } from "../../../test/utils/testEnv";
 
 describe("system/env", () => {
-  const originalEnv = { ...process.env };
+  let originalEnv = captureOriginalEnv();
 
   beforeEach(() => {
-    Object.assign(process.env, {
-      ...originalEnv,
-      JWT_SECRET: "test-secret",
-    });
+    originalEnv = captureOriginalEnv();
+    applyEnv({ JWT_SECRET: "test-secret" });
   });
 
   afterEach(() => {
-    Object.assign(process.env, originalEnv);
+    restoreEnv(originalEnv);
   });
 
   it("uses default PORT when PORT is missing", () => {
-    Object.assign(process.env, {
-      ...originalEnv,
+    applyEnv({
       JWT_SECRET: "secret",
       DB_URL: "postgres://localhost:5432/test",
       PORT: undefined,
@@ -26,8 +24,7 @@ describe("system/env", () => {
   });
 
   it("does not throw when JWT_SECRET is missing in test environment", () => {
-    Object.assign(process.env, {
-      ...originalEnv,
+    applyEnv({
       NODE_ENV: "test",
       PORT: String(Date.now()),
       JWT_SECRET: undefined,

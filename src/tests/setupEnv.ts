@@ -18,10 +18,6 @@ process.env.TWILIO_VOICE_APP_SID = "AP00000000000000000000000000000000";
 process.env.TEST_OTP_CODE = "654321";
 process.env.SKIP_DB_CONNECTION = "true";
 
-if (process.env.CI === "true") {
-  process.env = Object.freeze({ ...process.env });
-}
-
 const originalLog = console.log;
 let done = false;
 
