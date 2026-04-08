@@ -3,15 +3,21 @@ import type { Express } from "express";
 import jwt from "jsonwebtoken";
 
 import { createServer } from "../../src/server/createServer";
-import { loadTestEnv } from "../utils/testEnv";
+import { applyEnv, captureOriginalEnv, restoreEnv } from "../utils/testEnv";
 
 describe("Auth enforcement", () => {
   let app: Express;
   const testSecret = "test-secret";
+  let originalEnv = captureOriginalEnv();
 
   beforeAll(() => {
-    loadTestEnv({ JWT_SECRET: testSecret });
+    originalEnv = captureOriginalEnv();
+    applyEnv({ JWT_SECRET: testSecret });
     app = createServer();
+  });
+
+  afterAll(() => {
+    restoreEnv(originalEnv);
   });
 
   it("rejects missing header", async () => {

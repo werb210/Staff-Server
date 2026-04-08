@@ -2,18 +2,22 @@ import request from "supertest";
 import type { Express } from "express";
 
 import { createServer } from "../../src/server/createServer";
+import { applyEnv, captureOriginalEnv, restoreEnv, unsetEnv } from "../utils/testEnv";
 
 describe("Global CORS and deterministic preflight behavior", () => {
   const portalOrigin = "https://qa-cors-origin.example";
   let app: Express;
+  let originalEnv = captureOriginalEnv();
 
   beforeAll(() => {
-    process.env.CORS_ALLOWED_ORIGINS = portalOrigin;
+    originalEnv = captureOriginalEnv();
+    applyEnv({ CORS_ALLOWED_ORIGINS: portalOrigin });
     app = createServer();
   });
 
   afterAll(() => {
-    delete process.env.CORS_ALLOWED_ORIGINS;
+    restoreEnv(originalEnv);
+    unsetEnv(["CORS_ALLOWED_ORIGINS"]);
   });
 
   it("returns 204 for OPTIONS /api/auth/otp/start", async () => {

@@ -2,17 +2,17 @@ import request from "supertest";
 
 import { createServer } from "../src/server/createServer";
 import { assertRequiredEnv } from "../src/server/runtimeGuards";
+import { applyEnv, captureOriginalEnv, restoreEnv, unsetEnv } from "../test/utils/testEnv";
 
 describe("System boot", () => {
-  const originalPort = process.env.PORT;
+  let originalEnv = captureOriginalEnv();
+
+  beforeEach(() => {
+    originalEnv = captureOriginalEnv();
+  });
 
   afterEach(() => {
-    if (originalPort === undefined) {
-      delete process.env.PORT;
-      return;
-    }
-
-    process.env.PORT = originalPort;
+    restoreEnv(originalEnv);
   });
 
   it("boots with zero external dependencies", async () => {
@@ -26,7 +26,7 @@ describe("System boot", () => {
   });
 
   it("returns missing PORT when it is absent", () => {
-    delete process.env.PORT;
+    unsetEnv(["PORT"]);
 
     const result = assertRequiredEnv();
 
@@ -35,7 +35,7 @@ describe("System boot", () => {
   });
 
   it("returns ok when PORT is present", () => {
-    process.env.PORT = String(Date.now());
+    applyEnv({ PORT: String(Date.now()) });
 
     const result = assertRequiredEnv();
 
