@@ -4,18 +4,17 @@ import { createApp } from "../app";
 
 describe("auth middleware enforcement", () => {
   const app = createApp();
-  const originalSecret = process.env.JWT_SECRET;
+  const originalEnv = { ...process.env };
 
-  beforeAll(() => {
-    process.env.JWT_SECRET = "test-secret";
+  beforeEach(() => {
+    Object.assign(process.env, {
+      ...originalEnv,
+      JWT_SECRET: "test-secret",
+    });
   });
 
-  afterAll(() => {
-    if (originalSecret === undefined) {
-      delete process.env.JWT_SECRET;
-      return;
-    }
-    process.env.JWT_SECRET = originalSecret;
+  afterEach(() => {
+    Object.assign(process.env, originalEnv);
   });
 
   it("returns canonical 401 envelope when auth header is missing", async () => {

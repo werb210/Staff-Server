@@ -3,15 +3,22 @@ import type { Express } from "express";
 
 import { createServer } from "../../src/server/createServer";
 import { resetOtpStateForTests } from "../../src/app";
-import { clearJwtSecretForAuthFailure } from "../utils/testEnv";
 
 describe("OTP flows", () => {
   let app: Express;
+  const originalEnv = { ...process.env };
 
   beforeEach(() => {
-    process.env.JWT_SECRET = "test-secret";
+    Object.assign(process.env, {
+      ...originalEnv,
+      JWT_SECRET: "test-secret",
+    });
     resetOtpStateForTests();
     app = createServer();
+  });
+
+  afterEach(() => {
+    Object.assign(process.env, originalEnv);
   });
 
   it("starts OTP flow", async () => {
@@ -47,7 +54,7 @@ describe("OTP flows", () => {
   });
 
   it("returns unauthorized when JWT secret is unavailable", async () => {
-    clearJwtSecretForAuthFailure();
+    Object.assign(process.env, { ...originalEnv, JWT_SECRET: undefined });
 
     await request(app)
       .post("/api/auth/otp/start")
