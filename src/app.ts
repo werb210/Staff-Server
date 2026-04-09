@@ -2,15 +2,15 @@ import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 
-import authRoutes from "./routes/auth.js";
+import authRoutes, { resetOtpStateForTests as resetAuthOtpStateForTests } from "./routes/auth.js";
 import callRoutes from "./routes/call.js";
 import healthRoutes from "./routes/health.js";
+import publicRoutes from "./routes/public.js";
 import applicationsRouter from "./routes/applications.js";
 import documentsRouter from "./routes/documents.js";
 import pipelineRouter from "./routes/pipeline.js";
 import usersRouter from "./routes/users.js";
 import crmRouter from "./routes/crm.js";
-import voiceTokenRouter from "./routes/voiceToken.js";
 import { requireAuth } from "./middleware/auth.js";
 import { createLead } from "./modules/lead/lead.service.js";
 import { respondOk } from "./utils/respondOk.js";
@@ -60,6 +60,7 @@ export function createApp() {
   app.use("/api/auth", authRoutes);
   app.use("/api/call", callRoutes);
   app.use("/api/health", healthRoutes);
+  app.use("/api/public", publicRoutes);
 
   app.use("/api/applications", requireAuth, applicationsRouter);
   app.use("/api/client/applications", applicationsRouter);
@@ -67,8 +68,6 @@ export function createApp() {
   app.use("/api/pipeline", requireAuth, pipelineRouter);
   app.use("/api/users", requireAuth, usersRouter);
   app.use("/api/crm", requireAuth, crmRouter);
-  app.use("/api", requireAuth, voiceTokenRouter);
-
   app.post("/api/voice/device-token", requireAuth, (_req, res) => {
     res.json({ status: "ok", data: { registered: true } });
   });
@@ -140,5 +139,5 @@ const app = createApp();
 export default app;
 
 export function resetOtpStateForTests() {
-  // no-op: current auth flow is route-local in-memory state
+  resetAuthOtpStateForTests();
 }

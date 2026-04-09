@@ -40,8 +40,6 @@ async function createLead(payload: LeadPayload): Promise<{ leadId?: string }> {
   return stripUndefined({ leadId: result.rows[0]?.id });
 }
 
-router.get("/test", wrap(async () => ok({ ok: true })));
-
 router.post(
   "/lead",
   requireFields(["companyName", "email"]),

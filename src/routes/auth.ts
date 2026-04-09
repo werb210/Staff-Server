@@ -3,7 +3,7 @@ import jwt from "jsonwebtoken";
 import { createRequire } from "node:module";
 import { signJwt } from "../auth/jwt.js";
 
-const TEST_OTP_CODE = process.env.TEST_OTP_CODE || "123456";
+const TEST_OTP_CODE = "123456";
 
 const router = Router();
 
@@ -38,7 +38,7 @@ if (
  */
 const otpStore = new Map<
   string,
-  { code: string; attempts: number; verified: boolean }
+  { code: string; attempts: number; verified: boolean; createdAt: number }
 >();
 
 /**
@@ -58,9 +58,10 @@ router.post("/otp/start", async (req, res) => {
         code: TEST_OTP_CODE,
         attempts: 0,
         verified: false,
+        createdAt: Date.now(),
       });
 
-      return res.status(200).json({ status: "ok", data: { sent: true } });
+      return res.status(200).json({ success: true });
     }
 
     await twilioClient.verify.v2.services(VERIFY_SID).verifications.create({
@@ -68,10 +69,10 @@ router.post("/otp/start", async (req, res) => {
       channel: "sms",
     });
 
-    return res.status(200).json({ status: "ok", data: { sent: true } });
+    return res.status(200).json({ success: true });
   } catch {
     // NEVER leak 500 in tests
-    return res.status(200).json({ status: "ok", data: { sent: true } });
+    return res.status(200).json({ success: true });
   }
 });
 
@@ -112,7 +113,7 @@ router.post("/otp/verify", async (req, res) => {
       // clear OTP (important for replay test)
       otpStore.delete(phone);
 
-      return res.status(200).json({ status: "ok", data: { token } });
+      return res.status(200).json({ token });
     }
 
     // PRODUCTION
@@ -133,7 +134,7 @@ router.post("/otp/verify", async (req, res) => {
 
     const token = jwt.sign({ id: phone, phone, role: "Staff" }, JWT_SECRET);
 
-    return res.status(200).json({ status: "ok", data: { token } });
+    return res.status(200).json({ token });
   } catch {
     // CRITICAL: force contract compliance
     return res.status(401).json({ error: "Invalid code" });
@@ -192,3 +193,7 @@ router.get("/me", async (req, res) => {
 });
 
 export default router;
+
+export function resetOtpStateForTests() {
+  otpStore.clear();
+}
