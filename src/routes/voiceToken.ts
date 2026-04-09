@@ -56,7 +56,7 @@ function resolveVoiceIdentity(params: {
   return isStaffRole ? "staff_portal" : null;
 }
 
-router.get("/voice/token", requireAuth, (req: any, res: any) => {
+function issueVoiceToken(req: any, res: any) {
   const user = req.user;
   if (!user) {
     res.status(401).json({ ok: false, error: "missing_token" });
@@ -64,7 +64,7 @@ router.get("/voice/token", requireAuth, (req: any, res: any) => {
   }
 
   const identity = resolveVoiceIdentity({
-    query: req.query as Record<string, unknown>,
+    query: { ...req.query, ...req.body } as Record<string, unknown>,
     userId: user.userId,
     role: user.role,
   });
@@ -92,6 +92,9 @@ router.get("/voice/token", requireAuth, (req: any, res: any) => {
     identity,
     token: token.toJwt(),
   });
-});
+}
+
+router.get("/voice/token", requireAuth, issueVoiceToken);
+router.post("/voice/token", requireAuth, issueVoiceToken);
 
 export default router;
