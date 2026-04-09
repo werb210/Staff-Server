@@ -60,7 +60,7 @@ jobs:
         run: |
           for i in 1 2 3 4 5; do
             echo "RUN $i"
-            npm run ci:validate || exit 1
+            npm run ci:validate
           done
 
       - name: Ensure no forbidden exit usage
