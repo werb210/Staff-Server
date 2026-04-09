@@ -10,7 +10,10 @@ import documentsRouter from "./routes/documents.js";
 import pipelineRouter from "./routes/pipeline.js";
 import usersRouter from "./routes/users.js";
 import crmRouter from "./routes/crm.js";
+import voiceTokenRouter from "./routes/voiceToken.js";
 import { requireAuth } from "./middleware/auth.js";
+import { createLead } from "./modules/lead/lead.service.js";
+import { respondOk } from "./utils/respondOk.js";
 
 export function createApp() {
   const app = express();
@@ -64,6 +67,52 @@ export function createApp() {
   app.use("/api/pipeline", requireAuth, pipelineRouter);
   app.use("/api/users", requireAuth, usersRouter);
   app.use("/api/crm", requireAuth, crmRouter);
+  app.use("/api", requireAuth, voiceTokenRouter);
+
+  app.post("/api/voice/device-token", requireAuth, (_req, res) => {
+    res.json({ status: "ok", data: { registered: true } });
+  });
+  app.post("/api/voice/calls/answer", requireAuth, (_req, res) => {
+    res.json({ status: "ok", data: { answered: true } });
+  });
+  app.post("/api/voice/calls/end", requireAuth, (_req, res) => {
+    res.json({ status: "ok", data: { ended: true } });
+  });
+  app.get("/api/voice/calls/log", requireAuth, (_req, res) => {
+    res.json({ status: "ok", data: { calls: [] } });
+  });
+  app.post("/api/voice/record/start", requireAuth, (_req, res) => {
+    res.json({ status: "ok", data: { recording: true } });
+  });
+  app.post("/api/voice/record/stop", requireAuth, (_req, res) => {
+    res.json({ status: "ok", data: { recording: false } });
+  });
+  app.post("/api/sms/send", requireAuth, (_req, res) => {
+    res.json({ status: "ok", data: { sent: true } });
+  });
+
+  app.post("/api/v1/crm/lead", async (req: any, res: any) => {
+    try {
+      const payload = {
+        source: req.body?.source ?? "website",
+        companyName: req.body?.company_name ?? req.body?.companyName ?? req.body?.businessName,
+        fullName: req.body?.full_name ?? req.body?.fullName ?? req.body?.name,
+        email: req.body?.email,
+        phone: req.body?.phone,
+        requestedAmount: req.body?.requested_amount ?? req.body?.requestedAmount ?? req.body?.fundingAmount,
+        monthlyRevenue: req.body?.monthly_revenue ?? req.body?.monthlyRevenue,
+        annualRevenue: req.body?.annual_revenue ?? req.body?.annualRevenue,
+        productInterest: req.body?.product_interest ?? req.body?.productInterest ?? req.body?.product,
+        industryInterest: req.body?.industry_interest ?? req.body?.industryInterest ?? req.body?.industry,
+        notes: req.body?.notes ?? req.body?.message,
+        tags: req.body?.tags,
+      };
+      const result = await createLead(payload);
+      return respondOk(res, result);
+    } catch (err: any) {
+      return res.status(500).json({ status: "error", message: err?.message ?? "Failed" });
+    }
+  });
 
   /**
    * 404 HANDLER

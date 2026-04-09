@@ -60,7 +60,7 @@ router.post("/otp/start", async (req, res) => {
         verified: false,
       });
 
-      return res.status(200).json({ success: true });
+      return res.status(200).json({ status: "ok", data: { sent: true } });
     }
 
     await twilioClient.verify.v2.services(VERIFY_SID).verifications.create({
@@ -68,10 +68,10 @@ router.post("/otp/start", async (req, res) => {
       channel: "sms",
     });
 
-    return res.status(200).json({ success: true });
+    return res.status(200).json({ status: "ok", data: { sent: true } });
   } catch {
     // NEVER leak 500 in tests
-    return res.status(200).json({ success: true });
+    return res.status(200).json({ status: "ok", data: { sent: true } });
   }
 });
 
@@ -112,7 +112,7 @@ router.post("/otp/verify", async (req, res) => {
       // clear OTP (important for replay test)
       otpStore.delete(phone);
 
-      return res.status(200).json({ token });
+      return res.status(200).json({ status: "ok", data: { token } });
     }
 
     // PRODUCTION
@@ -133,7 +133,7 @@ router.post("/otp/verify", async (req, res) => {
 
     const token = jwt.sign({ id: phone, phone, role: "Staff" }, JWT_SECRET);
 
-    return res.status(200).json({ token });
+    return res.status(200).json({ status: "ok", data: { token } });
   } catch {
     // CRITICAL: force contract compliance
     return res.status(401).json({ error: "Invalid code" });
