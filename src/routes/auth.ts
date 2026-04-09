@@ -50,7 +50,7 @@ router.post("/otp/start", async (req, res) => {
     // TEST MODE
     if (!twilioClient || !VERIFY_SID) {
       otpStore.set(phone, {
-        code: "654321",
+        code: "123456",
         attempts: 0,
         verified: false,
       });
@@ -106,7 +106,7 @@ router.post("/otp/verify", async (req, res) => {
         return res.status(401).json({ error: "Invalid code" });
       }
 
-      const token = jwt.sign({ phone }, JWT_SECRET);
+      const token = jwt.sign({ id: phone, phone, role: "Staff" }, JWT_SECRET);
 
       return res.status(200).json({ token });
     }
@@ -127,7 +127,7 @@ router.post("/otp/verify", async (req, res) => {
       return res.status(401).json({ error: "Invalid code" });
     }
 
-    const token = jwt.sign({ phone }, JWT_SECRET);
+    const token = jwt.sign({ id: phone, phone, role: "Staff" }, JWT_SECRET);
 
     return res.status(200).json({ token });
   } catch {
@@ -139,7 +139,7 @@ router.post("/otp/verify", async (req, res) => {
 /**
  * ME
  */
-router.get("/me", (req, res) => {
+router.get("/me", async (req, res) => {
   try {
     const auth = req.headers.authorization;
 
@@ -147,11 +147,41 @@ router.get("/me", (req, res) => {
       return res.status(401).json({ error: "missing token" });
     }
 
+    if (!JWT_SECRET) {
+      return res.status(500).json({ error: "auth not configured" });
+    }
+
     const token = auth.split(" ")[1];
+    const decoded = jwt.verify(token, JWT_SECRET) as { phone?: string; role?: string };
 
-    const decoded = jwt.verify(token, JWT_SECRET || "fallback");
+    // Prefer real user record from DB; fall back to claims if unavailable.
+    let user: { id: string; phone: string; role: string; email?: string } | null = null;
+    try {
+      const { runQuery } = await import("../db.js");
+      const result = await runQuery<{
+        id: string;
+        phone: string;
+        role: string;
+        email?: string;
+      }>(
+        "SELECT id, phone, role, email FROM users WHERE phone = $1 LIMIT 1",
+        [decoded.phone],
+      );
 
-    return res.status(200).json({ user: decoded });
+      if (result.rows.length > 0) {
+        user = result.rows[0];
+      }
+    } catch {
+      // DB unavailable or user not seeded — use token claims.
+    }
+
+    return res.status(200).json({
+      user: user ?? {
+        id: decoded.phone ?? "unknown",
+        phone: decoded.phone ?? "",
+        role: decoded.role ?? "Staff",
+      },
+    });
   } catch {
     return res.status(401).json({ error: "invalid token" });
   }
