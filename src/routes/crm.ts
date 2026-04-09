@@ -5,11 +5,34 @@ import { safeHandler } from "../middleware/safeHandler";
 import { respondOk } from "../utils/respondOk";
 import { handleListCrmTimeline } from "../modules/crm/timeline.controller";
 import { SupportController } from "../modules/support/support.controller";
+import { createLead } from "../modules/lead/lead.service";
 
 const router = Router();
 
 // Public website lead intake endpoint
 router.post("/web-leads", SupportController.createWebLead);
+
+// Canonical lead creation endpoint — called by Website, BF-client, and Agent
+// Placed before requireAuth so the website can submit without a token
+router.post("/lead", safeHandler(async (req: any, res: any) => {
+  const payload = {
+    source: req.body?.source ?? "website",
+    companyName: req.body?.company_name ?? req.body?.companyName ?? req.body?.businessName,
+    fullName: req.body?.full_name ?? req.body?.fullName ?? req.body?.name,
+    email: req.body?.email,
+    phone: req.body?.phone,
+    requestedAmount: req.body?.requested_amount ?? req.body?.requestedAmount ?? req.body?.fundingAmount,
+    monthlyRevenue: req.body?.monthly_revenue ?? req.body?.monthlyRevenue,
+    annualRevenue: req.body?.annual_revenue ?? req.body?.annualRevenue,
+    productInterest: req.body?.product_interest ?? req.body?.productInterest ?? req.body?.product,
+    industryInterest: req.body?.industry_interest ?? req.body?.industryInterest ?? req.body?.industry,
+    notes: req.body?.notes ?? req.body?.message,
+    tags: req.body?.tags,
+  };
+
+  const result = await createLead(payload);
+  return respondOk(res, result);
+}));
 
 router.use(requireAuth);
 router.use(requireCapability([CAPABILITIES.CRM_READ]));

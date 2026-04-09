@@ -3,6 +3,7 @@ import { randomInt } from "crypto";
 import jwt from "jsonwebtoken";
 
 import { getRedis } from "../../lib/redis";
+import { findAuthUserByPhone } from "../../modules/auth/auth.repo";
 
 const router = express.Router();
 
@@ -17,7 +18,6 @@ function getTwilioClient() {
       process.env.TWILIO_AUTH_TOKEN ?? "",
     );
   }
-
   return twilioClient;
 }
 
@@ -45,7 +45,6 @@ router.post("/start", async (req: Request, res: Response) => {
     if (process.env.NODE_ENV === "test") {
       return res.status(200).json({ status: "ok", data: { sent: true } });
     }
-
     return res.status(500).json({ error: "missing_otp_env" });
   }
 
@@ -59,7 +58,7 @@ router.post("/start", async (req: Request, res: Response) => {
   }
 
   await getTwilioClient().messages.create({
-    body: `Your code is ${code}`,
+    body: `Your Boreal Financial verification code is ${code}`,
     to: phone,
     from: process.env.TWILIO_PHONE,
   });
@@ -85,8 +84,46 @@ router.post("/verify", async (req: Request, res: Response) => {
   if (!JWT_SECRET) {
     return res.status(401).json({ error: "unauthorized" });
   }
+
+  let sub: string;
+  let role: string;
+  let tokenVersion: number;
+  let silo: string | null = null;
+
+  try {
+    const user = await findAuthUserByPhone(phone);
+    if (!user) {
+      return res.status(401).json({
+        error: "user_not_found",
+        message: "No staff account found for this phone number. Contact your administrator.",
+      });
+    }
+    if (!user.role) {
+      return res.status(403).json({
+        error: "no_role",
+        message: "Account exists but has no role assigned. Contact your administrator.",
+      });
+    }
+    if (user.disabled || !user.active) {
+      return res.status(403).json({ error: "account_disabled" });
+    }
+    sub = user.id;
+    role = user.role;
+    tokenVersion = user.tokenVersion ?? 0;
+    silo = user.silo ?? null;
+  } catch (err) {
+    console.error("OTP verify DB lookup failed:", err);
+    return res.status(500).json({ error: "internal_error" });
+  }
+
   const token = jwt.sign(
-    { phone },
+    {
+      sub,
+      role,
+      phone,
+      tokenVersion,
+      ...(silo ? { silo } : {}),
+    },
     JWT_SECRET,
     { expiresIn: "1d" },
   );
