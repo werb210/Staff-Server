@@ -31,6 +31,8 @@ import pipelineRoutes from "./pipeline";
 import telephonyRoutes from "../telephony/routes/telephonyRoutes";
 import webhooksRoutes from "./webhooks";
 import websiteRoutes from "./website";
+import mayaRoutes from "./maya";
+import aiRoutes from "./ai.v2";
 import { mount, resetMountedRoutes } from "./_canonicalMount";
 
 export type ApiRoute = {
@@ -82,6 +84,8 @@ export const API_ROUTE_MOUNTS: ApiRouteMount[] = [
   { path: "/pipeline", router: pipelineRoutes },
   { path: "/webhooks", router: webhooksRoutes },
   { path: "/website", router: websiteRoutes },
+  { path: "/maya", router: mayaRoutes },
+  { path: "/ai", router: aiRoutes },
   { path: "/applications", router: applicationsRoutes },
 ];
 
