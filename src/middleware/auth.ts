@@ -16,23 +16,17 @@ export interface AuthRequest extends Request {
 }
 
 export function auth(req: Request, res: Response, next: NextFunction) {
-  const token = req.headers.authorization?.replace("Bearer ", "");
+  const token = req.headers.authorization?.split(" ")[1];
 
   if (!token) {
-    return res.status(401).json({
-      status: "error",
-      error: "NO_TOKEN",
-    });
+    return res.status(401).json({ status: "error", message: "Unauthorized" });
   }
 
   try {
     const JWT_SECRET = process.env.JWT_SECRET;
 
     if (!JWT_SECRET) {
-      return res.status(500).json({
-        status: "error",
-        error: "Auth not configured",
-      });
+      return res.status(500).json({ status: "error", message: "Auth not configured" });
     }
 
     const decoded = jwt.verify(token, JWT_SECRET);
@@ -40,10 +34,7 @@ export function auth(req: Request, res: Response, next: NextFunction) {
 
     next();
   } catch {
-    return res.status(401).json({
-      status: "error",
-      error: "INVALID_TOKEN",
-    });
+    return res.status(401).json({ status: "error", message: "Invalid token" });
   }
 }
 
