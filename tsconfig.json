@@ -10,9 +10,14 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "types": ["node"]
+    "types": [
+      "node"
+    ],
+    "allowSyntheticDefaultImports": true
   },
-  "include": ["src"],
+  "include": [
+    "src"
+  ],
   "exclude": [
     "node_modules",
     "dist",
