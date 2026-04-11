@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import twilio from "twilio";
 import { getRedis } from "../../lib/redis.js";
 import { findAuthUserByPhone } from "../../modules/auth/auth.repo.js";
+import { fetchCapabilitiesForRole } from "../../auth/capabilities.js";
 const router = express.Router();
 const isPhone = (value) => (typeof value === "string" && /^\+?[1-9]\d{7,14}$/.test(value.trim()));
 const isCode = (value) => (typeof value === "string" && /^\d{6}$/.test(value.trim()));
@@ -84,11 +85,15 @@ router.post("/verify", async (req, res) => {
         console.error("OTP verify DB lookup failed:", err);
         return res.status(500).json({ error: "internal_error" });
     }
+    const capabilities = (() => {
+        try { return fetchCapabilitiesForRole(role); } catch { return []; }
+    })();
     const token = jwt.sign({
         sub,
         role,
         phone,
         tokenVersion,
+        capabilities,
         ...(silo ? { silo } : {}),
     }, JWT_SECRET, { expiresIn: "1d" });
     await redis.del(`otp:${phone}`);

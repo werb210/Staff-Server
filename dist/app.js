@@ -24,9 +24,7 @@ export function createApp() {
         "https://www.boreal.financial",
     ];
     const envOrigins = (process.env.CORS_ALLOWED_ORIGINS ?? "")
-        .split(",")
-        .map((o) => o.trim())
-        .filter(Boolean);
+        .split(",").map((o) => o.trim()).filter(Boolean);
     const allowedOrigins = [...new Set([...envOrigins, ...HARDCODED_ALLOWED_ORIGINS])];
 
     app.use(cors({
@@ -53,7 +51,7 @@ export function createApp() {
     app.use("/api/documents", requireAuth, documentsRouter);
     app.use("/api/pipeline", requireAuth, pipelineRouter);
     app.use("/api/users", requireAuth, usersRouter);
-    app.use("/api/crm", requireAuth, crmRouter);
+    app.use("/api/crm", crmRouter);
 
     app.get("/api/crm/leads/count", requireAuth, (_req, res) => { res.json({ count: 0 }); });
     app.get("/api/support/live/count", requireAuth, (_req, res) => { res.json({ count: 0 }); });
@@ -68,8 +66,8 @@ export function createApp() {
 
     app.use("/api", voiceTokenRouter);
 
-    app.get("/api/telephony/token", requireAuth, (_req, res, next) => { res.redirect(307, "/api/voice/token"); });
-    app.get("/api/dialer/token", requireAuth, (_req, res, next) => { res.redirect(307, "/api/voice/token"); });
+    app.get("/api/telephony/token", requireAuth, (req, res) => { res.redirect(307, "/api/voice/token"); });
+    app.get("/api/dialer/token", requireAuth, (req, res) => { res.redirect(307, "/api/voice/token"); });
 
     app.post("/api/v1/crm/lead", async (req, res) => {
         try {
@@ -77,15 +75,13 @@ export function createApp() {
                 source: req.body?.source ?? "website",
                 companyName: req.body?.company_name ?? req.body?.companyName ?? req.body?.businessName,
                 fullName: req.body?.full_name ?? req.body?.fullName ?? req.body?.name,
-                email: req.body?.email,
-                phone: req.body?.phone,
+                email: req.body?.email, phone: req.body?.phone,
                 requestedAmount: req.body?.requested_amount ?? req.body?.requestedAmount ?? req.body?.fundingAmount,
                 monthlyRevenue: req.body?.monthly_revenue ?? req.body?.monthlyRevenue,
                 annualRevenue: req.body?.annual_revenue ?? req.body?.annualRevenue,
                 productInterest: req.body?.product_interest ?? req.body?.productInterest ?? req.body?.product,
                 industryInterest: req.body?.industry_interest ?? req.body?.industryInterest ?? req.body?.industry,
-                notes: req.body?.notes ?? req.body?.message,
-                tags: req.body?.tags,
+                notes: req.body?.notes ?? req.body?.message, tags: req.body?.tags,
             };
             const result = await createLead(payload);
             return respondOk(res, result);
