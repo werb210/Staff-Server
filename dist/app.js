@@ -10,6 +10,7 @@ import pipelineRouter from "./routes/pipeline.js";
 import usersRouter from "./routes/users.js";
 import crmRouter from "./routes/crm.js";
 import voiceTokenRouter from "./routes/voiceToken.js";
+import AccessToken from "twilio/lib/jwt/AccessToken.js";
 import { requireAuth } from "./middleware/auth.js";
 import { createLead } from "./modules/lead/lead.service.js";
 import { respondOk } from "./utils/respondOk.js";
@@ -37,33 +38,54 @@ export function createApp() {
     app.use(express.json({ limit: "10mb" }));
     app.use(cookieParser());
 
+    // Health — must be first
     app.get("/health", (_req, res) => { res.status(200).json({ status: "ok" }); });
+    app.get("/api/health", (_req, res) => { res.status(200).json({ status: "ok" }); });
     app.get("/api/_int/health", (_req, res) => { res.status(200).json({ status: "ok" }); });
     app.get("/api/_int/production-readiness", requireAuth, (_req, res) => { res.status(200).json({ status: "ok" }); });
 
+    // Auth
     app.use("/api/auth", authRoutes);
-    app.use("/api/health", healthRoutes);
     app.use("/api/public", publicRoutes);
+
+    // Simple stubs MUST come before the routers that might shadow them
+    app.get("/api/crm/leads/count", requireAuth, (_req, res) => { res.json({ count: 0 }); });
+    app.get("/api/support/live/count", requireAuth, (_req, res) => { res.json({ count: 0 }); });
+
+    // Telephony token — direct generation, no redirect
+    app.get("/api/telephony/token", requireAuth, (req, res) => {
+        const user = req.user;
+        if (!user) return res.status(401).json({ error: "unauthorized" });
+        const accountSid = process.env.TWILIO_ACCOUNT_SID;
+        const apiKey = process.env.TWILIO_API_KEY;
+        const apiSecret = process.env.TWILIO_API_SECRET;
+        const voiceAppSid = process.env.TWILIO_VOICE_APP_SID;
+        if (!accountSid || !apiKey || !apiSecret || !voiceAppSid) {
+            return res.status(503).json({ error: "voice_not_configured" });
+        }
+        try {
+            const identity = user.userId ?? user.sub ?? "staff_portal";
+            const token = new AccessToken(accountSid, apiKey, apiSecret, { identity });
+            const VoiceGrant = AccessToken.VoiceGrant;
+            const grant = new VoiceGrant({ outgoingApplicationSid: voiceAppSid, incomingAllow: true });
+            token.addGrant(grant);
+            return res.json({ token: token.toJwt(), identity });
+        } catch (err) {
+            console.error("Voice token failed:", err);
+            return res.status(500).json({ error: "token_failed" });
+        }
+    });
+
+    // Feature routers
     app.use("/api/applications", requireAuth, applicationsRouter);
     app.use("/api/client/applications", applicationsRouter);
     app.use("/api/documents", requireAuth, documentsRouter);
     app.use("/api/pipeline", requireAuth, pipelineRouter);
     app.use("/api/users", requireAuth, usersRouter);
     app.use("/api/crm", crmRouter);
-
-    app.get("/api/crm/leads/count", requireAuth, (_req, res) => { res.json({ count: 0 }); });
-    app.get("/api/support/live/count", requireAuth, (_req, res) => { res.json({ count: 0 }); });
-
     app.use("/api", voiceTokenRouter);
 
-    app.get("/api/telephony/token", requireAuth, (req, res) => {
-        const voiceRouter = voiceTokenRouter;
-        const mockReq = Object.assign(Object.create(req), { url: "/voice/token", path: "/voice/token" });
-        voiceRouter.handle(mockReq, res, () => {
-            res.status(404).json({ error: "Voice token unavailable" });
-        });
-    });
-
+    // Misc stubs
     app.post("/api/sms/send", requireAuth, (_req, res) => { res.json({ status: "ok", data: { sent: true } }); });
     app.post("/api/voice/calls/answer", requireAuth, (_req, res) => { res.json({ status: "ok", data: { answered: true } }); });
     app.post("/api/voice/calls/end", requireAuth, (_req, res) => { res.json({ status: "ok", data: { ended: true } }); });
