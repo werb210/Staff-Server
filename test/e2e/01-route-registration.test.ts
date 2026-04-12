@@ -28,7 +28,18 @@ describe("Route registration and prefix integrity", () => {
       const req = request(app)[check.method](check.path);
       const res = check.body ? await req.send(check.body) : await req;
       expect(res.status).toBe(check.expectedStatus);
+      expect(res.status).not.toBe(405);
     }
+  });
+
+  it("keeps OTP endpoints mounted only at canonical /api/auth paths", async () => {
+    const start = await request(app).post("/api/auth/otp/start").send({ phone: "+15555550100" });
+    expect(start.status).toBe(200);
+    expect(start.status).not.toBe(405);
+
+    const verify = await request(app).post("/api/auth/otp/verify").send({ phone: "+15555550100", code: "654321" });
+    expect(verify.status).toBe(200);
+    expect(verify.body.status).toBe("ok");
   });
 
   it("returns 404 for non-api aliases", async () => {
