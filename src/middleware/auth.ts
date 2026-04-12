@@ -15,8 +15,40 @@ export interface AuthRequest extends Request {
   user?: Request["user"];
 }
 
+function readBearerToken(value: string | undefined): string | null {
+  if (!value) return null;
+  const [scheme, token] = value.split(" ");
+  if (scheme?.toLowerCase() !== "bearer" || !token) return null;
+  return token;
+}
+
+function readCookieToken(req: Request): string | null {
+  const cookies = req.cookies as Record<string, string | undefined> | undefined;
+  if (!cookies) return null;
+
+  return (
+    cookies.accessToken ??
+    cookies.authToken ??
+    cookies.token ??
+    cookies.jwt ??
+    null
+  );
+}
+
+function getToken(req: Request): string | null {
+  const authHeader = typeof req.headers.authorization === "string"
+    ? req.headers.authorization
+    : undefined;
+
+  return (
+    readBearerToken(authHeader) ??
+    (typeof req.headers["x-access-token"] === "string" ? req.headers["x-access-token"] : null) ??
+    readCookieToken(req)
+  );
+}
+
 export function auth(req: Request, res: Response, next: NextFunction) {
-  const token = req.headers.authorization?.split(" ")[1];
+  const token = getToken(req);
 
   if (!token) {
     return res.status(401).json({ status: "error", message: "Unauthorized" });
