@@ -17,6 +17,19 @@ export const pool = new Pool({
   keepAlive: true
 });
 
+
+async function ensureLiveChatRequestsTable() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS live_chat_requests (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      phone_number TEXT,
+      status TEXT DEFAULT 'pending',
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+}
+
 export async function testDb() {
   const start = Date.now();
 
@@ -24,6 +37,7 @@ export async function testDb() {
 
   try {
     await client.query('SELECT 1');
+    await ensureLiveChatRequestsTable();
     console.log('DB OK in', Date.now() - start, 'ms');
   } finally {
     client.release();
@@ -34,6 +48,7 @@ export async function waitForDb(retries = 5, delayMs = 3000) {
   for (let i = 0; i < retries; i += 1) {
     try {
       await pool.query('SELECT 1');
+      await ensureLiveChatRequestsTable();
       console.log('DB READY');
       return true;
     } catch (err) {
