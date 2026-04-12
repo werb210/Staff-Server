@@ -1,7 +1,9 @@
 import express from "express";
-import twilio from "twilio";
+import { createRequire } from "node:module";
 
-const VoiceResponse = twilio.twiml.VoiceResponse;
+const _require = createRequire(import.meta.url);
+const twilioSdk = _require("twilio");
+const VoiceResponse = twilioSdk.twiml.VoiceResponse;
 import { requireAuth } from "../middleware/requireAuth.js";
 import { validate } from "../middleware/validate.js";
 import { CallStatusSchema } from "../schemas/index.js";

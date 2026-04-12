@@ -1,14 +1,14 @@
 import { Router } from "express";
-import twilio from "twilio";
+import { createRequire } from "node:module";
 
-const AccessToken = twilio.jwt.AccessToken;
+const _require = createRequire(import.meta.url);
+const twilioSdk = _require("twilio");
+const AccessToken = twilioSdk.jwt.AccessToken;
+const VoiceGrant = AccessToken.VoiceGrant;
 import { requireAuth } from "../middleware/auth.js";
 import { ROLES, type Role } from "../auth/roles.js";
 import { config } from "../config/index.js";
 
-const { VoiceGrant } = AccessToken as unknown as {
-  VoiceGrant: new (options: { outgoingApplicationSid: string; incomingAllow: boolean }) => unknown;
-};
 
 const router = Router();
 

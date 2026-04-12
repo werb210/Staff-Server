@@ -1,9 +1,10 @@
 import { v4 as uuid } from "uuid";
+import { createRequire } from "node:module";
 import { config } from "../../config/index.js";
 
-import twilio from "twilio";
-
-const AccessToken = twilio.jwt.AccessToken;
+const _require = createRequire(import.meta.url);
+const twilioSdk = _require("twilio");
+const AccessToken = twilioSdk.jwt.AccessToken;
 const VoiceGrant = AccessToken.VoiceGrant;
 
 function requireTokenConfig(value: string | undefined, name: string): string {
