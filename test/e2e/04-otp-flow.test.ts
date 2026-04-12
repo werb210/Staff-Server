@@ -38,7 +38,7 @@ describe("OTP flows", () => {
 
     const res = await request(app)
       .post("/api/auth/otp/verify")
-      .send({ phone: "+15555550100", code: "123456" });
+      .send({ phone: "+15555550100", code: "654321" });
 
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("ok");
@@ -83,6 +83,18 @@ describe("OTP flows", () => {
     expect(res.body.error).toBe("Invalid code");
   });
 
+  it("does not return 405 for canonical OTP routes", async () => {
+    const startRes = await request(app)
+      .post("/api/auth/otp/start")
+      .send({ phone: "+15555550100" });
+    expect(startRes.status).not.toBe(405);
+
+    const verifyRes = await request(app)
+      .post("/api/auth/otp/verify")
+      .send({ phone: "+15555550100", code: "000000" });
+    expect(verifyRes.status).not.toBe(405);
+  });
+
   it("returns invalid code when OTP has not been stored", async () => {
     const startTime = 1_700_000_000_000;
     const nowSpy = vi.spyOn(Date, "now");
@@ -96,7 +108,7 @@ describe("OTP flows", () => {
 
     const res = await request(app)
       .post("/api/auth/otp/verify")
-      .send({ phone: "+15555550100", code: "654321" });
+      .send({ phone: "+15555550100", code: "123456" });
 
     expect(res.status).toBe(401);
     expect(res.body.error).toBe("Invalid code");
@@ -158,7 +170,7 @@ describe("OTP flows", () => {
     const first = await request(app)
       .post("/api/auth/otp/verify")
       .send({ phone: "+15555550100", code: "654321" });
-    expect(first.status).toBe(401);
+    expect(first.status).toBe(200);
 
     const replay = await request(app)
       .post("/api/auth/otp/verify")

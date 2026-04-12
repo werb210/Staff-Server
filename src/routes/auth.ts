@@ -3,7 +3,7 @@ import jwt from "jsonwebtoken";
 import { signJwt } from "../auth/jwt.js";
 import twilio from "twilio";
 
-const TEST_OTP_CODE = "123456";
+const TEST_OTP_CODE = "654321";
 
 const router = Router();
 
@@ -43,7 +43,8 @@ const otpStore = new Map<
  */
 router.post("/otp/start", async (req, res) => {
   try {
-    const phone = req.body?.phone;
+    const rawPhone = req.body?.phone;
+    const phone = typeof rawPhone === "string" ? rawPhone.trim() : "";
 
     if (!phone) {
       return res.status(400).json({ error: "Phone is required" });
