@@ -1,3 +1,11 @@
+process.on('unhandledRejection', err => {
+  console.error('[UNHANDLED REJECTION]', err);
+});
+
+process.on('uncaughtException', err => {
+  console.error('[UNCAUGHT EXCEPTION]', err);
+});
+
 import express from 'express';
 import healthRouter from './routes/health';
 import { logger } from './lib/logger';
