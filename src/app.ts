@@ -123,6 +123,13 @@ export function createApp() {
 
   registerApiRouteMounts(app);
 
+  const expressApp = app as any;
+  expressApp._router?.stack
+    ?.filter((r: any) => r.route)
+    .forEach((r: any) => {
+      console.log(Object.keys(r.route.methods), r.route.path);
+    });
+
   /**
    * 404 HANDLER
    */

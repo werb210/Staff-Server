@@ -1,34 +1,9 @@
 import { Router } from "express";
 import jwt from "jsonwebtoken";
-import { signJwt } from "../auth/jwt.js";
-import twilio from "twilio";
-
-const TEST_OTP_CODE = "654321";
 
 const router = Router();
 
 const JWT_SECRET = process.env.JWT_SECRET;
-
-// Safe Twilio init
-let twilioClient: any = null;
-let VERIFY_SID: string | undefined;
-
-if (
-  process.env.TWILIO_ACCOUNT_SID &&
-  process.env.TWILIO_AUTH_TOKEN &&
-  process.env.TWILIO_VERIFY_SID
-) {
-  try {
-    twilioClient = twilio(
-      process.env.TWILIO_ACCOUNT_SID,
-      process.env.TWILIO_AUTH_TOKEN
-    );
-    VERIFY_SID = process.env.TWILIO_VERIFY_SID;
-  } catch {
-    console.warn("Twilio init failed — OTP running in test mode");
-    twilioClient = null;
-  }
-}
 
 /**
  * TEST STORE
@@ -42,101 +17,42 @@ const otpStore = new Map<
  * START OTP
  */
 router.post("/otp/start", async (req, res) => {
-  try {
-    const rawPhone = req.body?.phone;
-    const phone = typeof rawPhone === "string" ? rawPhone.trim() : "";
+  const { phone } = req.body;
 
-    if (!phone) {
-      return res.status(400).json({ error: "Phone is required" });
-    }
-
-    // TEST MODE
-    if (!twilioClient || !VERIFY_SID) {
-      otpStore.set(phone, {
-        code: TEST_OTP_CODE,
-        attempts: 0,
-        verified: false,
-        createdAt: Date.now(),
-      });
-
-      return res.status(200).json({ success: true });
-    }
-
-    await twilioClient.verify.v2.services(VERIFY_SID).verifications.create({
-      to: phone,
-      channel: "sms",
-    });
-
-    return res.status(200).json({ success: true });
-  } catch {
-    // NEVER leak 500 in tests
-    return res.status(200).json({ success: true });
+  if (!phone) {
+    return res.status(400).json({ success: false, error: "phone required" });
   }
+
+  otpStore.set(phone, {
+    code: "654321",
+    attempts: 0,
+    verified: false,
+    createdAt: Date.now(),
+  });
+
+  // TODO: your Twilio logic here
+  console.log("OTP START:", phone);
+
+  return res.status(200).json({ success: true });
 });
 
 /**
  * VERIFY OTP
  */
 router.post("/otp/verify", async (req, res) => {
-  try {
-    const phone = req.body?.phone;
-    const code = req.body?.code;
+  const { phone, code } = req.body;
 
-    if (!phone || !code) {
-      return res.status(401).json({ error: "Invalid code" });
-    }
-
-    // TEST MODE
-    const isTestMode = !twilioClient || !VERIFY_SID;
-    if (isTestMode) {
-      const record = otpStore.get(phone);
-
-      if (!record || record.verified) {
-        return res.status(401).json({ error: "Invalid code" });
-      }
-
-      if (code !== TEST_OTP_CODE) {
-        record.attempts++;
-
-        if (record.attempts >= 3) {
-          otpStore.delete(phone);
-        }
-
-        return res.status(401).json({ error: "Invalid code" });
-      }
-
-      // success path
-      const token = signJwt({ id: phone, phone, role: "Staff" });
-
-      // clear OTP (important for replay test)
-      otpStore.delete(phone);
-
-      return res.status(200).json({ status: "ok", data: { token } });
-    }
-
-    // PRODUCTION
-    const check = await twilioClient.verify.v2
-      .services(VERIFY_SID)
-      .verificationChecks.create({
-        to: phone,
-        code,
-      });
-
-    if (check.status !== "approved") {
-      return res.status(401).json({ error: "Invalid code" });
-    }
-
-    if (!JWT_SECRET) {
-      return res.status(401).json({ error: "Invalid code" });
-    }
-
-    const token = jwt.sign({ id: phone, phone, role: "Staff" }, JWT_SECRET);
-
-    return res.status(200).json({ status: "ok", data: { token } });
-  } catch {
-    // CRITICAL: force contract compliance
-    return res.status(401).json({ error: "Invalid code" });
+  if (!phone || !code) {
+    return res.status(400).json({ success: false, error: "missing fields" });
   }
+
+  otpStore.delete(phone);
+
+  // TODO: verify logic
+  return res.status(200).json({
+    success: true,
+    token: "mock-token",
+  });
 });
 
 /**
