@@ -1,7 +1,8 @@
 import type { Request, RequestHandler } from "express";
-import twilio from "twilio";
+import { createRequire } from "node:module";
 
-const { validateRequest } = twilio;
+const _require = createRequire(import.meta.url);
+const { validateRequest } = _require("twilio");
 import { logWarn } from "../observability/logger.js";
 import { config } from "../config/index.js";
 
