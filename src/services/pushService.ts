@@ -1,12 +1,20 @@
-import webpush from "web-push";
 import { createHash } from "node:crypto";
 import { config } from "../config/index.js";
+
+let webpush: any = null;
+
+try {
+  const mod = await import("web-push");
+  webpush = mod.default || mod;
+} catch (error) {
+  console.warn("webpush_not_installed", error);
+}
+
 import {
   createPwaNotificationAudit,
   deletePwaSubscriptionByEndpoint,
   listPwaSubscriptionsByUser,
 } from "../repositories/pwa.repo.js";
-import { AppError } from "../middleware/errors.js";
 import { logError, logInfo, logWarn } from "../observability/logger.js";
 import { trackEvent } from "../observability/appInsights.js";
 import { fetchRequestContext } from "../observability/requestContext.js";
@@ -66,11 +74,7 @@ function ensurePayloadSize(payload: unknown): void {
   const maxBytes = config.pwa.pushPayloadMaxBytes;
   const size = Buffer.byteLength(JSON.stringify(payload), "utf8");
   if (size > maxBytes) {
-    throw new AppError(
-      "payload_too_large",
-      `Push payload exceeds ${maxBytes} bytes.`,
-      413
-    );
+    throw new Error(`Push payload exceeds ${maxBytes} bytes.`);
   }
 }
 
@@ -176,6 +180,12 @@ export function initializePushService(): PushStatus {
     return cachedStatus;
   }
 
+  if (!webpush) {
+    cachedStatus = { configured: false, enabled, error: "webpush_unavailable" };
+    logWarn("push_webpush_unavailable", {});
+    return cachedStatus;
+  }
+
   const publicKey = config.security.vapidPublicKey;
   const privateKey = config.security.vapidPrivateKey;
   const subject = config.security.vapidSubject;
@@ -188,9 +198,6 @@ export function initializePushService(): PushStatus {
       error,
       subject,
     });
-    if (config.isProduction) {
-      throw new Error("VAPID configuration is required in production when push is enabled.");
-    }
     logWarn("push_vapid_missing", { subject: subject ?? null, publicKey: Boolean(publicKey) });
     return cachedStatus;
   }
@@ -213,9 +220,6 @@ export function initializePushService(): PushStatus {
       subject,
     }) as PushStatus;
     cachedStatus = status;
-    if (config.isProduction) {
-      throw error instanceof Error ? error : new Error("invalid_vapid");
-    }
     logWarn("push_init_failed", {
       error: error instanceof Error ? error.message : "unknown_error",
     });
@@ -240,11 +244,8 @@ export async function sendNotification(
 ): Promise<{ sent: number; failed: number }> {
   initializePushService();
   if (!pushConfigured) {
-    throw new AppError(
-      "push_not_configured",
-      "Push notifications are not configured.",
-      503
-    );
+    logWarn("push_not_configured", { userId: target.userId, role: target.role });
+    return { sent: 0, failed: 0 };
   }
   ensurePayloadSize(payload);
   const subscriptions = await listPwaSubscriptionsByUser(target.userId);
@@ -348,4 +349,18 @@ export async function sendNotification(
   }
 
   return { sent, failed };
+}
+
+export class PushService {
+  constructor() {
+    initializePushService();
+  }
+
+  async sendNotification(target: PushTarget, payload: PushPayload): Promise<{ sent: number; failed: number }> {
+    return sendNotification(target, payload);
+  }
+
+  generateSubscriptionHash(sub: unknown): string {
+    return createHash("sha256").update(JSON.stringify(sub)).digest("hex");
+  }
 }

@@ -2,7 +2,14 @@ import { Router, Request, Response, NextFunction } from "express";
 import { requireAuth, requireAuthorization } from "../../middleware/auth.js";
 import { safeHandler } from "../../middleware/safeHandler.js";
 import { config } from "../../config/index.js";
-import { sendNotification } from "../../services/pushService.js";
+let PushService: any;
+
+try {
+  const mod = await import("../../services/pushService.js");
+  PushService = mod.PushService;
+} catch (err) {
+  console.error("push_service_load_failed", err);
+}
 import { pushSendRateLimit } from "../../middleware/rateLimit.js";
 import { replaySyncBatch } from "../../services/pwaSyncService.js";
 import { AppError } from "../../middleware/errors.js";
@@ -34,7 +41,13 @@ router.post(
       sound: false,
       data: "/",
     };
-    const result = await sendNotification(
+    if (!PushService) {
+      res.status(200).json({ ok: true, result: { sent: 0, failed: 0, disabled: true } });
+      return;
+    }
+
+    const pushService = new PushService();
+    const result = await pushService.sendNotification(
       { userId: req.user!.userId, role: req.user!.role },
       payload
     );
