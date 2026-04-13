@@ -1,28 +1,66 @@
 import { Router } from "express";
 import jwt from "jsonwebtoken";
+import twilio from "twilio";
 
 const router = Router();
+const { TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_VERIFY_SERVICE_SID } = process.env;
+
+if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_VERIFY_SERVICE_SID) {
+  console.error("❌ Twilio ENV missing");
+}
+
+if (TWILIO_VERIFY_SERVICE_SID && !TWILIO_VERIFY_SERVICE_SID.startsWith("VA")) {
+  console.error("❌ Invalid Twilio Verify SID. Expected SID to start with VA.");
+}
+
+const client: any = twilio(TWILIO_ACCOUNT_SID ?? "", TWILIO_AUTH_TOKEN ?? "");
 
 // START OTP
-router.post('/otp/start', async (req, res) => {
-  console.log("OTP START HIT");
-  const { phone } = req.body;
+router.post("/otp/start", async (req, res) => {
+  console.log("🔥 OTP START HIT");
+  console.log("📞 Incoming body:", req.body);
 
-  if (!phone) {
-    return res.status(400).json({ error: 'Phone is required' });
+  try {
+    const { phone } = req.body;
+
+    if (!phone) {
+      console.error("❌ No phone provided");
+      return res.status(400).json({ error: "Phone required" });
+    }
+
+    if (!TWILIO_VERIFY_SERVICE_SID) {
+      console.error("❌ Missing TWILIO_VERIFY_SERVICE_SID");
+      return res.status(500).json({
+        error: "OTP failed",
+        details: "TWILIO_VERIFY_SERVICE_SID is not configured",
+      });
+    }
+
+    console.log("➡️ Sending OTP via Twilio...");
+    console.log("Using Verify SID:", TWILIO_VERIFY_SERVICE_SID);
+
+    const verification = await client.verify.v2
+      .services(TWILIO_VERIFY_SERVICE_SID)
+      .verifications.create({
+        to: phone,
+        channel: "sms",
+      });
+
+    console.log("✅ Twilio response:", verification.status);
+
+    return res.json({
+      success: true,
+      status: verification.status,
+    });
+  } catch (err: any) {
+    console.error("❌ OTP ERROR:", err.message);
+    console.error(err);
+
+    return res.status(500).json({
+      error: "OTP failed",
+      details: err.message,
+    });
   }
-
-  const store = globalThis.__otpStore ?? {};
-  globalThis.__otpStore = store;
-  store[phone] = {
-    code: '654321',
-    verified: false,
-  };
-
-  return res.status(200).json({
-    status: 'ok',
-    data: { sent: true },
-  });
 });
 
 // VERIFY OTP
