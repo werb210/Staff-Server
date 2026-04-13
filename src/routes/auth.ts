@@ -11,10 +11,9 @@ router.post('/otp/start', async (req, res) => {
     return res.status(400).json({ error: 'Phone is required' });
   }
 
-  // simple in-memory store for tests
-  global.__otpStore = global.__otpStore || {};
-
-  global.__otpStore[phone] = {
+  const store = globalThis.__otpStore ?? {};
+  globalThis.__otpStore = store;
+  store[phone] = {
     code: '654321',
     verified: false,
   };
@@ -33,14 +32,17 @@ router.post("/otp/verify", async (req, res) => {
     return res.status(400).json({ error: "Phone and code are required" });
   }
 
-  const store = global.__otpStore || {};
+  const store = globalThis.__otpStore ?? {};
   const record = store[phone];
 
-  if (!record || record.code !== code) {
+  if (!record) {
     return res.status(401).json({ error: "Invalid code" });
   }
 
-  // mark verified
+  if (record.code !== code) {
+    return res.status(401).json({ error: "Invalid code" });
+  }
+
   record.verified = true;
 
   return res.status(200).json({
@@ -81,5 +83,5 @@ router.get("/me", async (req, res) => {
 export default router;
 
 export function resetOtpStateForTests() {
-  global.__otpStore = {};
+  globalThis.__otpStore = {};
 }
