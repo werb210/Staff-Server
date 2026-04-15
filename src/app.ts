@@ -169,10 +169,6 @@ export function createApp() {
   return app;
 }
 
-const app = createApp();
-
-export default app;
-
 export function resetOtpStateForTests() {
   resetAuthOtpStateForTests();
 }
