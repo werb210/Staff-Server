@@ -3,7 +3,7 @@ import path from "path";
 import type { Pool } from "pg";
 
 export async function runMigrations(pool: Pool): Promise<void> {
-  const migrationsDir = path.join(process.cwd(), "server/migrations");
+  const migrationsDir = path.join(process.cwd(), "migrations");
 
   if (!fs.existsSync(migrationsDir)) {
     return;

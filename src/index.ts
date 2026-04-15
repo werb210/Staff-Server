@@ -27,6 +27,36 @@ if (process.env.NODE_ENV === "production") {
 
 export async function start(): Promise<void> {
   await initDb();
+
+  if (process.env.NODE_ENV !== "test") {
+    try {
+      const { pool } = await import("./db.js");
+      const { rows } = await pool.query<{ count: number }>(
+        "SELECT COUNT(*)::int AS count FROM users WHERE role = 'Admin'"
+      );
+
+      const adminCount = rows[0]?.count ?? 0;
+      const shouldBootstrap = adminCount === 0 || Boolean(process.env.BOOTSTRAP_ADMIN_PHONE?.trim());
+
+      if (shouldBootstrap) {
+        if (adminCount === 0) {
+          console.log("[BOOTSTRAP] No admin users found — running seed...");
+        } else {
+          console.log("[BOOTSTRAP] BOOTSTRAP_ADMIN_PHONE set — running seed...");
+        }
+
+        const { seedAdminUser, seedSecondAdminUser } = await import("./db/seed.js");
+        await seedAdminUser();
+        await seedSecondAdminUser();
+        console.log("[BOOTSTRAP] Admin users seeded.");
+      }
+    } catch (err) {
+      console.warn(
+        "[BOOTSTRAP] Seed check failed (table may not exist yet):",
+        String(err)
+      );
+    }
+  }
   const app = createApp();
   const routeSet = new Set(listRoutes(app).map((entry) => `${entry.method} ${entry.path}`));
   const requiredRoutes = [

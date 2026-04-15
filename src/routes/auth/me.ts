@@ -5,6 +5,8 @@ import { findAuthUserById } from "../../modules/auth/auth.repo.js";
 import { logError } from "../../observability/logger.js";
 import { validateAuthMe } from "../../validation/auth.validation.js";
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function fetchAuthRequestId(res: Response): string {
   return res.locals.requestId ?? fetchRequestId() ?? "unknown";
 }
@@ -68,6 +70,17 @@ export async function authMeHandler(
         401,
         "AUTH_REQUIRED",
         "Authentication required."
+      );
+      return;
+    }
+
+    const rawUserId = user.userId ?? "";
+    if (!UUID_REGEX.test(rawUserId)) {
+      respondAuthError(
+        res,
+        401,
+        "invalid_token",
+        "Session expired. Please log in again."
       );
       return;
     }
