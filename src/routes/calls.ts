@@ -5,6 +5,8 @@ import { requireAuth, requireAuthorization } from "../middleware/auth.js";
 import { safeHandler } from "../middleware/safeHandler.js";
 import { ROLES } from "../auth/roles.js";
 import { AppError } from "../middleware/errors.js";
+import { dbQuery } from "../db.js";
+import { logCrmEvent } from "../modules/crm/crmTimeline.service.js";
 import { endCall, listCalls, startCall, updateCallStatus } from "../modules/calls/calls.service.js";
 import { type CallStatus } from "../modules/calls/calls.repo.js";
 import { toStringSafe } from "../utils/toStringSafe.js";
@@ -55,6 +57,15 @@ const callEndSchema = z.object({
 });
 
 const uuidSchema = z.string().uuid();
+
+const transcriptSchema = z.object({
+  callSid: z.string(),
+  transcript: z.string(),
+  summary: z.string().optional(),
+  score: z.number().optional(),
+  crmContactId: z.string().uuid().optional(),
+  applicationId: z.string().uuid().optional(),
+});
 
 function buildRequestMetadata(req: Request): { ip?: string; userAgent?: string } {
   const metadata: { ip?: string; userAgent?: string } = {};
@@ -184,6 +195,39 @@ router.post(
     const updated = await endCall(endPayload);
 
     res.status(200).json(ok({ call: updated }, req.rid));
+  })
+);
+
+
+router.post(
+  "/transcript",
+  requireAuth,
+  requireAuthorization({ roles: [ROLES.ADMIN, ROLES.STAFF] }),
+  safeHandler(async (req: any, res: any) => {
+    const parsed = transcriptSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new AppError("validation_error", "Invalid transcript payload.", 400);
+    }
+
+    const { callSid, transcript, summary, score, crmContactId, applicationId } = parsed.data;
+
+    await dbQuery(
+      `update call_logs set transcript = $1, summary = $2, score = $3, updated_at = now()
+       where twilio_call_sid = $4`,
+      [transcript, summary ?? null, score ?? null, callSid]
+    );
+
+    if (crmContactId) {
+      await logCrmEvent({
+        contactId: crmContactId,
+        applicationId: applicationId ?? null,
+        eventType: "call_made",
+        payload: { callSid, transcriptPreview: transcript.slice(0, 200), score },
+        actorUserId: req.user?.userId,
+      });
+    }
+
+    res.status(200).json({ ok: true });
   })
 );
 

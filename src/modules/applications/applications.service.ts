@@ -56,6 +56,7 @@ import {
   createBankingAnalysisJob,
   createDocumentProcessingJob,
 } from "../processing/processing.service.js";
+import { logCrmEvent } from "../crm/crmTimeline.service.js";
 
 const BANK_STATEMENT_CATEGORY = "bank_statements_6_months";
 
@@ -111,6 +112,14 @@ type IdempotentResult<T> = {
 };
 
 type Queryable = Pick<PoolClient, "query" | "runQuery">;
+
+async function fetchApplicationCrmContactId(applicationId: string): Promise<string | null> {
+  const result = await runQuery<{ crm_contact_id: string | null }>(
+    `select crm_contact_id from applications where id = $1 limit 1`,
+    [applicationId]
+  );
+  return result.rows[0]?.crm_contact_id ?? null;
+}
 
 function buildRequestMetadata(params: {
   ip?: string;
@@ -1088,6 +1097,32 @@ export async function uploadDocument(params: {
       } else {
         await createDocumentProcessingJob(params.applicationId, documentId);
       }
+
+      await runQuery(
+        `insert into job_queue (id, type, payload, status, created_at)
+         values (gen_random_uuid(), 'ocr_document', $1::jsonb, 'pending', now())`,
+        [JSON.stringify({
+          documentId,
+          applicationId: params.applicationId,
+          category: normalizedCategory,
+          storageUrl: uploaded.url,
+        })]
+      );
+    }
+
+    const crmContactId = await fetchApplicationCrmContactId(params.applicationId);
+    if (crmContactId) {
+      await logCrmEvent({
+        contactId: crmContactId,
+        applicationId: params.applicationId,
+        eventType: "document_uploaded",
+        payload: {
+          documentId,
+          filename: params.metadata.fileName,
+          category: normalizedCategory,
+        },
+        actorUserId: params.actorUserId,
+      });
     }
 
     return { status: 201, value: response, idempotent: false };
@@ -1165,6 +1200,36 @@ export async function changePipelineState(params: {
     success: true,
     metadata: { from: currentStage, to: nextStage, override: params.override === true },
   });
+
+  const crmContactId = await fetchApplicationCrmContactId(params.applicationId);
+  if (crmContactId) {
+    await logCrmEvent({
+      contactId: crmContactId,
+      applicationId: params.applicationId,
+      eventType: "stage_changed",
+      payload: { from: currentStage, to: nextStage },
+      actorUserId: params.actorUserId,
+    });
+  }
+
+  if (nextStage === ApplicationStage.ACCEPTED) {
+    const referralResult = await runQuery<{ id: string; referrer_id: string; deal_amount: number | null }>(
+      `select r.id, r.referrer_id, a.requested_amount as deal_amount
+       from referrals r
+       join applications a on a.id = r.application_id
+       where r.application_id = $1 and r.status != 'paid' limit 1`,
+      [params.applicationId]
+    );
+
+    const referral = referralResult.rows[0];
+    if (referral && referral.deal_amount) {
+      const commission = Number(referral.deal_amount) * 0.1;
+      await runQuery(
+        `update referrals set commission_amount = $1, status = 'earned', updated_at = now() where id = $2`,
+        [commission, referral.id]
+      );
+    }
+  }
 }
 
 export async function acceptDocumentVersion(params: {

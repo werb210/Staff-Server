@@ -10,8 +10,6 @@ import healthRoutes from "./routes/health.js";
 import publicRoutes from "./routes/public.js";
 import { registerApiRouteMounts } from "./routes/routeRegistry.js";
 import { requireAuth } from "./middleware/auth.js";
-import { createLead } from "./modules/lead/lead.service.js";
-import { respondOk } from "./utils/respondOk.js";
 import { listRoutes } from "./debug/printRoutes.js";
 
 export function createApp() {
@@ -92,29 +90,6 @@ export function createApp() {
   apiRouter.post("/sms/send", requireAuth, (_req, res) => {
     res.json({ status: "ok", data: { sent: true } });
   });
-  apiRouter.post("/crm/lead", async (req: any, res: any) => {
-    try {
-      const payload = {
-        source: req.body?.source ?? "website",
-        companyName: req.body?.company_name ?? req.body?.companyName ?? req.body?.businessName,
-        fullName: req.body?.full_name ?? req.body?.fullName ?? req.body?.name,
-        email: req.body?.email,
-        phone: req.body?.phone,
-        requestedAmount: req.body?.requested_amount ?? req.body?.requestedAmount ?? req.body?.fundingAmount,
-        monthlyRevenue: req.body?.monthly_revenue ?? req.body?.monthlyRevenue,
-        annualRevenue: req.body?.annual_revenue ?? req.body?.annualRevenue,
-        productInterest: req.body?.product_interest ?? req.body?.productInterest ?? req.body?.product,
-        industryInterest: req.body?.industry_interest ?? req.body?.industryInterest ?? req.body?.industry,
-        notes: req.body?.notes ?? req.body?.message,
-        tags: req.body?.tags,
-      };
-      const result = await createLead(payload);
-      return respondOk(res, result);
-    } catch (err: any) {
-      return res.status(500).json({ status: "error", message: err?.message ?? "Failed" });
-    }
-  });
-
   registerApiRouteMounts(apiRouter);
 
   // 1. API ROUTES FIRST
