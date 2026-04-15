@@ -1,12 +1,10 @@
 import { rateLimit } from "express-rate-limit";
-import { rateLimitKeyFromRequest } from "./clientIp.js";
 
 export const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 200,
   standardHeaders: "draft-8",
   legacyHeaders: false,
-  keyGenerator: rateLimitKeyFromRequest,
 });
 
 // Backward-compatible aliases for existing imports.
@@ -34,5 +32,4 @@ export const otpLimiter = rateLimit({
   limit: 5,
   standardHeaders: "draft-8",
   legacyHeaders: false,
-  keyGenerator: rateLimitKeyFromRequest,
 });
