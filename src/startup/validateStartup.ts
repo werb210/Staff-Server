@@ -13,10 +13,10 @@ export function validateStartup() {
   }
 
   if (!config.sentry.dsn) {
-    throw new Error("Missing SENTRY_DSN");
+    console.warn("[STARTUP] SENTRY_DSN not set — error tracking disabled");
   }
 
   if (!config.alerting.slackWebhookUrl) {
-    throw new Error("Missing SLACK_ALERT_WEBHOOK_URL");
+    console.warn("[STARTUP] SLACK_ALERT_WEBHOOK_URL not set — Slack alerts disabled");
   }
 }

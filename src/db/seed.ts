@@ -6,7 +6,7 @@ import { logInfo } from "../observability/logger.js";
 export const SEEDED_ADMIN_PHONE = "+15878881837";
 export const SEEDED_ADMIN_ID = "00000000-0000-0000-0000-000000000099";
 export const SEEDED_ADMIN_EMAIL = "seeded-admin@boreal.financial";
-export const SEEDED_ADMIN2_PHONE = "+1-780-264-8467";
+export const SEEDED_ADMIN2_PHONE = "+17802648467";
 export const SEEDED_ADMIN2_ID = "00000000-0000-0000-0000-000000000100";
 export const SEEDED_ADMIN2_EMAIL = "seeded-admin-2@boreal.financial";
 export const SEEDED_LENDER_ID = "00000000-0000-0000-0000-000000000200";
@@ -151,7 +151,11 @@ export async function seedDatabase(): Promise<void> {
   await seedBaselineLenders();
 }
 
-if (require.main === module) {
+import { fileURLToPath } from "url";
+
+const isDirectRun = process.argv[1] === fileURLToPath(import.meta.url);
+
+if (isDirectRun) {
   seedDatabase()
     .then(async () => {
       await pool.end();
@@ -159,6 +163,6 @@ if (require.main === module) {
     .catch(async (err) => {
       process.stderr.write(`${String(err)}\n`);
       await pool.end();
-      throw err;
+      process.exit(1);
     });
 }
