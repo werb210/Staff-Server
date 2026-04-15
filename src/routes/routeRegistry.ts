@@ -31,6 +31,9 @@ import referralsRoutes from "./referrals.js";
 import pipelineRoutes from "./pipeline.js";
 import telephonyRoutes from "../telephony/routes/telephonyRoutes.js";
 import webhooksRoutes from "./webhooks.js";
+import readinessRoutes from "./readiness.js";
+import signnowRoutes from "./signnow.js";
+import emailRoutes from "./email.js";
 import websiteRoutes from "./website.js";
 import mayaRoutes from "./maya.js";
 import aiRoutes from "./ai.v2.js";
@@ -88,6 +91,9 @@ export const API_ROUTE_MOUNTS: ApiRouteMount[] = [
   { path: "/website", router: websiteRoutes },
   { path: "/maya", router: mayaRoutes },
   { path: "/ai", router: aiRoutes },
+  { path: "/email", router: emailRoutes },
+  { path: "/", router: readinessRoutes },
+  { path: "/", router: signnowRoutes },
   { path: "/applications", router: applicationsRoutes },
 ];
 
@@ -135,6 +141,7 @@ export const ROUTES: ApiRoute[] = [
   { method: "POST", path: "/api/calls/:id/status", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "POST", path: "/api/calls/:id/end", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "GET", path: "/api/calls", roles: [ROLES.ADMIN, ROLES.STAFF] },
+  { method: "POST", path: "/api/calls/transcript", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "GET", path: "/api/client/submissions", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "GET", path: "/api/client/submissions/:id/ocr-insights", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "POST", path: "/api/client/submissions/:id/open", roles: [ROLES.ADMIN, ROLES.STAFF] },
@@ -156,6 +163,10 @@ export const ROUTES: ApiRoute[] = [
   { method: "POST", path: "/api/website/contact", roles: [] },
   { method: "POST", path: "/api/public/application/start", roles: [] },
   { method: "POST", path: "/api/public/readiness", roles: [] },
+  { method: "POST", path: "/api/crm/readiness", roles: [] },
+  { method: "GET", path: "/api/client/readiness-prefill", roles: [] },
+  { method: "POST", path: "/api/webhooks/signnow", roles: [] },
+  { method: "POST", path: "/api/email/send", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "GET", path: "/api/client/continuation/:token", roles: [] },
 ];
 
