@@ -6,7 +6,7 @@ const router = express.Router();
 const AccessToken = twilio.jwt.AccessToken;
 const VoiceGrant = AccessToken.VoiceGrant;
 
-router.get("/api/voice/token", (req, res) => {
+router.get("/telephony/token", (req, res) => {
   try {
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
     const apiKey = process.env.TWILIO_API_KEY;
