@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import rateLimit from "express-rate-limit";
+import { rateLimitKeyFromRequest } from "../middleware/clientIp.js";
 import { requireAuth, requireAuthorization } from "../middleware/auth.js";
 import { safeHandler } from "../middleware/safeHandler.js";
 import {
@@ -28,6 +29,7 @@ const perUserNotificationReadLimiter = rateLimit({
   max: 120,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: rateLimitKeyFromRequest,
   skip: () => config.env === "test" || config.rateLimit.enabled === "false",
 });
 
@@ -36,6 +38,7 @@ const perUserNotificationAckLimiter = rateLimit({
   max: 120,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: rateLimitKeyFromRequest,
   skip: () => config.env === "test" || config.rateLimit.enabled === "false",
 });
 

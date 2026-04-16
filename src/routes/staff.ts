@@ -20,7 +20,7 @@ router.get("/overview", safeHandler(async (_req: any, res: any) => {
       [ApplicationStage.ACCEPTED, ApplicationStage.REJECTED]
     ),
     pool.query<{ id: string; name: string; pipeline_state: string; updated_at: Date }>(
-      `SELECT id, coalesce(name, business_legal_name, 'Unnamed') AS name,
+      `SELECT id, coalesce(name, 'Unnamed') AS name,
               pipeline_state, updated_at
        FROM applications ORDER BY updated_at DESC LIMIT 5`
     ),

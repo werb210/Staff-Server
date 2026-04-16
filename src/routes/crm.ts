@@ -46,59 +46,45 @@ router.get("/contacts", safeHandler(async (req: any, res: any) => {
   const offset = (page - 1) * pageSize;
   const search = typeof req.query.search === "string" ? req.query.search.trim() : null;
 
-  // Query contacts table (populated via readiness submissions)
-  const contactRows = await pool.query(
-    `SELECT
-       c.id, c.name, c.email, c.phone, c.status,
-       c.company_id, c.owner_id, c.created_at,
-       'contact' AS source
-     FROM contacts c
-     ${search ? "WHERE c.name ILIKE $1 OR c.email ILIKE $1 OR c.phone ILIKE $1" : ""}
-     ORDER BY c.created_at DESC
-     LIMIT ${pageSize} OFFSET ${offset}`,
-    search ? [`%${search}%`] : []
-  ).catch(() => ({ rows: [] }));
+  const contacts: any[] = [];
 
-  // Also query crm_leads (populated via website lead form and readiness)
-  const leadRows = await pool.query(
-    `SELECT
-       id, full_name AS name, email, phone, null AS status,
-       null AS company_id, null AS owner_id, created_at,
-       'lead' AS source
-     FROM crm_leads
-     ${search ? "WHERE full_name ILIKE $1 OR email ILIKE $1 OR phone ILIKE $1" : ""}
-     ORDER BY created_at DESC
-     LIMIT ${pageSize} OFFSET ${offset}`,
-    search ? [`%${search}%`] : []
-  ).catch(() => ({ rows: [] }));
+  // Try contacts table (may not exist yet — safe catch)
+  try {
+    const searchClause = search ? "WHERE c.name ILIKE $1 OR c.email ILIKE $1 OR c.phone ILIKE $1" : "";
+    const { rows } = await pool.query(
+      `SELECT c.id, c.name, c.email, c.phone, c.status, c.created_at, 'contact' AS source
+       FROM contacts c
+       ${searchClause}
+       ORDER BY c.created_at DESC
+       LIMIT $${search ? 2 : 1} OFFSET $${search ? 3 : 2}`,
+      search ? [`%${search}%`, pageSize, offset] : [pageSize, offset]
+    );
+    contacts.push(...rows);
+  } catch {
+    // contacts table doesn't exist yet — skip
+  }
 
-  const userRows = await pool.query(
-    `SELECT
-      id,
-      COALESCE(NULLIF(trim(CONCAT(COALESCE(first_name, ''), ' ', COALESCE(last_name, ''))), ''), email, phone, id::text) AS name,
-      email,
-      phone,
-      status,
-      null AS company_id,
-      id AS owner_id,
-      created_at,
-      'user' AS source
-     FROM users
-     ${search ? "WHERE first_name ILIKE $1 OR last_name ILIKE $1 OR email ILIKE $1 OR phone ILIKE $1" : ""}
-     ORDER BY created_at DESC
-     LIMIT ${pageSize} OFFSET ${offset}`,
-    search ? [`%${search}%`] : []
-  ).catch(() => ({ rows: [] }));
+  // Also pull from crm_leads (always exists)
+  try {
+    const searchClause = search ? "WHERE full_name ILIKE $1 OR email ILIKE $1 OR phone ILIKE $1" : "";
+    const { rows } = await pool.query(
+      `SELECT id, full_name AS name, email, phone, null AS status, created_at, 'lead' AS source
+       FROM crm_leads
+       ${searchClause}
+       ORDER BY created_at DESC
+       LIMIT $${search ? 2 : 1} OFFSET $${search ? 3 : 2}`,
+      search ? [`%${search}%`, pageSize, offset] : [pageSize, offset]
+    );
+    contacts.push(...rows);
+  } catch {
+    // crm_leads table doesn't exist — skip
+  }
 
-  const combined = [
-    ...(contactRows.rows ?? []),
-    ...(leadRows.rows ?? []),
-    ...(userRows.rows ?? []),
-  ]
-    .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+  const sorted = contacts
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .slice(0, pageSize);
 
-  respondOk(res, { contacts: combined, total: combined.length }, { page, pageSize });
+  respondOk(res, { contacts: sorted, total: sorted.length }, { page, pageSize });
 }));
 
 router.get("/timeline", safeHandler(handleListCrmTimeline));
