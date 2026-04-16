@@ -92,16 +92,14 @@ router.post("/otp/start", async (req, res) => {
 router.post("/otp/verify", async (req, res) => {
   const { phone, code } = req.body;
 
-  const store = globalThis.__otpStore ?? {};
-  const record = store[phone];
-
+  // Test mode — use in-memory store
   if (isTest) {
+    const store = globalThis.__otpStore ?? {};
+    const record = store[phone];
     if (!record || code !== "000000") {
       return res.status(401).json({ error: "Invalid code" });
     }
-
     record.verified = true;
-
     try {
       const token = signAccessToken({
         sub: `test-user:${phone}`,
@@ -109,37 +107,28 @@ router.post("/otp/verify", async (req, res) => {
         tokenVersion: 0,
         phone,
       });
-
-      return res.status(200).json({
-        status: "ok",
-        data: { token },
-      });
+      return res.status(200).json({ status: "ok", data: { token } });
     } catch {
       return res.status(500).json({ error: "auth not configured" });
     }
   }
 
+  // Production
   if (!phone || !code) {
     return res.status(400).json({ error: "Phone and code are required" });
   }
 
-  if (!process.env.TWILIO_VERIFY_SERVICE_SID) {
+  const serviceSid = process.env.TWILIO_VERIFY_SERVICE_SID;
+  if (!serviceSid) {
     return res.status(500).json({ error: "OTP failed" });
   }
 
   try {
-    const serviceSid = process.env.TWILIO_VERIFY_SERVICE_SID;
-    if (!serviceSid) {
-      return res.status(500).json({ error: "OTP failed" });
-    }
+    const twilioClient = getTwilioClient();
 
-    const client = getTwilioClient();
-    const verificationCheck = await client.verify.v2
+    const verificationCheck = await twilioClient.verify.v2
       .services(serviceSid)
-      .verificationChecks.create({
-        to: phone,
-        code,
-      });
+      .verificationChecks.create({ to: phone, code });
 
     if (verificationCheck.status !== "approved") {
       return res.status(401).json({ error: "Invalid code" });
@@ -167,10 +156,7 @@ router.post("/otp/verify", async (req, res) => {
     }
 
     if (user.disabled || !user.active) {
-      return res.status(403).json({
-        status: "error",
-        error: "account_disabled",
-      });
+      return res.status(403).json({ status: "error", error: "account_disabled" });
     }
 
     const token = signAccessToken({
@@ -180,10 +166,7 @@ router.post("/otp/verify", async (req, res) => {
       phone: user.phoneNumber ?? phone,
     });
 
-    return res.status(200).json({
-      status: "ok",
-      data: { token },
-    });
+    return res.status(200).json({ status: "ok", data: { token } });
   } catch (_err) {
     return res.status(401).json({ error: "Invalid code" });
   }
