@@ -8,6 +8,7 @@ import { isTest } from "../config/runtime.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { authMeHandler } from "./auth/me.js";
 import { findAuthUserByPhone } from "../modules/auth/auth.repo.js";
+import microsoftRoutes from "./authMicrosoft.js";
 
 const router = Router();
 
@@ -176,6 +177,7 @@ router.post("/otp/verify", async (req, res) => {
 });
 
 router.get("/me", requireAuth, authMeHandler);
+router.use(microsoftRoutes);
 
 
 export default router;
