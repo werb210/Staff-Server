@@ -1,6 +1,7 @@
 import { config } from "../../config/index.js";
 import { Router, type Request, type Response } from "express";
 import rateLimit from "express-rate-limit";
+import { rateLimitKeyFromRequest } from "../../middleware/clientIp.js";
 import {
   closeChatSession,
   fetchHumanSessions,
@@ -18,6 +19,7 @@ const chatLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many chat requests" },
+  keyGenerator: rateLimitKeyFromRequest,
   skip: () => config.env === "test",
 });
 

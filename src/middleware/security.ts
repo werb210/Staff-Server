@@ -1,6 +1,7 @@
 import { type NextFunction, type Request, type Response } from "express";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
+import { rateLimitKeyFromRequest } from "./clientIp.js";
 import { config } from "../config/index.js";
 import { logger } from "../server/utils/logger.js";
 
@@ -86,6 +87,7 @@ export const apiLimiter = rateLimit({
   max: 200,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: rateLimitKeyFromRequest,
 });
 
 export function productionLogger(req: Request, _res: Response, next: NextFunction): void {

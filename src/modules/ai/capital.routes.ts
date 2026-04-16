@@ -1,5 +1,6 @@
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
+import { rateLimitKeyFromRequest } from "../../middleware/clientIp.js";
 import { pool, runQuery } from "../../db.js";
 import { recordAuditEvent } from "../audit/audit.service.js";
 import { upsertLead } from "./chat.service.js";
@@ -13,6 +14,7 @@ const readinessLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many readiness requests" },
+  keyGenerator: rateLimitKeyFromRequest,
   skip: () => config.env === "test",
 });
 

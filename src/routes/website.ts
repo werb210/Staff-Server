@@ -1,5 +1,6 @@
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
+import { rateLimitKeyFromRequest } from "../middleware/clientIp.js";
 import { submitContactForm } from "../modules/website/contact.controller.js";
 import { submitCreditReadiness } from "../modules/website/website.controller.js";
 import { config } from "../config/index.js";
@@ -11,6 +12,7 @@ const websiteLimiter = rateLimit({
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: rateLimitKeyFromRequest,
   skip: () => config.env === "test",
 });
 

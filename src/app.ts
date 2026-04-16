@@ -14,6 +14,7 @@ import { listRoutes } from "./debug/printRoutes.js";
 
 export function createApp() {
   const app = express();
+  // Trust Azure App Service reverse proxy
   app.set("trust proxy", 1);
   const HARDCODED_ALLOWED_ORIGINS = [
     "https://staff.boreal.financial",
