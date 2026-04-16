@@ -56,7 +56,29 @@ export function requireHttps(req: Request, res: Response, next: NextFunction): v
 }
 
 export const securityHeaders = helmet({
-  contentSecurityPolicy: false,
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://sdk.twilio.com", "https://media.twiliocdn.com"],
+      connectSrc: [
+        "'self'",
+        "https://server.boreal.financial",
+        "https://voice-js.twilio.com",
+        "wss://voice-js.roaming.twilio.com",
+        "https://eventgw.twilio.com",
+        "wss://eventgw.twilio.com",
+        "https://media.twiliocdn.com",
+        "https://sdk.twilio.com",
+        "wss://chunderw-vpc-gll.twilio.com",
+        "wss://*.twilio.com",
+      ],
+      imgSrc: ["'self'", "data:", "https:"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      fontSrc: ["'self'", "data:", "https:"],
+      mediaSrc: ["'self'", "https://media.twiliocdn.com"],
+      frameSrc: ["'self'"],
+    },
+  },
 });
 
 export const apiLimiter = rateLimit({

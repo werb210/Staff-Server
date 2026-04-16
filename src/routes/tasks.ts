@@ -2,27 +2,14 @@ import { Router } from "express";
 import { requireAuth, requireCapability } from "../middleware/auth.js";
 import { CAPABILITIES } from "../auth/capabilities.js";
 import { safeHandler } from "../middleware/safeHandler.js";
-import { respondOk } from "../utils/respondOk.js";
 
 const router = Router();
 
 router.use(requireAuth);
 router.use(requireCapability([CAPABILITIES.CALENDAR_READ]));
 
-router.get("/", safeHandler((req: any, res: any) => {
-  const page = Number(req.query.page) || 1;
-  const pageSize = Number(req.query.pageSize) || 25;
-  respondOk(
-    res,
-    {
-      tasks: [],
-      total: 0,
-    },
-    {
-      page,
-      pageSize,
-    }
-  );
+router.get("/", safeHandler((_req: any, res: any) => {
+  res.json({ status: "ok", data: [] });
 }));
 
 export default router;
