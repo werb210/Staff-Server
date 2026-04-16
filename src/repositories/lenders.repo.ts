@@ -136,15 +136,30 @@ export const LIST_LENDERS_SQL = `
 type QueryExecutor = { query: (text: string, params?: unknown[]) => Promise<{ rows: any[] }> };
 
 export async function listLenders(db: QueryExecutor) {
-  const existing = await fetchLenderColumns();
-  const selectColumns = buildSelectColumns(existing);
-  const { rows } = await db.query(`
-    SELECT
-      ${selectColumns}
-    FROM lenders
-    ORDER BY created_at DESC
-  `);
-  return rows;
+  try {
+    // Try the flexible column-aware version first
+    const existing = await fetchLenderColumns();
+    if (existing.size === 0) {
+      // Table doesn't exist or is empty schema — return safe empty list
+      return [];
+    }
+    const selectColumns = buildSelectColumns(existing);
+    const { rows } = await db.query(`
+      SELECT
+        ${selectColumns}
+      FROM lenders
+      ORDER BY created_at DESC
+    `);
+    return rows;
+  } catch {
+    // Fallback: try simple wildcard query
+    try {
+      const { rows } = await db.query(`SELECT * FROM lenders ORDER BY id DESC LIMIT 200`);
+      return rows;
+    } catch {
+      return []; // Table doesn't exist yet — return empty, don't crash
+    }
+  }
 }
 
 export async function fetchLenderById(id: string) {

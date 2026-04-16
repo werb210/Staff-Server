@@ -117,7 +117,7 @@ export async function fetchMe(req: Request, res: Response) {
     return res.status(404).json({ ok: false, error: "user_not_found" });
   }
 
-  res["json"]({ ok: true, user: normalizeUserRecord(user) });
+  res["json"]({ status: "ok", data: normalizeUserRecord(user) });
 }
 
 /**
@@ -204,7 +204,7 @@ export async function listUsers(req: Request, res: Response) {
   );
 
   const users = Array.isArray(rows) ? rows.map(normalizeUserRecord) : [];
-  res["json"]({ ok: true, users });
+  res["json"]({ status: "ok", data: users });
 }
 
 /**
