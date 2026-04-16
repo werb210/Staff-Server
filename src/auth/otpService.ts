@@ -22,7 +22,7 @@ export async function sendOtp(phone: string): Promise<string> {
 
   await persistOtp(normalized, code);
 
-  console.log("[OTP SEND]", normalized, code);
+  console.log("[OTP SEND]", normalized, "[REDACTED]");
 
   return code;
 }
@@ -32,10 +32,13 @@ export async function storeOtp(phone: string, code: string): Promise<void> {
 
   await persistOtp(normalized, code);
 
-  console.log("[OTP SEND]", normalized, code);
+  console.log("[OTP STORE]", normalized, "[REDACTED]");
 }
 
-export async function verifyOtp(phone: string, code: string): Promise<{ ok: true } | { ok: false; error: string }> {
+export async function verifyOtp(
+  phone: string,
+  code: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
   if (config.app.testMode === "true") {
     return code === "000000" ? { ok: true } : { ok: false, error: "invalid_code" };
   }
@@ -43,7 +46,7 @@ export async function verifyOtp(phone: string, code: string): Promise<{ ok: true
   const normalized = normalizePhone(phone);
   const stored = await fetchOtp(normalized);
 
-  console.log("[OTP VERIFY]", normalized, stored, code);
+  console.log("[OTP VERIFY]", normalized, stored ? "[HAS_STORED]" : "[NO_STORED]");
 
   if (!stored || stored !== code) {
     return { ok: false, error: "invalid_code" };

@@ -140,23 +140,6 @@ export function verifyAccessToken(token: string): AccessTokenPayload {
   return payload;
 }
 
-export function verifyJwt(token: string) {
-  try {
-    const secret = process.env.JWT_SECRET;
-    if (!secret) throw new Error("INVALID_TOKEN");
-    return jwt.verify(token, secret);
-  } catch {
-    throw new Error("INVALID_TOKEN");
-  }
-}
-
-export function signJwt(payload: any) {
-  const secret = process.env.JWT_SECRET;
-  if (!secret) throw new Error("INVALID_TOKEN");
-  return jwt.sign(payload, secret, {
-    expiresIn: "1h",
-  });
-}
 
 export async function verifyAccessTokenWithUser(token: string): Promise<{
   payload: AccessTokenPayload;
