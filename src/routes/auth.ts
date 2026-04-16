@@ -35,8 +35,6 @@ const getTwilioClient = (): TwilioVerifyClient => {
 
 // START OTP
 router.post("/otp/start", async (req, res) => {
-  console.log("🔥 OTP START HIT");
-
   try {
     const { phone } = req.body;
 

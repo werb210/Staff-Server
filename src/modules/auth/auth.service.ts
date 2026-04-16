@@ -39,10 +39,6 @@ import { fetchCapabilitiesForRole } from "../../auth/capabilities.js";
 import { fetchTwilioClient, fetchVerifyServiceSid } from "../../services/twilio.js";
 import { assertLenderBinding } from "../../auth/lenderBinding.js";
 
-const OTP_TRACE = (...args: any[]) => {
-  console.log("[OTP_TRACE]", ...args);
-};
-
 const OTP_SESSION_TTL_MS = 10 * 60 * 1000;
 
 type RefreshTokenPayload = JwtPayload & {
@@ -735,12 +731,6 @@ export async function startOtp(
         }
       }
 
-      OTP_TRACE("OTP_START", {
-        phone: phoneE164,
-        code: generatedOtp,
-        instance: process.pid,
-        time: Date.now(),
-      });
       logInfo("otp_start_sent", {
         ...startMeta,
         providerStatus: "approved",

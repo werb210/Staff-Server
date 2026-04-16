@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import rateLimit, { ipKeyGenerator } from "express-rate-limit";
+import rateLimit from "express-rate-limit";
 import { requireAuth, requireAuthorization } from "../middleware/auth.js";
 import { safeHandler } from "../middleware/safeHandler.js";
 import {
@@ -28,7 +28,6 @@ const perUserNotificationReadLimiter = rateLimit({
   max: 120,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.user?.userId ?? ipKeyGenerator(req.ip ?? ""),
   skip: () => config.env === "test" || config.rateLimit.enabled === "false",
 });
 
@@ -37,7 +36,6 @@ const perUserNotificationAckLimiter = rateLimit({
   max: 120,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.user?.userId ?? ipKeyGenerator(req.ip ?? ""),
   skip: () => config.env === "test" || config.rateLimit.enabled === "false",
 });
 
