@@ -1,6 +1,7 @@
 -- 107_idempotency_repair.sql
 -- Idempotent repair for all failed migrations (011, 015, 018, 019, 024, 027,
 -- 039/041/042, 043, 058, 059, 060, 086, 087, 088, 090, 091, 098, 102, 999).
+-- Also fixes the portal Lenders API_ERROR caused by NULL status values.
 -- Safe to re-run on every deployment startup.
 
 -- ============================================================
@@ -136,8 +137,7 @@ END $$;
 --   CREATE TABLE IF NOT EXISTS silently skips, then index fails
 -- ============================================================
 ALTER TABLE IF EXISTS call_logs
-  ADD COLUMN IF NOT EXISTS crm_contact_id uuid NULL,
-  ADD COLUMN IF NOT EXISTS staff_user_id uuid NULL;
+  ADD COLUMN IF NOT EXISTS crm_contact_id uuid NULL;
 
 CREATE INDEX IF NOT EXISTS call_logs_contact_idx     ON call_logs (crm_contact_id);
 CREATE INDEX IF NOT EXISTS call_logs_application_idx ON call_logs (application_id);
@@ -146,8 +146,8 @@ CREATE INDEX IF NOT EXISTS call_logs_staff_idx       ON call_logs (staff_user_id
 -- ============================================================
 -- FIX 086 / 087 / 088: job tables
 -- Root cause 086: CREATE TABLE without IF NOT EXISTS
--- Root cause 087: ALTER COLUMN retry_count before ADD COLUMN retry_count
--- Root cause 088: credit_summary_jobs never created due to 087 failure
+-- Root cause 087: ALTER COLUMN before ADD COLUMN
+-- Root cause 088: credit_summary_jobs never created
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS document_processing_jobs (
@@ -276,7 +276,7 @@ SELECT * FROM processing_job_history_view;
 
 -- ============================================================
 -- FIX 059: application_stage_events.reason + rebuilt views
--- Root cause: cascades from 058; views reference missing column
+-- Root cause: cascades from 058
 -- ============================================================
 ALTER TABLE IF EXISTS application_stage_events
   ADD COLUMN IF NOT EXISTS reason text;
@@ -304,8 +304,7 @@ SELECT * FROM application_pipeline_history_view;
 
 -- ============================================================
 -- FIX 060: issue_reports.status column missing
--- Root cause: table pre-existed from earlier deploy without
---   the status column; CREATE TABLE IF NOT EXISTS skips it
+-- Root cause: table pre-existed without status column
 -- ============================================================
 ALTER TABLE IF EXISTS issue_reports
   ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'open';
@@ -322,8 +321,7 @@ CREATE INDEX IF NOT EXISTS idx_issue_reports_status ON issue_reports (status);
 
 -- ============================================================
 -- FIX 090: otp_codes without pgcrypto
--- Root cause: CREATE EXTENSION pgcrypto blocked on Azure Database
---   for PostgreSQL. gen_random_uuid() is built-in (no extension needed).
+-- Root cause: CREATE EXTENSION pgcrypto blocked on Azure
 -- ============================================================
 CREATE TABLE IF NOT EXISTS otp_codes (
   id         uuid      PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -344,8 +342,7 @@ CREATE INDEX IF NOT EXISTS idx_otp_phone ON otp_codes (phone);
 
 -- ============================================================
 -- FIX 091: crm_timeline_events FK type mismatch
--- Root cause: application_id declared as uuid but
---   applications.id is text (has been since migration 006)
+-- Root cause: application_id declared uuid but applications.id is text
 -- ============================================================
 CREATE TABLE IF NOT EXISTS crm_timeline_events (
   id             uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -363,7 +360,7 @@ CREATE INDEX IF NOT EXISTS crm_timeline_event_type_idx  ON crm_timeline_events (
 
 -- ============================================================
 -- FIX 098: communications_messages.application_id type mismatch
--- Root cause: same as 091 — applications.id is text not uuid
+-- Root cause: applications.id is text, not uuid
 -- ============================================================
 DO $$ BEGIN
   IF EXISTS (
@@ -375,7 +372,6 @@ DO $$ BEGIN
   END IF;
 END $$;
 
--- Drop the column if it was previously added with the wrong uuid type
 DO $$ BEGIN
   IF EXISTS (
     SELECT 1 FROM information_schema.columns
@@ -395,13 +391,19 @@ CREATE INDEX IF NOT EXISTS idx_comm_messages_application_id
   ON communications_messages (application_id);
 
 -- ============================================================
--- FIX 102: lenders.submission_method constraint violation
--- Root cause: migration 050 stores values as lowercase text
---   ('email', 'api', 'google_sheet'). Migration 102 tries to
---   add an uppercase-only check, failing on every existing row.
+-- FIX 102 + Lenders API_ERROR
+-- Root cause 102: UPDATE to uppercase runs BEFORE DROP CONSTRAINT,
+--   so the still-live lowercase constraint from 050 rejects it.
+-- Root cause API_ERROR: lenders.repo.ts buildSelectColumns returns
+--   the raw lender_status enum column with no COALESCE, so rows
+--   seeded by 104 (status = NULL) reach the frontend as null and
+--   crash the Lenders page render.
+--
+-- Fix: DROP constraint first, then uppercase, then add new constraint,
+--   then fill any NULL status values.
 -- ============================================================
 
--- Step 1: cast enum -> text if migration 041 succeeded on an earlier deploy
+-- Step 1: cast enum -> text if migration 041 ran on a prior deploy
 DO $$ BEGIN
   IF EXISTS (
     SELECT 1 FROM information_schema.columns
@@ -414,15 +416,16 @@ DO $$ BEGIN
   END IF;
 END $$;
 
--- Step 2: normalise to uppercase
+-- Step 2: drop the old constraint (must happen before the UPDATE)
+ALTER TABLE lenders DROP CONSTRAINT IF EXISTS lenders_submission_method_check;
+
+-- Step 3: normalise to uppercase
 UPDATE lenders
 SET submission_method = UPPER(submission_method)
 WHERE submission_method IS NOT NULL
   AND submission_method <> UPPER(submission_method);
 
--- Step 3: replace constraint with expanded value list
-ALTER TABLE lenders DROP CONSTRAINT IF EXISTS lenders_submission_method_check;
-
+-- Step 4: add expanded constraint
 ALTER TABLE lenders
   ADD CONSTRAINT lenders_submission_method_check
   CHECK (
@@ -430,19 +433,33 @@ ALTER TABLE lenders
     OR submission_method IN ('EMAIL', 'API', 'GOOGLE_SHEET', 'GOOGLE_SHEETS', 'MANUAL')
   );
 
+-- Step 5: fix NULL lender status (root cause of portal Lenders API_ERROR).
+-- lenders.repo.ts returns the raw status column; the portal crashes on null.
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'lenders' AND column_name = 'status'
+      AND udt_name = 'lender_status'
+  ) THEN
+    UPDATE lenders
+    SET status = 'ACTIVE'::lender_status
+    WHERE status IS NULL;
+  ELSIF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'lenders' AND column_name = 'status'
+      AND data_type = 'text'
+  ) THEN
+    UPDATE lenders
+    SET status = 'ACTIVE'
+    WHERE status IS NULL OR status NOT IN ('ACTIVE', 'INACTIVE');
+  END IF;
+END $$;
+
 -- ============================================================
--- FIX 999: idx_ocr_results_status index on missing column
--- Root cause: ocr_results was rebuilt by migration 018 without
---   a status column; 999 blindly indexes it
+-- FIX 999: idx_ocr_results_status on missing column
+-- Root cause: ocr_results never had a status column
 -- ============================================================
 ALTER TABLE IF EXISTS ocr_results
   ADD COLUMN IF NOT EXISTS status text;
 
-DO $$ BEGIN
-  IF EXISTS (
-    SELECT 1 FROM information_schema.tables
-    WHERE table_name = 'ocr_results' AND table_type = 'BASE TABLE'
-  ) THEN
-    CREATE INDEX IF NOT EXISTS idx_ocr_results_status ON ocr_results (status);
-  END IF;
-END $$;
+CREATE INDEX IF NOT EXISTS idx_ocr_results_status ON ocr_results (status);
