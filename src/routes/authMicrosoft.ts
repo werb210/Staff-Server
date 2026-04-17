@@ -24,7 +24,7 @@ router.post(
     });
 
     if (!graphRes.ok) {
-      throw new AppError("invalid_token", "Microsoft access token is invalid.", 401);
+      throw new AppError("invalid_token", "Microsoft token is invalid.", 401);
     }
 
     const profile = (await graphRes.json()) as { mail?: string; userPrincipalName?: string };
