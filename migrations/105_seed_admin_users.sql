@@ -8,25 +8,20 @@
 ALTER TABLE users
   ALTER COLUMN phone_number DROP NOT NULL;
 
--- Ensure status values are uppercase before constraint check
-UPDATE users
-  SET status = UPPER(status)
-  WHERE status IS NOT NULL
-    AND status != UPPER(status);
+UPDATE users SET status = UPPER(status)
+  WHERE status IS NOT NULL AND status != UPPER(status);
 
--- Insert Andrew as Admin across all silos
 INSERT INTO users (
   id,
   email,
   phone_number,
   password_hash,
   role,
+  active,
   first_name,
   last_name,
   status,
-  silo,
-  created_at,
-  updated_at
+  silo
 )
 VALUES (
   gen_random_uuid(),
@@ -34,21 +29,19 @@ VALUES (
   '+17802648467',
   '$2a$10$placeholder.hash.not.used.otp.login.only.xxxxxxxxxxxxxx',
   'Admin',
+  true,
   'Andrew',
   'Polturak',
   'ACTIVE',
-  'BF',
-  now(),
-  now()
+  'BF'
 )
-ON CONFLICT (phone_number) DO UPDATE
-  SET
-    first_name   = EXCLUDED.first_name,
-    last_name    = EXCLUDED.last_name,
-    role         = EXCLUDED.role,
-    status       = EXCLUDED.status,
-    email        = EXCLUDED.email,
-    updated_at   = now();
+ON CONFLICT (phone_number) DO UPDATE SET
+  first_name  = EXCLUDED.first_name,
+  last_name   = EXCLUDED.last_name,
+  role        = EXCLUDED.role,
+  status      = EXCLUDED.status,
+  active      = true,
+  email       = EXCLUDED.email;
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- PORTAL NOTE — no code change needed for silo dropdown.
