@@ -47,9 +47,9 @@ router.get("/contacts", safeHandler(async (req: any, res: any) => {
   const search = typeof req.query.search === "string" ? req.query.search.trim() : null;
 
   const contacts: any[] = [];
-  const siloFilter = typeof req.query.silo === "string" ? req.query.silo.toUpperCase() : null;
-  const validSilos = ["BF", "BI", "SLF"];
-  const siloValue = siloFilter && validSilos.includes(siloFilter) ? siloFilter : "BF";
+  const VALID_SILOS = ["BF", "BI", "SLF"];
+  const rawSilo = typeof req.query.silo === "string" ? req.query.silo.toUpperCase() : "BF";
+  const siloValue = VALID_SILOS.includes(rawSilo) ? rawSilo : "BF";
 
   // Try contacts table (may not exist yet — safe catch)
   try {
@@ -91,21 +91,22 @@ router.get("/contacts", safeHandler(async (req: any, res: any) => {
 }));
 
 router.post("/contacts", safeHandler(async (req: any, res: any) => {
-  const { name, email, phone, status, silo } = req.body ?? {};
+  const { name, email, phone, status } = req.body ?? {};
 
   if (!name || typeof name !== "string") {
     return res.status(400).json({ error: "name is required" });
   }
 
-  const validSilos = ["BF", "BI", "SLF"];
-  const parsedSilo = typeof silo === "string" ? silo.toUpperCase() : "BF";
-  const siloValue = validSilos.includes(parsedSilo) ? parsedSilo : "BF";
+  const VALID_SILOS = ["BF", "BI", "SLF"];
+  const contactSilo = VALID_SILOS.includes((req.body?.silo ?? "").toUpperCase())
+    ? req.body.silo.toUpperCase()
+    : "BF";
 
   const { rows } = await pool.query(
     `INSERT INTO contacts (name, email, phone, status, silo)
      VALUES ($1, $2, $3, $4, $5)
      RETURNING id, name, email, phone, status, silo, created_at`,
-    [name, email ?? null, phone ?? null, status ?? null, siloValue]
+    [name, email ?? null, phone ?? null, status ?? null, contactSilo]
   );
 
   respondOk(res, rows[0]);
