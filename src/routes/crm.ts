@@ -47,17 +47,20 @@ router.get("/contacts", safeHandler(async (req: any, res: any) => {
   const search = typeof req.query.search === "string" ? req.query.search.trim() : null;
 
   const contacts: any[] = [];
+  const siloFilter = typeof req.query.silo === "string" ? req.query.silo.toUpperCase() : null;
+  const validSilos = ["BF", "BI", "SLF"];
+  const siloValue = siloFilter && validSilos.includes(siloFilter) ? siloFilter : "BF";
 
   // Try contacts table (may not exist yet — safe catch)
   try {
-    const searchClause = search ? "WHERE c.name ILIKE $1 OR c.email ILIKE $1 OR c.phone ILIKE $1" : "";
     const { rows } = await pool.query(
-      `SELECT c.id, c.name, c.email, c.phone, c.status, c.created_at, 'contact' AS source
+      `SELECT c.id, c.name, c.email, c.phone, c.status, c.silo, c.created_at, 'contact' AS source
        FROM contacts c
-       ${searchClause}
+       WHERE c.silo = $1
+       ${search ? "AND (c.name ILIKE $4 OR c.email ILIKE $4 OR c.phone ILIKE $4)" : ""}
        ORDER BY c.created_at DESC
-       LIMIT $${search ? 2 : 1} OFFSET $${search ? 3 : 2}`,
-      search ? [`%${search}%`, pageSize, offset] : [pageSize, offset]
+       LIMIT $2 OFFSET $3`,
+      search ? [siloValue, pageSize, offset, `%${search}%`] : [siloValue, pageSize, offset]
     );
     contacts.push(...rows);
   } catch {
@@ -85,6 +88,27 @@ router.get("/contacts", safeHandler(async (req: any, res: any) => {
     .slice(0, pageSize);
 
   respondOk(res, sorted);
+}));
+
+router.post("/contacts", safeHandler(async (req: any, res: any) => {
+  const { name, email, phone, status, silo } = req.body ?? {};
+
+  if (!name || typeof name !== "string") {
+    return res.status(400).json({ error: "name is required" });
+  }
+
+  const validSilos = ["BF", "BI", "SLF"];
+  const parsedSilo = typeof silo === "string" ? silo.toUpperCase() : "BF";
+  const siloValue = validSilos.includes(parsedSilo) ? parsedSilo : "BF";
+
+  const { rows } = await pool.query(
+    `INSERT INTO contacts (name, email, phone, status, silo)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING id, name, email, phone, status, silo, created_at`,
+    [name, email ?? null, phone ?? null, status ?? null, siloValue]
+  );
+
+  respondOk(res, rows[0]);
 }));
 
 router.get("/timeline", safeHandler(handleListCrmTimeline));

@@ -29,6 +29,15 @@ if (process.env.NODE_ENV === "production") {
 
 export async function start(): Promise<void> {
   await initDb();
+
+  try {
+    const { pool } = await import("./db.js");
+    const { runMigrations } = await import("./startup/runMigrations.js");
+    await runMigrations(pool);
+    console.log("[MIGRATIONS] All migrations applied.");
+  } catch (err) {
+    console.error("[MIGRATIONS] Failed:", err);
+  }
   await verifyRequiredTables([
     "users",
     "applications",
