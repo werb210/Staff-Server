@@ -40,6 +40,7 @@ import websiteRoutes from "./website.js";
 import mayaRoutes from "./maya.js";
 import aiRoutes from "./ai.v2.js";
 import { createMountTracker } from "./_canonicalMount.js";
+import { siloMiddleware } from "../middleware/silo.js";
 
 export type ApiRoute = {
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -68,6 +69,11 @@ combinedPortalRoutes.use(portalLenderProductsRoutes);
 const rootRoutes = Router();
 rootRoutes.use(readinessRoutes);
 rootRoutes.use(signnowRoutes);
+
+// Apply silo middleware globally to all /api routes
+export function applySiloMiddleware(app: import("express").Application): void {
+  app.use("/api", siloMiddleware);
+}
 
 export const API_ROUTE_MOUNTS: ApiRouteMount[] = [
   { path: "/_int", router: internalRoutes },

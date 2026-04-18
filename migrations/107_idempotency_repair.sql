@@ -136,12 +136,8 @@ END $$;
 -- Root cause: table created by 104 without crm_contact_id;
 --   CREATE TABLE IF NOT EXISTS silently skips, then index fails
 -- ============================================================
-ALTER TABLE IF EXISTS call_logs
-  ADD COLUMN IF NOT EXISTS crm_contact_id uuid NULL;
-
-CREATE INDEX IF NOT EXISTS call_logs_contact_idx     ON call_logs (crm_contact_id);
-CREATE INDEX IF NOT EXISTS call_logs_application_idx ON call_logs (application_id);
-CREATE INDEX IF NOT EXISTS call_logs_staff_idx       ON call_logs (staff_user_id);
+-- call_logs columns and indexes handled by 108_call_logs_full_schema.sql
+-- Nothing to do here — avoids indexing columns that may not yet exist.
 
 -- ============================================================
 -- FIX 086 / 087 / 088: job tables
