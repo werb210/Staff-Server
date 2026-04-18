@@ -8,7 +8,7 @@ import authRoutes, { resetOtpStateForTests as resetAuthOtpStateForTests } from "
 import callRoutes from "./routes/call.js";
 import healthRoutes from "./routes/health.js";
 import publicRoutes from "./routes/public.js";
-import { registerApiRouteMounts } from "./routes/routeRegistry.js";
+import { applySiloMiddleware, registerApiRouteMounts } from "./routes/routeRegistry.js";
 import { requireAuth } from "./middleware/auth.js";
 import { listRoutes } from "./debug/printRoutes.js";
 
@@ -116,6 +116,9 @@ export function createApp() {
     res.status(501).json({ status: "error", error: "not_implemented", message: "SMS send endpoint not yet wired" });
   });
   registerApiRouteMounts(apiRouter);
+
+  // Apply request silo extraction for all API routes
+  applySiloMiddleware(app);
 
   // 1. API ROUTES FIRST
   app.use("/api", apiRouter);
