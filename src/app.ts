@@ -65,6 +65,7 @@ export function createApp() {
       return callback(null, false);
     },
     credentials: true,
+    optionsSuccessStatus: 200,
   }));
 
   app.use(express.json({ limit: "10mb" }));

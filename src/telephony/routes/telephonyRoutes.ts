@@ -16,10 +16,30 @@ function isTwilioEnabled(): boolean {
   );
 }
 
+const REQUIRED_VOICE_TOKEN_ENV = [
+  "TWILIO_ACCOUNT_SID",
+  "TWILIO_API_KEY",
+  "TWILIO_API_SECRET",
+  "TWILIO_VOICE_APP_SID",
+] as const;
+
+function getMissingVoiceTokenEnv(): string[] {
+  return REQUIRED_VOICE_TOKEN_ENV.filter((key) => {
+    const value = process.env[key];
+    return typeof value !== "string" || value.trim().length === 0;
+  });
+}
+
 // ── Voice token ──────────────────────────────────────────────────────────────
 router.get("/token", auth, async (req: any, res: Response) => {
-  if (!isTwilioEnabled()) {
-    return res.status(503).json({ success: false, error: "Telephony not configured" });
+  const missingEnv = getMissingVoiceTokenEnv();
+  if (missingEnv.length > 0) {
+    return res.status(503).json({
+      success: false,
+      error: "telephony_not_configured",
+      message: "Missing required Twilio env vars for voice token generation",
+      missing: missingEnv,
+    });
   }
   const identity: string = req.user?.userId || req.user?.id || req.user?.sub || uuid();
   try {
