@@ -13,39 +13,56 @@ router.get("/", safeHandler((_req: any, res: any) => {
   res.json({ status: "ok" });
 }));
 
-// GET /api/communications/messages?contactId=&phone=&applicationId=
+// GET /api/communications/messages — queries the actual DB
 router.get("/messages", safeHandler(async (req: any, res: any) => {
-  const { contactId, phone, applicationId, page = "1", pageSize = "50" } = req.query;
-  const limit = Math.min(Number(pageSize) || 50, 200);
+  const { contactId, phone, applicationId, page = "1", pageSize = "100" } = req.query;
+  const limit = Math.min(Number(pageSize) || 100, 500);
   const offset = (Math.max(Number(page) || 1, 1) - 1) * limit;
 
   const conditions: string[] = [];
   const values: unknown[] = [];
 
-  if (contactId) { values.push(contactId); conditions.push(`contact_id = $${values.length}`); }
-  if (phone) { values.push(phone); conditions.push(`phone_number = $${values.length}`); }
-  if (applicationId) { values.push(applicationId); conditions.push(`application_id = $${values.length}`); }
+  if (contactId && typeof contactId === "string") {
+    values.push(contactId);
+    conditions.push(`contact_id = $${values.length}`);
+  }
+  if (phone && typeof phone === "string") {
+    values.push(phone);
+    conditions.push(`phone_number = $${values.length}`);
+  }
+  if (applicationId && typeof applicationId === "string") {
+    values.push(applicationId);
+    conditions.push(`application_id = $${values.length}`);
+  }
 
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
   values.push(limit, offset);
 
-  const result = await pool.query(
-    `SELECT id, type, direction, status, body, phone_number, from_number, to_number,
-            twilio_sid, contact_id, application_id, staff_name, created_at
-     FROM communications_messages
-     ${where}
-     ORDER BY created_at ASC
-     LIMIT $${values.length - 1} OFFSET $${values.length}`,
-    values
-  );
-  const countRes = await pool.query(
-    `SELECT count(*)::int AS total FROM communications_messages ${where}`,
-    values.slice(0, -2)
-  );
-  res.json({ messages: result.rows, total: countRes.rows[0]?.total ?? 0 });
+  try {
+    const result = await pool.query(
+      `SELECT id, type, direction, status, body, phone_number, from_number, to_number,
+              twilio_sid, contact_id, application_id, staff_name, created_at
+       FROM communications_messages
+       ${where}
+       ORDER BY created_at ASC
+       LIMIT $${values.length - 1} OFFSET $${values.length}`,
+      values
+    );
+    const countResult = await pool.query(
+      `SELECT count(*)::int AS total FROM communications_messages ${where}`,
+      values.slice(0, -2)
+    );
+    res.json({
+      messages: result.rows,
+      total: countResult.rows[0]?.total ?? 0,
+    });
+  } catch {
+    // Table may not exist yet
+    res.json({ messages: [], total: 0 });
+  }
 }));
 
-// POST /api/communications/sms — send outbound SMS
+// POST /api/communications/sms — send outbound + persist to DB
 router.post("/sms", safeHandler(async (req: any, res: any) => {
   const { contactId, to, body, applicationId } = req.body ?? {};
   if (!body || !to) {
@@ -60,15 +77,23 @@ router.post("/sms", safeHandler(async (req: any, res: any) => {
   const client: any = twilio(accountSid, authToken);
   const message = await client.messages.create({ body: String(body), from, to: String(to) });
 
-  // Persist to thread
-  const staffName = req.user?.name ?? req.user?.email ?? null;
+  // Persist outbound message to DB
+  const staffName = (req as any).user?.name ?? (req as any).user?.email ?? null;
   await pool.query(
     `INSERT INTO communications_messages
        (id, type, direction, status, body, phone_number, from_number, to_number,
         twilio_sid, contact_id, application_id, staff_name, created_at)
      VALUES (gen_random_uuid(), 'sms', 'outbound', $1, $2, $3, $4, $3, $5, $6, $7, $8, now())`,
-    [message.status, String(body), String(to), from, message.sid,
-     contactId ?? null, applicationId ?? null, staffName]
+    [
+      message.status,
+      String(body),
+      String(to),
+      from,
+      message.sid,
+      contactId ?? null,
+      applicationId ?? null,
+      staffName,
+    ]
   ).catch(() => {});
 
   res.json({ id: message.sid, status: message.status, contactId: contactId ?? null });

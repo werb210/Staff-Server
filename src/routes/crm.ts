@@ -125,14 +125,35 @@ router.post("/contacts", safeHandler(async (req: any, res: any) => {
     ? req.body.silo.toUpperCase()
     : "BF";
 
-  const { rows } = await pool.query(
-    `INSERT INTO contacts (name, email, phone, status, silo)
-     VALUES ($1, $2, $3, $4, $5)
-     RETURNING id, name, email, phone, status, silo, created_at`,
-    [name, email ?? null, phone ?? null, status ?? null, contactSilo]
-  );
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO contacts (name, email, phone, status, silo)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, name, email, phone, status, created_at`,
+      [name, email ?? null, phone ?? null, status ?? "active", contactSilo]
+    );
 
-  respondOk(res, rows[0]);
+    return respondOk(res, { ...rows[0], silo: contactSilo });
+  } catch (error: any) {
+    if (error?.code !== "42703") {
+      throw error;
+    }
+
+    try {
+      const { rows } = await pool.query(
+        `INSERT INTO contacts (name, email, phone, status)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, name, email, phone, status, created_at`,
+        [name, email ?? null, phone ?? null, status ?? "active"]
+      );
+
+      return respondOk(res, { ...rows[0], silo: contactSilo });
+    } catch (fallbackError: any) {
+      throw Object.assign(new Error(`Failed to create contact without silo column: ${fallbackError?.message ?? "unknown error"}`), {
+        cause: fallbackError,
+      });
+    }
+  }
 }));
 
 router.get("/timeline", safeHandler(handleListCrmTimeline));
