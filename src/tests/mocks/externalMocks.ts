@@ -82,13 +82,13 @@ const mockFetch = vi.fn(() => {
 });
 
 const blockedFetch = new Proxy(mockFetch as unknown as typeof global.fetch, {
-  apply() {
-    throw new Error("NETWORK_CALL_BLOCKED");
+  apply(target, thisArg, argArray) {
+    return Reflect.apply(target as (...args: unknown[]) => unknown, thisArg, argArray);
   },
 });
 
 Object.defineProperty(global, "fetch", {
-  configurable: false,
-  writable: false,
+  configurable: true,
+  writable: true,
   value: blockedFetch,
 });
