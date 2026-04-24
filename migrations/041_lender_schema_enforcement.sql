@@ -90,6 +90,16 @@ UPDATE lenders
 SET primary_contact_phone = COALESCE(primary_contact_phone, contact_phone)
 WHERE primary_contact_phone IS NULL;
 
+-- Drop any pre-existing CHECK constraints on columns we are about to normalize.
+-- The UPDATEs below rewrite values (e.g. uppercasing submission_method,
+-- normalizing country), and any old constraint whose allowed set no longer
+-- matches the rewritten values will reject the UPDATE. Dropping the
+-- constraints first lets the UPDATEs succeed; we re-add the canonical
+-- constraints later in this migration.
+ALTER TABLE lenders DROP CONSTRAINT IF EXISTS lenders_submission_method_check;
+ALTER TABLE lenders DROP CONSTRAINT IF EXISTS lenders_country_check;
+ALTER TABLE lenders DROP CONSTRAINT IF EXISTS lenders_status_check;
+
 UPDATE lenders
 SET country = CASE
   WHEN country IS NULL THEN 'BOTH'
@@ -119,6 +129,21 @@ SET created_at = COALESCE(created_at, now());
 
 UPDATE lenders
 SET updated_at = COALESCE(updated_at, created_at, now());
+
+-- Drop any FKs that reference lenders.id before changing its type from text to uuid.
+-- These are re-added by later migrations or after the lender_products block below.
+DO $$
+DECLARE r record;
+BEGIN
+  FOR r IN
+    SELECT conname, conrelid::regclass AS tbl
+    FROM pg_constraint
+    WHERE confrelid = 'lenders'::regclass
+      AND contype = 'f'
+  LOOP
+    EXECUTE format('ALTER TABLE %s DROP CONSTRAINT %I', r.tbl, r.conname);
+  END LOOP;
+END $$;
 
 ALTER TABLE lenders
   ALTER COLUMN id TYPE uuid USING id::uuid,
@@ -232,6 +257,14 @@ SET created_at = COALESCE(created_at, now());
 UPDATE lender_products
 SET updated_at = COALESCE(updated_at, created_at, now());
 
+-- Drop any text defaults on columns we are about to convert to enum types.
+-- Postgres cannot auto-cast a text default (e.g. 'MONTHS') to an enum type.
+ALTER TABLE lender_products
+  ALTER COLUMN category  DROP DEFAULT,
+  ALTER COLUMN country   DROP DEFAULT,
+  ALTER COLUMN rate_type DROP DEFAULT,
+  ALTER COLUMN term_unit DROP DEFAULT;
+
 ALTER TABLE lender_products
   ALTER COLUMN id TYPE uuid USING id::uuid,
   ALTER COLUMN lender_id TYPE uuid USING lender_id::uuid,
@@ -247,6 +280,26 @@ ALTER TABLE lender_products
   ALTER COLUMN required_documents SET NOT NULL,
   ALTER COLUMN created_at SET NOT NULL,
   ALTER COLUMN updated_at SET NOT NULL;
+
+-- Re-add enum-typed defaults now that the columns are the right type.
+ALTER TABLE lender_products
+  ALTER COLUMN category  SET DEFAULT 'LOC'::lender_product_category,
+  ALTER COLUMN term_unit SET DEFAULT 'MONTHS'::lender_product_term_unit;
+
+-- Re-add FK lender_products.lender_id -> lenders.id now that both are uuid.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'lender_products'::regclass
+      AND confrelid = 'lenders'::regclass
+      AND contype = 'f'
+  ) THEN
+    ALTER TABLE lender_products
+      ADD CONSTRAINT lender_products_lender_id_fkey
+      FOREIGN KEY (lender_id) REFERENCES lenders(id) ON DELETE CASCADE;
+  END IF;
+END $$;
 
 DO $$
 BEGIN
