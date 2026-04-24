@@ -13,15 +13,44 @@ import { ALL_ROLES, ROLES } from "../auth/roles.js";
 
 const router = Router();
 
+async function handleMe(req: any, res: any) {
+  try {
+    const user = await fetchMe(req);
+    if (!user) {
+      res.status(500).json({ error: "me_unavailable" });
+      return;
+    }
+    res.json(user);
+  } catch {
+    res.status(500).json({ error: "me_unavailable" });
+  }
+}
+
+async function handlePatchMe(req: any, res: any) {
+  try {
+    const user = await fetchMe(req);
+    if (!user) {
+      res.status(500).json({ error: "me_unavailable" });
+      return;
+    }
+  } catch {
+    res.status(500).json({ error: "me_unavailable" });
+    return;
+  }
+
+  return updateMe(req, res);
+}
+
+
 /**
  * Self profile
  */
-router.get("/me", requireAuth, requireAuthorization({ roles: ALL_ROLES }), fetchMe);
+router.get("/me", requireAuth, requireAuthorization({ roles: ALL_ROLES }), handleMe);
 router.patch(
   "/me",
   requireAuth,
   requireAuthorization({ roles: ALL_ROLES }),
-  updateMe
+  handlePatchMe
 );
 
 /**
