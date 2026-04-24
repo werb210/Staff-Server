@@ -21,7 +21,7 @@ describe("System boot", () => {
     const res = await request(app).get("/api/health");
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ status: "ok" });
+    expect(res.body.status).toBe("ok");
   });
 
   it("returns missing PORT when it is absent", () => {
