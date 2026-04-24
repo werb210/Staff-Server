@@ -6,6 +6,7 @@ import { normalizeRole } from "../auth/roles.js";
 import { createUserAccount } from "../modules/auth/auth.service.js";
 import { setUserStatus } from "../modules/users/users.service.js";
 import { recordAuditEvent } from "../modules/audit/audit.service.js";
+import { logger } from "../server/utils/logger.js";
 
 /**
  * Schemas
@@ -99,40 +100,50 @@ function handleUserError(
   });
 }
 
+export type User = UserRecord;
+
 /**
  * GET /api/users/me
  */
-export async function fetchMe(req: Request, res: Response) {
+export async function fetchMe(req: Request): Promise<User | null> {
   const userId = req.user!.userId;
 
-  const { rows } = await db.query(
-    `
-    SELECT
-      id,
-      phone,
-      email,
-      COALESCE(first_name, split_part(email, '@', 1)) AS first_name,
-      COALESCE(last_name, '') AS last_name,
-      role,
-      status,
-      silo,
-      profile_image_url,
-      o365_access_token,
-      created_at,
-      updated_at,
-      last_login_at
-    FROM users
-    WHERE id = $1
-    `,
-    [userId]
-  );
+  try {
+    const { rows } = await db.query(
+      `
+      SELECT
+        id,
+        phone,
+        email,
+        COALESCE(first_name, split_part(email, '@', 1)) AS first_name,
+        COALESCE(last_name, '') AS last_name,
+        role,
+        status,
+        silo,
+        profile_image_url,
+        o365_access_token,
+        created_at,
+        updated_at,
+        last_login_at
+      FROM users
+      WHERE id = $1
+      `,
+      [userId]
+    );
 
-  const user = rows[0] as UserRecord | undefined;
-  if (!user) {
-    return res.status(404).json({ ok: false, error: "user_not_found" });
+    const user = rows[0] as UserRecord | undefined;
+    if (!user) {
+      return null;
+    }
+
+    return normalizeUserRecord(user);
+  } catch (error) {
+    logger.error("users_fetch_me_failed", {
+      userId,
+      error: error instanceof Error ? error.message : "unknown_error",
+    });
+    return null;
   }
-
-  res["json"](normalizeUserRecord(user));
 }
 
 /**
