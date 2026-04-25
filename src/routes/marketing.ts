@@ -7,7 +7,7 @@ import { respondOk } from "../utils/respondOk.js";
 const router = Router();
 
 router.use(requireAuth);
-router.use(requireCapability([CAPABILITIES.MARKETING_READ]));
+router.use(requireCapability([CAPABILITIES.MARKETING_VIEW]));
 
 router.get("/", safeHandler((_req: any, res: any) => {
   respondOk(res, { status: "ok" });

@@ -31,10 +31,10 @@ const LENDERS_REPO = "src/repositories/lenders.repo.ts";
 
 export function normalizeSubmissionMethod(value: string | null | undefined): string | null {
   if (!value) return null;
-  const v = String(value).trim().toUpperCase();
-  const allowed = ["EMAIL", "API", "GOOGLE_SHEET", "GOOGLE_SHEETS", "MANUAL"];
-  if (allowed.includes(v)) return v;
-  return null;
+  let v = String(value).trim().toUpperCase();
+  if (v === "GOOGLE_SHEETS") v = "GOOGLE_SHEET";
+  const allowed = ["EMAIL", "API", "GOOGLE_SHEET"];
+  return allowed.includes(v) ? v : null;
 }
 
 export function reconcileSubmissionPayload(input: {
@@ -47,7 +47,7 @@ export function reconcileSubmissionPayload(input: {
   const hasApiConfig = Boolean(input.apiConfig);
   const hasSubmissionConfig = Boolean(input.submissionConfig);
 
-  if (!method || method === "MANUAL") {
+  if (!method) {
     return {
       method,
       email: null,
@@ -80,7 +80,7 @@ export function reconcileSubmissionPayload(input: {
     };
   }
 
-  if (method === "GOOGLE_SHEET" || method === "GOOGLE_SHEETS") {
+  if (method === "GOOGLE_SHEET") {
     if (!hasSubmissionConfig) {
       return { method: null, email: null, apiConfig: null, submissionConfig: null };
     }
