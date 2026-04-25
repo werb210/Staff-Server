@@ -24,5 +24,6 @@ describe("PATCH /api/client/applications/:id stale token handling", () => {
 
     expect(res.status).toBe(410);
     expect(res.body.code).toBe("application_token_stale");
+    expect(res.body.details?.applicationId).toBe("non-existent-id");
   });
 });

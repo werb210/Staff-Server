@@ -62,6 +62,7 @@ export type ApiRouteMount = {
 const ALL_ROLES: Role[] = [
   ROLES.ADMIN,
   ROLES.STAFF,
+  ROLES.MARKETING,
   ROLES.LENDER,
   ROLES.REFERRER,
 ];

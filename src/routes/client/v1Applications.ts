@@ -103,7 +103,8 @@ router.patch(
       throw new AppError(
         "application_token_stale",
         "Application not found. Please restart your application from the beginning.",
-        410
+        410,
+        { applicationId }
       );
     }
     const nextName = parsed.data.business_name ?? application.name;

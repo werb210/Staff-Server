@@ -62,6 +62,38 @@ router.post(
   })
 );
 
+router.get("/ai-knowledge", safeHandler(async (_req: any, res: any) => {
+  const { rows } = await pool.query<{ id: string; source_type: string; source_id: string | null; content: string; created_at: string }>(
+    `SELECT id, source_type, source_id,
+            LEFT(content, 240) AS content,
+            created_at
+       FROM ai_knowledge
+     ORDER BY created_at DESC
+       LIMIT 500`
+  );
+  respondOk(res, { documents: rows });
+}));
+
+router.post("/ai-knowledge/text", safeHandler(async (req: any, res: any) => {
+  const content = typeof req.body?.content === "string" ? req.body.content.trim() : "";
+  const title = typeof req.body?.title === "string" ? req.body.title.trim() : "";
+  if (!content) {
+    return res.status(400).json({ error: { code: "validation_error", message: "content is required" } });
+  }
+  const { embedAndStore } = await import("../modules/ai/knowledge.service.js");
+  await embedAndStore(pool, content, "text", title || null);
+  respondOk(res, { ok: true });
+}));
+
+router.delete("/ai-knowledge/:id", safeHandler(async (req: any, res: any) => {
+  const id = String(req.params.id ?? "").trim();
+  if (!id) {
+    return res.status(400).json({ error: { code: "validation_error", message: "id required" } });
+  }
+  await pool.query(`DELETE FROM ai_knowledge WHERE id = $1`, [id]);
+  respondOk(res, { ok: true });
+}));
+
 router.get("/branding", safeHandler(async (_req: any, res: any) => {
   try {
     const { rows } = await pool.query(
