@@ -6,14 +6,14 @@ const router = Router();
 
 router.post(
   "/message",
-  safeHandler(async (req, res) => {
+  safeHandler(async (req: any, res: any) => {
     await proxyMayaToAgent("/api/maya/message", req.body, res);
   })
 );
 
 router.post(
   "/chat",
-  safeHandler(async (req, res) => {
+  safeHandler(async (req: any, res: any) => {
     await proxyMayaToAgent("/api/maya/chat", req.body, res);
   })
 );
