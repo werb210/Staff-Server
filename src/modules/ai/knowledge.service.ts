@@ -5,14 +5,12 @@ import { v4 as uuid } from "uuid";
 import { config } from "../../config/index.js";
 
 export type KnowledgeEntry = {
-  id: string;
-  question: string;
-  answer: string;
-  tags: string[];
-  source: "manual" | "imported";
+  title: string;
+  content: string;
+  createdAt: string;
 };
 
-const KNOWLEDGE_PATH = path.join(process.cwd(), "data", "knowledge.json");
+const KNOWLEDGE_PATH = path.resolve("storage/knowledge.json");
 
 function ensureStorageDir(): void {
   const dir = path.dirname(KNOWLEDGE_PATH);
@@ -24,7 +22,7 @@ let openaiClient: OpenAI | null = null;
 
 function fetchOpenAIClient(): OpenAI {
   if (openaiClient) return openaiClient;
-  const apiKey = config.OPENAI_API_KEY ?? process.env.OPENAI_API_KEY;
+  const apiKey = config.openai.apiKey;
   if (!apiKey) {
     const err = new Error("OPENAI_API_KEY not configured.");
     (err as { code?: string }).code = "openai_not_configured";
@@ -83,7 +81,7 @@ export async function embedAndStore(
     [uuid(), safeTitle, `${sourceType}:${tag}`, sourceId ?? null, content],
   );
 
-  if (!process.env.OPENAI_API_KEY) {
+  if (!config.openai.apiKey) {
     await insertNoEmbedding("no-embed");
     const err = new Error("OPENAI_API_KEY not configured. Stored without embedding.");
     (err as { code?: string }).code = "openai_not_configured";
