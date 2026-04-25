@@ -1,7 +1,5 @@
 -- CRM activities + O365 send-as registry. Idempotent.
 
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
 -- Notes ----------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS crm_notes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid()

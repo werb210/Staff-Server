@@ -100,7 +100,7 @@ router.post("/ai-knowledge/text", safeHandler(async (req: any, res: any) => {
   }
   const { embedAndStore } = await import("../modules/ai/knowledge.service.js");
   try {
-    await embedAndStore(pool, content, "text", title || null);
+    await embedAndStore(pool, content, "text", title || null, title || null);
     respondOk(res, { ok: true });
   } catch (e: any) {
     if (e?.code === "openai_not_configured") {

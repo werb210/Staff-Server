@@ -12,7 +12,7 @@ router.post("/ai/rule", async (req: any, res: any, next: any) => {
     return;
   }
 
-  await embedAndStore(pool, content, "rule");
+  await embedAndStore(pool, content, "rule", null, "AI rule");
 
   res["json"]({ success: true });
 });

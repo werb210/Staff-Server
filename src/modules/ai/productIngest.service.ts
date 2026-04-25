@@ -34,7 +34,13 @@ export async function ingestAllProducts(db: Queryable): Promise<void> {
   );
 
   for (const product of products.rows) {
-    await embedAndStore(db, toProductKnowledge(product), "product", product.id);
+    await embedAndStore(
+      db,
+      toProductKnowledge(product),
+      "product",
+      product.id,
+      product.name ?? `Product ${product.id}`,
+    );
   }
 }
 
@@ -52,5 +58,11 @@ export async function ingestProductById(db: Queryable, productId: string): Promi
     return;
   }
 
-  await embedAndStore(db, toProductKnowledge(product), "product", product.id);
+  await embedAndStore(
+      db,
+      toProductKnowledge(product),
+      "product",
+      product.id,
+      product.name ?? `Product ${product.id}`,
+    );
 }
