@@ -45,6 +45,7 @@ import mayaRoutes from "./maya.js";
 import aiMayaAlias from "./aiMayaAlias.js";
 import mayaAdminStubs from "./mayaAdminStubs.js";
 import aiRoutes from "./ai.v2.js";
+import o365Routes from "./o365.js";
 import { createMountTracker } from "./_canonicalMount.js";
 import { siloMiddleware } from "../middleware/silo.js";
 
@@ -128,6 +129,7 @@ export const API_ROUTE_MOUNTS: ApiRouteMount[] = [
   { path: "/ai/maya", router: aiMayaAlias },
   { path: "/ai", router: aiRoutes },
   { path: "/email", router: emailRoutes },
+  { path: "/o365", router: o365Routes },
   { path: "/public", router: publicApplicationRoutes },
   { path: "/", router: rootRoutes },
   { path: "/applications", router: applicationsRoutes },
@@ -192,6 +194,36 @@ export const ROUTES: ApiRoute[] = [
   { method: "GET", path: "/api/pipeline/stages", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "GET", path: "/api/crm", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "GET", path: "/api/crm/contacts", roles: [ROLES.ADMIN, ROLES.STAFF] },
+  { method: "GET", path: "/api/crm/inbox", roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.MARKETING] },
+  { method: "GET", path: "/api/crm/shared-mailboxes", roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.MARKETING] },
+  { method: "GET", path: "/api/crm/contacts/:id/notes", roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.MARKETING] },
+  { method: "POST", path: "/api/crm/contacts/:id/notes", roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.MARKETING] },
+  { method: "GET", path: "/api/crm/contacts/:id/tasks", roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.MARKETING] },
+  { method: "POST", path: "/api/crm/contacts/:id/tasks", roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.MARKETING] },
+  { method: "PATCH", path: "/api/crm/contacts/:id/tasks/:taskId", roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.MARKETING] },
+  { method: "GET", path: "/api/crm/contacts/:id/calls", roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.MARKETING] },
+  { method: "POST", path: "/api/crm/contacts/:id/calls", roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.MARKETING] },
+  { method: "GET", path: "/api/crm/contacts/:id/emails", roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.MARKETING] },
+  { method: "POST", path: "/api/crm/contacts/:id/emails", roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.MARKETING] },
+  { method: "GET", path: "/api/crm/contacts/:id/meetings", roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.MARKETING] },
+  { method: "POST", path: "/api/crm/contacts/:id/meetings", roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.MARKETING] },
+  { method: "GET", path: "/api/crm/contacts/:id/timeline", roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.MARKETING] },
+  { method: "GET", path: "/api/crm/companies/:id/notes", roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.MARKETING] },
+  { method: "POST", path: "/api/crm/companies/:id/notes", roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.MARKETING] },
+  { method: "GET", path: "/api/crm/companies/:id/tasks", roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.MARKETING] },
+  { method: "POST", path: "/api/crm/companies/:id/tasks", roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.MARKETING] },
+  { method: "PATCH", path: "/api/crm/companies/:id/tasks/:taskId", roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.MARKETING] },
+  { method: "GET", path: "/api/crm/companies/:id/calls", roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.MARKETING] },
+  { method: "POST", path: "/api/crm/companies/:id/calls", roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.MARKETING] },
+  { method: "GET", path: "/api/crm/companies/:id/emails", roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.MARKETING] },
+  { method: "POST", path: "/api/crm/companies/:id/emails", roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.MARKETING] },
+  { method: "GET", path: "/api/crm/companies/:id/meetings", roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.MARKETING] },
+  { method: "POST", path: "/api/crm/companies/:id/meetings", roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.MARKETING] },
+  { method: "GET", path: "/api/crm/companies/:id/timeline", roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.MARKETING] },
+  { method: "POST", path: "/api/o365/mail/send", roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.MARKETING] },
+  { method: "POST", path: "/api/o365/todo/tasks", roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.MARKETING] },
+  { method: "POST", path: "/api/o365/calendar/events", roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.MARKETING] },
+  { method: "GET", path: "/api/o365/inbox", roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.MARKETING] },
   { method: "GET", path: "/api/communications", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "GET", path: "/api/calendar", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "GET", path: "/api/calendar/events", roles: [ROLES.ADMIN, ROLES.STAFF] },

@@ -58,7 +58,25 @@ router.post(
   "/ai-knowledge",
   knowledgeUpload.single("file"),
   safeHandler(async (req: any, res: any) => {
-    await AIKnowledgeController.upload(req as MulterRequest, res);
+    try {
+      await AIKnowledgeController.upload(req as MulterRequest, res);
+    } catch (e: any) {
+      if (e?.code === "openai_not_configured") {
+        return res.status(503).json({
+          ok: false,
+          savedWithoutIndex: true,
+          message: "Saved, but Maya search is degraded — set OPENAI_API_KEY to enable embeddings.",
+        });
+      }
+      if (e?.code === "embedding_failed" || e?.code === "no_vector") {
+        return res.status(503).json({
+          ok: false,
+          savedWithoutIndex: true,
+          message: "Saved, but the embedding service is unavailable. Try again later.",
+        });
+      }
+      throw e;
+    }
   })
 );
 
@@ -81,8 +99,26 @@ router.post("/ai-knowledge/text", safeHandler(async (req: any, res: any) => {
     return res.status(400).json({ error: { code: "validation_error", message: "content is required" } });
   }
   const { embedAndStore } = await import("../modules/ai/knowledge.service.js");
-  await embedAndStore(pool, content, "text", title || null);
-  respondOk(res, { ok: true });
+  try {
+    await embedAndStore(pool, content, "text", title || null);
+    respondOk(res, { ok: true });
+  } catch (e: any) {
+    if (e?.code === "openai_not_configured") {
+      return res.status(503).json({
+        ok: false,
+        savedWithoutIndex: true,
+        message: "Saved, but Maya search is degraded — set OPENAI_API_KEY to enable embeddings.",
+      });
+    }
+    if (e?.code === "embedding_failed" || e?.code === "no_vector") {
+      return res.status(503).json({
+        ok: false,
+        savedWithoutIndex: true,
+        message: "Saved, but the embedding service is unavailable. Try again later.",
+      });
+    }
+    throw e;
+  }
 }));
 
 router.delete("/ai-knowledge/:id", safeHandler(async (req: any, res: any) => {

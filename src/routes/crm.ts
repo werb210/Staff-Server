@@ -6,6 +6,14 @@ import { respondOk } from "../utils/respondOk.js";
 import { handleListCrmTimeline } from "../modules/crm/timeline.controller.js";
 import { SupportController } from "../modules/support/support.controller.js";
 import { pool } from "../db.js";
+import notesRoutes from "./crm/notes.js";
+import tasksRoutes from "./crm/tasks.js";
+import emailsRoutes from "./crm/emails.js";
+import meetingsRoutes from "./crm/meetings.js";
+import callsActivityRoutes from "./crm/calls.js";
+import timelineRoutes from "./crm/timeline.js";
+import sharedMailboxesRoutes from "./crm/sharedMailboxes.js";
+import inboxRoutes from "./crm/inbox.js";
 
 const router = Router();
 
@@ -235,6 +243,23 @@ router.post("/contacts", safeHandler(async (req: any, res: any) => {
 
   return res.status(201).json({ ok: true, data: rows[0] });
 }));
+
+router.use("/contacts/:id/notes", notesRoutes);
+router.use("/contacts/:id/tasks", tasksRoutes);
+router.use("/contacts/:id/emails", emailsRoutes);
+router.use("/contacts/:id/meetings", meetingsRoutes);
+router.use("/contacts/:id/calls", callsActivityRoutes);
+router.use("/contacts/:id/timeline", timelineRoutes);
+
+router.use("/companies/:id/notes", notesRoutes);
+router.use("/companies/:id/tasks", tasksRoutes);
+router.use("/companies/:id/emails", emailsRoutes);
+router.use("/companies/:id/meetings", meetingsRoutes);
+router.use("/companies/:id/calls", callsActivityRoutes);
+router.use("/companies/:id/timeline", timelineRoutes);
+
+router.use("/shared-mailboxes", sharedMailboxesRoutes);
+router.use("/inbox", inboxRoutes);
 
 router.get("/timeline", safeHandler(handleListCrmTimeline));
 router.get("/web-leads", SupportController.fetchWebLeads);

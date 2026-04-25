@@ -57,21 +57,46 @@ export async function embedAndStore(
   sourceType: string,
   sourceId?: string
 ): Promise<void> {
-  const embedding = await fetchOpenAIClient().embeddings.create({
-    model: "text-embedding-3-small",
-    input: content,
-  });
+  if (!process.env.OPENAI_API_KEY) {
+    await db.query(
+      `insert into ai_knowledge (id, source_type, source_id, content, embedding)
+       values ($1, $2, $3, $4, NULL)`,
+      [uuid(), `${sourceType}:no-embed`, sourceId ?? null, content],
+    );
+    const err = new Error("OPENAI_API_KEY not configured. Stored without embedding.");
+    (err as any).code = "openai_not_configured";
+    throw err;
+  }
+
+  let vector: number[] | undefined;
+  try {
+    const embedding = await fetchOpenAIClient().embeddings.create({
+      model: "text-embedding-3-small",
+      input: content,
+    });
+    vector = embedding.data[0]?.embedding;
+  } catch {
+    await db.query(
+      `insert into ai_knowledge (id, source_type, source_id, content, embedding)
+       values ($1, $2, $3, $4, NULL)`,
+      [uuid(), `${sourceType}:embed-failed`, sourceId ?? null, content],
+    );
+    throw Object.assign(new Error("Embedding service unavailable. Saved without index."), { code: "embedding_failed" });
+  }
+
+  if (!vector) {
+    await db.query(
+      `insert into ai_knowledge (id, source_type, source_id, content, embedding)
+       values ($1, $2, $3, $4, NULL)`,
+      [uuid(), `${sourceType}:no-vector`, sourceId ?? null, content],
+    );
+    throw Object.assign(new Error("No embedding vector returned. Saved without index."), { code: "no_vector" });
+  }
 
   await db.query(
     `insert into ai_knowledge (id, source_type, source_id, content, embedding)
      values ($1, $2, $3, $4, $5::vector)`,
-    (() => {
-      const vector = embedding.data[0]?.embedding;
-      if (!vector) {
-        throw new Error("Failed to generate embedding.");
-      }
-      return [uuid(), sourceType, sourceId ?? null, content, toVectorLiteral(vector)];
-    })()
+    [uuid(), sourceType, sourceId ?? null, content, toVectorLiteral(vector)],
   );
 }
 

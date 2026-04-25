@@ -59,7 +59,27 @@ router.post(
 router.get(
   "/health",
   safeHandler(async (_req: any, res: any) => {
-    await proxyMayaToAgent("/health", "GET", undefined, res);
+    const mayaUrl = process.env.MAYA_URL || process.env.MAYA_SERVICE_URL;
+    const result: any = {
+      env: {
+        MAYA_URL: !!mayaUrl,
+        JWT_SECRET: !!process.env.JWT_SECRET,
+      },
+    };
+    if (!mayaUrl) {
+      return res.status(503).json({ ok: false, reason: "MAYA_URL not set", ...result });
+    }
+    try {
+      const ctrl = new AbortController();
+      setTimeout(() => ctrl.abort(), 5000);
+      const r = await fetch(`${mayaUrl}/health`, { method: "GET", signal: ctrl.signal });
+      const body = await r.text();
+      return res.status(r.ok ? 200 : 502).json({
+        ok: r.ok, agent_status: r.status, agent_body: body.slice(0, 500), ...result,
+      });
+    } catch (e: any) {
+      return res.status(502).json({ ok: false, reason: "agent_unreachable", error: e?.message, ...result });
+    }
   })
 );
 
