@@ -12,7 +12,7 @@ const adminOnly = [
 router.get(
   "/overview",
   ...adminOnly,
-  safeHandler(async (_req, res) => {
+  safeHandler(async (_req: any, res: any) => {
     res.json({
       data: {
         implemented: false,
@@ -28,7 +28,7 @@ router.get(
 router.get(
   "/metrics",
   ...adminOnly,
-  safeHandler(async (_req, res) => {
+  safeHandler(async (_req: any, res: any) => {
     res.json({
       data: {
         implemented: false,
@@ -44,7 +44,7 @@ router.get(
 router.post(
   "/roi-simulate",
   ...adminOnly,
-  safeHandler(async (req, res) => {
+  safeHandler(async (req: any, res: any) => {
     const budget = Number((req.body as { budget?: unknown })?.budget) || 0;
     res.json({
       data: {
@@ -61,7 +61,7 @@ router.post(
 router.post(
   "/model-rollback",
   ...adminOnly,
-  safeHandler(async (_req, res) => {
+  safeHandler(async (_req: any, res: any) => {
     res.status(501).json({
       error: "not_implemented",
       message: "Model rollback is not yet implemented.",
