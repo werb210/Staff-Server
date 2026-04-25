@@ -4,8 +4,4 @@ export const API_ROUTES = {
     otpStart: "/api/auth/otp/start",
     otpVerify: "/api/auth/otp/verify",
   },
-  application: {
-    create: "/api/v1/applications",
-    upload: "/api/v1/documents",
-  },
 };
