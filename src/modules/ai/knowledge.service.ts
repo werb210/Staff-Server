@@ -66,6 +66,17 @@ function deriveTitle(content: string, fallback?: string | null): string {
   return (fallback ?? "Untitled").slice(0, 200);
 }
 
+// Postgres TEXT columns reject 0x00 (UTF-8 encoding error 22021).
+// Some .docx / binary uploads slip null bytes through readTextPreview.
+// Also strip lone surrogates and other C0 control chars except \t,\n,\r.
+function sanitizeContentForStorage(input: string): string {
+  if (!input) return input;
+  return input
+    .replace(/\u0000/g, "")
+    .replace(/[\u0001-\u0008\u000B\u000C\u000E-\u001F]/g, "")
+    .replace(/[\uD800-\uDFFF]/g, "");
+}
+
 export async function embedAndStore(
   db: Queryable,
   content: string,
@@ -74,11 +85,12 @@ export async function embedAndStore(
   title?: string | null,
 ): Promise<void> {
   const safeTitle = (title && title.trim()) || deriveTitle(content, sourceType);
+  const safeContent = sanitizeContentForStorage(content);
 
   const insertNoEmbedding = (tag: string) => db.query(
     `insert into ai_knowledge (id, title, source_type, source_id, content, embedding)
      values ($1, $2, $3, $4, $5, NULL)`,
-    [uuid(), safeTitle, `${sourceType}:${tag}`, sourceId ?? null, content],
+    [uuid(), safeTitle, `${sourceType}:${tag}`, sourceId ?? null, safeContent],
   );
 
   if (!config.openai.apiKey) {
@@ -88,9 +100,9 @@ export async function embedAndStore(
     throw err;
   }
 
-  const embedInput = content.length > EMBED_INPUT_MAX_CHARS
-    ? content.slice(0, EMBED_INPUT_MAX_CHARS)
-    : content;
+  const embedInput = safeContent.length > EMBED_INPUT_MAX_CHARS
+    ? safeContent.slice(0, EMBED_INPUT_MAX_CHARS)
+    : safeContent;
 
   let vector: number[] | undefined;
   try {
@@ -117,7 +129,7 @@ export async function embedAndStore(
   await db.query(
     `insert into ai_knowledge (id, title, source_type, source_id, content, embedding)
      values ($1, $2, $3, $4, $5, $6::vector)`,
-    [uuid(), safeTitle, sourceType, sourceId ?? null, content, toVectorLiteral(vector)],
+    [uuid(), safeTitle, sourceType, sourceId ?? null, safeContent, toVectorLiteral(vector)],
   );
 }
 
