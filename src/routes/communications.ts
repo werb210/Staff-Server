@@ -46,27 +46,46 @@ router.get("/sms", safeHandler(async (req: any, res: any) => {
   const silo = getSilo(res);
   const result = await pool.query(
     `SELECT
-       m.contact_id,
-       c.name AS contact_name,
-       c.phone AS contact_phone,
-       m.body AS latest_message,
-       m.created_at AS latest_message_at
-     FROM communications_messages m
-     LEFT JOIN contacts c ON c.id = m.contact_id
-     INNER JOIN (
-       SELECT contact_id, max(created_at) AS max_created_at
-       FROM communications_messages
-       WHERE contact_id IS NOT NULL
-         AND silo = $1
-       GROUP BY contact_id
-     ) latest
-       ON latest.contact_id = m.contact_id
-      AND latest.max_created_at = m.created_at
-     WHERE m.silo = $1
-     ORDER BY m.created_at DESC`,
+      COALESCE(c.id::text, m.from_number) AS thread_key,
+      c.id    AS contact_id,
+      COALESCE(c.name, m.from_number, m.to_number) AS display_name,
+      COALESCE(c.phone, m.from_number, m.to_number) AS phone,
+      MAX(m.created_at) AS last_at,
+      (SELECT body FROM communications_messages
+         WHERE COALESCE(contact_id::text, from_number) =
+               COALESCE(c.id::text, m.from_number)
+         ORDER BY created_at DESC LIMIT 1) AS last_body,
+      SUM(CASE WHEN m.read_at IS NULL AND m.direction='inbound' THEN 1 ELSE 0 END) AS unread_count
+    FROM communications_messages m
+    LEFT JOIN contacts c ON c.id = m.contact_id
+    WHERE m.silo = $1
+    GROUP BY thread_key, c.id, display_name, phone
+    ORDER BY last_at DESC
+    LIMIT 200`,
     [silo]
   ).catch(() => ({ rows: [] as any[] }));
   res.json({ conversations: result.rows });
+}));
+
+
+router.get("/sms/thread", safeHandler(async (req: any, res: any) => {
+  const { getSilo } = await import("../middleware/silo.js");
+  const silo = getSilo(res);
+  const contactId = typeof req.query.contactId === "string" ? req.query.contactId.trim() : "";
+  const phone = typeof req.query.phone === "string" ? req.query.phone.trim() : "";
+  if (!contactId && !phone) {
+    return res.status(400).json({ error: { code: "validation_error", message: "contactId or phone is required" } });
+  }
+
+  const { rows } = await pool.query(
+    `SELECT * FROM communications_messages
+     WHERE silo = $1
+       AND ((contact_id = $2::uuid) OR (contact_id IS NULL AND
+            (from_number = $3 OR to_number = $3)))
+     ORDER BY created_at ASC LIMIT 500`,
+    [silo, contactId || null, phone || null],
+  ).catch(() => ({ rows: [] as any[] }));
+  res.json({ messages: rows, total: rows.length });
 }));
 
 // POST /api/communications/sms — send outbound + persist to DB
@@ -89,8 +108,8 @@ router.post("/sms", safeHandler(async (req: any, res: any) => {
   await pool.query(
     `INSERT INTO communications_messages
        (id, type, direction, status, body, phone_number, from_number, to_number,
-        twilio_sid, contact_id, application_id, staff_name, created_at)
-     VALUES (gen_random_uuid(), 'sms', 'outbound', $1, $2, $3, $4, $3, $5, $6, $7, $8, now())`,
+        twilio_sid, contact_id, application_id, staff_name, silo, created_at)
+     VALUES (gen_random_uuid(), 'sms', 'outbound', $1, $2, $3, $4, $3, $5, $6, $7, $8, $9, now())`,
     [
       message.status,
       String(body),
@@ -100,6 +119,7 @@ router.post("/sms", safeHandler(async (req: any, res: any) => {
       contactId ?? null,
       applicationId ?? null,
       staffName,
+      ((req as any).user?.silo ?? "BF").toString().toUpperCase(),
     ]
   ).catch(() => {});
 
