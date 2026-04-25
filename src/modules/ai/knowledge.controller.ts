@@ -79,7 +79,7 @@ export const AIKnowledgeController = {
     try {
       const extractedText = await readTextPreview(file.path);
       if (extractedText.length > 0) {
-        await embedAndStore(pool, extractedText, "sheet", sheetId);
+        await embedAndStore(pool, extractedText, "sheet", sheetId, sheetId);
       }
     } finally {
       cleanupFile(file.path);
