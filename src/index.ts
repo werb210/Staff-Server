@@ -11,6 +11,7 @@ import { createApp } from "./app.js";
 import { initDb } from "./db/init.js";
 import { verifyRequiredTables } from "./db/tableHealthCheck.js";
 import { listRoutes } from "./debug/printRoutes.js";
+import { pgcryptoAvailable } from "./security/ssnCrypto.js";
 import { markReady } from "./startupState.js";
 
 const PORT = Number(process.env.PORT) || 8080;
@@ -36,6 +37,12 @@ export async function start(): Promise<void> {
     try {
       await runMigrations(pool);
       console.log("[MIGRATIONS] All migrations applied.");
+      try {
+        const has = await pgcryptoAvailable(pool);
+        console.log(JSON.stringify({ event: "ssn_crypto_mode", mode: has ? "pgcrypto" : "node_aes_256_gcm" }));
+      } catch (err) {
+        console.log(JSON.stringify({ event: "ssn_crypto_mode_check_failed", error: String(err) }));
+      }
     } catch (err) {
       console.error("[MIGRATIONS] FATAL — refusing to start:", err);
       // Exit so Azure App Service restarts and does not route traffic to a broken schema.

@@ -6,8 +6,9 @@ DO $$
 BEGIN
   BEGIN
     CREATE EXTENSION IF NOT EXISTS pgcrypto;
-  EXCEPTION WHEN insufficient_privilege THEN
-    RAISE NOTICE 'pgcrypto unavailable; SSN encryption will use Node-side fallback';
+    RAISE NOTICE 'pgcrypto extension available; SSN encryption will use pgcrypto';
+  EXCEPTION WHEN OTHERS THEN
+    RAISE NOTICE 'pgcrypto unavailable (sqlstate=%, msg=%); SSN encryption will use Node-side AES-256-GCM fallback', SQLSTATE, SQLERRM;
   END;
 END $$;
 
