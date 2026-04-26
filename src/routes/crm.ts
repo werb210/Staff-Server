@@ -1,5 +1,4 @@
 import { Router } from "express";
-import crypto from "node:crypto";
 import { requireAuth, requireCapability } from "../middleware/auth.js";
 import { CAPABILITIES } from "../auth/capabilities.js";
 import { safeHandler } from "../middleware/safeHandler.js";
@@ -9,7 +8,7 @@ import { handleListCrmTimeline } from "../modules/crm/timeline.controller.js";
 import { SupportController } from "../modules/support/support.controller.js";
 import { pool } from "../db.js";
 import { getSilo } from "../middleware/silo.js";
-import { encryptSsnForInsert } from "../security/ssnCrypto.js";
+import { createContact } from "../services/contacts.js";
 import notesRoutes from "./crm/notes.js";
 import tasksRoutes from "./crm/tasks.js";
 import emailsRoutes from "./crm/emails.js";
@@ -235,44 +234,29 @@ router.post("/contacts", safeHandler(async (req: any, res: any) => {
     return res.status(400).json({ error: { field: "company_id", message: "company_id must be a UUID" } });
   }
 
-  const id = crypto.randomUUID();
   const silo = getSilo(res);
   const ownerId = req.user?.id ?? req.user?.userId ?? null;
-  const encryptedSsn = await encryptSsnForInsert(pool, ssn ? String(ssn) : null);
-  const { rows } = await pool.query(
-    `INSERT INTO contacts
-      (id, name, first_name, last_name, email, phone, dob, ssn_encrypted, address_street, address_city, address_state,
-       address_zip, address_country, ownership_percent, role, is_primary_applicant, company_id, silo, owner_id, user_id, status)
-     VALUES
-      ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
-     RETURNING id, name, first_name, last_name, email, phone, dob, address_street, address_city, address_state,
-       address_zip, address_country, ownership_percent, role, is_primary_applicant, company_id, silo, owner_id, user_id, status, created_at`,
-    [
-      id,
-      `${fname} ${lname}`.trim(),
-      fname,
-      lname,
-      email ?? null,
-      phone ?? null,
-      dob ?? null,
-      encryptedSsn,
-      address_street ?? null,
-      address_city ?? null,
-      address_state ?? null,
-      address_zip ?? null,
-      address_country ?? null,
-      parsedOwnership,
-      normalizedRole,
-      is_primary_applicant === true,
-      company_id ?? null,
-      silo,
-      ownerId,
-      ownerId,
-      "active",
-    ]
-  );
+  const row = await createContact(pool, {
+    first_name: fname,
+    last_name: lname,
+    email: email ?? null,
+    phone: phone ?? null,
+    dob: dob ?? null,
+    ssn: ssn ? String(ssn) : null,
+    address_street: address_street ?? null,
+    address_city: address_city ?? null,
+    address_state: address_state ?? null,
+    address_zip: address_zip ?? null,
+    address_country: address_country ?? null,
+    ownership_percent: parsedOwnership,
+    role: normalizedRole as "applicant" | "partner" | "guarantor" | "other" | "unknown",
+    is_primary_applicant: is_primary_applicant === true,
+    company_id: company_id ?? null,
+    silo,
+    owner_id: ownerId,
+  });
 
-  return res.status(201).json({ ok: true, data: rows[0] });
+  return res.status(201).json({ ok: true, data: row });
 }));
 
 
