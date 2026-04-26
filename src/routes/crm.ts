@@ -2,6 +2,7 @@ import { Router } from "express";
 import { requireAuth, requireCapability } from "../middleware/auth.js";
 import { CAPABILITIES } from "../auth/capabilities.js";
 import { safeHandler } from "../middleware/safeHandler.js";
+import { requireAdmin } from "../middleware/requireAdmin.js";
 import { respondOk } from "../utils/respondOk.js";
 import { handleListCrmTimeline } from "../modules/crm/timeline.controller.js";
 import { SupportController } from "../modules/support/support.controller.js";
@@ -381,6 +382,28 @@ router.patch("/companies/:id", safeHandler(async (req: any, res: any) => {
     params,
   );
   res.json({ data: rows[0] ?? null });
+}));
+
+router.delete("/contacts/:id", requireAdmin, safeHandler(async (req: any, res: any) => {
+  const id = String(req.params.id);
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return res.status(400).json({ error: "invalid_id" });
+  const silo = String(req.user?.silo ?? "BF").toUpperCase();
+  const { rowCount } = await pool.query(
+    `DELETE FROM contacts WHERE id = $1 AND silo = $2`, [id, silo],
+  );
+  if (!rowCount) return res.status(404).json({ error: "not_found" });
+  res.json({ ok: true });
+}));
+
+router.delete("/companies/:id", requireAdmin, safeHandler(async (req: any, res: any) => {
+  const id = String(req.params.id);
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return res.status(400).json({ error: "invalid_id" });
+  const silo = String(req.user?.silo ?? "BF").toUpperCase();
+  const { rowCount } = await pool.query(
+    `DELETE FROM companies WHERE id = $1 AND silo = $2`, [id, silo],
+  );
+  if (!rowCount) return res.status(404).json({ error: "not_found" });
+  res.json({ ok: true });
 }));
 
 router.use("/contacts/:id/notes", notesRoutes);

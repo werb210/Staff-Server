@@ -5,6 +5,7 @@
 import { Router } from "express";
 import { pool, runQuery } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+import { requireAdmin } from "../middleware/requireAdmin.js";
 import { safeHandler } from "../middleware/safeHandler.js";
 import { AppError } from "../middleware/errors.js";
 import { getSilo } from "../middleware/silo.js";
@@ -127,6 +128,7 @@ router.put(
 router.delete(
   "/lender-products/:id",
   requireAuth,
+  requireAdmin,
   safeHandler(async (req: any, res: any) => {
     const id = typeof req.params.id === "string" ? req.params.id.trim() : "";
     if (!id) throw new AppError("validation_error", "Product id is required.", 400);

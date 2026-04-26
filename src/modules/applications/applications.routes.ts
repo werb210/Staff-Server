@@ -7,6 +7,7 @@ import { transitionPipelineState } from './applications.service.js';
 import { AppError } from '../../middleware/errors.js';
 import { safeHandler } from '../../middleware/safeHandler.js';
 import { getSilo } from '../../middleware/silo.js';
+import { requireAdmin } from '../../middleware/requireAdmin.js';
 
 const router = Router();
 
@@ -160,6 +161,15 @@ router.patch('/:id', safeHandler(async (req: any, res: any) => {
   );
 
   res.status(200).json({ status: 'ok', data: { applicationId } });
+}));
+
+
+router.delete('/:id', requireAdmin, safeHandler(async (req: any, res: any) => {
+  const id = String(req.params.id);
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return res.status(400).json({ error: 'invalid_id' });
+  const { rowCount } = await pool.query(`DELETE FROM applications WHERE id = $1`, [id]);
+  if (!rowCount) return res.status(404).json({ error: 'not_found' });
+  res.json({ ok: true });
 }));
 
 

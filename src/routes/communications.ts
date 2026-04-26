@@ -70,9 +70,28 @@ router.get("/sms", safeHandler(async (req: any, res: any) => {
 
 router.get("/sms/thread", safeHandler(async (req: any, res: any) => {
   const silo = String(req.user?.silo ?? "BF").toUpperCase();
-  const contactId = req.query.contactId ? String(req.query.contactId) : null;
-  const phone = req.query.phone ? String(req.query.phone) : null;
-  if (!contactId && !phone) return res.status(400).json({ error: "contactId or phone required" });
+  const rawContact = req.query.contactId ? String(req.query.contactId) : "";
+  const rawPhone = req.query.phone ? String(req.query.phone) : "";
+
+  let phone: string | null = null;
+  let contactId: string | null = null;
+
+  // Synthetic "new-<digits>" thread keys produced by the portal's
+  // SMS list when contact_id is null — strip the prefix and treat
+  // the remainder as a phone number.
+  if (rawContact.startsWith("new-")) {
+    phone = rawContact.slice(4);
+  } else if (/^[0-9a-f-]{36}$/i.test(rawContact)) {
+    contactId = rawContact;
+  } else if (rawPhone) {
+    phone = rawPhone;
+  } else if (rawContact && /^[+0-9]+$/.test(rawContact)) {
+    phone = rawContact;
+  }
+
+  if (!contactId && !phone) {
+    return res.status(400).json({ error: "contactId or phone required" });
+  }
 
   const params: unknown[] = [silo];
   let where = "silo = $1";
@@ -80,9 +99,15 @@ router.get("/sms/thread", safeHandler(async (req: any, res: any) => {
     params.push(contactId);
     where += ` AND contact_id = $${params.length}`;
   } else if (phone) {
-    params.push(phone);
-    where += ` AND contact_id IS NULL AND (from_number = $${params.length} OR to_number = $${params.length})`;
+    const compact = phone.replace(/[^\d]/g, "");
+    const e164 = phone.startsWith("+") ? phone : `+${compact}`;
+    params.push(phone, e164, compact);
+    where += ` AND contact_id IS NULL AND (
+      from_number IN ($${params.length - 2}, $${params.length - 1}, $${params.length}) OR
+      to_number   IN ($${params.length - 2}, $${params.length - 1}, $${params.length})
+    )`;
   }
+
   const { rows } = await pool.query(
     `SELECT id, contact_id, from_number, to_number, direction, body,
             created_at, read_at
