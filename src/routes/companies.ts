@@ -1,10 +1,10 @@
 import { Router } from "express";
-import crypto from "node:crypto";
 import { requireAuth } from "../middleware/auth.js";
 import { safeHandler } from "../middleware/safeHandler.js";
 import { AppError } from "../middleware/errors.js";
 import { pool } from "../db.js";
 import { getSilo } from "../middleware/silo.js";
+import { createCompany } from "../services/companies.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -45,39 +45,27 @@ router.post("/", safeHandler(async (req: any, res: any) => {
   }
   const silo = getSilo(res);
   const ownerId = req.user?.id ?? req.user?.userId ?? null;
-  const id = crypto.randomUUID();
   try {
-    const { rows } = await pool.query(
-      `INSERT INTO companies
-       (id, name, dba_name, legal_name, business_structure, address_street, address_city, address_state,
-        address_zip, address_country, phone, email, website, start_date, employee_count,
-        estimated_annual_revenue, silo, owner_id, status)
-       VALUES
-       ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
-       RETURNING *`,
-      [
-        id,
-        name,
-        body.dba_name ?? null,
-        body.legal_name ?? null,
-        body.business_structure ?? null,
-        body.address_street ?? null,
-        body.address_city ?? null,
-        body.address_state ?? null,
-        body.address_zip ?? null,
-        body.address_country ?? null,
-        body.phone ?? null,
-        body.email ?? null,
-        body.website ?? null,
-        startDate ?? null,
-        employeeCount != null ? Number(employeeCount) : null,
-        annualRevenue != null ? Number(annualRevenue) : null,
-        silo,
-        ownerId,
-        body.status ?? "prospect",
-      ]
-    );
-    res.status(201).json({ ok: true, data: rows[0] });
+    const row = await createCompany(pool, {
+      name,
+      dba_name: body.dba_name ?? null,
+      legal_name: body.legal_name ?? null,
+      business_structure: body.business_structure ?? null,
+      address_street: body.address_street ?? null,
+      address_city: body.address_city ?? null,
+      address_state: body.address_state ?? null,
+      address_zip: body.address_zip ?? null,
+      address_country: body.address_country ?? null,
+      phone: body.phone ?? null,
+      email: body.email ?? null,
+      website: body.website ?? null,
+      start_date: startDate ?? null,
+      employee_count: employeeCount != null ? Number(employeeCount) : null,
+      estimated_annual_revenue: annualRevenue != null ? Number(annualRevenue) : null,
+      silo,
+      owner_id: ownerId,
+    });
+    res.status(201).json({ ok: true, data: row });
   } catch (err: any) {
     console.error({ event: "company_create_failed", err: String(err), code: err?.code });
     res.status(500).json({ error: { message: "failed_to_create_company", code: err?.code ?? "db_error" } });
