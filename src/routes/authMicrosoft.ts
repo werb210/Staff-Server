@@ -30,11 +30,16 @@ router.post(
     const profile = (await graphRes.json()) as { mail?: string; userPrincipalName?: string };
     const email = profile.mail ?? profile.userPrincipalName ?? accountEmail ?? "";
 
+    // BF_O365_DUAL_EXPIRY_v38 — Block 38-B — write both legacy
+    // (o365_token_expires_at, mig 027) and current
+    // (o365_access_token_expires_at, mig 137) expiry columns so /me and
+    // /o365-status both find a non-null expiry.
     await dbQuery(
       `UPDATE users
           SET o365_user_email = $1,
               o365_access_token = $2,
-              o365_token_expires_at = now() + interval '1 hour'
+              o365_token_expires_at        = now() + interval '1 hour',
+              o365_access_token_expires_at = now() + interval '1 hour'
         WHERE id = $3`,
       [email, accessToken, req.user!.userId]
     );

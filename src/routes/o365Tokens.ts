@@ -57,11 +57,13 @@ router.post("/o365-tokens", requireAuth, safeHandler(async (req: any, res: any) 
     if (!Number.isNaN(parsed.getTime())) expiresAt = parsed;
   }
 
+  // BF_O365_DUAL_EXPIRY_v38 — write both legacy and current expiry columns.
   await pool.query(
     `UPDATE users SET
        o365_access_token = $1,
        o365_refresh_token = COALESCE($2, o365_refresh_token),
        o365_access_token_expires_at = $3,
+       o365_token_expires_at        = $3,
        o365_account_id = COALESCE($4, o365_account_id)
      WHERE id = $5`,
     [access_token, refresh_token ?? null, expiresAt, account_id ?? null, userId],
@@ -73,10 +75,12 @@ router.post("/o365-tokens", requireAuth, safeHandler(async (req: any, res: any) 
 router.get("/o365-status", requireAuth, safeHandler(async (req: any, res: any) => {
   const userId = req.user?.id ?? req.user?.userId ?? req.user?.sub;
   if (!userId) return res.status(200).json({ connected: false, reason: "no_tokens" });
+  // BF_O365_NO_NULL_v38 — Block 38-B — read EITHER expiry column.
   const { rows } = await pool.query(
-    `SELECT email, o365_account_id, o365_access_token, o365_refresh_token, o365_access_token_expires_at,
-       (o365_access_token IS NOT NULL) AS has_access,
-       (o365_refresh_token IS NOT NULL) AS has_refresh
+    `SELECT email, o365_account_id, o365_access_token, o365_refresh_token,
+            COALESCE(o365_access_token_expires_at, o365_token_expires_at) AS o365_access_token_expires_at,
+            (o365_access_token IS NOT NULL) AS has_access,
+            (o365_refresh_token IS NOT NULL) AS has_refresh
      FROM users WHERE id = $1`,
     [userId],
   );
@@ -90,32 +94,28 @@ router.get("/o365-status", requireAuth, safeHandler(async (req: any, res: any) =
     return res.status(200).json({ connected: true, email: r.email ?? null, expiresAt });
   }
 
+  // BF_O365_NO_NULL_v38 — Block 38-B — do NOT clear tokens here. Microsoft
+  // only returns refresh_token when offline_access scope is requested. If
+  // refresh_token is missing, the portal silent-acquire path will mint a
+  // new access_token from the MSAL cache and POST it back. Just report.
   if (!r.o365_refresh_token) {
-    await pool.query(
-      `UPDATE users
-       SET o365_access_token = NULL, o365_refresh_token = NULL, o365_access_token_expires_at = NULL
-       WHERE id = $1`,
-      [userId]
-    );
-    return res.status(200).json({ connected: false, reason: "refresh_failed" });
+    return res.status(200).json({ connected: false, reason: "expired_no_refresh", canRefresh: false });
   }
 
   const refreshed = await refreshMicrosoftAccessToken(r.o365_refresh_token);
   if (!refreshed) {
-    await pool.query(
-      `UPDATE users
-       SET o365_access_token = NULL, o365_refresh_token = NULL, o365_access_token_expires_at = NULL
-       WHERE id = $1`,
-      [userId]
-    );
-    return res.status(200).json({ connected: false, reason: "refresh_failed" });
+    // BF_O365_NO_NULL_v38 — Block 38-B — server-side refresh failed but
+    // do not destroy stored tokens; portal can mint a new one.
+    return res.status(200).json({ connected: false, reason: "refresh_failed", canRefresh: false });
   }
 
+  // BF_O365_DUAL_EXPIRY_v38 — keep both expiry columns in sync.
   await pool.query(
     `UPDATE users SET
        o365_access_token = $1,
        o365_refresh_token = COALESCE($2, o365_refresh_token),
-       o365_access_token_expires_at = $3
+       o365_access_token_expires_at = $3,
+       o365_token_expires_at        = $3
      WHERE id = $4`,
     [refreshed.accessToken, refreshed.refreshToken, refreshed.expiresAt, userId],
   );
