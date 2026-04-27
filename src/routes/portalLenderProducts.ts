@@ -31,6 +31,10 @@ function asNum(v: unknown): number | null {
   const n = typeof v === "number" ? v : Number(v);
   return Number.isFinite(n) ? n : null;
 }
+// BF_LP_COMMISSION_CREDIT_v36
+function bfNum(raw: unknown): number | null {
+  return asNum(raw);
+}
 function asString(v: unknown): string | null {
   if (v === undefined || v === null) return null;
   const s = String(v);
@@ -38,6 +42,7 @@ function asString(v: unknown): string | null {
 }
 function decorateProductResponse(product: any): any {
   if (!product || typeof product !== "object") return product;
+  const row = product;
   const amount_min = product.amount_min ?? null;
   const amount_max = product.amount_max ?? null;
   const interest_min = product.interest_min ?? null;
@@ -61,6 +66,11 @@ function decorateProductResponse(product: any): any {
     },
     signnowTemplateId: signnow_template_id,
     eligibilityRules: eligibility_notes,
+    // BF_LP_COMMISSION_CREDIT_v36
+    commission: row.commission != null ? Number(row.commission) : null,
+    commissionPercent: row.commission != null ? Number(row.commission) : null,
+    minCreditScore: row.min_credit_score != null ? Number(row.min_credit_score) : null,
+    min_credit_score: row.min_credit_score != null ? Number(row.min_credit_score) : null,
   };
 }
 
@@ -126,6 +136,9 @@ router.post(
       interestMax: asNum(pickFirst(body.interestRateMax, body.interestMax, body.interest_max, body.maxRate, body.max_rate)),
       termMin: asNum(pickFirst(body.termMin, body.term_min, body.termLength?.min, body.term_length?.min)),
       termMax: asNum(pickFirst(body.termMax, body.term_max, body.termLength?.max, body.term_length?.max)),
+      // BF_LP_COMMISSION_CREDIT_v36
+      commission: bfNum(body.commission ?? body.commissionPercent ?? body.commission_percent),
+      minCreditScore: bfNum(body.minCreditScore ?? body.min_credit_score),
       termUnit: asString(pickFirst(body.termUnit, body.term_unit, body.termLength?.unit, body.term_length?.unit)),
       amountMin: asNum(pickFirst(body.minAmount, body.amountMin, body.amount_min, body.min_amount)),
       amountMax: asNum(pickFirst(body.maxAmount, body.amountMax, body.amount_max, body.max_amount)),
@@ -164,6 +177,9 @@ router.put(
       interestMax: asNum(pickFirst(body.interestRateMax, body.interestMax, body.interest_max, body.maxRate, body.max_rate)),
       termMin: asNum(pickFirst(body.termMin, body.term_min, body.termLength?.min, body.term_length?.min)),
       termMax: asNum(pickFirst(body.termMax, body.term_max, body.termLength?.max, body.term_length?.max)),
+      // BF_LP_COMMISSION_CREDIT_v36
+      commission: bfNum(body.commission ?? body.commissionPercent ?? body.commission_percent),
+      minCreditScore: bfNum(body.minCreditScore ?? body.min_credit_score),
       termUnit: asString(pickFirst(body.termUnit, body.term_unit, body.termLength?.unit, body.term_length?.unit)),
       amountMin: asNum(pickFirst(body.minAmount, body.amountMin, body.amount_min, body.min_amount)),
       amountMax: asNum(pickFirst(body.maxAmount, body.amountMax, body.amount_max, body.max_amount)),
