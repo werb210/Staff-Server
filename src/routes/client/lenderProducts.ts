@@ -27,6 +27,8 @@ router.get(
       country:            p.country ?? "BOTH",
       amount_min:         p.amount_min ?? null,
       amount_max:         p.amount_max ?? null,
+      commission:         p.commission != null ? Number(p.commission) : null,
+      min_credit_score:   p.min_credit_score != null ? Number(p.min_credit_score) : null,
       term:               p.term_min && p.term_max ? `${p.term_min}-${p.term_max}` : p.term_min ?? p.term_max ?? null,
       rate:               p.rate_type === "VARIABLE"
                             ? "P+"

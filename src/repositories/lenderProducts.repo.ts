@@ -89,6 +89,8 @@ function buildSelectColumns(existing: Set<string>): string {
     { name: "term_min", fallback: "null::integer" },
     { name: "term_max", fallback: "null::integer" },
     { name: "term_unit", fallback: "'MONTHS'::text" },
+    { name: "commission", fallback: "null::numeric" }, // BF_LP_COMMISSION_CREDIT_v36
+    { name: "min_credit_score", fallback: "null::integer" },
     { name: "required_documents", fallback: "'[]'::jsonb" },
     { name: "created_at", fallback: "now()" },
     { name: "updated_at", fallback: "now()" },
@@ -124,6 +126,9 @@ export async function createLenderProduct(params: {
   termMax?: number | null;
   amountMin?: number | null;
   amountMax?: number | null;
+  // BF_LP_COMMISSION_CREDIT_v36 — Block 36
+  commission?: number | null;
+  minCreditScore?: number | null;
   termUnit?: string | null;            // BF_LP_REPO_FIELDS_v32
   signnowTemplateId?: string | null;   // BF_LP_REPO_FIELDS_v32
   eligibilityNotes?: string | null;    // BF_LP_REPO_FIELDS_v32
@@ -149,6 +154,8 @@ export async function createLenderProduct(params: {
       "amount_max",
       "silo",
       "term_unit",
+      "commission",
+      "min_credit_score",
       "category",
       "type",
       "required_documents",
@@ -178,6 +185,9 @@ export async function createLenderProduct(params: {
     { name: "amount_min", value: params.amountMin ?? null },
     { name: "amount_max", value: params.amountMax ?? null },
     { name: "term_unit", value: (params.termUnit ?? "MONTHS").toString().toUpperCase() },
+    // BF_LP_COMMISSION_CREDIT_v36
+    { name: "commission", value: params.commission ?? null },
+    { name: "min_credit_score", value: params.minCreditScore ?? null },
     { name: "signnow_template_id", value: params.signnowTemplateId ?? null },  // BF_LP_REPO_FIELDS_v32
     { name: "eligibility_notes", value: params.eligibilityNotes ?? null },     // BF_LP_REPO_FIELDS_v32
     { name: "silo", value: params.silo ?? null },
@@ -242,6 +252,8 @@ export async function listLenderProducts(
         "term_min",
         "term_max",
         "term_unit",
+        "commission",
+        "min_credit_score",
         "required_documents",
         "created_at",
         "updated_at",
@@ -294,6 +306,8 @@ export async function listLenderProductsByLenderId(
       "amount_max",
       "silo",
       "term_unit",
+      "commission",
+      "min_credit_score",
       "required_documents",
       "created_at",
       "updated_at",
@@ -368,6 +382,9 @@ export async function updateLenderProduct(params: {
   termMax?: number | null;
   amountMin?: number | null;
   amountMax?: number | null;
+  // BF_LP_COMMISSION_CREDIT_v36
+  commission?: number | null;
+  minCreditScore?: number | null;
   termUnit?: string | null;            // BF_LP_REPO_FIELDS_v32
   signnowTemplateId?: string | null;   // BF_LP_REPO_FIELDS_v32
   eligibilityNotes?: string | null;    // BF_LP_REPO_FIELDS_v32
@@ -430,6 +447,13 @@ export async function updateLenderProduct(params: {
   }
   if (existing.has("term_max") && params.termMax !== undefined) {
     updates.push({ name: "term_max", value: params.termMax ?? null });
+  }
+  // BF_LP_COMMISSION_CREDIT_v36 — also persist commission + minimum credit score on UPDATE.
+  if (existing.has("commission") && params.commission !== undefined) {
+    updates.push({ name: "commission", value: params.commission ?? null });
+  }
+  if (existing.has("min_credit_score") && params.minCreditScore !== undefined) {
+    updates.push({ name: "min_credit_score", value: params.minCreditScore ?? null });
   }
   // BF_LP_REPO_FIELDS_v32 — also persist amount, term_unit, signnow, eligibility on UPDATE.
   if (existing.has("amount_min") && params.amountMin !== undefined) {
