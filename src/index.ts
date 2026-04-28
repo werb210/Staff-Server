@@ -112,6 +112,27 @@ export async function start(): Promise<void> {
     throw new Error("JWT_SECRET must be set to a secure value in production");
   }
 
+  // BF_AZURE_OCR_TERMSHEET_v44 — Azure Blob storage hard-check (production).
+  // In development/test the storage factory falls back to LocalBackend.
+  if (process.env.NODE_ENV === "production" && !process.env.AZURE_STORAGE_CONNECTION_STRING) {
+    throw new Error(
+      "[FATAL] AZURE_STORAGE_CONNECTION_STRING is required in production. " +
+      "Set it on Azure App Service → Configuration → Application settings."
+    );
+  }
+
+  // BF_AZURE_OCR_TERMSHEET_v44 — start OCR + banking auto-workers.
+  // Both are no-ops if NODE_ENV=test.
+  if (process.env.NODE_ENV !== "test") {
+    const { pool } = await import("./db.js");
+    const { startOcrWorker } = await import("./modules/ocr/ocr.worker.js");
+    const { startBankingAutoWorker } = await import("./workers/bankingAutoWorker.js");
+    try { startOcrWorker(); console.log("[startup] OCR worker started"); }
+    catch (err) { console.error("[startup] OCR worker failed to start:", err); }
+    try { startBankingAutoWorker(pool); console.log("[startup] banking auto-worker started"); }
+    catch (err) { console.error("[startup] banking auto-worker failed to start:", err); }
+  }
+
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server listening on ${PORT}`);
     markReady();

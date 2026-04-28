@@ -31,6 +31,10 @@ import {
 import { config } from "../config/index.js";
 import { listLenders } from "../repositories/lenders.repo.js";
 import { eventBus } from "../events/eventBus.js";
+// BF_AZURE_OCR_TERMSHEET_v44 — term sheet upload deps
+import multer from "multer";
+import { getStorage } from "../lib/storage/index.js";
+import { sendSMS } from "../services/smsService.js";
 import { toStringSafe } from "../utils/toStringSafe.js";
 import twilio from "twilio";
 // BF_APP_ID_CAST_v39 — Block 39-A — applications.id comparisons cast to text
@@ -782,14 +786,67 @@ router.post(
   })
 );
 
+// BF_AZURE_OCR_TERMSHEET_v44 — real term-sheet upload (Phase 1-BF item 4).
+const termSheetUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 },
+});
+
 router.post(
   "/applications/:id/term-sheet",
   requireAuth,
   requireAuthorization({ roles: [ROLES.ADMIN, ROLES.STAFF] }),
   portalLimiter,
+  termSheetUpload.single("file"),
   safeHandler(async (req: any, res: any) => {
     const appId = typeof req.params.id === "string" ? req.params.id.trim() : "";
     if (!appId) throw new AppError("validation_error", "Application id required.", 400);
+    const file = req.file as Express.Multer.File | undefined;
+    if (!file) throw new AppError("validation_error", "Term sheet file is required.", 400);
+
+    const lenderName = typeof req.body?.lender_name === "string" ? req.body.lender_name.trim() : "";
+    if (!lenderName) throw new AppError("validation_error", "lender_name is required.", 400);
+    const amountRaw = req.body?.amount;
+    const amount = amountRaw === undefined || amountRaw === null || amountRaw === "" ? null : Number(amountRaw);
+    if (amount !== null && !Number.isFinite(amount)) {
+      throw new AppError("validation_error", "amount must be numeric.", 400);
+    }
+    const rateFactor = typeof req.body?.rate_factor === "string" ? req.body.rate_factor.trim() : null;
+    const term = typeof req.body?.term === "string" ? req.body.term.trim() : null;
+    const paymentFrequency = typeof req.body?.payment_frequency === "string" ? req.body.payment_frequency.trim() : null;
+    const expiryDate = typeof req.body?.expiry_date === "string" && req.body.expiry_date.trim() ? req.body.expiry_date.trim() : null;
+    const notes = typeof req.body?.notes === "string" ? req.body.notes.trim() : null;
+
+    const store = getStorage();
+    const put = await store.put({
+      buffer: file.buffer,
+      filename: file.originalname,
+      contentType: file.mimetype,
+      pathPrefix: `applications/${appId}/term-sheets`,
+    });
+
+    await runQuery(
+      `UPDATE offers SET is_archived = TRUE, archived_at = now(), updated_at = now()
+        WHERE application_id::text = ($1)::text AND is_archived = FALSE`,
+      [appId]
+    ).catch(() => {});
+
+    const offerId = randomUUID();
+    await runQuery(
+      `INSERT INTO offers (
+         id, application_id, lender_name, amount, rate_factor, term, payment_frequency,
+         expiry_date, document_url, notes, status, recommended,
+         term_sheet_blob_name, term_sheet_filename, term_sheet_size_bytes, term_sheet_uploaded_at,
+         is_archived, created_at, updated_at
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending', false,
+               $11, $12, $13, now(), false, now(), now())`,
+      [
+        offerId, appId, lenderName, amount, rateFactor, term, paymentFrequency,
+        expiryDate, put.url, notes,
+        put.blobName, file.originalname, put.sizeBytes,
+      ]
+    );
 
     const appRes = await runQuery<{ pipeline_state: string }>(
       `SELECT pipeline_state FROM applications WHERE id::text = ($1)::text`,
@@ -803,7 +860,26 @@ router.post(
       ).catch(() => {});
       await recordTransition(appId, "Off to Lender", "Offer", req.user?.userId ?? null, "Term sheet uploaded");
     }
-    res.status(200).json({ ok: true, stage: "Offer" });
+
+    eventBus.emit("term_sheet_uploaded", { applicationId: appId, offerId, blobName: put.blobName });
+
+    try {
+      const phoneRes = await runQuery<{ phone: string | null }>(
+        `SELECT COALESCE(applicant_phone, contact_phone, NULL) AS phone
+           FROM applications WHERE id::text = ($1)::text LIMIT 1`,
+        [appId]
+      );
+      const phone = phoneRes.rows[0]?.phone ?? null;
+      if (phone) {
+        const portalBase = process.env.CLIENT_PORTAL_URL || "https://client.boreal.financial";
+        const link = `${portalBase}/application/${appId}`;
+        await sendSMS(phone, `Your term sheet from ${lenderName} is ready to review: ${link}`);
+      }
+    } catch (err) {
+      console.warn("[term-sheet] SMS notification failed", { appId, err: String(err) });
+    }
+
+    res.status(201).json({ ok: true, offer_id: offerId, blob_name: put.blobName, stage: cur === "Off to Lender" ? "Offer" : cur });
   })
 );
 
