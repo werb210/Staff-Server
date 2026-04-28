@@ -239,6 +239,89 @@ router.get("/:id/contacts", safeHandler(async (req: any, res: any) => {
 }));
 
 
+// BF_BANKING_ANALYSIS_API_v52 — Bug 5 server-side. Aggregates banking signals
+// available in V1 from applications.banking_completed_at + documents counts.
+// Shape matches BF-portal's typed BankingAnalysis interface (src/api/banking.ts).
+// Rich transaction-derived metrics return null in V1 (await OCR txn parsing).
+router.get('/:id/banking-analysis', safeHandler(async (req: any, res: any) => {
+  const applicationId = String(req.params.id ?? '').trim();
+  if (!applicationId) {
+    throw new AppError('validation_error', 'Application id is required.', 400);
+  }
+
+  // Confirm the application exists; 404 cleanly when not.
+  const appRes = await pool.query<{
+    id: string;
+    banking_completed_at: Date | null;
+  }>(
+    `SELECT id, banking_completed_at
+       FROM applications
+      WHERE id::text = ($1)::text
+      LIMIT 1`,
+    [applicationId]
+  );
+  if (!appRes.rows[0]) {
+    throw new AppError('not_found', 'Application not found.', 404);
+  }
+  const application = appRes.rows[0];
+
+  // Aggregate documents by category + banking status.
+  // Heuristic for "bank statement" docs: any doc whose effective category
+  // (signed_category preferred, document_type fallback) contains 'bank'
+  // case-insensitive.
+  const docRes = await pool.query<{
+    bank_total: string;
+    bank_completed: string;
+    any_completed: string;
+  }>(
+    `SELECT
+       COUNT(*) FILTER (
+         WHERE LOWER(COALESCE(signed_category, document_type, '')) LIKE '%bank%'
+       )::text AS bank_total,
+       COUNT(*) FILTER (
+         WHERE LOWER(COALESCE(signed_category, document_type, '')) LIKE '%bank%'
+           AND banking_status = 'completed'
+       )::text AS bank_completed,
+       COUNT(*) FILTER (WHERE banking_status = 'completed')::text AS any_completed
+     FROM documents
+     WHERE application_id::text = ($1)::text`,
+    [applicationId]
+  );
+  const counts = docRes.rows[0] ?? { bank_total: '0', bank_completed: '0', any_completed: '0' };
+  const bankCount = Number(counts.bank_total) || 0;
+  const completedBankCount = Number(counts.bank_completed) || 0;
+
+  // Response shape mirrors BF-portal's BankingAnalysis interface. Optional
+  // fields are populated when truthful, otherwise omitted/null. The portal
+  // tab renders gracefully against this minimal payload in V1.
+  const bankingCompletedAt = application.banking_completed_at
+    ? application.banking_completed_at.toISOString()
+    : null;
+
+  return res.status(200).json({
+    applicationId: application.id,
+    bankingCompletedAt,
+    banking_completed_at: bankingCompletedAt,
+    bankCount,
+    documentsAnalyzed: completedBankCount,
+    monthsDetected: null,
+    monthGroups: [],
+    dateRange: null,
+    inflows: null,
+    outflows: null,
+    cashFlow: null,
+    balances: null,
+    riskFlags: null,
+    // Surface a concise human status for the V1 tab to render even when
+    // metrics are still null.
+    status: bankCount === 0
+      ? 'no_bank_statements'
+      : completedBankCount < bankCount
+        ? 'analysis_in_progress'
+        : 'analysis_complete',
+  });
+}));
+
 // GET /api/applications/:id/details — flat shape for portal drawer
 router.get('/:id/details', safeHandler(async (req: any, res: any) => {
   const { id } = req.params;
