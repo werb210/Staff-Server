@@ -813,10 +813,25 @@ router.post(
   portalLimiter,
   requireAuthorization({ roles: [ROLES.ADMIN, ROLES.STAFF] }),
   safeHandler(async (req: any, res: any, next: any) => {
-    const applicationId = typeof req.body?.application_id === "string" ? req.body.application_id.trim() : "";
-    const selectedLenders = Array.isArray(req.body?.selected_lenders) ? req.body.selected_lenders : [];
+    // BF_LENDER_SUBMIT_BODY_COMPAT_v42 — Block 42-A
+    // Accept either snake_case (application_id, selected_lenders) or camelCase
+    // (applicationId, lenderProductIds). The portal's lenders.ts API client
+    // sends camelCase; the iOS dialer / older callers send snake_case. Both
+    // are now valid.
+    const applicationIdRaw =
+      (typeof req.body?.application_id === "string" && req.body.application_id) ||
+      (typeof req.body?.applicationId  === "string" && req.body.applicationId)  ||
+      "";
+    const applicationId = applicationIdRaw.trim();
+    const selectedLenders: unknown[] = Array.isArray(req.body?.selected_lenders)
+      ? req.body.selected_lenders
+      : Array.isArray(req.body?.lenderProductIds)
+        ? req.body.lenderProductIds
+        : Array.isArray(req.body?.lender_product_ids)
+          ? req.body.lender_product_ids
+          : [];
     if (!applicationId || selectedLenders.length === 0) {
-      throw new AppError("validation_error", "application_id and selected_lenders are required.", 400);
+      throw new AppError("validation_error", "application_id (or applicationId) and lenderProductIds are required.", 400);
     }
 
     const submissions: any[] = [];

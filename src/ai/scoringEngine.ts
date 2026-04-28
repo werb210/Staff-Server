@@ -1,8 +1,10 @@
+// BF_LENDER_MATCH_GEO_FIX_v42 — Block 42-A — country added to PrequalInput
 export type PrequalInput = {
   revenue?: number | null;
   industry?: string | null;
   timeInBusiness?: number | null;
   province?: string | null;
+  country?: "CA" | "US" | null;
   requestedAmount?: number | null;
 };
 
