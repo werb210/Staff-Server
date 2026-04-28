@@ -121,12 +121,16 @@ async function loadApplicationByToken(token: string): Promise<TokenApplicationRo
 // kept on the few fields we still validate; the rest are passthrough into
 // applications.metadata via bfBuildWizardMetadata.
 const createWizardObject = z.record(z.string(), z.unknown());
+// BF_CREATE_SCHEMA_NULLABLE_v40 — Block 40-B — closing-costs linked
+// applications send `requested_amount: null` when the borrower hasn't
+// entered an amount yet. Zod's `.optional()` only allows undefined; add
+// `.nullable()` so these fields accept null.
 const createSchema = z.object({
-  business_name: z.string().min(1).optional(),
-  requested_amount: z.number().positive().optional(),
-  lender_id: z.string().uuid().optional(),
-  product_id: z.string().uuid().optional(),
-  product_category: z.string().min(1).optional(),
+  business_name: z.string().min(1).nullable().optional(),
+  requested_amount: z.number().positive().nullable().optional(),
+  lender_id: z.string().uuid().nullable().optional(),
+  product_id: z.string().uuid().nullable().optional(),
+  product_category: z.string().min(1).nullable().optional(),
   kyc_responses: z.record(z.string(), z.unknown()).optional(),
   // Wizard-shaped passthrough.
   financialProfile: createWizardObject.optional(),
@@ -150,10 +154,10 @@ const createSchema = z.object({
 // wizard "saves" but the server keeps NULL, and the portal drawer is empty.
 const wizardPatchObject = z.record(z.string(), z.unknown());
 const patchSchema = z.object({
-  business_name: z.string().min(1).optional(),
-  requested_amount: z.number().positive().optional(),
-  lender_id: z.string().uuid().optional(),
-  lender_product_id: z.string().uuid().optional(),
+  business_name: z.string().min(1).nullable().optional(),
+  requested_amount: z.number().positive().nullable().optional(),
+  lender_id: z.string().uuid().nullable().optional(),
+  lender_product_id: z.string().uuid().nullable().optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
   current_step: z.number().int().positive().optional(),
   // Wizard fields — passthrough into metadata.
