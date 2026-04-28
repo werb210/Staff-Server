@@ -8,6 +8,8 @@ import { AppError } from '../../middleware/errors.js';
 import { safeHandler } from '../../middleware/safeHandler.js';
 import { getSilo } from '../../middleware/silo.js';
 import { requireAdmin } from '../../middleware/requireAdmin.js';
+// BF_APP_LENDERS_ENDPOINT_v42 — Block 42-A
+import { matchLenders, type LenderMatch } from '../../ai/lenderMatchEngine.js';
 // BF_APP_ID_CAST_v39 — Block 39-A — applications.id comparisons cast to text
 
 const router = Router();
@@ -331,6 +333,104 @@ router.get('/:id/audit', safeHandler(async (req: any, res: any) => {
   ).catch(() => ({ rows: [] }));
 
   res.json({ status: 'ok', data: result.rows });
+}));
+
+// BF_APP_LENDERS_ENDPOINT_v42 — Block 42-A
+// Real lender-matches endpoint. Replaces the placeholder consumed by the staff
+// LendersTab. Reads application metadata, runs the match engine, and joins
+// existing lender_submissions to enrich each match with submission status.
+router.get('/:id/lenders', safeHandler(async (req: any, res: any) => {
+  const appId = String(req.params.id ?? '').trim();
+  if (!appId) throw new AppError('validation_error', 'Application id required.', 400);
+
+  const appRes = await pool.query(
+    `select id, metadata, requested_amount, product_category
+       from applications
+      where id::text = ($1)::text
+      limit 1`,
+    [appId],
+  );
+  const app = appRes.rows[0];
+  if (!app) throw new AppError('not_found', 'Application not found.', 404);
+
+  const meta = (app.metadata && typeof app.metadata === 'object') ? (app.metadata as Record<string, any>) : {};
+  // Tolerate every shape the wizard has saved over time.
+  const requestedAmount = (() => {
+    const raw = app.requested_amount ?? meta.requestedAmount ?? meta.amount ?? meta.fundingAmount ?? null;
+    if (raw === null || raw === undefined || raw === '') return null;
+    const n = typeof raw === 'number' ? raw : Number(String(raw).replace(/[^0-9.\-]/g, ''));
+    return Number.isFinite(n) ? n : null;
+  })();
+  const country = (() => {
+    const raw = String(meta.country ?? meta.businessCountry ?? '').trim().toUpperCase();
+    if (raw === 'CA' || raw === 'CANADA') return 'CA' as const;
+    if (raw === 'US' || raw === 'USA' || raw === 'UNITED STATES') return 'US' as const;
+    return null;
+  })();
+  const province = typeof meta.province === 'string' ? meta.province : (typeof meta.state === 'string' ? meta.state : null);
+  const industry = typeof meta.industry === 'string' ? meta.industry : null;
+  const revenue  = (() => {
+    const raw = meta.annualRevenue ?? meta.revenue ?? null;
+    if (raw === null || raw === undefined || raw === '') return null;
+    const n = typeof raw === 'number' ? raw : Number(String(raw).replace(/[^0-9.\-]/g, ''));
+    return Number.isFinite(n) ? n : null;
+  })();
+  const timeInBusiness = (() => {
+    const raw = meta.timeInBusinessMonths ?? meta.monthsInBusiness ?? meta.timeInBusiness ?? null;
+    if (raw === null || raw === undefined || raw === '') return null;
+    const n = typeof raw === 'number' ? raw : Number(raw);
+    return Number.isFinite(n) ? n : null;
+  })();
+
+  let matches: LenderMatch[] = [];
+  try {
+    matches = await matchLenders({
+      requestedAmount,
+      country,
+      province,
+      industry,
+      revenue,
+      timeInBusiness,
+    });
+  } catch (err: any) {
+    // Defensive — never 500 the drawer because of a match-engine schema drift.
+    // eslint-disable-next-line no-console
+    console.warn('lenders.match_failed', { applicationId: appId, message: err?.message });
+    matches = [];
+  }
+
+  // Decorate with submission state if a row exists.
+  let submissionMap = new Map<string, { status: string; submittedAt: string | null }>();
+  try {
+    const subRes = await pool.query(
+      `select lender_product_id, status, submitted_at
+         from lender_submissions
+        where application_id::text = ($1)::text`,
+      [appId],
+    );
+    for (const r of subRes.rows as Array<{ lender_product_id: string; status: string; submitted_at: string | null }>) {
+      if (r.lender_product_id) {
+        submissionMap.set(String(r.lender_product_id), {
+          status: r.status,
+          submittedAt: r.submitted_at,
+        });
+      }
+    }
+  } catch { /* table shape drift — proceed without enrichment */ }
+
+  const enriched = matches.map((m) => {
+    const sub = submissionMap.get(m.id);
+    return {
+      ...m,
+      // Aliases for legacy LenderTab consumers; harmless to include.
+      matchPercentage: m.matchPercent,
+      matchScore: m.matchPercent,
+      submissionStatus: sub?.status ?? null,
+      submittedAt: sub?.submittedAt ?? null,
+    };
+  });
+
+  res.status(200).json(enriched);
 }));
 
 router.post('/:id/send', safeHandler(async (req: any, res: any) => {
