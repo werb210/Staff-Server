@@ -44,6 +44,7 @@ import telephonyRoutes from "../telephony/routes/telephonyRoutes.js";
 import webhooksRoutes from "./webhooks.js";
 import readinessRoutes from "./readiness.js";
 import signnowRoutes from "./signnow.js";
+import submissionOrchestrationRoutes from "./submissionOrchestration.js"; // BF_SERVER_v74_BLOCK_1_7
 import emailRoutes from "./email.js";
 import websiteRoutes from "./website.js";
 import mayaRoutes from "./maya.js";
@@ -143,6 +144,7 @@ export const API_ROUTE_MOUNTS: ApiRouteMount[] = [
   { path: "/public", router: publicApplicationRoutes },
   { path: "/", router: rootRoutes },
   { path: "/applications", router: applicationsRoutes },
+  { path: "/", router: submissionOrchestrationRoutes },
 ];
 
 export const PORTAL_ROUTE_REQUIREMENTS: Pick<ApiRoute, "method" | "path">[] = [
