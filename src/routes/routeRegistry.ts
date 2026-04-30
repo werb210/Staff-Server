@@ -19,6 +19,7 @@ import internalProcessingRoutes from "./internal/processing.js";
 import lenderSubmissionsRoutes from "./lenderSubmissions.js";
 import marketingRoutes from "./marketing.js";
 import offersRoutes from "./offers.js";
+import offerAcceptanceRoutes from "./offerAcceptance.js";
 // BF_MINI_PORTAL_NOTES_v47 — application-scoped notes
 import applicationNotesRoutes from "./applicationNotes.js";
 // BF_NOTIFICATIONS_v50
@@ -120,6 +121,7 @@ export const API_ROUTE_MOUNTS: ApiRouteMount[] = [
   { path: "/admin", router: adminRoutes },
   { path: "/marketing", router: marketingRoutes },
   { path: "/offers", router: offersRoutes },
+  { path: "/offers", router: offerAcceptanceRoutes },
   { path: "/messages", router: messagesRoutes },
   { path: "/reporting", router: reportingRoutes },
   { path: "/reports", router: reportsRoutes },
