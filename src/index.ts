@@ -144,3 +144,4 @@ export async function start(): Promise<void> {
 if (process.env.NODE_ENV !== "test") {
   start().catch(console.error);
 }
+
