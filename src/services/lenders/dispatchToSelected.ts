@@ -3,6 +3,7 @@
 import type { Pool } from "pg";
 import { sendLenderEmail } from "../../modules/lenderSubmissions/adapters/EmailAdapter.js";
 import { buildApplicationPackage } from "./buildApplicationPackage.js";
+import { loadPackageInputs } from "./loadPackageInputs.js"; // BF_SERVER_v76_BLOCK_1_9
 
 export type DispatchLender = {
   lender_id: string;
@@ -30,16 +31,15 @@ export async function dispatchToSelected(
   let fields: FieldRow[] = [];
 
   try {
-    const pth = "./loadPackageInputs.js"; const mod = await import(pth).catch(() => null as any);
-    if (mod && typeof (mod as any).loadPackageInputs === "function") {
-      const inp = await (mod as any).loadPackageInputs(ctx);
-      signedApp = inp.signedApplicationPdf ?? null;
-      creditSummary = inp.creditSummaryPdf ?? null;
-      docs = inp.documents ?? [];
-      fields = inp.fields ?? [];
-    }
-  } catch {
-    // best-effort
+    // BF_SERVER_v76_BLOCK_1_9 — real loader (was a dynamic-import fallback in 1.7)
+    const inp = await loadPackageInputs(ctx);
+    signedApp = inp.signedApplicationPdf ?? null;
+    creditSummary = inp.creditSummaryPdf ?? null;
+    docs = inp.documents ?? [];
+    fields = inp.fields ?? [];
+  } catch (e) {
+    // best-effort: leave fallbacks (null/[]) in place; do not block dispatch
+    console.warn("[dispatch] loadPackageInputs failed", e);
   }
 
   const pkg = await buildApplicationPackage({
