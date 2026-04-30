@@ -4,7 +4,7 @@
 import type { Pool } from "pg";
 import { eventBus } from "../events/eventBus.js";
 import { analyzeBankStatements } from "../services/bankingAnalysis.service.js";
-import { buildBankingFromOcr } from "../services/banking/bankingFromOcr.js";
+import { buildBankingFromOcr, adaptAllToLegacyRows } from "../services/banking/bankingFromOcr.js";
 
 interface DocRow {
   id: string;
@@ -36,7 +36,7 @@ export function startBankingAutoWorker(pool: Pool): { stop: () => void } {
           const normalized = buildBankingFromOcr(ocrResult as never);
           const result = analyzeBankStatements({
             applicationId: row.application_id,
-            transactions: normalized.transactions,
+            transactions: adaptAllToLegacyRows(normalized.transactions),
           });
           await pool.query(
             `UPDATE documents SET banking_status='completed', updated_at=now() WHERE id=$1`,
