@@ -1,9 +1,10 @@
 import { Request, Response } from "express";
 import { createCrmLead } from "../crm/crm.service.js";
-import { sendSms } from "../notifications/sms.service.js";
 import { createContinuation } from "../continuation/continuation.service.js";
 import { logError } from "../../observability/logger.js";
 import { stripUndefined } from "../../utils/clean.js";
+import { pool } from "../../db.js";
+import { notifyAllStaff } from "../../services/notifications/notifyAllStaff.js";
 
 export async function submitContactForm(req: Request, res: Response) {
   try {
@@ -30,9 +31,17 @@ export async function submitContactForm(req: Request, res: Response) {
 
     const token = await createContinuation(req.body, lead.id);
 
-    await sendSms({
-      to: "+15878881837",
-      message: `New continuation lead: ${companyName}`,
+    const body = `Boreal: New contact form — ${companyName ?? "Unknown company"}. ${fullName} (${phone}). ${email}. Open the staff portal.`;
+    await notifyAllStaff({
+      pool,
+      notificationType: "website_contact",
+      body,
+      refTable: "crm_leads",
+      refId: lead.id,
+      contextUrl: `/crm/leads/${encodeURIComponent(lead.id)}`,
+      silo: "BF",
+    }).catch((err) => {
+      console.warn("[website_contact] notifyAllStaff failed", err);
     });
 
     return res["json"]({
