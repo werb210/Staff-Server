@@ -68,14 +68,29 @@ router.get(
     res.status(200).json({
       found: true,
       prefill: {
-        fullName: row.full_name,
-        email: row.email,
-        phone: row.phone,
-        yearsInBusiness: row.years_in_business,
-        annualRevenue: row.annual_revenue,
+        // Identity
+        companyName: row.company_name ?? null,
+        fullName: row.full_name ?? null,
+        email: row.email ?? null,
+        phone: row.phone ?? null,
+        // Business profile
+        industry: row.industry ?? null,
+        businessLocation: row.business_location ?? null,
+        // Funding profile
+        fundingType: row.funding_type ?? null,
+        requestedAmount: row.requested_amount ?? null,
+        purposeOfFunds: row.purpose_of_funds ?? null,
+        // Financial profile (V1 14-field bucket strings)
+        salesHistoryYears: row.sales_history_years ?? null,
+        annualRevenueRange: row.annual_revenue_range ?? null,
+        avgMonthlyRevenueRange: row.avg_monthly_revenue_range ?? null,
+        accountsReceivableRange: row.accounts_receivable_range ?? null,
+        fixedAssetsValueRange: row.fixed_assets_value_range ?? null,
+        // Legacy fields kept for back-compat
+        yearsInBusiness: row.years_in_business ?? null,
+        annualRevenue: row.annual_revenue ?? null,
         profitable: typeof row.profitable === "boolean" ? row.profitable : null,
         existing_debt: typeof row.existing_debt === "boolean" ? row.existing_debt : null,
-        companyName: row.company_name ?? null,
         score: row.score ?? null,
       },
     });
