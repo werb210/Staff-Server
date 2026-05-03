@@ -1,6 +1,6 @@
 // BF_SERVER_BLOCK_v81_CLIENT_LENDER_PRODUCTS — accept ?category=<X> filter.
-// Without this, Step 5 of the wizard fetches every lender product the firm
-// has and tries to render document requirements for unrelated categories.
+// BF_SERVER_BLOCK_v83_LENDER_PRODUCTS_STATUS_FIELD_v1 — also expose active
+// as status:'active'|'inactive' so clients that filter by status work.
 import { Router } from "express";
 import { pool } from "../../db.js";
 import { ok, fail } from "../../middleware/response.js";
@@ -21,7 +21,9 @@ router.get("/lender-products", async (req, res) => {
     const r = await pool.query(
       `SELECT id, lender_id, name, category, country, rate_type,
               interest_min, interest_max, term_min, term_max, term_unit,
-              amount_min, amount_max, required_documents
+              amount_min, amount_max, required_documents,
+              CASE WHEN active THEN 'active' ELSE 'inactive' END AS status,
+              active
        FROM lender_products
        WHERE ${where}
        ORDER BY category, name
