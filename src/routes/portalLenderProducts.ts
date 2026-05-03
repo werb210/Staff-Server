@@ -40,6 +40,32 @@ function asString(v: unknown): string | null {
   const s = String(v);
   return s === "" ? null : s;
 }
+// BF_SERVER_BLOCK_v88_LENDER_PRODUCT_CATEGORY_NORMALIZE_v1
+// The portal dropdown still emits the long-vocabulary codes
+// (TERM_LOAN, LINE_OF_CREDIT, EQUIPMENT_FINANCE, etc.) but the
+// lender_products.category CHECK constraint requires the short
+// codes (TERM, LOC, EQUIPMENT, ...). Translate at the route
+// boundary so anything reaching the repo is constraint-compliant.
+function normalizeProductCategory(value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+  const raw = String(value).trim().toUpperCase();
+  if (!raw) return null;
+  const map: Record<string, string> = {
+    LINE_OF_CREDIT: "LOC",
+    STANDARD: "LOC",
+    TERM_LOAN: "TERM",
+    PURCHASE_ORDER: "PO",
+    PURCHASE_ORDER_FINANCE: "PO",
+    EQUIPMENT_FINANCE: "EQUIPMENT",
+    EQUIPMENT_FINANCING: "EQUIPMENT",
+    MERCHANT_CASH_ADVANCE: "MCA",
+    MEDIA_FUNDING: "MEDIA",
+    ASSET_BASED_LENDING: "ABL",
+    SBA_GOVERNMENT: "SBA",
+    STARTUP_CAPITAL: "STARTUP",
+  };
+  return map[raw] ?? raw;
+}
 function decorateProductResponse(product: any): any {
   if (!product || typeof product !== "object") return product;
   const row = product;
@@ -127,7 +153,9 @@ router.post(
         : typeof body.productName === "string" && body.productName
           ? body.productName
           : "";
-    const category = typeof body.category === "string" ? body.category : "LOC";
+    // BF_SERVER_BLOCK_v88_LENDER_PRODUCT_CATEGORY_NORMALIZE_v1
+    const category =
+      normalizeProductCategory(body.category) ?? "LOC";
 
     if (!lenderId) throw new AppError("validation_error", "lenderId is required.", 400);
     if (!name) throw new AppError("validation_error", "name is required.", 400);
@@ -180,28 +208,56 @@ router.put(
 
     const existing = await fetchLenderProductById(id, pool);
     if (!existing || (existing.silo && existing.silo !== silo)) throw new AppError("not_found", "Lender product not found.", 404);
-    const product = await updateLenderProduct({
-      id,
-      name,
-      requiredDocuments: body.requiredDocuments ?? body.required_documents ?? [],
-      active: body.active,
-      category: body.category,
-      country: body.country,
-      rateType: (pickFirst(body.rateType, body.rate_type) as string | null | undefined),
-      interestMin: asNum(pickFirst(body.interestRateMin, body.interestMin, body.interest_min, body.minRate, body.min_rate)),
-      interestMax: asNum(pickFirst(body.interestRateMax, body.interestMax, body.interest_max, body.maxRate, body.max_rate)),
-      termMin: asNum(pickFirst(body.termMin, body.term_min, body.termLength?.min, body.term_length?.min)),
-      termMax: asNum(pickFirst(body.termMax, body.term_max, body.termLength?.max, body.term_length?.max)),
-      // BF_LP_COMMISSION_CREDIT_v36
-      commission: bfNum(body.commission ?? body.commissionPercent ?? body.commission_percent),
-      minCreditScore: bfNum(body.minCreditScore ?? body.min_credit_score),
-      termUnit: asString(pickFirst(body.termUnit, body.term_unit, body.termLength?.unit, body.term_length?.unit)),
-      amountMin: asNum(pickFirst(body.minAmount, body.amountMin, body.amount_min, body.min_amount)),
-      amountMax: asNum(pickFirst(body.maxAmount, body.amountMax, body.amount_max, body.max_amount)),
-      signnowTemplateId: asString(pickFirst(body.signnowTemplateId, body.signnow_template_id)),
-      eligibilityNotes: asString(pickFirst(body.eligibilityRules, body.eligibilityNotes, body.eligibility_notes, body.notes)),
-      client: pool,
-    });
+    // BF_SERVER_BLOCK_v88_LENDER_PRODUCT_CATEGORY_NORMALIZE_v1
+    let product;
+    try {
+      product = await updateLenderProduct({
+        id,
+        name,
+        requiredDocuments: body.requiredDocuments ?? body.required_documents ?? [],
+        active: body.active,
+        category: normalizeProductCategory(body.category),
+        country: body.country,
+        rateType: (pickFirst(body.rateType, body.rate_type) as string | null | undefined),
+        interestMin: asNum(pickFirst(body.interestRateMin, body.interestMin, body.interest_min, body.minRate, body.min_rate)),
+        interestMax: asNum(pickFirst(body.interestRateMax, body.interestMax, body.interest_max, body.maxRate, body.max_rate)),
+        termMin: asNum(pickFirst(body.termMin, body.term_min, body.termLength?.min, body.term_length?.min)),
+        termMax: asNum(pickFirst(body.termMax, body.term_max, body.termLength?.max, body.term_length?.max)),
+        // BF_LP_COMMISSION_CREDIT_v36
+        commission: bfNum(body.commission ?? body.commissionPercent ?? body.commission_percent),
+        minCreditScore: bfNum(body.minCreditScore ?? body.min_credit_score),
+        termUnit: asString(pickFirst(body.termUnit, body.term_unit, body.termLength?.unit, body.term_length?.unit)),
+        amountMin: asNum(pickFirst(body.minAmount, body.amountMin, body.amount_min, body.min_amount)),
+        amountMax: asNum(pickFirst(body.maxAmount, body.amountMax, body.amount_max, body.max_amount)),
+        signnowTemplateId: asString(pickFirst(body.signnowTemplateId, body.signnow_template_id)),
+        eligibilityNotes: asString(pickFirst(body.eligibilityRules, body.eligibilityNotes, body.eligibility_notes, body.notes)),
+        client: pool,
+      });
+    } catch (err: any) {
+      // BF_SERVER_BLOCK_v88_LENDER_PRODUCT_CATEGORY_NORMALIZE_v1
+      // Surface the real Postgres error so 500s aren't opaque.
+      console.error({
+        event: "lender_product_update_failed",
+        productId: id,
+        category: body.category,
+        normalizedCategory: normalizeProductCategory(body.category),
+        pgCode: err?.code,
+        pgConstraint: err?.constraint,
+        pgDetail: err?.detail,
+        pgTable: err?.table,
+        message: err?.message,
+      });
+      if (err?.code === "23514") {
+        // check_violation — return 400 with the constraint name so the
+        // portal can surface a meaningful message.
+        throw new AppError(
+          "validation_error",
+          `Value rejected by database constraint: ${err.constraint ?? "unknown"}`,
+          400
+        );
+      }
+      throw err;
+    }
     if (!product) throw new AppError("not_found", "Lender product not found.", 404);
     res.status(200).json(decorateProductResponse(product));
   })
