@@ -163,6 +163,16 @@ router.get(
       if (!showDrafts) {
         where.push(`COALESCE(a.pipeline_state, '') NOT IN ('draft','Draft','')`);
       }
+      // BF_SERVER_BLOCK_v86_PARENT_APPLICATION_ID_FILTER_v1
+      // Optional filter: ?parent_application_id=<uuid> returns only
+      // applications whose parent_application_id matches the given id.
+      // Used by BF-portal v93 linked-chip drawer feature.
+      const parentIdRaw = String(req.query.parent_application_id ?? req.query.parentApplicationId ?? "").trim();
+      const APP_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (parentIdRaw && APP_UUID_RE.test(parentIdRaw)) {
+        values.push(parentIdRaw);
+        where.push(`a.parent_application_id::text = $${values.length}::text`);
+      }
       const sql = `
         SELECT
           a.id,
