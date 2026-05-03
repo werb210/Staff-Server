@@ -69,16 +69,25 @@ export async function lockOcrJobs(params: {
 }): Promise<OcrJobRecord[]> {
   const runner = params.client ?? pool;
   const lockTimeoutMinutes = config.ocr.lockTimeoutMinutes;
+  // BF_SERVER_BLOCK_v87_OCR_DEFER_TILL_SUBMIT_v1
+  // Only process jobs whose parent application has advanced past
+  // draft state. Pre-submit uploads insert into ocr_jobs but stay
+  // dormant until v1Applications submit handler advances
+  // pipeline_state. This stops the OCR worker from hammering on
+  // wizard-stage docs and producing failed-job retries every 5s.
   const res = await runner.query<OcrJobRecord>(
     `with candidates as (
-       select id
-       from ocr_jobs
+       select oj.id
+       from ocr_jobs oj
+       join applications a on a.id::text = oj.application_id::text
        where (
-         (status in ('queued', 'failed') and (next_attempt_at is null or next_attempt_at <= now()::timestamp))
-         or status = 'processing'
+         (oj.status in ('queued', 'failed') and (oj.next_attempt_at is null or oj.next_attempt_at <= now()::timestamp))
+         or oj.status = 'processing'
        )
-         and (locked_at is null or locked_at <= now() - ($3 * interval '1 minute'))
-       order by created_at asc
+         and (oj.locked_at is null or oj.locked_at <= now() - ($3 * interval '1 minute'))
+         and a.pipeline_state IS NOT NULL
+         and a.pipeline_state NOT IN ('draft', 'Draft', '')
+       order by oj.created_at asc
        limit $1
        for update skip locked
      )
