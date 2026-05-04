@@ -22,12 +22,13 @@ const updateMeSchema = z.object({
 });
 
 const adminUpdateSchema = z.object({
-  role: z.enum(["Admin", "Staff", "Lender", "Referrer"]).optional(),
+  role: z.enum(["Admin", "Marketing", "Staff", "Lender", "Referrer"]).optional(),
   status: z.enum(["ACTIVE", "INACTIVE"]).optional(),
   firstName: z.string().min(1).optional(),
   lastName: z.string().min(1).optional(),
   first_name: z.string().min(1).optional(),
   last_name: z.string().min(1).optional(),
+  email: z.string().email().optional(),
   phone: z.string().optional(),
   silo: z.enum(["BF", "BI", "SLF"]).optional(),
   silos: z.array(z.enum(["BF", "BI", "SLF"])).optional(),
@@ -291,6 +292,7 @@ export async function adminUpdateUser(req: Request, res: Response) {
         : (input.silo ? [input.silo] : undefined);
     }
     if (input.phone) normalized.phone = input.phone;
+    if ((input as any).email) normalized.email = (input as any).email;
     if (input.first_name) normalized.first_name = input.first_name;
     if (input.last_name) normalized.last_name = input.last_name;
     if ((input as any).firstName) normalized.first_name = (input as any).firstName;
