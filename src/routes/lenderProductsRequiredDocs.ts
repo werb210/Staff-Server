@@ -19,11 +19,42 @@
 import { Router } from "express";
 import { pool } from "../db.js";
 
+// BF_SERVER_BLOCK_v115_REQUIRED_DOCS_CATEGORY_NORMALIZE_v1
+// The wizard sends long-form category codes (TERM_LOAN, LINE_OF_CREDIT,
+// EQUIPMENT_FINANCING, ...) but lender_products.category stores the short
+// codes (TERM, LOC, EQUIPMENT, ...) per the CHECK constraint added in
+// migration 041_lender_schema_enforcement.sql. Same map is in
+// portalLenderProducts.ts:normalizeProductCategory — duplicating here so
+// this route is self-contained.
+function normalizeProductCategoryForFilter(value: string): string {
+  const raw = value.trim().toUpperCase();
+  if (!raw) return "";
+  const map: Record<string, string> = {
+    LINE_OF_CREDIT: "LOC",
+    STANDARD: "LOC",
+    TERM_LOAN: "TERM",
+    PURCHASE_ORDER: "PO",
+    PURCHASE_ORDER_FINANCE: "PO",
+    EQUIPMENT_FINANCE: "EQUIPMENT",
+    EQUIPMENT_FINANCING: "EQUIPMENT",
+    MERCHANT_CASH_ADVANCE: "MCA",
+    MEDIA_FUNDING: "MEDIA",
+    ASSET_BASED_LENDING: "ABL",
+    SBA_GOVERNMENT: "SBA",
+    STARTUP_CAPITAL: "STARTUP",
+  };
+  return map[raw] ?? raw;
+}
+
 const router = Router();
 
 router.get("/lender-products/required-docs", async (req, res) => {
   const country         = String(req.query.country ?? "").toUpperCase().slice(0, 2);
-  const product_category = String(req.query.product_category ?? "").toLowerCase();
+  // BF_SERVER_BLOCK_v115_REQUIRED_DOCS_CATEGORY_NORMALIZE_v1 — normalize to
+  // the short-code vocabulary used by the DB column before lowercasing.
+  const product_category = normalizeProductCategoryForFilter(
+    String(req.query.product_category ?? "")
+  ).toLowerCase();
   const funding_amount  = Number(req.query.funding_amount ?? 0) || null;
   const industry        = String(req.query.industry ?? "").toLowerCase();
   const revenue_last_12 = Number(req.query.revenue_last_12 ?? 0) || null;
