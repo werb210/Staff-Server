@@ -17,6 +17,8 @@ import documentsRoutes from "./documents.js";
 import internalRoutes from "./_int.js";
 import internalProcessingRoutes from "./internal/processing.js";
 import lenderSubmissionsRoutes from "./lenderSubmissions.js";
+import lenderPortalRoutes from "./lenderPortal.js";
+import lenderUsersRoutes from "./lenderUsers.js";
 import marketingRoutes from "./marketing.js";
 import offersRoutes from "./offers.js";
 import offerAcceptanceRoutes from "./offerAcceptance.js";
@@ -126,6 +128,8 @@ export const API_ROUTE_MOUNTS: ApiRouteMount[] = [
   { path: "/notifications", router: notificationsRoutes },
   { path: "/documents", router: documentsRoutes },
   { path: "/lender-submissions", router: lenderSubmissionsRoutes },
+  { path: "/lender", router: lenderPortalRoutes },
+  { path: "/", router: lenderUsersRoutes },
   { path: "/admin", router: adminRoutes },
   { path: "/marketing", router: marketingRoutes },
   { path: "/offers", router: combinedOffersRoutes },
@@ -251,6 +255,11 @@ export const ROUTES: ApiRoute[] = [
   { method: "GET", path: "/api/marketing", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "GET", path: "/api/lenders", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "GET", path: "/api/settings", roles: [ROLES.ADMIN, ROLES.STAFF] },
+  { method: "GET", path: "/api/lender/me", roles: [ROLES.LENDER] },
+  { method: "GET", path: "/api/lender/applications", roles: [ROLES.LENDER] },
+  { method: "GET", path: "/api/lender/applications/:id", roles: [ROLES.LENDER] },
+  { method: "GET", path: "/api/lender/products", roles: [ROLES.LENDER] },
+  { method: "POST", path: "/api/lenders/:lenderId/users", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "GET", path: "/api/staff/overview", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "GET", path: "/api/dashboard", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "POST", path: "/api/referrals", roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.REFERRER] },
