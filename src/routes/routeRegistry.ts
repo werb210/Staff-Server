@@ -36,6 +36,8 @@ import o365TokensRoutes from "./o365Tokens.js";
 import portalRoutes from "./portal.js";
 import portalLendersRoutes from "./portalLenders.js";
 import portalLenderProductsRoutes from "./portalLenderProducts.js";
+// BF_SERVER_BLOCK_v109_REQUIRED_DOCS_ROUTE_v1
+import lenderProductsRequiredDocsRoutes from "./lenderProductsRequiredDocs.js";
 import documentTypesRouter from "./documentTypes.js";
 import pwaRoutes from "./pwa.js";
 import publicApplicationRoutes from "./publicApplication.js";
@@ -80,6 +82,8 @@ const combinedPortalRoutes = Router();
 combinedPortalRoutes.use(portalRoutes);
 combinedPortalRoutes.use(portalLendersRoutes);
 combinedPortalRoutes.use(portalLenderProductsRoutes);
+// BF_SERVER_BLOCK_v109_REQUIRED_DOCS_ROUTE_v1
+combinedPortalRoutes.use(lenderProductsRequiredDocsRoutes);
 combinedPortalRoutes.use(documentTypesRouter);
 
 const rootRoutes = Router();
