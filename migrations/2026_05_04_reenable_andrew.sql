@@ -1,6 +1,8 @@
--- BF_SERVER_BLOCK_v104_REENABLE_ANDREW_v1
--- Re-enable Andrew so he can log in. Idempotent.
--- Targets by both email and phone in case one was edited away from the seed.
+-- BF_SERVER_BLOCK_v104_USER_MGMT_FIX_v1
+-- One-shot bootstrap: re-enable Andrew so he can log in and use the
+-- Enable/Disable button to fix any other locked-out users.
+-- Idempotent: runs once via schema_migrations; UPDATE on identical
+-- values is a no-op regardless.
 
 UPDATE users
    SET disabled  = false,
@@ -10,11 +12,10 @@ UPDATE users
  WHERE LOWER(email) = LOWER('andrew@boreal.financial')
     OR phone_number = '+17802648467';
 
--- Audit trail so we can see this happened in the logs.
 DO $$
 DECLARE
-  affected_rows INT;
+  affected INT;
 BEGIN
-  GET DIAGNOSTICS affected_rows = ROW_COUNT;
-  RAISE NOTICE 'BF_SERVER_v104: re-enabled % user row(s) for andrew', affected_rows;
+  GET DIAGNOSTICS affected = ROW_COUNT;
+  RAISE NOTICE 'BF_SERVER_v104: re-enabled % andrew row(s)', affected;
 END $$;

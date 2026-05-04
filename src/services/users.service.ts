@@ -57,6 +57,12 @@ type UserRecord = {
   created_at: string | null;
   updated_at: string | null;
   last_login_at: string | null;
+  // BF_SERVER_BLOCK_v104_USER_MGMT_FIX_v1 — surface enable/disable state
+  // to the BF-portal UserManagement UI so the status label and toggle
+  // button reflect the actual DB state.
+  disabled: boolean | null;
+  active: boolean | null;
+  is_active: boolean | null;
 };
 
 function normalizeOptionalString(value: unknown): string | null {
@@ -245,7 +251,11 @@ export async function listUsers(req: Request, res: Response) {
       o365_access_token,
       created_at,
       updated_at,
-      last_login_at
+      last_login_at,
+      -- BF_SERVER_BLOCK_v104_USER_MGMT_FIX_v1
+      disabled,
+      active,
+      is_active
     FROM users
     ${where}
     ORDER BY created_at DESC
