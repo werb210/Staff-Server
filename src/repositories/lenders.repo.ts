@@ -222,7 +222,9 @@ export const LIST_LENDERS_SQL = `
 
 type QueryExecutor = { query: (text: string, params?: unknown[]) => Promise<{ rows: any[] }> };
 
-export async function listLenders(db: QueryExecutor) {
+export async function listLenders(db: QueryExecutor, silo?: string) {
+  const siloClause = silo ? `WHERE silo = $1 OR silo IS NULL` : "";
+  const siloParams = silo ? [silo] : [];
   try {
     // Try the flexible column-aware version first
     const existing = await fetchLenderColumns();
@@ -230,13 +232,17 @@ export async function listLenders(db: QueryExecutor) {
       // Table doesn't exist or is empty schema — return safe empty list
       return [];
     }
+    const hasSiloColumn = existing.has("silo");
     const selectColumns = buildSelectColumns(existing);
+    const where = hasSiloColumn ? siloClause : "";
+    const params = hasSiloColumn ? siloParams : [];
     const { rows } = await db.query(`
       SELECT
         ${selectColumns}
       FROM lenders
+      ${where}
       ORDER BY created_at DESC
-    `);
+    `, params);
     return rows;
   } catch {
     // Fallback: try simple wildcard query

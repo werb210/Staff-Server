@@ -743,7 +743,8 @@ router.get(
   "/lenders",
   portalLimiter,
   safeHandler(async (_req: any, res: any) => {
-    const lenders = await listLenders(pool);
+    const silo = getSilo(res);
+    const lenders = await listLenders(pool, silo);
     res.status(200).json({ items: lenders ?? [] });
   })
 );
