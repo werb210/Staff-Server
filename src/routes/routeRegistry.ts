@@ -17,10 +17,6 @@ import documentsRoutes from "./documents.js";
 import internalRoutes from "./_int.js";
 import internalProcessingRoutes from "./internal/processing.js";
 import lenderSubmissionsRoutes from "./lenderSubmissions.js";
-import lenderPortalRoutes from "./lenderPortal.js";
-import lenderApiRoutes from "./lenderApi.js";
-import lenderApiKeysRoutes from "./lenderApiKeys.js";
-import lenderUsersRoutes from "./lenderUsers.js";
 import marketingRoutes from "./marketing.js";
 import offersRoutes from "./offers.js";
 import offerAcceptanceRoutes from "./offerAcceptance.js";
@@ -130,10 +126,6 @@ export const API_ROUTE_MOUNTS: ApiRouteMount[] = [
   { path: "/notifications", router: notificationsRoutes },
   { path: "/documents", router: documentsRoutes },
   { path: "/lender-submissions", router: lenderSubmissionsRoutes },
-  { path: "/lender", router: lenderPortalRoutes },
-  { path: "/lender-api", router: lenderApiRoutes },
-  { path: "/", router: lenderApiKeysRoutes },
-  { path: "/", router: lenderUsersRoutes },
   { path: "/admin", router: adminRoutes },
   { path: "/marketing", router: marketingRoutes },
   { path: "/offers", router: combinedOffersRoutes },
