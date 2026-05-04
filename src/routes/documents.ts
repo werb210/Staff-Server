@@ -43,41 +43,36 @@ async function persistAndEnqueue(opts: {
     uploadedAt: new Date().toISOString(),
   };
 
-  // Single transaction so a failed version insert rolls back the document.
+  // BF_SERVER_BLOCK_v114_DOC_UPLOAD_TX_AND_SCHEMA_v1
+  // Two changes vs prior code:
+  //   1. Removed the fallback path that swallowed insert errors mid-transaction.
+  //      A swallowed error before COMMIT poisons the transaction and causes
+  //      subsequent statements to fail with Postgres 25P02.
+  //   2. Keep a single canonical INSERT for documents with explicit columns.
+  //      Any real schema mismatch now bubbles up and triggers outer ROLLBACK.
   const tx = await pool.connect();
   try {
     await tx.query("BEGIN");
 
-    // documents row. The two-step fallback preserves compatibility with older
-    // schemas that may not have all the new columns yet.
-    try {
-      await tx.query(
-        `INSERT INTO documents
-           (id, application_id, filename, hash, category,
-            storage_path, blob_name, blob_url, size_bytes,
-            status, ocr_status, uploaded_by, created_at, updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'uploaded','pending',$10,now(),now())`,
-        [
-          documentId,
-          opts.applicationId,
-          opts.file.originalname,
-          put.hash,
-          opts.category,
-          put.blobName,
-          put.blobName,
-          put.url,
-          put.sizeBytes,
-          opts.uploadedBy ?? null,
-        ]
-      );
-    } catch {
-      // Schema fallback: minimal columns only.
-      await tx.query(
-        `INSERT INTO documents (id, application_id, filename, hash, category, status, created_at, updated_at)
-         VALUES ($1,$2,$3,$4,$5,'uploaded',now(),now())`,
-        [documentId, opts.applicationId, opts.file.originalname, put.hash, opts.category]
-      );
-    }
+    await tx.query(
+      `INSERT INTO documents
+         (id, application_id, filename, hash, category,
+          storage_path, blob_name, blob_url, size_bytes,
+          status, ocr_status, uploaded_by, created_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'uploaded','pending',$10,now(),now())`,
+      [
+        documentId,
+        opts.applicationId,
+        opts.file.originalname,
+        put.hash,
+        opts.category,
+        put.blobName,
+        put.blobName,
+        put.url,
+        put.sizeBytes,
+        opts.uploadedBy ?? null,
+      ]
+    );
 
     // document_versions row — what OCR + credit summary + banking analyzer
     // actually read from. Without this, every downstream worker fails.
