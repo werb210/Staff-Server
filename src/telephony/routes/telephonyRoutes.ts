@@ -61,7 +61,8 @@ router.get("/token", auth, async (req: any, res: Response) => {
 });
 
 // ── Presence ─────────────────────────────────────────────────────────────────
-router.get("/presence", async (_req: Request, res: Response) => {
+// BF_SERVER_BLOCK_v144_TELEPHONY_AUTH_v1 — was unauthed; leaks staff online status.
+router.get("/presence", auth, async (_req: Request, res: Response) => {
   try {
     // Return staff online in last 5 minutes
     const result = await pool.query<{ user_id: string; status: string; twilio_identity: string | null }>(
@@ -119,7 +120,8 @@ router.get("/call-status", auth, async (_req, res) => {
   res.json({ calls: result.rows });
 });
 
-router.post("/call-status", (_req, res) => { res.json({ updated: true }); });
+// BF_SERVER_BLOCK_v144_TELEPHONY_AUTH_v1 — was unauthed.
+router.post("/call-status", auth, (_req: Request, res: Response) => { res.json({ updated: true }); });
 
 // ── Outbound call ─────────────────────────────────────────────────────────────
 router.post("/outbound-call", auth, async (req: any, res: Response) => {
