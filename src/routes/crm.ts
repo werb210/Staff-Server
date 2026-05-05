@@ -1,3 +1,4 @@
+// BF_SERVER_BLOCK_v122a_SILO_SOURCE_FIXES_v1 — silo from getSilo(res) at every read site
 import { Router } from "express";
 import { requireAuth, requireCapability } from "../middleware/auth.js";
 import { CAPABILITIES } from "../auth/capabilities.js";
@@ -278,7 +279,7 @@ router.get("/contacts/:id", safeHandler(async (req: any, res: any) => {
   if (!/^[0-9a-f-]{36}$/i.test(id)) {
     return res.status(400).json({ error: "invalid_id" });
   }
-  const silo = String(req.query.silo ?? req.user?.silo ?? "BF").toUpperCase();
+  const silo = String(req.query.silo ?? getSilo(res) ?? req.user?.silo ?? "BF").toUpperCase();
   const { rows } = await pool.query(
     `SELECT c.*,
             co.name AS company_name,
@@ -320,7 +321,7 @@ router.patch("/contacts/:id", safeHandler(async (req: any, res: any) => {
 }));
 
 router.get("/companies", safeHandler(async (req: any, res: any) => {
-  const silo = String(req.query.silo ?? req.user?.silo ?? "BF").toUpperCase();
+  const silo = String(req.query.silo ?? getSilo(res) ?? req.user?.silo ?? "BF").toUpperCase();
   const q = String(req.query.q ?? "").trim();
   const sort = String(req.query.sort ?? "created_at:desc");
   const [sortColRaw, sortDirRaw] = sort.split(":");
@@ -351,7 +352,7 @@ router.get("/companies/:id", safeHandler(async (req: any, res: any) => {
   if (!/^[0-9a-f-]{36}$/i.test(id)) {
     return res.status(400).json({ error: "invalid_id" });
   }
-  const silo = String(req.query.silo ?? req.user?.silo ?? "BF").toUpperCase();
+  const silo = String(req.query.silo ?? getSilo(res) ?? req.user?.silo ?? "BF").toUpperCase();
   const { rows } = await pool.query(
     `SELECT co.*, (u.first_name || ' ' || u.last_name) AS owner_name
      FROM companies co
@@ -365,7 +366,7 @@ router.get("/companies/:id", safeHandler(async (req: any, res: any) => {
 }));
 
 router.post("/companies", safeHandler(async (req: any, res: any) => {
-  const silo = String(req.user?.silo ?? "BF").toUpperCase();
+  const silo = String(getSilo(res) ?? req.user?.silo ?? "BF").toUpperCase();
   const b = req.body ?? {};
   const name = String(b.name ?? "").trim();
   if (!name) return res.status(400).json({ error: "name required" });
@@ -414,7 +415,7 @@ router.patch("/companies/:id", safeHandler(async (req: any, res: any) => {
 router.delete("/contacts/:id", requireAdmin, safeHandler(async (req: any, res: any) => {
   const id = String(req.params.id);
   if (!/^[0-9a-f-]{36}$/i.test(id)) return res.status(400).json({ error: "invalid_id" });
-  const silo = String(req.user?.silo ?? "BF").toUpperCase();
+  const silo = String(getSilo(res) ?? req.user?.silo ?? "BF").toUpperCase();
   const { rowCount } = await pool.query(
     `DELETE FROM contacts WHERE id = $1 AND silo = $2`, [id, silo],
   );
@@ -425,7 +426,7 @@ router.delete("/contacts/:id", requireAdmin, safeHandler(async (req: any, res: a
 router.delete("/companies/:id", requireAdmin, safeHandler(async (req: any, res: any) => {
   const id = String(req.params.id);
   if (!/^[0-9a-f-]{36}$/i.test(id)) return res.status(400).json({ error: "invalid_id" });
-  const silo = String(req.user?.silo ?? "BF").toUpperCase();
+  const silo = String(getSilo(res) ?? req.user?.silo ?? "BF").toUpperCase();
   const { rowCount } = await pool.query(
     `DELETE FROM companies WHERE id = $1 AND silo = $2`, [id, silo],
   );

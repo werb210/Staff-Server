@@ -73,7 +73,8 @@ router.get("/sms", safeHandler(async (req: any, res: any) => {
 
 
 router.get("/sms/thread", safeHandler(async (req: any, res: any) => {
-  const silo = String(req.user?.silo ?? "BF").toUpperCase();
+  const { getSilo } = await import("../middleware/silo.js");
+  const silo = String(getSilo(res) ?? req.user?.silo ?? "BF").toUpperCase();
   const rawContact = req.query.contactId ? String(req.query.contactId) : "";
   const rawPhone = req.query.phone ? String(req.query.phone) : "";
 
