@@ -26,6 +26,10 @@ router.post("/web-leads", SupportController.createWebLead);
 
 router.use(requireAuth);
 router.use(requireCapability([CAPABILITIES.CRM_READ]));
+// BF_SERVER_BLOCK_v152_CRM_WRITE_CAPABILITY_v1 — CRM_WRITE required
+// for any mutating handler. The router-level CRM_READ stays for GET.
+const requireCrmWrite = requireCapability([CAPABILITIES.CRM_WRITE]);
+
 
 router.get("/contacts/:id/companies", safeHandler(async (req: any, res: any) => {
   try {
@@ -203,7 +207,7 @@ router.get("/contacts", safeHandler(async (req: any, res: any) => {
   respondOk(res, rows, { page, pageSize });
 }));
 
-router.post("/contacts", safeHandler(async (req: any, res: any) => {
+router.post("/contacts", requireCrmWrite, safeHandler(async (req: any, res: any) => {
   const {
     name,
     first_name,
@@ -295,7 +299,7 @@ router.get("/contacts/:id", safeHandler(async (req: any, res: any) => {
   res.json({ data: rows[0] });
 }));
 
-router.patch("/contacts/:id", safeHandler(async (req: any, res: any) => {
+router.patch("/contacts/:id", requireCrmWrite, safeHandler(async (req: any, res: any) => {
   const id = String(req.params.id);
   const ALLOWED = [
     "first_name", "last_name", "name", "email", "phone", "job_title",
@@ -365,7 +369,7 @@ router.get("/companies/:id", safeHandler(async (req: any, res: any) => {
   res.json({ data: rows[0] });
 }));
 
-router.post("/companies", safeHandler(async (req: any, res: any) => {
+router.post("/companies", requireCrmWrite, safeHandler(async (req: any, res: any) => {
   const silo = String(getSilo(res) ?? req.user?.silo ?? "BF").toUpperCase();
   const b = req.body ?? {};
   const name = String(b.name ?? "").trim();
@@ -390,7 +394,7 @@ router.post("/companies", safeHandler(async (req: any, res: any) => {
   res.status(201).json({ data: rows[0] });
 }));
 
-router.patch("/companies/:id", safeHandler(async (req: any, res: any) => {
+router.patch("/companies/:id", requireCrmWrite, safeHandler(async (req: any, res: any) => {
   const id = String(req.params.id);
   const ALLOWED = ["name", "industry", "domain", "city", "region", "types_of_financing", "owner_id"];
   const updates: string[] = [];
