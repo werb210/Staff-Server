@@ -398,7 +398,13 @@ export async function processOcrJob(
       applicationId: job.application_id,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "unknown_error";
+    // BF_SERVER_BLOCK_v122e_OCR_ERROR_DETAIL_v1 — fall back to
+    // String(error) and stack first line when message is empty.
+    const rawMsg = error instanceof Error ? error.message : "";
+    const errorName = error instanceof Error ? error.name : null;
+    const stackFirstLine = error instanceof Error && typeof error.stack === "string"
+      ? error.stack.split("\n").slice(0, 2).join(" | ") : null;
+    const message = rawMsg || (error != null ? String(error) : "") || errorName || stackFirstLine || "unknown_error";
     if (error instanceof OcrStorageValidationError) {
       logError("ocr_storage_url_rejected", {
         code: "ocr_storage_url_rejected",
@@ -440,7 +446,10 @@ export async function processOcrJob(
       jobId: job.id,
       documentId: job.document_id,
       applicationId: job.application_id,
+      // BF_SERVER_BLOCK_v122e_OCR_ERROR_DETAIL_v1
       error: message,
+      errorName,
+      stackFirstLine,
     });
   }
 }
