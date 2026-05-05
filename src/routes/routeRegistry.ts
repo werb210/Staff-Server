@@ -38,6 +38,8 @@ import portalLendersRoutes from "./portalLenders.js";
 import portalLenderProductsRoutes from "./portalLenderProducts.js";
 // BF_SERVER_BLOCK_v109_REQUIRED_DOCS_ROUTE_v1
 import lenderProductsRequiredDocsRoutes from "./lenderProductsRequiredDocs.js";
+// BF_SERVER_BLOCK_v128_REQUIRED_DOCS_PREVIEW_v1
+import lenderProductsRequiredDocsPreviewRoutes from "./lenderProductsRequiredDocsPreview.js";
 import documentTypesRouter from "./documentTypes.js";
 import pwaRoutes from "./pwa.js";
 import publicApplicationRoutes from "./publicApplication.js";
@@ -86,6 +88,8 @@ combinedPortalRoutes.use(portalLendersRoutes);
 // GET /lender-products/:id which captures `required-docs` as the :id
 // value and 404s before our handler is reached.
 combinedPortalRoutes.use(lenderProductsRequiredDocsRoutes);
+// BF_SERVER_BLOCK_v128_REQUIRED_DOCS_PREVIEW_v1
+combinedPortalRoutes.use(lenderProductsRequiredDocsPreviewRoutes);
 combinedPortalRoutes.use(portalLenderProductsRoutes);
 combinedPortalRoutes.use(documentTypesRouter);
 
