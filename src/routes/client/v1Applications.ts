@@ -176,6 +176,17 @@ const createSchema = z.object({
   product_id: z.string().uuid().nullable().optional(),
   product_category: z.string().min(1).nullable().optional(),
   kyc_responses: z.record(z.string(), z.unknown()).optional(),
+  // BF_SERVER_BLOCK_v125a_CLOSING_COSTS_END_TO_END_v1 — accept linked-app
+  // fields the wizard sends when creating a closing-costs companion at
+  // Step 2. Without these, Zod silently strips them; the companion was
+  // saved with parent_application_id=NULL and the metadata.kind marker
+  // missing, breaking the parent->child relationship and submit-time
+  // idempotency.
+  parent_application_id: z.string().uuid().nullable().optional(),
+  linked_application_token: z.string().optional(),
+  linked_application_reason: z.string().optional(),
+  kind: z.string().optional(),
+  requires_closing_cost_funding: z.boolean().optional(),
   // Wizard-shaped passthrough.
   financialProfile: createWizardObject.optional(),
   business: createWizardObject.optional(),
@@ -272,15 +283,30 @@ router.post(
     const applicationId = randomUUID();
     const { getSilo } = await import("../../middleware/silo.js");
     const silo = getSilo(res);
-    const metadata = {
+    // BF_SERVER_BLOCK_v125a_CLOSING_COSTS_END_TO_END_v1
+    // Detect closing-costs linked application (Step 2 modal flow).
+    const parent_application_id = (data as any).parent_application_id ?? null;
+    const isClosingCostsCompanion =
+      (data as any).kind === "closing_costs" ||
+      (data as any).linked_application_reason === "closing_costs";
+    const metadata: Record<string, unknown> = {
       ...(data.kyc_responses ? { kyc_responses: data.kyc_responses } : {}),
       ...(product_category ? { product_category } : {}),
       ...wizardMeta,
+      ...(isClosingCostsCompanion
+        ? {
+            closing_cost_companion: true,
+            parent_application_id,
+            kind: "closing_costs",
+            linked_application_reason: (data as any).linked_application_reason ?? "closing_costs",
+            companion_origin: "client_step2",
+          }
+        : {}),
     };
     await runQuery(
       `insert into applications
-       (id, owner_user_id, name, metadata, product_type, pipeline_state, status, lender_id, lender_product_id, requested_amount, source, silo, created_at, updated_at)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, now(), now())`,
+       (id, owner_user_id, name, metadata, product_type, pipeline_state, status, lender_id, lender_product_id, requested_amount, source, silo, parent_application_id, created_at, updated_at)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now(), now())`,
       [
         applicationId,
         config.client.submissionOwnerUserId,
@@ -292,8 +318,9 @@ router.post(
         lender_id,
         product_id,
         requested_amount,
-        "client",
+        isClosingCostsCompanion ? "closing_costs_companion" : "client",
         silo,
+        parent_application_id,
       ]
     );
 
@@ -308,7 +335,12 @@ router.post(
         ...(req.headers["user-agent"] ? { userAgent: req.headers["user-agent"] } : {}),
       });
     }
+    // BF_SERVER_BLOCK_v125a_CLOSING_COSTS_END_TO_END_v1 — also include
+    // `token` field at top level so the client's
+    // ClientAppStartResponseSchema (z.object({ token: z.string() })) passes.
+    // Existing consumers reading res.data.application.id continue to work.
     res.status(201).json({
+      token: applicationId,
       application: {
         id: applicationId,
         name: business_name,
@@ -481,39 +513,74 @@ router.post(
       ]);
       if (wantsClosingCosts && EQUIPMENT_PARENT_ALIASES.has(primaryCategory)) {
         try {
-          const primaryAmount = Number(wizardCols.requestedAmount ?? 0);
-          const companionAmount = Math.round(primaryAmount * 0.2);
-          const companionCategory = companionAmount <= 50_000 ? "TERM" : "LOC";
-          const companionId = randomUUID();
-          await pool.query(
-            `INSERT INTO applications
-               (id, name, silo, owner_user_id, parent_application_id,
-                requested_amount, product_category, pipeline_state, status,
-                source, metadata, submitted_at, created_at, updated_at)
-             VALUES
-               ($1, $2, $3, $4, $5,
-                $6, $7, 'Received', 'received',
-                'closing_costs_companion',
-                jsonb_build_object('closing_cost_companion', true,
-                                   'parent_application_id', $5::text,
-                                   'companion_category', $7),
-                now(), now(), now())`,
-            [
-              companionId,
-              `Closing costs — ${wizardBusinessName ?? application.id.slice(0, 8)}`,
-              silo,
-              ownerId,
-              application.id,
-              companionAmount > 0 ? companionAmount : null,
-              companionCategory,
-            ]
+          // BF_SERVER_BLOCK_v125a_CLOSING_COSTS_END_TO_END_v1 — idempotency.
+          // If Step 2 already created a companion (now possible after
+          // v125a fixes the schema/response), do not create a duplicate.
+          const existingCompanion = await pool.query<{ id: string }>(
+            `SELECT id FROM applications
+              WHERE parent_application_id::text = ($1)::text
+                AND (
+                  source = 'closing_costs_companion'
+                  OR metadata->>'closing_cost_companion' = 'true'
+                  OR metadata->>'kind' = 'closing_costs'
+                )
+              LIMIT 1`,
+            [application.id]
           );
-          logInfo("closing_costs_companion_created", {
-            parentApplicationId: application.id,
-            companionApplicationId: companionId,
-            category: companionCategory,
-            amount: companionAmount,
-          });
+          if (existingCompanion.rows.length > 0) {
+            logInfo("closing_costs_companion_already_exists", {
+              parentApplicationId: application.id,
+              existingCompanionId: existingCompanion.rows[0].id,
+              source: "submit_skipped_duplicate",
+            });
+          } else {
+            const primaryAmount = Number(wizardCols.requestedAmount ?? 0);
+            const companionAmount = Math.round(primaryAmount * 0.2);
+            const companionCategory = companionAmount <= 50_000 ? "TERM" : "LOC";
+            const companionId = randomUUID();
+            // BF_SERVER_BLOCK_v125a_CLOSING_COSTS_END_TO_END_v1 — copy parent
+            // wizard payload into companion metadata so the companion's
+            // drawer Application tab renders properly (otherwise it shows
+            // mostly empty: just id/stage/source).
+            const companionMeta: Record<string, unknown> = {
+              ...wizardMeta,
+              formData: legacyApp,
+              closing_cost_companion: true,
+              parent_application_id: application.id,
+              companion_category: companionCategory,
+              kind: "closing_costs",
+              linked_application_reason: "closing_costs",
+              companion_origin: "submit_fallback",
+            };
+            await pool.query(
+              `INSERT INTO applications
+                 (id, name, silo, owner_user_id, parent_application_id,
+                  requested_amount, product_category, pipeline_state, status,
+                  source, metadata, submitted_at, created_at, updated_at)
+               VALUES
+                 ($1, $2, $3, $4, $5,
+                  $6, $7, 'Received', 'received',
+                  'closing_costs_companion',
+                  $8::jsonb,
+                  now(), now(), now())`,
+              [
+                companionId,
+                `Closing costs — ${wizardBusinessName ?? application.id.slice(0, 8)}`,
+                silo,
+                ownerId,
+                application.id,
+                companionAmount > 0 ? companionAmount : null,
+                companionCategory,
+                JSON.stringify(companionMeta),
+              ]
+            );
+            logInfo("closing_costs_companion_created", {
+              parentApplicationId: application.id,
+              companionApplicationId: companionId,
+              category: companionCategory,
+              amount: companionAmount,
+            });
+          }
         } catch (companionErr) {
           logError("closing_costs_companion_failed", {
             code: "closing_costs_companion_failed",
