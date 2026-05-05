@@ -234,7 +234,16 @@ const SIX_TRACES = [
   { name: "trace_6_capital_and_equipment_400k_240k_loc", description: "C&E, capital LOC $400,000 + equipment $240,000, Canada", country: "CA", legs: [{ category: "LINE_OF_CREDIT", amount: 400000 }, { category: "EQUIPMENT_FINANCE", amount: 240000 }], predictedDocCountRange: [2, 16] as [number, number] },
 ];
 
-router.get("/lender-products/required-docs/preview/six-traces", requireAuth, safeHandler(async (_req: Request, res: Response) => {
+// BF_SERVER_BLOCK_v128_1_PUBLIC_SIX_TRACES_v1
+// requireAuth removed from this GET route. The endpoint runs 6
+// hardcoded traces and returns lender_name / product_name /
+// amount_min / amount_max / required_documents — same data already
+// exposed by the public /api/portal/lender-products route used by
+// the unauthenticated wizard. No new information is exposed; this
+// is purely a convenience for browser-direct inspection.
+// The POST .../preview route stays authed because it accepts
+// arbitrary leg input.
+router.get("/lender-products/required-docs/preview/six-traces", safeHandler(async (_req: Request, res: Response) => {
   const cols = await probeLenderProductsColumns();
   const out: Array<Record<string, unknown>> = [];
   for (const trace of SIX_TRACES) {
