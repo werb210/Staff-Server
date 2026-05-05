@@ -582,4 +582,212 @@ router.post('/:id/send', safeHandler(async (req: any, res: any) => {
   res.json({ status: 'ok', data: result });
 }));
 
+// BF_SERVER_BLOCK_v122c_DRAWER_TAB_ENDPOINTS_v1
+// GET /api/applications/:id/documents — drawer Documents tab.
+// Lazy-computes required-doc categories from the union of matching
+// lender_products.required_documents JSONB, joined with actual uploads
+// from the documents table. Returns the { categories: [...] } shape
+// DocumentsTab.tsx expects.
+router.get('/:id/documents', safeHandler(async (req: any, res: any) => {
+  const appId = String(req.params.id ?? '').trim();
+  if (!appId) throw new AppError('validation_error', 'Application id required.', 400);
+  const appRes = await pool.query<{ id: string; silo: string | null; requested_amount: any; metadata: any; }>(
+    `SELECT id, silo, requested_amount, metadata FROM applications WHERE id::text = ($1)::text LIMIT 1`,
+    [appId],
+  );
+  const app = appRes.rows[0];
+  if (!app) throw new AppError('not_found', 'Application not found.', 404);
+  const silo = getSilo(res);
+  if (app.silo && silo && app.silo !== silo) {
+    throw new AppError('not_found', 'Application not found.', 404);
+  }
+  const meta = (app.metadata && typeof app.metadata === 'object') ? (app.metadata as Record<string, any>) : {};
+  const country = (() => {
+    const raw = String(meta.country ?? meta.businessCountry ?? meta.kyc?.businessLocation ?? '').trim().toUpperCase();
+    if (raw === 'CA' || raw === 'CANADA') return 'CA' as const;
+    if (raw === 'US' || raw === 'USA' || raw === 'UNITED STATES') return 'US' as const;
+    return null;
+  })();
+  const amount = (() => {
+    const raw = app.requested_amount ?? meta.fundingAmount ?? meta.kyc?.fundingAmount ?? null;
+    if (raw === null || raw === undefined || raw === '') return null;
+    const n = typeof raw === 'number' ? raw : Number(String(raw).replace(/[^0-9.\-]/g, ''));
+    return Number.isFinite(n) ? n : null;
+  })();
+  const colsRes = await pool.query<{ column_name: string }>(
+    `SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'lender_products'`
+  ).catch(() => ({ rows: [] as Array<{ column_name: string }> }));
+  const cols = new Set(colsRes.rows.map((r) => r.column_name));
+  let productRows: Array<{ required_documents: any; category: string | null }> = [];
+  if (cols.has('required_documents')) {
+    const where: string[] = [];
+    const params: unknown[] = [];
+    if (cols.has('active')) where.push('active IS TRUE');
+    if (cols.has('status')) where.push("(status IS NULL OR status = 'active')");
+    if (country && cols.has('country')) {
+      params.push(country);
+      where.push(`(country IS NULL OR upper(country) = $${params.length})`);
+    }
+    const minCol = cols.has('amount_min') ? 'amount_min' : cols.has('min_amount') ? 'min_amount' : null;
+    const maxCol = cols.has('amount_max') ? 'amount_max' : cols.has('max_amount') ? 'max_amount' : null;
+    if (amount !== null && minCol) {
+      params.push(amount);
+      where.push(`(${minCol} IS NULL OR ${minCol} <= $${params.length})`);
+    }
+    if (amount !== null && maxCol) {
+      params.push(amount);
+      where.push(`(${maxCol} IS NULL OR ${maxCol} >= $${params.length})`);
+    }
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    try {
+      const r = await pool.query(
+        `SELECT required_documents, ${cols.has('category') ? 'category' : 'NULL::text AS category'} FROM lender_products ${whereSql}`,
+        params,
+      );
+      productRows = r.rows as any[];
+    } catch (err: any) {
+      // eslint-disable-next-line no-console
+      console.warn('documents.products_query_failed', { applicationId: appId, message: err?.message });
+    }
+  }
+  const categoryMap = new Map<string, { key: string; label: string; required: boolean }>();
+  for (const p of productRows) {
+    const list = Array.isArray(p.required_documents) ? p.required_documents : [];
+    for (const item of list) {
+      const rawKey = (item && typeof item === 'object') ? (item.category ?? item.document_type ?? null) : null;
+      if (!rawKey || typeof rawKey !== 'string') continue;
+      const key = rawKey.trim();
+      if (!key) continue;
+      const required = Boolean(item?.required);
+      const existing = categoryMap.get(key);
+      categoryMap.set(key, { key, label: existing?.label ?? key, required: Boolean(existing?.required || required) });
+    }
+  }
+  type FileRow = { id: string; filename: string | null; size_bytes: number | null; created_at: Date; status: string | null; category: string | null; };
+  let fileRows: FileRow[] = [];
+  try {
+    const r = await pool.query<FileRow>(
+      `SELECT d.id::text AS id, COALESCE(d.filename, d.title) AS filename, d.size_bytes AS size_bytes, d.created_at AS created_at, d.status AS status, COALESCE(d.category, d.document_type) AS category FROM documents d WHERE d.application_id::text = ($1)::text ORDER BY d.created_at ASC`,
+      [appId],
+    );
+    fileRows = r.rows;
+  } catch (err: any) {
+    // eslint-disable-next-line no-console
+    console.warn('documents.files_query_failed', { applicationId: appId, message: err?.message });
+  }
+  const filesByCategory = new Map<string, FileRow[]>();
+  const orphanFiles: FileRow[] = [];
+  for (const f of fileRows) {
+    const k = (f.category ?? '').trim();
+    if (!k) { orphanFiles.push(f); continue; }
+    if (!filesByCategory.has(k)) filesByCategory.set(k, []);
+    filesByCategory.get(k)!.push(f);
+  }
+  const seen = new Set(categoryMap.keys());
+  const categories: Array<{ key: string; label: string; required: boolean; files: Array<{ id: string; filename: string; size: number | null; uploadedAt: string | null; status: string; url: string | null; }>; }> = [];
+  const fileToTab = (f: FileRow) => ({
+    id: f.id,
+    filename: f.filename ?? '',
+    size: f.size_bytes,
+    uploadedAt: f.created_at ? new Date(f.created_at as any).toISOString() : null,
+    status: ((): 'accepted' | 'rejected' | 'pending_review' | 'required' => {
+      const sv = String(f.status ?? '').toLowerCase();
+      if (sv === 'accepted') return 'accepted';
+      if (sv === 'rejected') return 'rejected';
+      if (sv === 'required' || sv === 'missing') return 'required';
+      return 'pending_review';
+    })(),
+    url: null,
+  });
+  for (const cat of categoryMap.values()) {
+    const files = (filesByCategory.get(cat.key) ?? []).map(fileToTab);
+    categories.push({ ...cat, files });
+  }
+  for (const [k, fs] of filesByCategory.entries()) {
+    if (seen.has(k)) continue;
+    categories.push({ key: k, label: k, required: false, files: fs.map(fileToTab) });
+  }
+  if (orphanFiles.length) {
+    categories.push({ key: '__uncategorized', label: 'Uncategorized', required: false, files: orphanFiles.map(fileToTab) });
+  }
+  return res.json({ categories });
+}));
+
+// BF_SERVER_BLOCK_v122c_DRAWER_TAB_ENDPOINTS_v1
+// GET/PATCH /api/applications/:id/financials — drawer Financials tab.
+// Stub: returns structurally-correct EMPTY payload so the tab renders
+// instead of crashing on 404. PATCH stores body under metadata.financials.
+const EMPTY_FINANCIALS = {
+  periods: [] as string[],
+  summary: { id: 'summary', title: 'Financial Summary', lines: [] as any[] },
+  pnl: { id: 'pnl', title: 'Profit & Loss', lines: [] as any[] },
+  balance_sheet: { id: 'balance_sheet', title: 'Balance Sheet', lines: [] as any[] },
+  cash_flow: { id: 'cash_flow', title: 'Cash Flow', lines: [] as any[] },
+  debt: [] as any[],
+  flags: [] as any[],
+  ratios: { dscr: null, current_ratio: null, quick_ratio: null, debt_to_equity: null } as Record<string, number | null>,
+};
+router.get('/:id/financials', safeHandler(async (req: any, res: any) => {
+  const appId = String(req.params.id ?? '').trim();
+  if (!appId) throw new AppError('validation_error', 'Application id required.', 400);
+  const r = await pool.query<{ silo: string | null; metadata: any }>(
+    `SELECT silo, metadata FROM applications WHERE id::text = ($1)::text LIMIT 1`,
+    [appId],
+  );
+  const app = r.rows[0];
+  if (!app) throw new AppError('not_found', 'Application not found.', 404);
+  const silo = getSilo(res);
+  if (app.silo && silo && app.silo !== silo) {
+    throw new AppError('not_found', 'Application not found.', 404);
+  }
+  const meta = (app.metadata && typeof app.metadata === 'object') ? app.metadata as Record<string, any> : {};
+  const stored = (meta.financials && typeof meta.financials === 'object') ? meta.financials : null;
+  return res.json(stored ?? EMPTY_FINANCIALS);
+}));
+router.patch('/:id/financials', safeHandler(async (req: any, res: any) => {
+  const appId = String(req.params.id ?? '').trim();
+  if (!appId) throw new AppError('validation_error', 'Application id required.', 400);
+  const r = await pool.query<{ silo: string | null }>(
+    `SELECT silo FROM applications WHERE id::text = ($1)::text LIMIT 1`, [appId],
+  );
+  const app = r.rows[0];
+  if (!app) throw new AppError('not_found', 'Application not found.', 404);
+  const silo = getSilo(res);
+  if (app.silo && silo && app.silo !== silo) {
+    throw new AppError('not_found', 'Application not found.', 404);
+  }
+  const body = (req.body && typeof req.body === 'object') ? req.body : {};
+  await pool.query(
+    `UPDATE applications SET metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('financials', $1::jsonb), updated_at = NOW() WHERE id::text = ($2)::text`,
+    [JSON.stringify(body), appId],
+  );
+  return res.json({ ok: true });
+}));
+
+// BF_SERVER_BLOCK_v122c_DRAWER_TAB_ENDPOINTS_v1
+// POST /api/applications/:id/lenders/:lenderId/files — staff per-lender doc upload.
+router.post('/:id/lenders/:lenderId/files', safeHandler(async (req: any, res: any) => {
+  const appId = String(req.params.id ?? '').trim();
+  const lenderId = String(req.params.lenderId ?? '').trim();
+  if (!appId || !lenderId) throw new AppError('validation_error', 'application id and lender id required.', 400);
+  const appRes = await pool.query<{ silo: string | null }>(
+    `SELECT silo FROM applications WHERE id::text = ($1)::text LIMIT 1`, [appId],
+  );
+  const app = appRes.rows[0];
+  if (!app) throw new AppError('not_found', 'Application not found.', 404);
+  const silo = getSilo(res);
+  if (app.silo && silo && app.silo !== silo) {
+    throw new AppError('not_found', 'Application not found.', 404);
+  }
+  const filename = (req.body?.filename ?? req.file?.originalname ?? 'lender-upload') as string;
+  const sizeBytes = Number(req.body?.size ?? req.file?.size ?? 0) || null;
+  const docId = (typeof crypto !== 'undefined' && (crypto as any)?.randomUUID)
+    ? (crypto as any).randomUUID() : `doc_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
+  await pool.query(
+    `INSERT INTO documents (id, application_id, owner_user_id, title, filename, size_bytes, category, status, uploaded_by, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, 'uploaded', 'staff', NOW()) ON CONFLICT (id) DO NOTHING`,
+    [docId, appId, req.user?.id ?? req.user?.userId ?? null, filename, filename, sizeBytes, `lender:${lenderId}`],
+  ).catch(() => {});
+  return res.json({ ok: true, documentId: docId });
+}));
+
 export default router;
