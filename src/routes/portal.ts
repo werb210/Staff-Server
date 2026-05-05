@@ -170,7 +170,21 @@ router.get(
         truthy(req.query.show_drafts) ||
         truthy(req.query.include_drafts) ||
         truthy(req.query.includeDrafts);
-      const businessUnit = String(req.query.business_unit ?? req.query.silo ?? "BF").toUpperCase();
+      // BF_SERVER_BLOCK_v120_PORTAL_APPLICATIONS_SILO_FROM_RESOLVED_v1
+      // Read silo from the resolved middleware value (X-Silo header for
+      // multi-silo users, primary silo for single-silo users) instead of
+      // ONLY from query string. PipelinePage.tsx and core fetchPipeline
+      // both call /api/portal/applications without setting a query silo
+      // param, so the previous string read collapsed to "BF" and BI/SLF
+      // staff saw an empty pipeline. Query param remains supported for
+      // explicit overrides (e.g. admin viewing another silo).
+      const { getSilo } = await import("../middleware/silo.js");
+      const businessUnit = String(
+        req.query.business_unit ??
+        req.query.silo ??
+        getSilo(res) ??
+        "BF"
+      ).toUpperCase();
       const where: string[] = ["a.silo = $1"];
       const values: unknown[] = [businessUnit];
       if (!showDrafts) {
@@ -209,22 +223,37 @@ router.get(
         LIMIT 500
       `;
       const result = await runQuery(sql, values);
+      // BF_SERVER_BLOCK_v120_PORTAL_APPLICATIONS_SILO_FROM_RESOLVED_v1
+      // Emit BOTH shapes so both PipelinePage variants render. The legacy
+      // /pages/pipeline/PipelinePage.tsx destructures `items`; the newer
+      // /core/engines/pipeline/pipeline.api.ts goes through
+      // parsePipelineResponse which reads `applications`. Returning both
+      // is cheap and unbreaks the BF pipeline view immediately.
+      const cards = result.rows.map((r: any) => ({
+        id: r.id,
+        // Legacy PipelinePage shape (snake_case, reads pipeline_state directly):
+        name: r.business_name,
+        business_legal_name: r.business_name,
+        pipeline_state: r.stage,
+        requested_amount: r.requested_amount,
+        created_at: r.last_activity_at,
+        // Modern shape used by parsePipelineResponse (camelCase):
+        stage: r.stage ?? "draft",
+        requestedAmount: r.requested_amount,
+        productCategory: r.product_category,
+        businessName: r.business_name,
+        contactName: r.contact_name,
+        contactEmail: r.contact_email,
+        ownerName: r.owner_name,
+        lastActivityAt: r.last_activity_at,
+        statusNote: r.status_note,
+        parentApplicationId: r.parent_application_id,
+        isDraft: r.is_draft,
+      }));
       return res.json({
         stages: PIPELINE_STAGES,
-        applications: result.rows.map((r: any) => ({
-          id: r.id,
-          stage: r.stage ?? "draft",
-          requestedAmount: r.requested_amount,
-          productCategory: r.product_category,
-          businessName: r.business_name,
-          contactName: r.contact_name,
-          contactEmail: r.contact_email,
-          ownerName: r.owner_name,
-          lastActivityAt: r.last_activity_at,
-          statusNote: r.status_note,
-          parentApplicationId: r.parent_application_id,
-          isDraft: r.is_draft,
-        })),
+        applications: cards,
+        items: cards,
       });
     } catch (err) {
       res.status(200).json({ stages: PIPELINE_STAGES, applications: [] });
