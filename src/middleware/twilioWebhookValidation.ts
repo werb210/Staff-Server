@@ -113,17 +113,20 @@ export const twilioWebhookValidation: RequestHandler = (req: any, res: any, next
     return;
   }
 
-  // BF_SERVER_TWILIO_WEBHOOK_DIAG_v55c — optional success-path logging. Off
-  // by default; enable by setting TWILIO_WEBHOOK_DIAG=true to verify a fix
-  // is working without re-deploying.
-  if (process.env.TWILIO_WEBHOOK_DIAG === "true") {
-    logInfo("twilio_webhook_signature_valid", {
-      path: req.originalUrl,
-      method: req.method,
-      computedUrl: resolved.url,
-      bodyKeys: safeBodyKeys(req.body),
-    });
-  }
+  // BF_SERVER_BLOCK_v122f_TWILIO_DIAG_ALWAYS_ON_v1 — log success-path
+  // context permanently. Combined with the failure-path diagnostics
+  // already emitted above, this lets us diff a working call against a
+  // failing 403 to identify the URL mismatch without redeploying.
+  logInfo("twilio_webhook_signature_valid", {
+    path: req.originalUrl,
+    method: req.method,
+    computedUrl: resolved.url,
+    protocol: resolved.protocol,
+    host: resolved.host,
+    forwardedProto: resolved.forwardedProto,
+    forwardedHost: resolved.forwardedHost,
+    bodyKeys: safeBodyKeys(req.body),
+  });
 
   next();
 };
