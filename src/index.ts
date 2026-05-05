@@ -133,6 +133,11 @@ export async function start(): Promise<void> {
     catch (err) { console.error("[startup] OCR worker failed to start:", err); }
     try { startBankingAutoWorker(pool); console.log("[startup] banking auto-worker started"); }
     catch (err) { console.error("[startup] banking auto-worker failed to start:", err); }
+
+    // BF_SERVER_BLOCK_v146_LENDER_PACKAGE_WORKER_v1
+    const { startLenderPackageWorker } = await import("./workers/lenderPackageWorker.js");
+    try { startLenderPackageWorker(pool); console.log("[startup] lender-package worker started"); }
+    catch (err) { console.error("[startup] lender-package worker failed to start:", err); }
   }
 
   app.listen(PORT, "0.0.0.0", () => {
