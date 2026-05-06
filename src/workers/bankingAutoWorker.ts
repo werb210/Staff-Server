@@ -25,9 +25,10 @@ export function startBankingAutoWorker(pool: Pool): { stop: () => void } {
     if (stopped || running) return;
     running = true;
     try {
-      // Find applications eligible for banking analysis: at least one
-      // bank-statement document is OCR-complete, and there is no
-      // banking_analyses row in 'in_progress' or 'analysis_complete'.
+      // BF_SERVER_BLOCK_v177_BANKING_WORKER_RETRY_v1
+      // Exclude 'in_progress' and 'analysis_complete' as before; also
+      // skip 'failed' rows that are still in their backoff window AND
+      // 'failed' rows that have hit max_attempts.
       const { rows } = await pool.query<{ application_id: string }>(
         `SELECT DISTINCT d.application_id::text AS application_id
            FROM documents d
@@ -36,7 +37,11 @@ export function startBankingAutoWorker(pool: Pool): { stop: () => void } {
             AND NOT EXISTS (
               SELECT 1 FROM banking_analyses ba
                WHERE ba.application_id = d.application_id
-                 AND ba.status IN ('in_progress', 'analysis_complete')
+                 AND (
+                      ba.status IN ('in_progress', 'analysis_complete')
+                   OR (ba.status = 'failed' AND ba.next_attempt_at > NOW())
+                   OR (ba.status = 'failed' AND ba.attempt_count >= COALESCE(ba.max_attempts, 3))
+                 )
             )
           LIMIT $1`,
         [BATCH]
@@ -64,14 +69,32 @@ export function startBankingAutoWorker(pool: Pool): { stop: () => void } {
             applicationId,
             error: err instanceof Error ? err.message : String(err),
           });
-          // Park the analysis row in 'failed' so we don't loop on it.
+          // BF_SERVER_BLOCK_v177_BANKING_WORKER_RETRY_v1
+          // Increment attempt_count + set next_attempt_at via exponential
+          // backoff (5m, 15m, 30m). After max_attempts the row stays
+          // 'failed' and the SELECT exclusion keeps the worker from
+          // looping on it again.
+          const errMsg = err instanceof Error ? err.message : String(err);
           await pool
             .query(
-              `INSERT INTO banking_analyses (application_id, status, updated_at)
-                 VALUES ($1, 'failed', now())
-                 ON CONFLICT (application_id) DO UPDATE
-                   SET status = 'failed', updated_at = now()`,
-              [applicationId]
+              `INSERT INTO banking_analyses
+                 (application_id, status, attempt_count, max_attempts,
+                  next_attempt_at, last_error, updated_at)
+               VALUES ($1, 'failed', 1, 3,
+                       NOW() + INTERVAL '5 minutes', $2, NOW())
+               ON CONFLICT (application_id) DO UPDATE
+                 SET status = 'failed',
+                     attempt_count = banking_analyses.attempt_count + 1,
+                     next_attempt_at = NOW() + (
+                       CASE banking_analyses.attempt_count
+                         WHEN 0 THEN INTERVAL '5 minutes'
+                         WHEN 1 THEN INTERVAL '15 minutes'
+                         ELSE INTERVAL '30 minutes'
+                       END
+                     ),
+                     last_error = EXCLUDED.last_error,
+                     updated_at = NOW()`,
+              [applicationId, errMsg.slice(0, 500)]
             )
             .catch(() => {});
         }
