@@ -418,10 +418,67 @@ router.delete(
       res.status(404).json({ code: "not_found", message: "Application not found." });
       return;
     }
-    const { rowCount } = await runQuery(
-      `DELETE FROM applications WHERE id::text = ($1)::text`,
-      [applicationId]
-    );
+    // BF_SERVER_BLOCK_v189_DELETE_DRAFT_CASCADE_v1
+    // Production schema has FKs from many tables to applications.id without
+    // ON DELETE CASCADE (only the 087 job_tables migration declares CASCADE).
+    // Plain DELETE FROM applications fails with 23503 foreign_key_violation
+    // and PipelinePage shows "Delete failed. Please try again." Wrap the
+    // delete in a transaction that first removes rows from every table that
+    // carries application_id. Each child delete is wrapped in its own
+    // savepoint so a missing table (undefined_table 42P01) is non-fatal —
+    // we just skip it and continue. This keeps the route forward-compatible
+    // with environments where some of these tables don't exist yet.
+    const childTables = [
+      "application_contacts",
+      "application_lender_selections",
+      "application_packages",
+      "application_tasks",
+      "application_notes",
+      "documents",
+      "document_requirements",
+      "credit_summaries",
+      "banking_analyses",
+      "banking_monthly_summaries",
+      "banking_transactions",
+      "communications_messages",
+      "crm_notes",
+      "readiness_application_mappings",
+    ];
+    const client = await pool.connect();
+    let rowCount = 0;
+    try {
+      await client.query("BEGIN");
+      for (const tbl of childTables) {
+        try {
+          await client.query("SAVEPOINT s");
+          await client.query(
+            `DELETE FROM ${tbl} WHERE application_id::text = ($1)::text`,
+            [applicationId]
+          );
+          await client.query("RELEASE SAVEPOINT s");
+        } catch (e: any) {
+          // 42P01 = undefined_table; skip silently. Anything else, let the
+          // transaction abort and the catch below 500.
+          if (e?.code === "42P01") {
+            await client.query("ROLLBACK TO SAVEPOINT s");
+            await client.query("RELEASE SAVEPOINT s");
+          } else {
+            throw e;
+          }
+        }
+      }
+      const r = await client.query(
+        `DELETE FROM applications WHERE id::text = ($1)::text`,
+        [applicationId]
+      );
+      rowCount = r.rowCount ?? 0;
+      await client.query("COMMIT");
+    } catch (e) {
+      await client.query("ROLLBACK").catch(() => {});
+      throw e;
+    } finally {
+      client.release();
+    }
     if (!rowCount) {
       res.status(404).json({ code: "not_found", message: "Application not found." });
       return;
