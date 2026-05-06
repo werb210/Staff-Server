@@ -83,9 +83,14 @@ router.post(
       });
     }
 
+    // BF_SERVER_BLOCK_v185_LENDER_PACKAGE_DEDUP_v1
+    // ON CONFLICT DO NOTHING against the partial unique index from
+    // migration 2026_05_06_lender_package_dedup_v185.sql. SignNow webhook
+    // retries no longer cause duplicate dispatches.
     await dbQuery(
       `insert into job_queue (id, type, payload, status, created_at)
-       values (gen_random_uuid(), 'send_lender_package', $1::jsonb, 'pending', now())`,
+       values (gen_random_uuid(), 'send_lender_package', $1::jsonb, 'pending', now())
+       on conflict ((payload->>'applicationId')) where type = 'send_lender_package' and status in ('pending','running') do nothing`,
       [JSON.stringify({ applicationId: app.id })]
     );
 
