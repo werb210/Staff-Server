@@ -23,7 +23,7 @@ router.get(
     }>(
       `select id, name, pipeline_state, updated_at
          from applications
-        where (silo = $1 OR silo IS NULL)
+        where silo = $1 -- BF_SERVER_BLOCK_v156_SILO_LEAK_FIX_v1
         order by updated_at desc`,
       [silo]
     );

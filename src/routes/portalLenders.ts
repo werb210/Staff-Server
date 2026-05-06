@@ -189,7 +189,7 @@ router.get(
     const { rows } = await pool.query(
       `SELECT id, lender_id, filename, mime_type, blob_url, uploaded_by, created_at
        FROM lender_documents
-       WHERE lender_id = $1 AND (silo = $2 OR silo IS NULL)
+       WHERE lender_id = $1 AND silo = $2 -- BF_SERVER_BLOCK_v156_SILO_LEAK_FIX_v1
        ORDER BY created_at DESC`,
       [req.params.lenderId, getSilo(res)]
     );
@@ -208,7 +208,7 @@ router.delete(
     const silo = getSilo(res);
     const userId = req.user?.id ?? req.user?.userId ?? null;
     try {
-      await runQuery("DELETE FROM lenders WHERE id = $1 AND (silo = $2 OR silo IS NULL)", [id, silo]);
+      await runQuery("DELETE FROM lenders WHERE id = $1 AND silo = $2" /* BF_SERVER_BLOCK_v156_SILO_LEAK_FIX_v1 */, [id, silo]);
       console.info({ event: "lender_deleted", lenderId: id, userId });
       // BF_PORTAL_REFRESH_AND_PARSE_v55_SERVER — return JSON body so the
       // portal's apiFetch can call res.json() without "Unexpected end of

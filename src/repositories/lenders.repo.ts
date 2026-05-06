@@ -223,7 +223,8 @@ export const LIST_LENDERS_SQL = `
 type QueryExecutor = { query: (text: string, params?: unknown[]) => Promise<{ rows: any[] }> };
 
 export async function listLenders(db: QueryExecutor, silo?: string) {
-  const siloClause = silo ? `WHERE silo = $1 OR silo IS NULL` : "";
+  // BF_SERVER_BLOCK_v156_SILO_LEAK_FIX_v1 — drop OR silo IS NULL
+  const siloClause = silo ? `WHERE silo = $1` : "";
   const siloParams = silo ? [silo] : [];
   try {
     // Try the flexible column-aware version first
