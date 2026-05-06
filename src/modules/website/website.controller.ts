@@ -146,7 +146,20 @@ export async function submitCreditReadiness(req: Request, res: Response) {
              'readiness_phone', $4::text
            ),
            $5, $5,
-           'draft', 'draft', 'draft',
+           -- BF_SERVER_BLOCK_v190_READINESS_DRAFT_STATUS_CONSTRAINT_v1
+           -- pipeline_state and current_stage stay 'draft' (lowercase, used
+           -- for filter + display and unconstrained). status MUST be one of
+           -- the uppercase values allowed by applications_status_check
+           -- (migration 083): RECEIVED, DOCUMENTS_REQUIRED, IN_REVIEW,
+           -- STARTUP, OFF_TO_LENDER, SUBMITTED_TO_LENDER, ACCEPTED, DECLINED.
+           -- 'RECEIVED' is the semantic match for a website-originated draft.
+           -- Without this, every website readiness submit failed silently
+           -- with 23514 (constraint_violation) — the CRM lead persisted but
+           -- the draft application row didn't, so BF-client landed on /apply
+           -- with no application to prefill from, and the wizard rendered
+           -- empty. The catch in submitCreditReadiness swallowed the error,
+           -- making this a quiet data-integrity failure for weeks.
+           'draft', 'draft', 'RECEIVED',
            $6::numeric, 'website_credit_readiness',
            false, 'BF', now(), now()
          )`,
