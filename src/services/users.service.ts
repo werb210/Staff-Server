@@ -218,11 +218,21 @@ export async function updateMe(req: Request, res: Response) {
  * GET /api/users
  */
 export async function listUsers(req: Request, res: Response) {
+  // BF_SERVER_BLOCK_v156_SILO_LEAK_FIX_v1 — scope the user list to the
+  // active silo. Match on primary silo OR multi-silo allowlist so a
+  // user assigned to multiple silos shows in each. Admins can override
+  // via X-Silo header per existing siloMiddleware rules.
   const { role, status } = req.query;
+  const { getSilo } = await import("../middleware/silo.js");
+  const silo = getSilo(res);
 
   const filters: string[] = [];
   const values: any[] = [];
   let idx = 1;
+
+  filters.push(`(silo = $${idx} OR $${idx} = ANY(silos))`);
+  values.push(silo);
+  idx++;
 
   if (role) {
     filters.push(`role = $${idx++}`);

@@ -16,13 +16,13 @@ router.get("/metrics", requireAuth, safeHandler(async (_req: any, res: any) => {
   const [active, won, stageRows] = await Promise.all([
     pool.query<{ count: string }>(
       `SELECT COUNT(*)::text AS count FROM applications
-       WHERE (silo = $3 OR silo IS NULL)
+       WHERE silo = $3 -- BF_SERVER_BLOCK_v156_SILO_LEAK_FIX_v1
          AND pipeline_state NOT IN ($1, $2)`,
       [ApplicationStage.ACCEPTED, ApplicationStage.REJECTED, silo]
     ),
     pool.query<{ count: string }>(
       `SELECT COUNT(*)::text AS count FROM applications
-       WHERE (silo = $2 OR silo IS NULL)
+       WHERE silo = $2 -- BF_SERVER_BLOCK_v156_SILO_LEAK_FIX_v1
          AND pipeline_state = $1
          AND updated_at >= date_trunc('month', now())`,
       [ApplicationStage.ACCEPTED, silo]
@@ -30,7 +30,7 @@ router.get("/metrics", requireAuth, safeHandler(async (_req: any, res: any) => {
     pool.query<{ stage: string; count: string }>(
       `SELECT pipeline_state AS stage, COUNT(*)::text AS count
        FROM applications
-       WHERE (silo = $3 OR silo IS NULL)
+       WHERE silo = $3 -- BF_SERVER_BLOCK_v156_SILO_LEAK_FIX_v1
          AND pipeline_state NOT IN ($1, $2)
        GROUP BY pipeline_state`,
       [ApplicationStage.ACCEPTED, ApplicationStage.REJECTED, silo]
