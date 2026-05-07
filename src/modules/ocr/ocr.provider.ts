@@ -83,10 +83,16 @@ export function createOpenAiOcrProvider(): OcrProvider {
         ];
 
         if (params.mimeType === "application/pdf") {
+          // BF_SERVER_BLOCK_v193_OPENAI_OCR_FILE_DATA_URI_v1
+          // OpenAI Responses API requires file_data to be a data URI for
+          // input_file (e.g. "data:application/pdf;base64,..."), NOT raw
+          // base64. Sending bare base64 yields:
+          //   400 invalid_request_error
+          //   "Invalid 'input[0].content[1].file_data'"
           content.push({
             type: "input_file",
             filename: params.fileName ?? "document.pdf",
-            file_data: base64,
+            file_data: `data:${params.mimeType};base64,${base64}`,
           });
         } else if (params.mimeType.startsWith("image/")) {
           content.push({
