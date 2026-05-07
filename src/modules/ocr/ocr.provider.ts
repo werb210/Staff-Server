@@ -2,6 +2,10 @@ import { config } from "../../config/index.js";
 import { logWarn } from "../../observability/logger.js";
 import { withRetry } from "../../lib/retry.js";
 import { pushDeadLetter } from "../../lib/deadLetter.js";
+import {
+  fetchOcrFieldRegistry,
+  type OcrFieldDefinition,
+} from "./ocrFieldRegistry.js";
 
 export type OcrExtractionResult = {
   text: string;
@@ -46,18 +50,73 @@ function extractOutputText(payload: Record<string, unknown>): string {
   return chunks.join("\n").trim();
 }
 
-function parseStructuredJson(text: string): unknown | null {
-  const trimmed = text.trim();
-  if (!trimmed) {
-    return null;
+// BF_SERVER_BLOCK_v196_OCR_PROMPT_AND_JSON_SCHEMA_v1
+function buildFieldSchema(registry: OcrFieldDefinition[]): string {
+  const compact = registry.map((f) => {
+    const entry: Record<string, unknown> = { k: f.field_key, l: f.display_label };
+    if (f.aliases && f.aliases.length > 0) entry.a = f.aliases;
+    return entry;
+  });
+  return JSON.stringify(compact);
+}
+
+// BF_SERVER_BLOCK_v196_OCR_PROMPT_AND_JSON_SCHEMA_v1
+function buildExtractionPrompt(schemaJson: string): string {
+  return [
+    "You are extracting structured data from a financial or business document",
+    "(balance sheet, income statement, cash flow, tax return, contract, invoice,",
+    "or loan application).",
+    "",
+    "Return a SINGLE JSON object with this exact shape and NOTHING ELSE:",
+    '{"raw_text":"<all readable text, line breaks preserved>","fields":{"<field_key>":"<value>"}}',
+    "",
+    "Rules:",
+    "- Use the field_key (snake_case) as the JSON property name. NEVER use display_label.",
+    "- Include ONLY fields you confidently identify in the document. Omit absent fields entirely. Do NOT return null, empty string, or 'N/A'.",
+    "- Return values exactly as they appear (currency symbols, parentheses for negatives, dates as printed). Do NOT normalize, convert, or reformat.",
+    "- raw_text MUST contain the full readable text of the document for downstream search.",
+    "- If a field appears multiple times (e.g. across years), return the most recent.",
+    "",
+    "Schema (k=field_key, l=display_label, a=optional aliases the label may also appear as):",
+    schemaJson,
+  ].join("\n");
+}
+
+function parseModelJsonOutput(rawOutput: string): {
+  rawText: string | null;
+  fields: Record<string, string> | null;
+} {
+  const stripped = rawOutput
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/, "")
+    .trim();
+  const start = stripped.indexOf("{");
+  const end = stripped.lastIndexOf("}");
+  if (start === -1 || end === -1 || end <= start) {
+    return { rawText: null, fields: null };
   }
-  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
-    return null;
-  }
+  const candidate = stripped.slice(start, end + 1);
   try {
-    return JSON.parse(trimmed);
+    const parsed = JSON.parse(candidate) as Record<string, unknown>;
+    const rawText = typeof parsed.raw_text === "string" ? parsed.raw_text : null;
+    const fieldsRaw = parsed.fields;
+    let fields: Record<string, string> | null = null;
+    if (fieldsRaw && typeof fieldsRaw === "object" && !Array.isArray(fieldsRaw)) {
+      fields = {};
+      for (const [k, v] of Object.entries(fieldsRaw as Record<string, unknown>)) {
+        if (typeof k !== "string") continue;
+        if (typeof v === "string") {
+          const trimmedV = v.trim();
+          if (trimmedV) fields[k] = trimmedV;
+        } else if (typeof v === "number") {
+          fields[k] = String(v);
+        }
+      }
+    }
+    return { rawText, fields };
   } catch {
-    return null;
+    return { rawText: null, fields: null };
   }
 }
 
@@ -75,20 +134,14 @@ export function createOpenAiOcrProvider(): OcrProvider {
       const timeout = setTimeout(() => controller.abort(), timeoutMs);
       try {
         const base64 = params.buffer.toString("base64");
+        const registry = fetchOcrFieldRegistry();
+        const schemaJson = buildFieldSchema(registry);
+        const promptText = buildExtractionPrompt(schemaJson);
         const content: Array<Record<string, unknown>> = [
-          {
-            type: "input_text",
-            text: "Extract all readable text from this document. Return plain text only.",
-          },
+          { type: "input_text", text: promptText },
         ];
 
         if (params.mimeType === "application/pdf") {
-          // BF_SERVER_BLOCK_v193_OPENAI_OCR_FILE_DATA_URI_v1
-          // OpenAI Responses API requires file_data to be a data URI for
-          // input_file (e.g. "data:application/pdf;base64,..."), NOT raw
-          // base64. Sending bare base64 yields:
-          //   400 invalid_request_error
-          //   "Invalid 'input[0].content[1].file_data'"
           content.push({
             type: "input_file",
             filename: params.fileName ?? "document.pdf",
@@ -132,11 +185,19 @@ export function createOpenAiOcrProvider(): OcrProvider {
           return (await response.json()) as Record<string, unknown>;
         });
 
-        const text = extractOutputText(payload);
+        const rawOutput = extractOutputText(payload);
+        const { rawText, fields } = parseModelJsonOutput(rawOutput);
+        const finalText = rawText ?? rawOutput;
+        const modelFieldCount = fields ? Object.keys(fields).length : 0;
+
         return {
-          text,
-          json: parseStructuredJson(text),
-          meta: { id: payload.id ?? null },
+          text: finalText,
+          json: { fields: fields ?? {} },
+          meta: {
+            id: payload.id ?? null,
+            model_extracted_field_count: modelFieldCount,
+            json_parse_succeeded: rawText !== null || fields !== null,
+          },
           model,
           provider: "openai",
         };
@@ -158,5 +219,4 @@ export function createOpenAiOcrProvider(): OcrProvider {
   };
 }
 
-// BF_SERVER_BLOCK_1_30_DOC_INTEL_AND_BANKING
 export { createAzureDocIntelOcrProvider } from "./azureDocIntelProvider.js";
