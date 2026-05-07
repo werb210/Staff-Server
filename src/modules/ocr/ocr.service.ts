@@ -405,6 +405,31 @@ export async function processOcrJob(
     const stackFirstLine = error instanceof Error && typeof error.stack === "string"
       ? error.stack.split("\n").slice(0, 2).join(" | ") : null;
     const message = rawMsg || (error != null ? String(error) : "") || errorName || stackFirstLine || "unknown_error";
+    // BF_SERVER_BLOCK_v191_OCR_ERROR_DIAGNOSTICS_v1 — extract Azure RestError fields
+    // The @azure/core-rest-pipeline RestError shape carries statusCode/code at top level
+    // and request/response on nested objects. We read defensively because some throws may
+    // not be RestError (e.g. network failures, auth wrappers).
+    const errAny: any = error as any;
+    const restStatusCode: number | null =
+      typeof errAny?.statusCode === "number" ? errAny.statusCode : null;
+    const restCode: string | null =
+      typeof errAny?.code === "string" ? errAny.code : null;
+    const restRequestUrl: string | null =
+      typeof errAny?.request?.url === "string" ? errAny.request.url : null;
+    let restRequestId: string | null = null;
+    if (typeof errAny?.request?.requestId === "string") {
+      restRequestId = errAny.request.requestId;
+    } else {
+      try {
+        const hdrs = errAny?.response?.headers;
+        const hv = typeof hdrs?.get === "function" ? hdrs.get("x-ms-request-id") : null;
+        if (typeof hv === "string") restRequestId = hv;
+      } catch { /* noop */ }
+    }
+    const restResponseBodyRaw =
+      typeof errAny?.response?.bodyAsText === "string" ? errAny.response.bodyAsText : null;
+    const restResponseBody: string | null =
+      restResponseBodyRaw ? restResponseBodyRaw.slice(0, 2048) : null;
     if (error instanceof OcrStorageValidationError) {
       logError("ocr_storage_url_rejected", {
         code: "ocr_storage_url_rejected",
@@ -446,10 +471,15 @@ export async function processOcrJob(
       jobId: job.id,
       documentId: job.document_id,
       applicationId: job.application_id,
-      // BF_SERVER_BLOCK_v122e_OCR_ERROR_DETAIL_v1
+      // BF_SERVER_BLOCK_v191_OCR_ERROR_DIAGNOSTICS_v1 (supersedes v122e)
       error: message,
       errorName,
       stackFirstLine,
+      restStatusCode,
+      restCode,
+      restRequestUrl,
+      restRequestId,
+      restResponseBody,
     });
   }
 }
