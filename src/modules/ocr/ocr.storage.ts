@@ -54,6 +54,51 @@ function isAllowedAzureBlobUrl(value: string): boolean {
 }
 
 async function downloadAzureBlobFromUrl(url: string): Promise<Buffer> {
+  // BF_SERVER_BLOCK_v192_OCR_BLOB_AUTH_v1
+  // Anonymous BlobClient(url) returns 401 for private containers (which is what
+  // we use). When AZURE_STORAGE_CONNECTION_STRING is set AND its account matches
+  // the URL's hostname, build a credentialed client. Fall back to anonymous for
+  // public blobs, SAS-bearing URLs, or accounts we don't own — preserves prior
+  // behaviour for those cases.
+  const connectionString = config.azureStorage.connectionString;
+  if (connectionString) {
+    let parsed: URL | null = null;
+    try {
+      parsed = new URL(url);
+    } catch {
+      parsed = null;
+    }
+    if (parsed) {
+      try {
+        const serviceClient = BlobServiceClient.fromConnectionString(connectionString);
+        const cfgHost = new URL(serviceClient.url).hostname.toLowerCase();
+        const urlHost = parsed.hostname.toLowerCase();
+        if (urlHost === cfgHost) {
+          const segments = parsed.pathname.replace(/^\/+/, "").split("/");
+          const container = segments.shift();
+          const blobName = decodeURIComponent(segments.join("/"));
+          if (container && blobName) {
+            const credentialed = serviceClient
+              .getContainerClient(container)
+              .getBlobClient(blobName);
+            return credentialed.downloadToBuffer();
+          }
+        } else {
+          logWarn("azure_storage_account_mismatch", {
+            code: "azure_storage_account_mismatch",
+            urlHost,
+            cfgHost,
+          });
+        }
+      } catch (err) {
+        logWarn("azure_storage_credentialed_download_failed", {
+          code: "azure_storage_credentialed_download_failed",
+          error: err instanceof Error ? err.message : "unknown_error",
+        });
+        // fall through to anonymous attempt
+      }
+    }
+  }
   const client = new BlobClient(url);
   return client.downloadToBuffer();
 }
