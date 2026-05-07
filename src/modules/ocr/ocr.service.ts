@@ -257,13 +257,40 @@ function extractFieldsFromText(text: string, registry: OcrFieldDefinition[]): Ar
   return results;
 }
 
-export function extractOcrFields(text: string): Array<{
+export function extractOcrFields(
+  text: string,
+  preExtracted: Record<string, string> = {},
+): Array<{
   fieldKey: string;
   value: string;
   confidence: number;
   page: number | null;
 }> {
-  return extractFieldsFromText(text, fetchOcrFieldRegistry());
+  // BF_SERVER_BLOCK_v196_OCR_PROMPT_AND_JSON_SCHEMA_v1
+  // Model-extracted fields (from the provider's JSON output) take precedence
+  // over the regex pass. Treat them as confidence=1 and exclude their keys
+  // from the regex registry to avoid double-emission.
+  const results: Array<{
+    fieldKey: string;
+    value: string;
+    confidence: number;
+    page: number | null;
+  }> = [];
+  const preKeys = new Set<string>();
+  for (const [k, v] of Object.entries(preExtracted)) {
+    if (typeof v !== "string") continue;
+    const trimmed = v.trim();
+    if (!trimmed) continue;
+    const normalized = isNumericOcrField(k) ? parseNumericValue(trimmed) : trimmed;
+    results.push({ fieldKey: k, value: normalized, confidence: 1, page: null });
+    preKeys.add(k);
+  }
+  const filteredRegistry = fetchOcrFieldRegistry().filter(
+    (f) => !preKeys.has(f.field_key),
+  );
+  const regexResults = extractFieldsFromText(text, filteredRegistry);
+  for (const r of regexResults) results.push(r);
+  return results;
 }
 
 export async function enqueueOcrForDocument(documentId: string): Promise<OcrJobRecord> {
@@ -359,7 +386,24 @@ export async function processOcrJob(
       meta: result.meta,
     });
 
-    const extractedFields = extractOcrFields(result.text);
+    // BF_SERVER_BLOCK_v196_OCR_PROMPT_AND_JSON_SCHEMA_v1
+    // Pull model-extracted fields out of result.json (provider stores them
+    // as { fields: { field_key: value } }) and pass them as priority overrides
+    // to the regex fallback pass.
+    const modelFields: Record<string, string> = (() => {
+      const j = result.json;
+      if (!j || typeof j !== "object" || Array.isArray(j)) return {};
+      const f = (j as Record<string, unknown>).fields;
+      if (!f || typeof f !== "object" || Array.isArray(f)) return {};
+      const out: Record<string, string> = {};
+      for (const [k, v] of Object.entries(f as Record<string, unknown>)) {
+        if (typeof k === "string" && typeof v === "string" && v.trim()) {
+          out[k] = v;
+        }
+      }
+      return out;
+    })();
+    const extractedFields = extractOcrFields(result.text, modelFields);
 
     try {
       await insertDocumentOcrFields({
