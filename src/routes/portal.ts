@@ -39,6 +39,8 @@ import { sendSMS } from "../services/smsService.js";
 import { toStringSafe } from "../utils/toStringSafe.js";
 import twilio from "twilio";
 import { progressSubmission } from "../services/submission/orchestrator.js";
+// BF_SERVER_BLOCK_v198_LENDER_MATCH_GATE_AND_CACHE_v1
+import { computeAndCacheLenderMatches, markLenderMatchesStale, getOutstandingRequiredDocs } from "../services/lenderMatchCache.js";
 // BF_APP_ID_CAST_v39 — Block 39-A — applications.id comparisons cast to text
 
 const router = Router();
@@ -951,6 +953,19 @@ router.post(
     } catch (e) {
       console.warn("[doc-accept] orchestrator import failed", e);
     }
+    // BF_SERVER_BLOCK_v198_LENDER_MATCH_GATE_AND_CACHE_v1
+    if (appId) {
+      try {
+        const outstanding = await getOutstandingRequiredDocs(appId);
+        if (outstanding.length === 0) {
+          void computeAndCacheLenderMatches(appId).catch((err) => {
+            console.warn("[doc-accept] computeAndCacheLenderMatches failed", err);
+          });
+        }
+      } catch (err) {
+        console.warn("[doc-accept] v198 gate check failed", err);
+      }
+    }
     res.status(200).json({ ok: true, document: doc });
   })
 );
@@ -976,6 +991,13 @@ router.post(
     );
     const doc = updated.rows[0];
     if (!doc) throw new AppError("not_found", "Document not found.", 404);
+
+    // BF_SERVER_BLOCK_v198_LENDER_MATCH_GATE_AND_CACHE_v1
+    if (doc.application_id) {
+      void markLenderMatchesStale(doc.application_id).catch((err) => {
+        console.warn("[doc-reject] markLenderMatchesStale failed", err);
+      });
+    }
 
     // Fire auto-SMS asynchronously — non-blocking
     void sendDocumentRejectionSms({
