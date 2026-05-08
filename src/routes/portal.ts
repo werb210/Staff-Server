@@ -20,7 +20,7 @@ import { ROLES } from "../auth/roles.js";
 import { AppError } from "../middleware/errors.js";
 import { getSilo } from "../middleware/silo.js";
 import { isPipelineState } from "../modules/applications/pipelineState.js";
-import { transitionPipelineState } from "../modules/applications/applications.service.js";
+import { transitionPipelineState, openApplicationForStaff } from "../modules/applications/applications.service.js";
 import { recordAuditEvent } from "../modules/audit/audit.service.js";
 import { advanceProcessingStage } from "../modules/applications/processingStage.service.js";
 import {
@@ -1505,6 +1505,38 @@ router.patch(
       eventBus.emit("offer_accepted", { offerId: updated.rows[0].id, applicationId: updated.rows[0].application_id });
     }
     res.status(200).json({ offer: updated.rows[0] });
+  })
+);
+
+
+// BF_SERVER_BLOCK_v205_OPEN_APPLICATION_ROUTE_v1
+// POST /api/portal/applications/:id/open — staff signals they have opened
+// the application card. Calls openApplicationForStaff which advances
+// Received -> In Review on first open and stamps first_opened_at. Safe to
+// call repeatedly; a no-op when the application is already past Received.
+router.post(
+  "/applications/:id/open",
+  requireAuth,
+  portalLimiter,
+  requireAuthorization({ roles: [ROLES.ADMIN, ROLES.STAFF] }),
+  safeHandler(async (req: any, res: any) => {
+    if (!req.user) {
+      throw new AppError("missing_token", "Authorization token is required.", 401);
+    }
+    const applicationId = toStringSafe(req.params.id).trim();
+    if (!applicationId) {
+      throw new AppError("validation_error", "Application id is required.", 400);
+    }
+    const ip = req.ip;
+    const userAgent = req.get("user-agent");
+    await openApplicationForStaff({
+      applicationId,
+      actorUserId: req.user.userId,
+      actorRole: req.user.role,
+      ...(ip ? { ip } : {}),
+      ...(typeof userAgent === "string" ? { userAgent } : {}),
+    });
+    res.status(200).json({ ok: true, applicationId });
   })
 );
 
