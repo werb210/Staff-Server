@@ -7,6 +7,9 @@ import {
   findApplicationById,
   listDocumentsByApplicationId,
 } from "../modules/applications/applications.repo.js";
+// BF_SERVER_BLOCK_v202_PORTAL_FINANCIALS_ENDPOINT_v1
+import { listOcrFieldsForApplication } from "../modules/ocr/ocr.repo.js";
+import { OCR_FIELD_REGISTRY } from "../modules/ocr/ocrFieldRegistry.js";
 import { ApplicationStage } from "../modules/applications/pipelineState.js";
 import { PIPELINE_STATES as PIPELINE_STAGES } from "../modules/applications/pipelineState.js";
 import { safeHandler } from "../middleware/safeHandler.js";
@@ -386,6 +389,95 @@ router.get(
   })
 );
 
+
+// BF_SERVER_BLOCK_v202_PORTAL_FINANCIALS_ENDPOINT_v1
+// Returns financial-category documents + their OCR-extracted fields with
+// display labels resolved from OCR_FIELD_REGISTRY. Banking docs are
+// filtered OUT — those go to the Banking Analysis tab via /api/banking.
+//
+// Doc-type filter accepts the canonical types (tax_returns, financial_statements,
+// income_statement, balance_sheet, cash_flow, p_l, profit_loss) and reasonable
+// aliases. Field filter restricts to source_document_type in
+// {income_statement, balance_sheet, cash_flow, taxes} per OcrDocumentCategory.
+const FINANCIAL_DOC_TYPE_PATTERNS: RegExp[] = [
+  /^tax/i,
+  /financial_statement/i,
+  /balance_sheet/i,
+  /income_statement/i,
+  /^p_?l$/i,
+  /profit_?loss/i,
+  /cash_?flow/i,
+];
+const FINANCIAL_OCR_SOURCE_TYPES = new Set([
+  "income_statement",
+  "balance_sheet",
+  "cash_flow",
+  "taxes",
+]);
+function isFinancialDocType(t: string | null | undefined): boolean {
+  if (!t) return false;
+  // Exclude bank statements explicitly (their type often contains "statement")
+  if (/^bank/i.test(t) || /bank_statement/i.test(t)) return false;
+  return FINANCIAL_DOC_TYPE_PATTERNS.some((re) => re.test(t));
+}
+const OCR_FIELD_LABEL_MAP: Map<string, string> = new Map(
+  OCR_FIELD_REGISTRY.map((d) => [d.field_key, d.display_label])
+);
+
+router.get(
+  "/applications/:id/financials",
+  requireAuth,
+  requireAuthorization({ roles: [ROLES.ADMIN, ROLES.STAFF] }),
+  portalLimiter,
+  safeHandler(async (req: any, res: any) => {
+    const applicationId = String(req.params.id ?? "").trim();
+    if (!applicationId) {
+      throw new AppError("validation_error", "Application id required.", 400);
+    }
+    const silo = getSilo(res);
+    const appRow = await runQuery<{ id: string; silo: string | null }>(
+      `SELECT id, silo FROM applications WHERE id::text = ($1)::text LIMIT 1`,
+      [applicationId]
+    );
+    const app = appRow.rows[0];
+    if (!app) throw new AppError("not_found", "Application not found.", 404);
+    if (app.silo && silo && app.silo !== silo) {
+      throw new AppError("not_found", "Application not found.", 404);
+    }
+
+    const allDocs = await listDocumentsByApplicationId(applicationId);
+    const financialDocs = allDocs.filter((d) => isFinancialDocType(d.document_type));
+    const docIds = new Set(financialDocs.map((d) => d.id));
+
+    const allFields = await listOcrFieldsForApplication(applicationId).catch(
+      () => [] as Awaited<ReturnType<typeof listOcrFieldsForApplication>>
+    );
+    const financialFields = allFields.filter((f) => {
+      if (docIds.has(f.document_id)) return true;
+      const src = f.source_document_type ?? "";
+      return FINANCIAL_OCR_SOURCE_TYPES.has(src);
+    });
+
+    res.status(200).json({
+      documents: financialDocs.map((d) => ({
+        documentId: d.id,
+        category: d.document_type,
+        filename: d.filename ?? d.title ?? null,
+        status: d.status ?? null,
+        ocrStatus: (d as { ocr_status?: string | null }).ocr_status ?? null,
+        uploadedAt: d.created_at,
+      })),
+      fields: financialFields.map((f) => ({
+        documentId: f.document_id,
+        sourceDocumentType: f.source_document_type ?? null,
+        fieldKey: f.field_key,
+        displayLabel: OCR_FIELD_LABEL_MAP.get(f.field_key) ?? f.field_key,
+        value: f.value,
+        confidence: f.confidence,
+      })),
+    });
+  })
+);
 
 // BF_SERVER_BLOCK_v135_PORTAL_DELETE_AND_READINESS_FALLBACK_v1 — (A)
 // BF-portal's PipelinePage trash button calls
