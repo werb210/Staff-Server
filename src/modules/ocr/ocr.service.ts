@@ -27,6 +27,8 @@ import {
   refreshOcrInsightsForApplication,
 } from "../applications/ocr/ocrAnalysis.service.js";
 import { notifyOcrWarnings } from "../notifications/ocrNotifications.service.js";
+// BF_SERVER_BLOCK_v204_OCR_SUCCESS_MARK_LENDER_MATCHES_STALE_v1
+import { markLenderMatchesStale } from "../../services/lenderMatchCache.js";
 
 const OCR_RETRY_BASE_MS = 1000;
 const OCR_RETRY_MAX_MS = 15 * 60 * 1000;
@@ -435,6 +437,18 @@ export async function processOcrJob(
         error: insightError instanceof Error ? insightError.message : "unknown_error",
       });
     }
+
+    // BF_SERVER_BLOCK_v204_OCR_SUCCESS_MARK_LENDER_MATCHES_STALE_v1 — flip the cached lender_matches stale so the
+    // next /lenders/envelope read returns status=stale and staff get a
+    // Recalculate prompt. Mirrors the reject-path call in v198. Fire-
+    // and-forget; failure here must not block the OCR pipeline.
+    void markLenderMatchesStale(job.application_id).catch((err) => {
+      logError("ocr_mark_lender_matches_stale_failed", {
+        code: "ocr_mark_lender_matches_stale_failed",
+        applicationId: job.application_id,
+        error: err instanceof Error ? err.message : "unknown_error",
+      });
+    });
 
     logInfo("ocr_job_succeeded", {
       jobId: job.id,
