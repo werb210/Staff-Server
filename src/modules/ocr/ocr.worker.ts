@@ -1,3 +1,6 @@
+// BF_SERVER_BLOCK_v209_LENDER_CACHE_CLEAR_AND_OCR_VISIBLE_LOGGING_v1
+// OCR worker: replaced silent .catch handlers with console.error so failures
+// appear in Azure App Service log stream (was silently dropping errors).
 import { randomUUID } from "node:crypto";
 import { config } from "../../config/index.js";
 import { isKillSwitchEnabled } from "../ops/ops.service.js";
@@ -28,7 +31,7 @@ export function startOcrWorker(): { stop: () => void } {
       const jobs = await lockOcrJobs({ limit: concurrency, lockedBy: workerId });
       await Promise.all(
         jobs.map((job) =>
-          processOcrJob(job).catch(() => undefined)
+          processOcrJob(job).catch((err) => { console.error("[ocr.worker] processOcrJob FAILED:", (err && err.message) || err); })
         )
       );
     } catch {
@@ -39,12 +42,12 @@ export function startOcrWorker(): { stop: () => void } {
   };
 
   const timer = setInterval(() => {
-    tick().catch(() => undefined);
+    tick().catch((err) => { console.error("[ocr.worker] processOcrJob FAILED:", (err && err.message) || err); });
   }, pollInterval);
 
-  clearExpiredOcrLocks().catch(() => undefined);
+  clearExpiredOcrLocks().catch((err) => { console.error("[ocr.worker] processOcrJob FAILED:", (err && err.message) || err); });
 
-  tick().catch(() => undefined);
+  tick().catch((err) => { console.error("[ocr.worker] processOcrJob FAILED:", (err && err.message) || err); });
 
   const stop = () => {
     stopped = true;
