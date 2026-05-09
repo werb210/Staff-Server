@@ -1814,10 +1814,15 @@ router.get(
 );
 
 
-// BF_SERVER_BLOCK_v210_LENDER_CATEGORY_ALIAS_AND_OCR_AUDIT_v1
-// Re-enqueue OCR for every document on an application. Useful when the
-// original upload didn't enqueue (legacy apps), the worker was down,
-// or the user wants to force a retry. Returns the count enqueued.
+// BF_SERVER_BLOCK_v211_REOCR_USE_RESET_v1
+// Re-OCR every document on an application. v210 used enqueueOcrForDocument
+// which uses an ON CONFLICT DO UPDATE that's a no-op for existing job rows
+// (it only touches updated_at). Result: clicking "Re-run OCR" did nothing
+// for documents that had ever been processed before, because status stayed
+// 'succeeded' or 'failed' and the worker's lockOcrJobs gate excluded them.
+// retryOcrJob calls resetOcrJob which sets status='queued', attempt_count=0,
+// next_attempt_at=now(), and clears last_error — so the worker picks it up
+// on the next 5-second tick.
 router.post(
   "/applications/:id/reocr",
   requireAuth,
@@ -1828,27 +1833,35 @@ router.post(
     if (!applicationId) {
       throw new AppError("validation_error", "Application id is required.", 400);
     }
+    console.log("[reocr] called", { applicationId, userId: req.user?.id ?? null });
+
     const docsRes = await runQuery<{ id: string }>(
       `SELECT id FROM documents WHERE application_id::text = ($1)::text`,
       [applicationId]
     );
-    let enqueued = 0;
+    let reset = 0;
     let failed = 0;
     const errors: Array<{ documentId: string; error: string }> = [];
     for (const row of docsRes.rows) {
       try {
-        const { enqueueOcrForDocument } = await import("../modules/ocr/ocr.service.js");
-        await enqueueOcrForDocument(row.id);
-        enqueued++;
+        const { retryOcrJob } = await import("../modules/ocr/ocr.service.js");
+        await retryOcrJob(row.id);
+        reset++;
       } catch (err: any) {
         failed++;
         errors.push({ documentId: row.id, error: err?.message ?? String(err) });
       }
     }
+    console.log("[reocr] result", {
+      applicationId,
+      totalDocs: docsRes.rows.length,
+      reset,
+      failed,
+    });
     res.status(200).json({
       applicationId,
       totalDocs: docsRes.rows.length,
-      enqueued,
+      enqueued: reset,
       failed,
       errors: errors.slice(0, 10),
     });
