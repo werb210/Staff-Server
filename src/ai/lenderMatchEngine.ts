@@ -70,23 +70,53 @@ export async function matchLenders(input: PrequalInput): Promise<LenderMatch[]> 
    order by lp.updated_at desc`
   );
 
-  // BF_SERVER_BLOCK_v206_LENDER_CATEGORY_FILTER_AND_PREVIEW_FALLBACK_v1
-  // Normalize the application's product category for case-insensitive comparison.
-  // If no category is on the application, do not filter by category (preserves
-  // prior behaviour for legacy apps with no product_category set).
-  const wantedCategory = (input.productCategory ?? null) === null
-    ? null
-    : String(input.productCategory).trim().toUpperCase().replace(/[\s-]+/g, "_");
+  // BF_SERVER_BLOCK_v210_LENDER_CATEGORY_ALIAS_AND_OCR_AUDIT_v1
+  // Map both the application's wanted category and the lender row's category
+  // to a canonical bucket ID. lender_products.category is a short-code enum
+  // (LOC, TERM, EQUIPMENT, ...) but the wizard stores the long bucket form
+  // (LINE_OF_CREDIT, TERM_LOAN, ...). Without this mapping, no rows match.
+  function toBucketId(raw: string | null | undefined): string | null {
+    if (raw === null || raw === undefined) return null;
+    const upper = String(raw).trim().toUpperCase().replace(/[\s\-/]+/g, "_").replace(/__+/g, "_");
+    if (!upper) return null;
+    // Aliases mirror BF-client/src/wizard/categoryAliases.ts
+    const map: Record<string, string> = {
+      LOC: "LINE_OF_CREDIT",
+      LINE_OF_CREDIT: "LINE_OF_CREDIT",
+      TERM: "TERM_LOAN",
+      TERM_LOAN: "TERM_LOAN",
+      WORKING_CAPITAL: "TERM_LOAN",
+      EQUIPMENT: "EQUIPMENT_FINANCE",
+      EQUIPMENT_FINANCE: "EQUIPMENT_FINANCE",
+      EQUIPMENT_FINANCING: "EQUIPMENT_FINANCE",
+      FACTORING: "FACTORING",
+      INVOICE_FACTORING: "FACTORING",
+      PO: "PURCHASE_ORDER_FINANCE",
+      PURCHASE_ORDER: "PURCHASE_ORDER_FINANCE",
+      PURCHASE_ORDER_FINANCE: "PURCHASE_ORDER_FINANCE",
+      PURCHASE_ORDER_FINANCING: "PURCHASE_ORDER_FINANCE",
+      MCA: "MERCHANT_CASH_ADVANCE",
+      MERCHANT_CASH_ADVANCE: "MERCHANT_CASH_ADVANCE",
+      MEDIA: "MEDIA",
+      MEDIA_FUNDING: "MEDIA",
+      ABL: "ASSET_BASED_LENDING",
+      ASSET_BASED_LENDING: "ASSET_BASED_LENDING",
+      SBA: "SBA_GOVERNMENT",
+      SBA_GOVERNMENT: "SBA_GOVERNMENT",
+      STARTUP: "STARTUP_CAPITAL",
+      STARTUP_CAPITAL: "STARTUP_CAPITAL",
+    };
+    return map[upper] ?? upper;
+  }
+  const wantedCategory = toBucketId(input.productCategory ?? null);
 
   const filtered = rows.filter((row) => {
     if (!geographyAllows(row.country, input.country ?? null)) return false;
     if (requestedAmount && row.min_amount && requestedAmount < Number(row.min_amount)) return false;
     if (requestedAmount && row.max_amount && requestedAmount > Number(row.max_amount)) return false;
     if (wantedCategory) {
-      const rowCategory = row.product_category
-        ? String(row.product_category).trim().toUpperCase().replace(/[\s-]+/g, "_")
-        : null;
-      if (rowCategory !== wantedCategory) return false;
+      const rowBucket = toBucketId(row.product_category);
+      if (rowBucket !== wantedCategory) return false;
     }
     return true;
   });

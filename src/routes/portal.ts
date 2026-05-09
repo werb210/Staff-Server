@@ -1813,4 +1813,46 @@ router.get(
   })
 );
 
+
+// BF_SERVER_BLOCK_v210_LENDER_CATEGORY_ALIAS_AND_OCR_AUDIT_v1
+// Re-enqueue OCR for every document on an application. Useful when the
+// original upload didn't enqueue (legacy apps), the worker was down,
+// or the user wants to force a retry. Returns the count enqueued.
+router.post(
+  "/applications/:id/reocr",
+  requireAuth,
+  portalLimiter,
+  requireAuthorization({ roles: [ROLES.ADMIN, ROLES.STAFF] }),
+  safeHandler(async (req: any, res: any) => {
+    const applicationId = toStringSafe(req.params.id).trim();
+    if (!applicationId) {
+      throw new AppError("validation_error", "Application id is required.", 400);
+    }
+    const docsRes = await runQuery<{ id: string }>(
+      `SELECT id FROM documents WHERE application_id::text = ($1)::text`,
+      [applicationId]
+    );
+    let enqueued = 0;
+    let failed = 0;
+    const errors: Array<{ documentId: string; error: string }> = [];
+    for (const row of docsRes.rows) {
+      try {
+        const { enqueueOcrForDocument } = await import("../modules/ocr/ocr.service.js");
+        await enqueueOcrForDocument(row.id);
+        enqueued++;
+      } catch (err: any) {
+        failed++;
+        errors.push({ documentId: row.id, error: err?.message ?? String(err) });
+      }
+    }
+    res.status(200).json({
+      applicationId,
+      totalDocs: docsRes.rows.length,
+      enqueued,
+      failed,
+      errors: errors.slice(0, 10),
+    });
+  })
+);
+
 export default router;
