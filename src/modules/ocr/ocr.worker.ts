@@ -34,8 +34,11 @@ export function startOcrWorker(): { stop: () => void } {
           processOcrJob(job).catch((err) => { console.error("[ocr.worker] processOcrJob FAILED:", (err && err.message) || err); })
         )
       );
-    } catch {
-      // swallow
+    } catch (err) {
+      // BF_SERVER_BLOCK_v210_LENDER_CATEGORY_ALIAS_AND_OCR_AUDIT_v1
+      // Was silently swallowing. Likely culprit when OCR worker appears dead:
+      // lockOcrJobs() throwing due to schema/query issue.
+      console.error("[ocr.worker] tick FAILED:", (err && (err as any).message) || err);
     } finally {
       running = false;
     }

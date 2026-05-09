@@ -39,11 +39,20 @@ function extractMatchInputs(app: { metadata: any; requested_amount: any; product
     const n = typeof raw === "number" ? raw : Number(raw);
     return Number.isFinite(n) ? n : null;
   })();
+  // BF_SERVER_BLOCK_v210_LENDER_CATEGORY_ALIAS_AND_OCR_AUDIT_v1
+  // Wizard stores product category in several places depending on which step
+  // wrote it. Check column first, then the metadata paths the wizard uses.
   const productCategory = (() => {
-    const raw = app.product_category
+    const raw =
+         app.product_category
       ?? meta.product_category
       ?? meta.productCategory
       ?? meta.selectedProductType
+      ?? meta.selectedProduct?.category
+      ?? meta.selected_product?.category
+      ?? meta.kyc?.productCategory
+      ?? meta.kyc_responses?.productCategory
+      ?? meta.kyc?.product_category
       ?? null;
     if (raw === null || raw === undefined || raw === "") return null;
     return String(raw).trim();
