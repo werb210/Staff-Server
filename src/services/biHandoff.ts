@@ -92,7 +92,7 @@ export function buildBiPayload(input: BiHandoffInput): Record<string, unknown> {
     null;
   return {
     bf_application_id: input.bfApplicationId,
-    guarantor_name: s(applicant.fullName) ?? [s(applicant.firstName), s(applicant.lastName)].filter(Boolean).join(" ") || null,
+    guarantor_name: s(applicant.fullName) ?? ([s(applicant.firstName), s(applicant.lastName)].filter(Boolean).join(" ") || null),
     guarantor_email: s(applicant.email),
     guarantor_phone: s(applicant.phone),
     guarantor_dob: s(applicant.dob),
