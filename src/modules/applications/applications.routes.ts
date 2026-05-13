@@ -81,12 +81,19 @@ router.get('/', safeHandler(async (req: any, res: any) => {
 
 // GET /api/applications/:id — single application with documents
 router.get('/:id', safeHandler(async (req: any, res: any) => {
+  // BF_SERVER_BLOCK_v216_APPLICATION_DETAIL_BI_FIELDS_v1
+  // Surface BI handoff columns (added in v213) so client surfaces
+  // — notably Maya in the BF-client mini-portal — can read the
+  // completion URL and tell the applicant where to finish PGI.
+  // All three columns are nullable; an application that didn't
+  // opt into PGI returns nulls for all three.
   const result = await pool.query(
     `SELECT a.id, a.name, a.product_type, a.pipeline_state, a.status,
             a.requested_amount, a.lender_id, a.lender_product_id,
             a.owner_user_id, a.source, a.created_at, a.updated_at,
             a.metadata, a.processing_stage, a.current_stage,
-            a.silo, a.ocr_completed_at, a.banking_completed_at
+            a.silo, a.ocr_completed_at, a.banking_completed_at,
+            a.bi_application_id, a.bi_public_id, a.bi_completion_url
      FROM applications a WHERE a.id::text = ($1)::text`,
     [req.params.id]
   );
