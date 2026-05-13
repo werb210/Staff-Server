@@ -12,6 +12,8 @@ import { toStringSafe } from "../utils/toStringSafe.js";
 import { pool } from "../db.js";
 import { getStorage } from "../lib/storage/index.js";
 import { enqueueOcrForDocument } from "../modules/ocr/ocr.service.js";
+// BF_SERVER_BLOCK_v215_BF_TO_BI_DOC_MIRROR_v1
+import { mirrorDocToBiAsync } from "../services/biDocMirror.js";
 
 const router = express.Router();
 
@@ -103,6 +105,25 @@ async function persistAndEnqueue(opts: {
     throw err;
   } finally {
     tx.release();
+  }
+
+  // BF_SERVER_BLOCK_v215_BF_TO_BI_DOC_MIRROR_v1
+  // If this BF application has a linked BI PGI application (v213),
+  // mirror the uploaded doc to BI. Fire-and-forget so the client
+  // upload response is not delayed and never fails on BI errors.
+  try {
+    mirrorDocToBiAsync({
+      bfApplicationId: String(opts.applicationId),
+      bfDocumentId: String(documentId),
+      documentType: typeof opts.category === "string" ? opts.category : null,
+      fileName: typeof opts.file.originalname === "string" ? opts.file.originalname : null,
+      mimeType: typeof opts.file.mimetype === "string" ? opts.file.mimetype : null,
+      fileSize: typeof put.sizeBytes === "number" ? put.sizeBytes : null,
+      storageUrl: typeof put.url === "string" ? put.url : null,
+      uploadedByName: null,
+    });
+  } catch {
+    // never block doc upload on mirror
   }
 
   // OCR is best-effort — if it fails we still return success for the upload.
