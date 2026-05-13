@@ -56,6 +56,8 @@ import websiteRoutes from "./website.js";
 import mayaRoutes from "./maya.js";
 import aiMayaAlias from "./aiMayaAlias.js";
 import mayaAdminStubs from "./mayaAdminStubs.js";
+// BF_SERVER_BLOCK_v214_MAYA_STAFF_PIPELINE_QUERY_v1
+import mayaStaffRouter from "./mayaStaff.js";
 import aiRoutes from "./ai.v2.js";
 import o365Routes from "./o365.js";
 import { createMountTracker } from "./_canonicalMount.js";
@@ -103,6 +105,8 @@ rootRoutes.use(submissionOrchestrationRoutes);
 const combinedMayaRoutes = Router();
 combinedMayaRoutes.use(mayaRoutes);
 combinedMayaRoutes.use(mayaAdminStubs);
+// BF_SERVER_BLOCK_v214_MAYA_STAFF_PIPELINE_QUERY_v1
+combinedMayaRoutes.use(mayaStaffRouter);
 
 // BF_SERVER_v77_BLOCK_1_11_OFFERS_COLLISION — single mount at /offers,
 // composed of the legacy offers router (list/create/status) plus the
