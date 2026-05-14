@@ -43,12 +43,54 @@ export async function maybeStartCreditSummaryAndSign(ctx: OrchestratorContext): 
 export async function maybeBuildAndSendPackage(ctx: OrchestratorContext): Promise<{ fired: boolean; reason?: string; sentTo?: string[] }> {
   const snap = await readReadinessSnapshot(ctx);
   if (!snap.creditSummarySubmitted || !snap.applicationSigned) return { fired: false, reason: "not_ready" };
-  const existing = await ctx.pool.query<{ id: string }>(`SELECT id FROM application_packages WHERE application_id::text = $1 LIMIT 1`, [ctx.applicationId]).catch(() => ({ rows: [] as Array<{ id: string }> }));
-  if (existing.rows.length > 0) return { fired: false, reason: "already_sent" };
+  // BF_SERVER_BLOCK_v310_SUBMISSION_PACKAGE_RACE_CLAIM_v1
+  // Pre-fix used SELECT-then-dispatch which races: two concurrent staff
+  // "Send to lenders" clicks both saw 0 application_packages rows and both
+  // sent (duplicate emails to lenders, two application_packages rows per
+  // lender). Atomic claim via UPDATE...WHERE IS NULL RETURNING id mirrors
+  // the stageA v179 pattern. If RETURNING is empty, another caller has
+  // already started the dispatch — bail without firing a second send.
+  const claim = await ctx.pool
+    .query<{ id: string }>(
+      `UPDATE applications
+          SET submission_packages_started_at = NOW()
+        WHERE id::text = $1
+          AND submission_packages_started_at IS NULL
+        RETURNING id`,
+      [ctx.applicationId]
+    )
+    .catch(() => ({ rows: [] as Array<{ id: string }> }));
+  if (!claim.rows.length) {
+    // Either someone else is mid-dispatch OR a prior successful dispatch
+    // already finished. Check application_packages to distinguish for the
+    // returned reason, but either way we MUST NOT re-dispatch.
+    const existing = await ctx.pool.query<{ id: string }>(`SELECT id FROM application_packages WHERE application_id::text = $1 LIMIT 1`, [ctx.applicationId]).catch(() => ({ rows: [] as Array<{ id: string }> }));
+    return { fired: false, reason: existing.rows.length > 0 ? "already_sent" : "dispatch_in_progress" };
+  }
   const sel = await ctx.pool.query<{ lender_id: string; name: string; submission_method: string | null; submission_email: string | null; api_endpoint: string | null; api_key_encrypted: string | null; google_sheet_id: string | null; }>(`SELECT s.lender_id, l.name, l.submission_method, l.submission_email, l.api_endpoint, l.api_key_encrypted, l.google_sheet_id FROM application_lender_selections s JOIN lenders l ON l.id::text = s.lender_id::text WHERE s.application_id::text = $1 ORDER BY s.position NULLS LAST, s.created_at`, [ctx.applicationId]);
-  if (sel.rows.length === 0) return { fired: false, reason: "no_selected_lenders" };
+  if (sel.rows.length === 0) {
+    // Nothing to dispatch — release the claim so a future re-select can retry.
+    await ctx.pool.query(`UPDATE applications SET submission_packages_started_at = NULL WHERE id::text = $1`, [ctx.applicationId]).catch(() => {});
+    return { fired: false, reason: "no_selected_lenders" };
+  }
   let sentTo: string[] = [];
-  try { const mod = await import("../lenders/dispatchToSelected.js").catch(() => null); if (mod && typeof (mod as any).dispatchToSelected === "function") sentTo = (await (mod as any).dispatchToSelected(ctx, sel.rows)) ?? []; else { console.log(`[orchestrator] would send package to ${sel.rows.length} lenders for app=${ctx.applicationId}`); sentTo = sel.rows.map((r) => r.lender_id);} } catch (e) { console.error("[orchestrator] dispatch failed", e); return { fired: false, reason: "dispatch_failed" }; }
+  let dispatchErr: unknown = null;
+  try { const mod = await import("../lenders/dispatchToSelected.js").catch(() => null); if (mod && typeof (mod as any).dispatchToSelected === "function") sentTo = (await (mod as any).dispatchToSelected(ctx, sel.rows)) ?? []; else { console.log(`[orchestrator] would send package to ${sel.rows.length} lenders for app=${ctx.applicationId}`); sentTo = sel.rows.map((r) => r.lender_id);} } catch (e) { dispatchErr = e; console.error("[orchestrator] dispatch failed", e); }
+  // BF_SERVER_BLOCK_v310_SUBMISSION_PACKAGE_RACE_CLAIM_v1
+  // If dispatch produced zero application_packages rows (total failure or
+  // exception before any INSERT ran), release the claim so a manual retry
+  // is possible. The NOT EXISTS guard avoids releasing on partial success.
+  if (sentTo.length === 0 || dispatchErr) {
+    await ctx.pool.query(
+      `UPDATE applications SET submission_packages_started_at = NULL
+        WHERE id::text = $1
+          AND NOT EXISTS (
+            SELECT 1 FROM application_packages WHERE application_id::text = $1
+          )`,
+      [ctx.applicationId]
+    ).catch(() => {});
+    if (dispatchErr) return { fired: false, reason: "dispatch_failed" };
+  }
   return { fired: true, sentTo };
 }
 export async function progressSubmission(ctx: OrchestratorContext): Promise<{ stageA: { fired: boolean; reason?: string }; stageB: { fired: boolean; reason?: string; sentTo?: string[] } }> { const stageA = await maybeStartCreditSummaryAndSign(ctx); const stageB = await maybeBuildAndSendPackage(ctx); return { stageA, stageB }; }
