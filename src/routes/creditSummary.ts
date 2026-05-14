@@ -9,7 +9,11 @@
 import { Router } from "express";
 import { AppError } from "../middleware/errors.js";
 import { safeHandler } from "../middleware/safeHandler.js";
-import { requireAuth } from "../middleware/auth.js";
+import { requireAuth, requireAuthorization } from "../middleware/auth.js";
+// BF_SERVER_BLOCK_v316_CREDIT_SUMMARY_ROLE_AND_SILO_v1
+import { ROLES } from "../auth/roles.js";
+import { getSilo } from "../middleware/silo.js";
+import { pool } from "../db.js";
 import {
   generateCreditSummary,
   buildSectionsFromInputs,
@@ -36,9 +40,33 @@ function actorId(req: { user?: { userId?: string | null } | null }): string | nu
 router.get(
   "/:applicationId",
   requireAuth,
+  // BF_SERVER_BLOCK_v316_CREDIT_SUMMARY_ROLE_AND_SILO_v1
+  // Pre-fix the four /api/credit-summary endpoints had requireAuth but no
+  // role gate. Any authenticated user (including applicants on OTP JWTs
+  // and lender-portal users) could read or mutate credit summaries on any
+  // application by id. Credit summaries contain sensitive financial
+  // narratives, risk analysis, and rationale-for-approval text — leaking
+  // these to applicants or lenders would be bad. Real callers (BF-portal
+  // CreditSummaryEditor.tsx) are admin/staff only.
+  requireAuthorization({ roles: [ROLES.ADMIN, ROLES.STAFF] }),
   safeHandler(async (req: any, res: any) => {
     const applicationId = String(req.params.applicationId ?? "").trim();
     if (!applicationId) throw new AppError("validation_error", "applicationId required.", 400);
+
+    // BF_SERVER_BLOCK_v316_CREDIT_SUMMARY_ROLE_AND_SILO_v1
+    // Silo guard mirrors portal.ts v309 pattern.
+    const callerSilo = getSilo(res);
+    const ownerRow = await pool.query<{ silo: string | null }>(
+      `SELECT silo FROM applications WHERE id::text = ($1)::text LIMIT 1`,
+      [applicationId]
+    );
+    if (!ownerRow.rows[0]) {
+      throw new AppError("not_found", "Application not found.", 404);
+    }
+    const recordSilo = ownerRow.rows[0].silo;
+    if (recordSilo && callerSilo && recordSilo !== callerSilo) {
+      throw new AppError("not_found", "Application not found.", 404);
+    }
 
     const existing = await findByApplication(applicationId);
     if (existing) {
@@ -73,9 +101,27 @@ router.get(
 router.post(
   "/",
   requireAuth,
+  // BF_SERVER_BLOCK_v316_CREDIT_SUMMARY_ROLE_AND_SILO_v1
+  requireAuthorization({ roles: [ROLES.ADMIN, ROLES.STAFF] }),
   safeHandler(async (req: any, res: any) => {
     const applicationId = typeof req.body?.applicationId === "string" ? req.body.applicationId.trim() : "";
     if (!applicationId) throw new AppError("validation_error", "applicationId is required.", 400);
+
+    // BF_SERVER_BLOCK_v316_CREDIT_SUMMARY_ROLE_AND_SILO_v1 — silo guard.
+    {
+      const callerSilo = getSilo(res);
+      const ownerRow = await pool.query<{ silo: string | null }>(
+        `SELECT silo FROM applications WHERE id::text = ($1)::text LIMIT 1`,
+        [applicationId]
+      );
+      if (!ownerRow.rows[0]) {
+        throw new AppError("not_found", "Application not found.", 404);
+      }
+      const recordSilo = ownerRow.rows[0].silo;
+      if (recordSilo && callerSilo && recordSilo !== callerSilo) {
+        throw new AppError("not_found", "Application not found.", 404);
+      }
+    }
 
     let sections: CreditSummarySections;
     let reason: "generated" | "edited" = "generated";
@@ -121,9 +167,26 @@ router.post(
 router.post(
   "/:applicationId/regenerate",
   requireAuth,
+  // BF_SERVER_BLOCK_v316_CREDIT_SUMMARY_ROLE_AND_SILO_v1
+  requireAuthorization({ roles: [ROLES.ADMIN, ROLES.STAFF] }),
   safeHandler(async (req: any, res: any) => {
     const applicationId = String(req.params.applicationId ?? "").trim();
     if (!applicationId) throw new AppError("validation_error", "applicationId required.", 400);
+    // BF_SERVER_BLOCK_v316_CREDIT_SUMMARY_ROLE_AND_SILO_v1 — silo guard.
+    {
+      const callerSilo = getSilo(res);
+      const ownerRow = await pool.query<{ silo: string | null }>(
+        `SELECT silo FROM applications WHERE id::text = ($1)::text LIMIT 1`,
+        [applicationId]
+      );
+      if (!ownerRow.rows[0]) {
+        throw new AppError("not_found", "Application not found.", 404);
+      }
+      const recordSilo = ownerRow.rows[0].silo;
+      if (recordSilo && callerSilo && recordSilo !== callerSilo) {
+        throw new AppError("not_found", "Application not found.", 404);
+      }
+    }
     const { sections, inputs } = await generateCreditSummary(applicationId);
     const row = await upsertGenerated({
       applicationId, sections, inputsSnapshot: inputs, reason: "generated", createdBy: actorId(req),
@@ -140,9 +203,31 @@ router.post(
 router.post(
   "/:applicationId/submit",
   requireAuth,
+  // BF_SERVER_BLOCK_v316_CREDIT_SUMMARY_ROLE_AND_SILO_v1
+  requireAuthorization({ roles: [ROLES.ADMIN, ROLES.STAFF] }),
   safeHandler(async (req: any, res: any) => {
     const applicationId = String(req.params.applicationId ?? "").trim();
     if (!applicationId) throw new AppError("validation_error", "applicationId required.", 400);
+
+    // BF_SERVER_BLOCK_v316_CREDIT_SUMMARY_ROLE_AND_SILO_v1 — silo guard.
+    // submit() stamps applications.credit_summary_completed_at — a real
+    // side effect that releases stageA of submission orchestration
+    // (BF_SERVER_BLOCK_v179). Cross-silo submit would advance an
+    // application's submission chain without the owning silo's intent.
+    {
+      const callerSilo = getSilo(res);
+      const ownerRow = await pool.query<{ silo: string | null }>(
+        `SELECT silo FROM applications WHERE id::text = ($1)::text LIMIT 1`,
+        [applicationId]
+      );
+      if (!ownerRow.rows[0]) {
+        throw new AppError("not_found", "Application not found.", 404);
+      }
+      const recordSilo = ownerRow.rows[0].silo;
+      if (recordSilo && callerSilo && recordSilo !== callerSilo) {
+        throw new AppError("not_found", "Application not found.", 404);
+      }
+    }
 
     const existing = await findByApplication(applicationId);
     if (!existing) throw new AppError("validation_error", "Credit summary has not been generated yet.", 400);
