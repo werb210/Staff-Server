@@ -12,6 +12,9 @@ import { AIKnowledgeController, upload as knowledgeUpload } from "../modules/ai/
 import { chatHandler } from "../modules/ai/ai.controller.js";
 import { logger } from "../server/utils/logger.js";
 import { generateAIResponse } from "../services/ai/aiService.js";
+// BF_SERVER_BLOCK_v315_AI_KNOWLEDGE_ADMIN_GATE_v1
+import { requireAuth, requireAuthorization } from "../middleware/auth.js";
+import { ROLES } from "../auth/roles.js";
 
 const router = Router();
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
@@ -196,11 +199,24 @@ const knowledgeUploadHandler: RequestHandler = async (req, res) => {
   await AIKnowledgeController.upload(req as MulterRequest, res);
 };
 
-router.post("/knowledge/upload", rejectOversizedPayload, knowledgeUpload.single("file"), knowledgeUploadHandler);
-router.get("/knowledge", AIKnowledgeController.list);
+router.post("/knowledge/upload", requireAuth, requireAuthorization({ roles: [ROLES.ADMIN] }), rejectOversizedPayload, knowledgeUpload.single("file"), knowledgeUploadHandler);
+router.get("/knowledge", requireAuth, requireAuthorization({ roles: [ROLES.ADMIN] }), AIKnowledgeController.list);
 
 router.get(
   "/knowledge/db",
+  // BF_SERVER_BLOCK_v315_AI_KNOWLEDGE_ADMIN_GATE_v1
+  // Pre-fix the four /knowledge endpoints (upload, list, db, write) had no
+  // auth at all — anyone on the internet could read the proprietary AI
+  // knowledge base, upload poisoned files, or POST adversarial entries that
+  // would land in the embedding store and influence Maya's responses to
+  // clients (direct prompt-injection / training-data poisoning). The
+  // settings.ts /ai-knowledge/text duplicate path already gates on
+  // requireCapability([CAPABILITIES.SETTINGS_READ]); the ai.ts routes were a
+  // back door around that gate. Real callers are admin-only BF-portal pages
+  // (AIKnowledgeManager.tsx, AiKnowledgePage.tsx) so adding admin gate does
+  // not break legitimate flows.
+  requireAuth,
+  requireAuthorization({ roles: [ROLES.ADMIN] }),
   safeHandler(async (_req: any, res: any) => {
     const { rows } = await runQuery<{
       id: string;
@@ -217,6 +233,9 @@ router.get(
 
 router.post(
   "/knowledge",
+  // BF_SERVER_BLOCK_v315_AI_KNOWLEDGE_ADMIN_GATE_v1 — see /knowledge/db.
+  requireAuth,
+  requireAuthorization({ roles: [ROLES.ADMIN] }),
   safeHandler(async (req: any, res: any, next: any) => {
     const { title, content, sourceType } = req.body as {
       title?: string;
