@@ -459,15 +459,40 @@ router.get('/:id/audit', safeHandler(async (req: any, res: any) => {
     throw new AppError('not_found', 'Application not found.', 404);
   }
 
-  const result = await pool.query(
-    `SELECT id, event_type AS type, created_at AS "createdAt",
-            actor, payload AS detail
-       FROM application_audit_events
-      WHERE application_id = $1
-      ORDER BY created_at DESC
-      LIMIT 200`,
-    [id]
-  ).catch(() => ({ rows: [] }));
+      // BF_SERVER_BLOCK_v301_APPLICATION_AUDIT_TIMELINE_FIX_v1
+      // The drawer Audit tab consumes this endpoint via fetchApplicationAudit
+      // and renders { id, type, createdAt, actor?, detail? }. The old query
+      // selected from a non-existent table `application_audit_events` and
+      // swallowed the resulting "relation does not exist" with .catch(() =>
+      // ({rows: []})), so the tab silently returned [] for every application
+      // even though all application-scoped events are written to
+      // public.audit_events by recordAuditEvent() with target_type='application'
+      // and target_id=<applicationId>. Switch to the real table, use the
+      // canonical actor_user_id / metadata columns, and coalesce the three
+      // historical "what happened" columns (event_type, event_action, action)
+      // so events written by all generations of recordAuditEvent are surfaced.
+      // Keep a defensive .catch so future schema drift degrades to [] rather
+      // than 500, but log it instead of swallowing silently.
+      const result = await pool.query(
+        `SELECT id::text AS id,
+                coalesce(event_type, event_action, action, 'event') AS type,
+                created_at AS "createdAt",
+                actor_user_id::text AS actor,
+                metadata AS detail
+           FROM audit_events
+          WHERE target_type = 'application' AND target_id = $1
+          ORDER BY created_at DESC
+          LIMIT 200`,
+        [id]
+      ).catch((err: any) => {
+        // eslint-disable-next-line no-console
+        console.warn('applications.audit.query_failed', {
+          applicationId: id,
+          message: err?.message,
+          code: err?.code,
+        });
+        return { rows: [] as any[] };
+      });
 
   res.json({ status: 'ok', data: result.rows });
 }));
