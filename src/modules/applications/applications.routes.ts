@@ -877,6 +877,38 @@ router.patch('/:id/financials', safeHandler(async (req: any, res: any) => {
 
 // BF_SERVER_BLOCK_v122c_DRAWER_TAB_ENDPOINTS_v1
 // POST /api/applications/:id/lenders/:lenderId/files — staff per-lender doc upload.
+// BF_SERVER_BLOCK_v328_LENDERS_FILES_HONEST_501_v1
+// Pre-fix this endpoint was a half-implementation that silently failed
+// in production. Failure mode chain:
+//   1. No multer middleware was applied, so req.file was always undefined
+//      and req.body (from a multipart/form-data POST) was empty.
+//   2. The handler defaulted filename to the literal string "lender-upload"
+//      and sizeBytes to null.
+//   3. It INSERTed a documents row with category='lender:<lenderId>',
+//      status='uploaded', and the bogus filename. No blob storage write
+//      ever occurred — the actual file bytes were dropped on the floor.
+//   4. The INSERT error path used .catch(() => {}) so a column-drift or
+//      DB error would silently swallow.
+//   5. No document_versions row was inserted, so the standard OCR /
+//      banking analysis workers (which key off document_versions, per
+//      documents.ts:88-100) never picked it up.
+//   6. The handler returned { ok: true, documentId } regardless, so the
+//      BF-portal LendersTab.tsx:194 caller's success path ran and refetched
+//      the envelope. Staff thought the file uploaded; the lender dropdown
+//      eventually showed "lender-upload" entries pointing at no actual file.
+// Returning 501 with a clear error message instead of the silent-success
+// stub:
+//   - The portal's catch path on LendersTab.tsx:202 now logs an honest
+//     "upload_term_sheet_failed" so the operator can see the failure.
+//   - No more orphan documents rows accumulate in production.
+//   - A future implementer has a clear contract to satisfy: add multer,
+//     write to blob storage via getStorage().put, INSERT document_versions
+//     keyed to the new documents row, and trigger the OCR worker. The
+//     canonical reference is the /api/documents/upload handler in
+//     src/routes/documents.ts which does this end-to-end.
+// Silo guard preserved above the early return so it still runs for the
+// 404 case (don't reveal cross-silo application existence even on a
+// 501 surface).
 router.post('/:id/lenders/:lenderId/files', safeHandler(async (req: any, res: any) => {
   const appId = String(req.params.id ?? '').trim();
   const lenderId = String(req.params.lenderId ?? '').trim();
@@ -890,15 +922,13 @@ router.post('/:id/lenders/:lenderId/files', safeHandler(async (req: any, res: an
   if (app.silo && silo && app.silo !== silo) {
     throw new AppError('not_found', 'Application not found.', 404);
   }
-  const filename = (req.body?.filename ?? req.file?.originalname ?? 'lender-upload') as string;
-  const sizeBytes = Number(req.body?.size ?? req.file?.size ?? 0) || null;
-  const docId = (typeof crypto !== 'undefined' && (crypto as any)?.randomUUID)
-    ? (crypto as any).randomUUID() : `doc_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
-  await pool.query(
-    `INSERT INTO documents (id, application_id, owner_user_id, title, filename, size_bytes, category, status, uploaded_by, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, 'uploaded', 'staff', NOW()) ON CONFLICT (id) DO NOTHING`,
-    [docId, appId, req.user?.id ?? req.user?.userId ?? null, filename, filename, sizeBytes, `lender:${lenderId}`],
-  ).catch(() => {});
-  return res.json({ ok: true, documentId: docId });
+  // BF_SERVER_BLOCK_v328_LENDERS_FILES_HONEST_501_v1 — see header comment.
+  return res.status(501).json({
+    ok: false,
+    error: 'not_implemented',
+    code: 'lender_per_vendor_upload_not_wired',
+    message: 'Per-lender file upload is not yet wired (no multer, no storage). Use POST /api/documents/upload instead.',
+  });
 }));
 
 export default router;
