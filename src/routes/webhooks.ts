@@ -1,4 +1,5 @@
 import { Router } from "express";
+import express from "express";
 import twilio from "twilio";
 import VoiceResponse from "twilio/lib/twiml/VoiceResponse.js";
 import MessagingResponse from "twilio/lib/twiml/MessagingResponse.js";
@@ -14,6 +15,28 @@ import { twilioWebhookValidation } from "../middleware/twilioWebhookValidation.j
 
 void twilio;
 const router = Router();
+
+// BF_SERVER_BLOCK_v324_TWILIO_WEBHOOKS_URLENCODED_BODY_v1
+// Twilio webhooks POST application/x-www-form-urlencoded data. app.ts only
+// applies express.json() globally, NOT express.urlencoded(). Pre-fix every
+// handler in this router received req.body = undefined (then defaulted to
+// {}), with two compounding effects:
+//   1. /twilio/voice/twiml: params.To was undefined, the looksLikePhone /
+//      outboundFlag checks failed, and inbound calls ALL fell through to
+//      the "Sorry, no agents available, please leave a message" voicemail
+//      prompt instead of bridging to staff -- the user-reported symptom
+//      "Twilio calling features are broken."
+//   2. After v305 (signature validation), validateRequest hashes the URL
+//      plus the form-encoded body params. With req.body = {} but Twilio's
+//      signature computed over the actual params, every webhook 403'd
+//      "invalid_signature." Even Twilio retries (5x over ~24h) fail
+//      identically; the call log / SMS rows never get written.
+// The fix is router-level express.urlencoded BEFORE the per-route
+// twilioWebhookValidation middleware. extended:false matches Twilio's
+// flat key=value body shape and matches the working voiceStatus.ts /
+// twilioVoice.ts pattern (both apply the same parser per-route). express
+// is now imported alongside Router for this purpose.
+router.use(express.urlencoded({ extended: false }));
 
 const BASE_URL = process.env.PUBLIC_BASE_URL ?? "https://server.boreal.financial";
 
