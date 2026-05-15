@@ -611,6 +611,26 @@ router.get(
     if (!applicationId) {
       throw new AppError("validation_error", "Application id is required.", 400);
     }
+    // BF_SERVER_BLOCK_v331_PORTAL_HISTORY_AND_LENDER_SUBMISSIONS_SILO_v1
+    // Pre-fix this endpoint returned application_pipeline_history rows for
+    // ANY application_id, regardless of which silo (BF/BI/SLF) the caller
+    // selected in the topbar. Cross-silo leak: BF-silo staff could fetch
+    // BI applications' stage history just by knowing the UUID, and similarly
+    // SLF staff could read either. Mirrors the v309 portal silo enforcement
+    // pattern: look up the application's silo, compare to caller's silo,
+    // return 404 (not 403) on mismatch so we don't reveal cross-silo
+    // application existence.
+    const callerSilo = getSilo(res);
+    if (callerSilo) {
+      const siloCheck = await runQuery<{ silo: string | null }>(
+        `select silo from applications where id::text = ($1)::text limit 1`,
+        [applicationId]
+      );
+      const appSilo = siloCheck.rows[0]?.silo ?? null;
+      if (!siloCheck.rows[0] || (appSilo && appSilo !== callerSilo)) {
+        throw new AppError("not_found", "Application not found.", 404);
+      }
+    }
     const actorType =
       typeof toStringSafe(req.query.actorType) === "string" ? toStringSafe(req.query.actorType).trim() : "";
     const fromStage =
@@ -698,6 +718,29 @@ router.get(
     }
     values.push(limit, offset);
     const filterClause = filters.length > 0 ? `and ${filters.join(" and ")}` : "";
+    // BF_SERVER_BLOCK_v331_PORTAL_HISTORY_AND_LENDER_SUBMISSIONS_SILO_v1
+    // Pre-fix this returned processing_job_history rows for any job_id with
+    // no silo check. Preflight: look up the job's linked application_id, get
+    // its silo, and 404 if it doesn't match the caller's silo. processing_
+    // job_history.application_id may be NULL (background jobs not tied to an
+    // application — OCR cleanup, mirror retries, etc.); those are surfaced
+    // to all silos since they have no silo affiliation.
+    const callerSiloJobs = getSilo(res);
+    if (callerSiloJobs) {
+      const jobSiloCheck = await runQuery<{ silo: string | null; application_id: string | null }>(
+        `select a.silo, h.application_id
+           from processing_job_history h
+           left join applications a on a.id::text = h.application_id::text
+          where h.job_id = $1
+          limit 1`,
+        [jobId]
+      );
+      const row = jobSiloCheck.rows[0];
+      // Allow if no row yet (history may be empty), no linked application, or silo match.
+      if (row && row.application_id && row.silo && row.silo !== callerSiloJobs) {
+        throw new AppError("not_found", "Job history not found.", 404);
+      }
+    }
     const result = await runQuery<{
       job_id: string;
       job_type: string;
@@ -753,6 +796,27 @@ router.get(
     }
     values.push(limit, offset);
     const filterClause = filters.length > 0 ? `and ${filters.join(" and ")}` : "";
+    // BF_SERVER_BLOCK_v331_PORTAL_HISTORY_AND_LENDER_SUBMISSIONS_SILO_v1
+    // Pre-fix this returned document_status_history rows for any document_id
+    // with no silo check. Same preflight pattern as /jobs/:id/history: look
+    // up the document's parent application's silo and 404 on mismatch.
+    // document_status_history.application_id should be non-null (documents
+    // are always tied to an application).
+    const callerSiloDocs = getSilo(res);
+    if (callerSiloDocs) {
+      const docSiloCheck = await runQuery<{ silo: string | null; application_id: string | null }>(
+        `select a.silo, h.application_id
+           from document_status_history h
+           left join applications a on a.id::text = h.application_id::text
+          where h.document_id = $1
+          limit 1`,
+        [documentId]
+      );
+      const row = docSiloCheck.rows[0];
+      if (row && row.application_id && row.silo && row.silo !== callerSiloDocs) {
+        throw new AppError("not_found", "Document history not found.", 404);
+      }
+    }
     const result = await runQuery<{
       application_id: string;
       document_id: string;
@@ -1445,6 +1509,26 @@ router.post(
           : [];
     if (!applicationId || selectedLenders.length === 0) {
       throw new AppError("validation_error", "application_id (or applicationId) and lenderProductIds are required.", 400);
+    }
+
+    // BF_SERVER_BLOCK_v331_PORTAL_HISTORY_AND_LENDER_SUBMISSIONS_SILO_v1
+    // Pre-fix this endpoint INSERTed into lender_submissions without any
+    // silo check, so a BF-silo staff member could submit lender packages
+    // against a BI-silo application just by passing the BI applicationId.
+    // The lender_submission_created event would then fire with the BF caller
+    // as actor, polluting the BI silo's pipeline. Mirrors v309 portal silo
+    // enforcement pattern: look up application silo, compare to caller, 404
+    // on mismatch (don't reveal cross-silo existence).
+    const callerSiloLs = getSilo(res);
+    if (callerSiloLs) {
+      const appSiloRes = await runQuery<{ silo: string | null }>(
+        `select silo from applications where id::text = ($1)::text limit 1`,
+        [applicationId]
+      );
+      const appSilo = appSiloRes.rows[0]?.silo ?? null;
+      if (!appSiloRes.rows[0] || (appSilo && appSilo !== callerSiloLs)) {
+        throw new AppError("not_found", "Application not found.", 404);
+      }
     }
 
     const submissions: any[] = [];
