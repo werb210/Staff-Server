@@ -127,6 +127,110 @@ router.get("/sms/thread", safeHandler(async (req: any, res: any) => {
   }
 }));
 
+// BF_SERVER_BLOCK_BI_ROUND6_THREADS_LIST_v1
+// GET /api/communications/threads
+// Returns the list of active (non-closed) chat sessions scoped to
+// the caller's silo (via Block 13's resolveSiloFromRequest fix --
+// after that block, res.locals.silo carries the correct silo on
+// every authed route). Used by the staff Communications page to
+// populate the session list.
+//
+// Response shape matches the portal's CommunicationConversation
+// type declared in BF-portal src/api/communications.ts:
+//   id, sessionId, type, status, silo, contactId, contactName,
+//   contactEmail, contactPhone, assignedTo, message (last preview),
+//   updatedAt, messages: []
+//
+// `messages: []` is returned empty here; the portal fetches the
+// full message list lazily per session via subscribeAiSocket
+// after Block 19 lands. Adding a `messages` join would 10x the
+// row size for what's typically a list view that only displays
+// the preview.
+router.get("/threads", safeHandler(async (req: any, res: any) => {
+  const { resolveSiloFromRequest } = await import("../middleware/silo.js");
+  const silo = resolveSiloFromRequest(req);
+
+  // The "businessUnit" query param is what the portal sends; it's
+  // identical in intent to the X-Silo header but explicit for the
+  // cases where the staff page wants to look at a different silo
+  // (admin tooling). Treat it as an override only if the user is
+  // admin -- the resolver already enforces allowlist for non-admins.
+  const requestedBu = typeof req.query.businessUnit === "string"
+    ? req.query.businessUnit.toUpperCase()
+    : null;
+  const isAdmin = String(req.user?.role ?? "").toLowerCase() === "admin";
+  const effectiveSilo = isAdmin && requestedBu && /^(BF|BI|SLF)$/.test(requestedBu)
+    ? requestedBu
+    : silo;
+
+  const sql = `
+    SELECT
+      s.id,
+      s.id AS session_id,
+      s.source,
+      s.status,
+      s.assigned_to,
+      s.crm_contact_id,
+      s.created_at,
+      s.updated_at,
+      c.silo AS contact_silo,
+      c.full_name AS contact_name,
+      c.email AS contact_email,
+      c.phone AS contact_phone,
+      (
+        SELECT content FROM chat_messages m
+        WHERE m.session_id = s.id
+        ORDER BY m.created_at DESC
+        LIMIT 1
+      ) AS last_message
+    FROM chat_sessions s
+    LEFT JOIN contacts c ON c.id = s.crm_contact_id
+    WHERE s.status <> 'closed'
+      AND (c.silo IS NULL OR c.silo = $1)
+    ORDER BY s.updated_at DESC NULLS LAST, s.created_at DESC
+    LIMIT 200
+  `;
+
+  const result = await pool.query(sql, [effectiveSilo]).catch((err: any) => {
+    // eslint-disable-next-line no-console
+    console.warn("communications.threads.query_failed", {
+      silo: effectiveSilo,
+      message: err?.message,
+      code: err?.code,
+    });
+    return { rows: [] as any[] };
+  });
+
+  // Map server rows into the portal's CommunicationConversation shape.
+  // type is "human" when a staff member is in (status=live), else
+  // "chat" for the AI-only sessions; "closed" sessions are excluded
+  // by the WHERE clause but still get a defensive branch.
+  const conversations = result.rows.map((row: any) => {
+    const status =
+      row.status === "live" ? "human" :
+      row.status === "closed" ? "closed" :
+      "ai";
+    const type = status === "human" ? "human" : "chat";
+    return {
+      id: row.id,
+      sessionId: row.session_id,
+      type,
+      status,
+      silo: row.contact_silo ?? effectiveSilo,
+      contactId: row.crm_contact_id ?? undefined,
+      contactName: row.contact_name ?? undefined,
+      contactEmail: row.contact_email ?? undefined,
+      contactPhone: row.contact_phone ?? undefined,
+      assignedTo: row.assigned_to ?? undefined,
+      message: row.last_message ?? undefined,
+      messages: [] as unknown[],
+      updatedAt: row.updated_at ?? row.created_at,
+    };
+  });
+
+  return res.status(200).json(conversations);
+}));
+
 // BF_SERVER_BLOCK_BI_ROUND5_D_TIMELINE_v1
 // GET /api/communications/timeline?phone=<E.164>&limit=<n>
 // Returns calls + SMS events for a phone number scoped to the
