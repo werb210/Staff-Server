@@ -2,6 +2,10 @@
 // Mounted at /api/applications/:id/notes by routeRegistry.
 import { Router } from "express";
 import { runQuery } from "../lib/db.js";
+// BF_SERVER_BLOCK_BI_ROUND5_AUTH_SILO_REFRESH_v1 -- replace JWT-
+// pinned silo reads with the canonical resolver so the X-Silo
+// header / allowlist actually applies on this route.
+import { resolveSiloFromRequest } from "../middleware/silo.js";
 import { requireAuth } from "../middleware/auth.js";
 import { AppError } from "../middleware/errors.js";
 import { safeHandler } from "../middleware/safeHandler.js";
@@ -20,7 +24,7 @@ router.get(
   safeHandler(async (req: any, res: any) => {
     const applicationId = String(req.params.id ?? "").trim();
     if (!applicationId) throw new AppError("validation_error", "application id required.", 400);
-    const silo = String(req.user?.silo ?? "BF").toUpperCase();
+    const silo = resolveSiloFromRequest(req);
     const r = await runQuery(
       `SELECT ${noteShape} FROM crm_notes n
          LEFT JOIN users u ON u.id = n.owner_id
@@ -40,7 +44,7 @@ router.post(
     const body = String(req.body?.body ?? "").trim();
     if (!applicationId) throw new AppError("validation_error", "application id required.", 400);
     if (!body) throw new AppError("validation_error", "body required.", 400);
-    const silo = String(req.user?.silo ?? "BF").toUpperCase();
+    const silo = resolveSiloFromRequest(req);
     const mentions = await parseAndResolveMentions(body);
     const r = await runQuery<{ id: string; mentions: string[]; application_id: string; created_at: Date; updated_at: Date }>(
       `INSERT INTO crm_notes (body, owner_id, application_id, silo, mentions, created_at, updated_at)

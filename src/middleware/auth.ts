@@ -4,6 +4,9 @@ import { pool } from "../db.js";
 // BF_AGENT_AUTH_HYDRATE_v53
 import { fetchCapabilitiesForRole } from "../auth/capabilities.js";
 import { isRole } from "../auth/roles.js";
+// BF_SERVER_BLOCK_BI_ROUND5_AUTH_SILO_REFRESH_v1 -- see comment by
+// the call site below.
+import { resolveSiloFromRequest } from "./silo.js";
 
 type AuthorizationOptions = {
   roles?: string[];
@@ -66,6 +69,21 @@ export async function auth(req: Request, res: Response, next: NextFunction) {
       capabilities: hydratedCaps,
       silos: dbUser?.silos ?? (Array.isArray((decoded as any).silos) ? (decoded as any).silos : []),
     };
+
+    // BF_SERVER_BLOCK_BI_ROUND5_AUTH_SILO_REFRESH_v1
+    // The app-level siloMiddleware (applySiloMiddleware in app.ts)
+    // runs BEFORE this auth handler. At that point req.user is
+    // undefined, so it falls into the "Unauthenticated → BF" branch
+    // and sets res.locals.silo = "BF". Authed routes then read
+    // res.locals.silo (often via getSilo(res)) and always see "BF",
+    // regardless of the X-Silo header, ?silo query, or user
+    // allowlist -- which is why BI / SLF-silo users see BF data on
+    // every endpoint that filters on res.locals.silo (portal.ts,
+    // applications.routes.ts, portalLenderProducts.ts, crm.ts,
+    // communications.ts, calls.ts, users.service.ts -- 46 call
+    // sites total). Re-resolve here, now that req.user is set, so
+    // every downstream getSilo(res) returns the correct value.
+    res.locals.silo = resolveSiloFromRequest(req);
 
     next();
   } catch {
