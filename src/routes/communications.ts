@@ -480,9 +480,26 @@ router.get("/timeline", safeHandler(async (req: any, res: any) => {
 
 // POST /api/communications/sms — send outbound + persist to DB
 router.post("/sms", safeHandler(async (req: any, res: any) => {
-  const { contactId, to, body, applicationId } = req.body ?? {};
+  const { contactId, to, body } = req.body ?? {};
+  let applicationId = req.body?.applicationId ?? null;
   if (!body || !to) {
     return res.status(400).json({ error: { message: "to and body are required", code: "validation_error" } });
+  }
+  // BF_SERVER_BLOCK_53_v1 -- if staff didn't pass applicationId,
+  // resolve it from contactId. Otherwise the row has NULL app_id
+  // and the mini-portal client poll never sees it. Pick the most
+  // recently updated application owned by that contact.
+  if (!applicationId && contactId) {
+    try {
+      const lookup = await pool.query<{ id: string }>(
+        `SELECT id FROM applications
+         WHERE contact_id = $1
+         ORDER BY updated_at DESC NULLS LAST, created_at DESC NULLS LAST
+         LIMIT 1`,
+        [contactId]
+      );
+      if (lookup.rows[0]?.id) applicationId = lookup.rows[0].id;
+    } catch { /* leave applicationId null */ }
   }
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
