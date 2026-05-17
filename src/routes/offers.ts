@@ -8,8 +8,15 @@ import { eventBus } from "../events/eventBus.js";
 // public reads/writes on /api/offers, /api/offers/:id/status.
 import { requireAuth, requireAuthorization } from "../middleware/auth.js";
 import { ROLES } from "../auth/roles.js";
+import multer from "multer";
+import { getStorage } from "../lib/storage/index.js";
 
 const router = Router();
+
+const offerUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 },
+});
 
 router.get(
   "/",
@@ -54,6 +61,7 @@ router.post(
   "/",
   requireAuth,
   requireAuthorization({ roles: [ROLES.ADMIN, ROLES.STAFF] }),
+  offerUpload.single("file"),
   safeHandler(async (req: any, res: any, next: any) => {
     const applicationId = typeof req.body?.applicationId === "string" ? req.body.applicationId.trim() : "";
     const lender = typeof req.body?.lender === "string" ? req.body.lender.trim() : "";
@@ -81,6 +89,53 @@ router.post(
       }
     }
 
+    // BF_SERVER_BLOCK_43_v1 -- field-name aliases. Portal sends
+    // camelCase; legacy code paths or test fixtures may send snake_case
+    // or short names. Accept all.
+    const amount =
+      req.body?.amount ?? null;
+    const rateFactor =
+      req.body?.rateFactor
+      ?? req.body?.rate_factor
+      ?? req.body?.rate
+      ?? null;
+    const term = req.body?.term ?? null;
+    const paymentFrequency =
+      req.body?.paymentFrequency
+      ?? req.body?.payment_frequency
+      ?? null;
+    const expiry =
+      req.body?.expiry
+      ?? req.body?.expiry_date
+      ?? null;
+
+    // BF_SERVER_BLOCK_43_v1 -- upload the PDF if provided as
+    // multipart "file"; otherwise accept a pre-supplied URL via
+    // req.body.documentUrl / req.body.pdf for tests + legacy paths.
+    let documentUrl: string | null =
+      typeof req.body?.documentUrl === "string" ? req.body.documentUrl
+      : typeof req.body?.pdf === "string" ? req.body.pdf
+      : null;
+    const uploaded = (req as any).file as
+      | { buffer: Buffer; originalname: string; mimetype: string }
+      | undefined;
+    if (uploaded?.buffer?.length) {
+      try {
+        const store = getStorage();
+        const put = await store.put({
+          buffer: uploaded.buffer,
+          filename: uploaded.originalname,
+          contentType: uploaded.mimetype,
+          pathPrefix: `offers/${applicationId}`,
+        });
+        documentUrl = put.url;
+      } catch (err) {
+        console.error("[offers] PDF upload failed", err);
+        // Carry on without the URL rather than fail the whole POST.
+        // Staff can re-upload by editing the offer record.
+      }
+    }
+
     const result = await runQuery(
       `insert into offers (id, application_id, lender_name, amount, rate_factor, term, payment_frequency, expiry_date, document_url, recommended, status, notes, created_at, updated_at)
        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'created',$11,now(),now())
@@ -89,12 +144,12 @@ router.post(
         randomUUID(),
         applicationId,
         lender,
-        req.body?.amount ?? null,
-        req.body?.rate ?? null,
-        req.body?.term ?? null,
-        req.body?.payment_frequency ?? null,
-        req.body?.expiry ?? null,
-        req.body?.pdf ?? null,
+        amount,
+        rateFactor,
+        term,
+        paymentFrequency,
+        expiry,
+        documentUrl,
         false,
         typeof req.body?.notes === "string" ? req.body.notes : null,
       ]
