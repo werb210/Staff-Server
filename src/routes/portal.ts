@@ -1336,6 +1336,37 @@ router.post(
       rejectionReason: reason,
     });
 
+    // BF_SERVER_BLOCK_43_v1 -- also insert an in-app chat message
+    // with a CTA button. Client mini-portal renders cta_label as a
+    // styled bubble button and routes cta_action="upload:<type>"
+    // to its upload widget for that document_type.
+    if (doc.application_id) {
+      void (async () => {
+        try {
+          const prettyType = (doc.document_type ?? "document").replace(/_/g, " ");
+          const ctaLabel = `Re-upload ${prettyType}`;
+          const ctaAction = `upload:${doc.document_type ?? ""}`;
+          const reasonSuffix = reason ? ` Reason: ${reason}.` : "";
+          const body = `Your "${prettyType}" was rejected.${reasonSuffix}`;
+          const staffName = (req as any).user?.name ?? (req as any).user?.email ?? null;
+          await pool.query(
+            `INSERT INTO communications_messages
+               (id, type, direction, status, application_id, contact_id, silo,
+                body, staff_name, cta_label, cta_action, created_at)
+             VALUES (
+               gen_random_uuid(), 'message', 'outbound', 'sent', $1,
+               (SELECT contact_id FROM applications WHERE id::text = $1 LIMIT 1),
+               COALESCE((SELECT silo FROM applications WHERE id::text = $1 LIMIT 1), 'BF'),
+               $2, $3, $4, $5, now()
+             )`,
+            [doc.application_id, body, staffName, ctaLabel, ctaAction],
+          );
+        } catch (err) {
+          console.warn("[doc-reject] CTA chat insert failed", err);
+        }
+      })();
+    }
+
     if (doc.application_id) {
       const appRes = await runQuery<{ pipeline_state: string }>(
         `SELECT pipeline_state FROM applications WHERE id::text = ($1)::text`,

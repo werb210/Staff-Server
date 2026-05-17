@@ -566,4 +566,112 @@ router.post("/sms", safeHandler(async (req: any, res: any) => {
   res.json({ id: message.sid, status: message.status, contactId: contactId ?? null });
 }));
 
+// BF_SERVER_BLOCK_43_v1 -- application-scoped message endpoints.
+// Used by the BF-portal MessagesTab inside the application drawer
+// and by any other staff flow that wants to push a message into
+// a specific application's thread (alongside the SMS that
+// sendDocumentRejectionSms already fires).
+
+// GET /api/communications/messages/thread/:applicationId
+router.get(
+  "/messages/thread/:applicationId",
+  safeHandler(async (req: any, res: any) => {
+    const applicationId = typeof req.params.applicationId === "string"
+      ? req.params.applicationId.trim()
+      : "";
+    if (!applicationId) {
+      return res.status(400).json({
+        error: { code: "validation_error", message: "applicationId required" },
+      });
+    }
+
+    const result = await pool.query<{
+      id: string;
+      body: string | null;
+      direction: string | null;
+      staff_name: string | null;
+      read_at: string | null;
+      cta_label: string | null;
+      cta_action: string | null;
+      created_at: string;
+    }>(
+      `SELECT id, body, direction, staff_name, read_at,
+              cta_label, cta_action, created_at
+         FROM communications_messages
+        WHERE application_id = $1
+        ORDER BY created_at ASC
+        LIMIT 500`,
+      [applicationId],
+    ).catch(() => ({ rows: [] as any[] }));
+
+    // BF-portal MessagesTab consumes MessageRecord[] directly (top-level
+    // array), not { items: [...] }. Match that shape.
+    res.json(
+      result.rows.map((r) => ({
+        id: r.id,
+        body: r.body ?? "",
+        senderType: r.direction === "inbound" ? "client" : "staff",
+        senderName: r.staff_name ?? null,
+        source: r.direction === "inbound" ? "client" : "staff",
+        createdAt: r.created_at,
+        readAt: r.read_at,
+        status: r.read_at ? "read" : "delivered",
+        ctaLabel: r.cta_label,
+        ctaAction: r.cta_action,
+      })),
+    );
+  }),
+);
+
+// POST /api/communications/messages/send
+// Persists an outbound staff message into the application thread.
+// Optional cta_label + cta_action surface a button on the client's
+// chat bubble. Does NOT auto-send SMS -- staff use /communications/sms
+// when they want a phone-channel side effect.
+router.post(
+  "/messages/send",
+  safeHandler(async (req: any, res: any) => {
+    const applicationId = typeof req.body?.applicationId === "string"
+      ? req.body.applicationId.trim()
+      : "";
+    const body = typeof req.body?.body === "string" ? req.body.body.trim() : "";
+    const ctaLabel  = typeof req.body?.ctaLabel  === "string" ? req.body.ctaLabel.trim().slice(0, 80)  : null;
+    const ctaAction = typeof req.body?.ctaAction === "string" ? req.body.ctaAction.trim().slice(0, 120) : null;
+    if (!applicationId || !body) {
+      return res.status(400).json({
+        error: { code: "validation_error", message: "applicationId and body required" },
+      });
+    }
+    const staffName = (req as any).user?.name ?? (req as any).user?.email ?? null;
+    const { getSilo } = await import("../middleware/silo.js");
+    const silo = String(getSilo(res) ?? (req as any).user?.silo ?? "BF").toUpperCase();
+
+    const id = (await import("node:crypto")).randomUUID();
+    await pool.query(
+      `INSERT INTO communications_messages
+         (id, type, direction, status, application_id, contact_id, silo,
+          body, staff_name, cta_label, cta_action, created_at)
+       VALUES (
+         $1, 'message', 'outbound', 'sent', $2,
+         (SELECT contact_id FROM applications WHERE id::text = $2 LIMIT 1),
+         $3, $4, $5, $6, $7, now()
+       )`,
+      [id, applicationId, silo, body, staffName, ctaLabel, ctaAction],
+    );
+
+    res.status(201).json({
+      id,
+      body,
+      senderType: "staff",
+      senderName: staffName,
+      source: "staff",
+      createdAt: new Date().toISOString(),
+      readAt: null,
+      status: "delivered",
+      ctaLabel,
+      ctaAction,
+    });
+  }),
+);
+
 export default router;
