@@ -523,18 +523,47 @@ router.delete("/companies/:id", requireAdmin, safeHandler(async (req: any, res: 
 // dedicated outcome/failure columns once the dialer's call state
 // machine is consolidated (v200 dialer consolidation).
 router.post("/timeline/calls", requireCrmWrite, safeHandler(async (req: any, res: any) => {
-  const userId = req.user?.id ?? req.user?.userId ?? null;
+  // BF_SERVER_BLOCK_47_v1 -- FK-safe insert. The portal dialer
+  // sometimes hands us a contact_id / company_id / user_id that
+  // doesn't exist in the DB (web dialer fires before the contact
+  // is fully created; or a phone-only call has no contact). The
+  // INSERT then fails with a 23503 FK violation -> safeHandler
+  // returns 409 "constraint_violation". Validate first; null any
+  // ref that doesn't resolve so the call still records.
+  const rawUserId = req.user?.id ?? req.user?.userId ?? null;
   const silo = resolveSiloFromRequest(req);
   const b = req.body ?? {};
-  const contactId: string | null = b.contactId ?? b.contact_id ?? null;
+  const rawContactId: string | null = b.contactId ?? b.contact_id ?? null;
+  const rawCompanyId: string | null = b.companyId ?? b.company_id ?? null;
   const toNumber: string | null = b.number ?? b.to ?? b.to_number ?? null;
   const durationSec: number | null =
     typeof b.durationSeconds === "number" ? b.durationSeconds
       : typeof b.duration_sec === "number" ? b.duration_sec
         : null;
-  if (!contactId && !toNumber) {
+  if (!rawContactId && !toNumber) {
     return res.status(400).json({ error: { message: "contactId or number required", code: "validation_error" } });
   }
+
+  // Helper -- resolve a UUID against a table; return the id if it
+  // exists, else null. Cheap (PK lookup) and safe.
+  async function resolve(id: string | null, table: "contacts" | "companies" | "users"): Promise<string | null> {
+    if (!id || typeof id !== "string") return null;
+    // basic UUID shape gate so we never blow up the query
+    if (!/^[0-9a-f-]{32,40}$/i.test(id)) return null;
+    try {
+      const r = await pool.query(`SELECT id FROM ${table} WHERE id = $1 LIMIT 1`, [id]);
+      return r.rowCount && r.rowCount > 0 ? id : null;
+    } catch {
+      return null;
+    }
+  }
+
+  const [contactId, companyId, userId] = await Promise.all([
+    resolve(rawContactId, "contacts"),
+    resolve(rawCompanyId, "companies"),
+    resolve(rawUserId, "users"),
+  ]);
+
   const outcomePart = b.outcome ? `outcome:${b.outcome}` : null;
   const failurePart = b.failureReason ? `failure:${b.failureReason}` : null;
   const notes = [outcomePart, failurePart].filter(Boolean).join(" ") || null;
@@ -553,11 +582,21 @@ router.post("/timeline/calls", requireCrmWrite, safeHandler(async (req: any, res
       notes,
       userId,
       contactId,
-      b.companyId ?? b.company_id ?? null,
+      companyId,
       silo,
     ],
   );
-  res.status(201).json({ ok: true, data: rows[0] });
+  res.status(201).json({
+    ok: true,
+    data: rows[0],
+    // Echo back any IDs that didn't resolve so the dialer can
+    // re-link a created contact later (or just log it).
+    nulled: {
+      contact_id: rawContactId && !contactId ? rawContactId : null,
+      company_id: rawCompanyId && !companyId ? rawCompanyId : null,
+      owner_id: rawUserId && !userId ? rawUserId : null,
+    },
+  });
 }));
 
 router.use("/contacts/:id/notes", notesRoutes);
