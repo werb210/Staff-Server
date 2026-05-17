@@ -69,7 +69,22 @@ router.post("/twilio/voice/twiml", twilioWebhookValidation, safeHandler(async (r
   const to = String(params.To ?? params.to ?? "").trim();
   const outboundFlag = params.outbound === "1" || params.outbound === 1 || params.outbound === true;
   const looksLikePhone = /^\+?\d{10,15}$/.test(to);
-  const callerId = process.env.TWILIO_CALLER_ID || process.env.TWILIO_NUMBER || "";
+  // BF_SERVER_BLOCK_50_v1 -- match the fallback chain used by the
+  // /api/telephony/outbound-call REST endpoint so the SAME env var
+  // works for both REST-initiated and WebRTC-initiated calls. If the
+  // operator set the outbound number under TWILIO_FROM_NUMBER,
+  // TWILIO_PHONE_NUMBER, TWILIO_FROM, or TWILIO_PHONE, those need to
+  // resolve here too. Without this, Twilio's edge calls vr.dial with
+  // callerId="" and rejects error 13225 "Invalid From attribute",
+  // disconnecting the call within ~10ms of connect.
+  const callerId =
+       process.env.TWILIO_CALLER_ID
+    || process.env.TWILIO_NUMBER
+    || process.env.TWILIO_FROM_NUMBER
+    || process.env.TWILIO_PHONE_NUMBER
+    || process.env.TWILIO_FROM
+    || process.env.TWILIO_PHONE
+    || "";
 
   // BF_SERVER_BLOCK_BI_ROUND5_7BIS_v1 -- create the call_logs row on
   // the way through, but only for SDK-initiated outbound calls. The
@@ -118,6 +133,16 @@ router.post("/twilio/voice/twiml", twilioWebhookValidation, safeHandler(async (r
   }
 
   const vr = new VoiceResponse();
+  // BF_SERVER_BLOCK_50_v1 -- guard against empty callerId. Twilio
+  // rejects vr.dial with no callerId for outbound; speak the failure
+  // instead so the operator hears it instead of an instant hangup.
+  if ((looksLikePhone || outboundFlag) && to && !callerId) {
+    vr.say({ voice: "Polly.Joanna" },
+      "Outbound calling is not configured. Please set the Twilio caller ID environment variable on the server.");
+    vr.hangup();
+    res.send(vr.toString());
+    return;
+  }
   if ((looksLikePhone || outboundFlag) && to) {
     const dial = vr.dial({ callerId, answerOnBridge: true, timeout: 25 });
     dial.number(to);
