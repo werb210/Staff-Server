@@ -123,6 +123,25 @@ router.post(
       [id, sessionId, applicationId, reason, surface, silo, JSON.stringify(payload)]
     );
 
+    // BF_SERVER_BLOCK_53_v1 -- also write the escalation into
+    // communications_messages so staff sees "Client requested human
+    // help via Maya" in their normal Communications panel without
+    // having to query maya_escalations directly.
+    if (applicationId) {
+      const msgId = randomUUID();
+      await pool.query(
+        `INSERT INTO communications_messages
+           (id, type, direction, status, application_id, contact_id, silo, body, created_at)
+         VALUES (
+           $1, 'message', 'inbound', 'received', $2,
+           (SELECT contact_id FROM applications WHERE id = $2 LIMIT 1),
+           COALESCE($3, (SELECT silo FROM applications WHERE id = $2 LIMIT 1), 'BF'),
+           $4, now()
+         )`,
+        [msgId, applicationId, silo, `🆘 Client requested human help via Maya. Reason: ${reason}`]
+      ).catch(() => {});
+    }
+
     res.status(201).json({ status: "ok", data: { id, deduped: false } });
   })
 );

@@ -7,6 +7,9 @@ import bankingRoutes from "./banking.js";
 import calendarRoutes from "./calendar.js";
 import callsRoutes from "./calls.js";
 import clientRoutes from "./client.js";
+// BF_SERVER_BLOCK_53_v1 -- mini-portal voice + needed-docs endpoints
+import clientVoiceRoutes from "./clientVoice.js";
+import clientDocumentsNeededRoutes from "./clientDocumentsNeeded.js";
 import clientIssuesRoutes from "./clientIssues.js";
 import communicationsRoutes from "./communications.js";
 import companiesRoutes from "./companies.js";
@@ -159,6 +162,9 @@ export const API_ROUTE_MOUNTS: ApiRouteMount[] = [
   { path: "/marketing", router: marketingRoutes },
   { path: "/offers", router: combinedOffersRoutes },
   { path: "/messages", router: messagesRoutes },
+  // BF_SERVER_BLOCK_53_v1
+  { path: "/client/voice", router: clientVoiceRoutes },
+  { path: "/client/documents-needed", router: clientDocumentsNeededRoutes },
   { path: "/reporting", router: reportingRoutes },
   { path: "/reports", router: reportsRoutes },
   { path: "/settings", router: settingsRoutes },
@@ -297,6 +303,9 @@ export const ROUTES: ApiRoute[] = [
   { method: "GET", path: "/api/client/readiness-prefill", roles: [] },
   { method: "GET", path: "/api/client/messages", roles: [] },
   { method: "POST", path: "/api/client/messages", roles: [] },
+  // BF_SERVER_BLOCK_53_v1
+  { method: "GET", path: "/api/client/voice/token", roles: [] },
+  { method: "GET", path: "/api/client/documents-needed/needed", roles: [] },
   { method: "POST", path: "/api/webhooks/signnow", roles: [] },
   { method: "POST", path: "/api/email/send", roles: [ROLES.ADMIN, ROLES.STAFF] },
   { method: "GET", path: "/api/client/continuation/:token", roles: [] },
