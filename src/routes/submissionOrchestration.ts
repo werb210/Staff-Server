@@ -2,17 +2,20 @@
 import { Router } from "express";
 import { pool } from "../db.js";
 import { progressSubmission } from "../services/submission/orchestrator.js";
+import { readReadinessSnapshot } from "../services/submission/orchestrator.js";
 import { dispatchToSelected, type DispatchLender } from "../services/lenders/dispatchToSelected.js";
 // BF_SERVER_BLOCK_v138_E2E_FIX_BATCH_v1 — AUDIT-12 regression repair.
 import { requireAuth, requireAuthorization } from "../middleware/auth.js";
 import { ROLES } from "../auth/roles.js";
 
 const router = Router();
-// BF_SERVER_BLOCK_50_v1 -- portal compatibility route.
-// The BF-portal calls POST /api/lenders/send with body
-// { applicationId, lenders: string[] }. The canonical handler below
-// expects POST /api/applications/:id/lenders/send with body
-// { lenderIds: string[] }. Translate and forward.
+// BF_SERVER_BLOCK_55_GATE_AND_BANKING_TRIGGER_v1
+// Pre-fix: this route INSERTed selections, called progressSubmission
+// (which itself dispatches if ready), THEN ALSO called dispatchToSelected
+// directly — causing duplicate emails to lenders. It also bypassed the
+// readiness gate entirely (any preconditions failure was silently ignored).
+// Now: rely on progressSubmission's internal gate. If stageB didn't fire,
+// return 409 with a structured reason instead of confirming "sent".
 router.post("/lenders/send", requireAuth, requireAuthorization({ roles: [ROLES.ADMIN, ROLES.STAFF] }), async (req, res) => {
   const b = req.body ?? {};
   const applicationId = String(b.applicationId ?? b.application_id ?? "").trim();
@@ -31,13 +34,37 @@ router.post("/lenders/send", requireAuth, requireAuthorization({ roles: [ROLES.A
       [applicationId, lenderIds[i], i]).catch(() => {});
   }
 
-  const result = await progressSubmission({ pool, applicationId });
-  const lenders = await pool.query<DispatchLender>(`SELECT id::text AS lender_id, name, submission_method, submission_email,
-            api_endpoint, api_key_encrypted, google_sheet_id
-       FROM lenders
-      WHERE id::text = ANY($1::text[])`, [lenderIds]);
-  const sent = await dispatchToSelected({ pool, applicationId }, lenders.rows).catch((): string[] => []);
-  return res.json({ ok: true, finalized: lenderIds, sent, orchestrator: result });
+  const orchestrator = await progressSubmission({ pool, applicationId });
+
+  // BF_SERVER_BLOCK_55_GATE_AND_BANKING_TRIGGER_v1
+  // If stageB.fired is false AND no prior packages exist, the gate
+  // blocked dispatch. Return 409 with readable readiness reasons so the
+  // UI can show the user what's missing instead of a silent no-op.
+  if (orchestrator.stageB.fired !== true) {
+    const snap = await readReadinessSnapshot({ pool, applicationId });
+    const blockers: string[] = [];
+    if (!snap.allDocsAccepted) blockers.push("required_documents_not_accepted");
+    if (!snap.allTasksComplete) blockers.push("open_tasks_remaining");
+    if (!snap.creditSummarySubmitted) blockers.push("credit_summary_not_submitted");
+    if (!snap.applicationSigned) blockers.push("application_not_signed");
+    // already_sent / dispatch_in_progress / already_started are valid no-ops, not failures.
+    const orchestratorReason = orchestrator.stageB.reason ?? orchestrator.stageA.reason ?? "preconditions_not_met";
+    const validNoOp = orchestratorReason === "already_sent" || orchestratorReason === "dispatch_in_progress";
+    if (!validNoOp) {
+      return res.status(409).json({
+        error: "not_ready_to_send",
+        reason: orchestratorReason,
+        blockers,
+        readiness: snap,
+        finalized: lenderIds,
+      });
+    }
+  }
+
+  // Selections finalized + (orchestrator either fired this dispatch or a
+  // prior one already completed). DO NOT call dispatchToSelected here;
+  // maybeBuildAndSendPackage owns the atomic claim + dispatch.
+  return res.json({ ok: true, finalized: lenderIds, orchestrator });
 });
 
 router.post("/applications/:id/lenders/send", requireAuth, requireAuthorization({ roles: [ROLES.ADMIN, ROLES.STAFF] }), async (req, res) => {
