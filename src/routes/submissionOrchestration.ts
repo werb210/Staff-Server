@@ -8,6 +8,38 @@ import { requireAuth, requireAuthorization } from "../middleware/auth.js";
 import { ROLES } from "../auth/roles.js";
 
 const router = Router();
+// BF_SERVER_BLOCK_50_v1 -- portal compatibility route.
+// The BF-portal calls POST /api/lenders/send with body
+// { applicationId, lenders: string[] }. The canonical handler below
+// expects POST /api/applications/:id/lenders/send with body
+// { lenderIds: string[] }. Translate and forward.
+router.post("/lenders/send", requireAuth, requireAuthorization({ roles: [ROLES.ADMIN, ROLES.STAFF] }), async (req, res) => {
+  const b = req.body ?? {};
+  const applicationId = String(b.applicationId ?? b.application_id ?? "").trim();
+  const rawLenders = b.lenderIds ?? b.lenders ?? b.lender_ids ?? [];
+  const lenderIds: string[] = Array.isArray(rawLenders)
+    ? (rawLenders as unknown[]).map((x) => String(x)).filter(Boolean)
+    : [];
+  if (!applicationId) return res.status(400).json({ error: "missing_application_id" });
+  if (lenderIds.length === 0) return res.status(400).json({ error: "no_lenders_selected" });
+
+  for (let i = 0; i < lenderIds.length; i++) {
+    await pool.query(`INSERT INTO application_lender_selections (id, application_id, lender_id, position, finalized_at, created_at)
+       VALUES (gen_random_uuid(), $1, $2, $3, NOW(), NOW())
+       ON CONFLICT (application_id, lender_id) DO UPDATE
+         SET position = EXCLUDED.position, finalized_at = NOW()`,
+      [applicationId, lenderIds[i], i]).catch(() => {});
+  }
+
+  const result = await progressSubmission({ pool, applicationId });
+  const lenders = await pool.query<DispatchLender>(`SELECT id::text AS lender_id, name, submission_method, submission_email,
+            api_endpoint, api_key_encrypted, google_sheet_id
+       FROM lenders
+      WHERE id::text = ANY($1::text[])`, [lenderIds]);
+  const sent = await dispatchToSelected({ pool, applicationId }, lenders.rows).catch((): string[] => []);
+  return res.json({ ok: true, finalized: lenderIds, sent, orchestrator: result });
+});
+
 router.post("/applications/:id/lenders/send", requireAuth, requireAuthorization({ roles: [ROLES.ADMIN, ROLES.STAFF] }), async (req, res) => {
   const id = String(req.params.id ?? "").trim();
   const lenderIds: string[] = Array.isArray((req.body ?? {}).lenderIds) ? (req.body.lenderIds as unknown[]).map((x) => String(x)) : [];
