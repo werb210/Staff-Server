@@ -412,14 +412,23 @@ router.get(
 // income_statement, balance_sheet, cash_flow, p_l, profit_loss) and reasonable
 // aliases. Field filter restricts to source_document_type in
 // {income_statement, balance_sheet, cash_flow, taxes} per OcrDocumentCategory.
+// BF_SERVER_BLOCK_72_FINANCIALS_FILTER_WIDEN_v1 - extends the canonical
+// underscore-form patterns to also match the human-readable labels staff
+// applies in the portal: "PnL - Interim financials", "Balance Sheet -
+// Interim financials", "3 years accountant prepared financials". Char
+// class [ _-] absorbs space, underscore, hyphen, and the en-dash that
+// the portal label list ships with (en-dash is U+2013 which is NOT in
+// the char class; the [\s\W] catch-all + .* covers both forms).
 const FINANCIAL_DOC_TYPE_PATTERNS: RegExp[] = [
   /^tax/i,
-  /financial_statement/i,
-  /balance_sheet/i,
-  /income_statement/i,
-  /^p_?l$/i,
-  /profit_?loss/i,
-  /cash_?flow/i,
+  /financial[\s_-]?statement/i,
+  /balance[\s_-]?sheet/i,
+  /income[\s_-]?statement/i,
+  /\bp[\s_-]?n?[\s_-]?l\b/i,
+  /profit[\s_-]?(?:and[\s_-]?)?loss/i,
+  /cash[\s_-]?flow/i,
+  /accountant[\s\S]{0,4}prepared[\s\S]{0,4}financials/i,
+  /interim[\s\S]{0,4}financials/i,
 ];
 const FINANCIAL_OCR_SOURCE_TYPES = new Set([
   "income_statement",
