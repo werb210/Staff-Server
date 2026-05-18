@@ -84,6 +84,44 @@ router.get("/sms", safeHandler(async (req: any, res: any) => {
 }));
 
 
+
+// BF_SERVER_BLOCK_101_MESSAGES_LIST_NON_SMS_v1 - in-portal Messages tab
+// needs a list endpoint analogous to /sms but scoped to non-SMS rows.
+// Threads are grouped by contact_id when present, otherwise application_id
+// so application-linked handoff messages (without a contact yet) still show.
+router.get("/messages-list", safeHandler(async (req: any, res: any) => {
+  const { getSilo } = await import("../middleware/silo.js");
+  const silo = getSilo(res);
+  const result = await pool.query(
+    `SELECT
+      COALESCE(m.contact_id::text, m.application_id::text) AS thread_key,
+      m.contact_id AS contact_id,
+      COALESCE(c.name, c.email, c.phone, m.to_number, m.from_number, m.application_id::text) AS display_name,
+      COALESCE(c.phone, m.from_number, m.to_number) AS phone,
+      COALESCE(c.email, NULL) AS email,
+      MAX(m.created_at) AS last_at,
+      (
+        SELECT body FROM communications_messages m2
+        WHERE m2.silo = $1
+          AND (m2.type IS NULL OR m2.type <> 'sms')
+          AND COALESCE(m2.contact_id::text, m2.application_id::text) =
+              COALESCE(m.contact_id::text, m.application_id::text)
+        ORDER BY m2.created_at DESC
+        LIMIT 1
+      ) AS last_body,
+      SUM(CASE WHEN m.read_at IS NULL AND m.direction = 'inbound' THEN 1 ELSE 0 END) AS unread_count
+    FROM communications_messages m
+    LEFT JOIN contacts c ON c.id = m.contact_id
+    WHERE m.silo = $1
+      AND (m.type IS NULL OR m.type <> 'sms')
+    GROUP BY thread_key, m.contact_id, display_name, phone, email
+    ORDER BY last_at DESC
+    LIMIT 200`,
+    [silo],
+  ).catch(() => ({ rows: [] as any[] }));
+  res.json({ conversations: result.rows });
+}));
+
 // BF_SERVER_BLOCK_83_SMS_MESSAGES_TYPE_FILTER_v1 - thread loader scoped to type='sms'.
 router.get("/sms/thread", safeHandler(async (req: any, res: any) => {
   const { getSilo } = await import("../middleware/silo.js");
