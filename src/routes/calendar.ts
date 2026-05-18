@@ -203,14 +203,16 @@ router.get("/tasks", safeHandler(async (req: any, res: any) => {
   }
 
   const { rows } = await pool.query<CalendarTaskRow>(
-    `SELECT id, title, notes, due_at, priority, status, o365_task_id, created_at, updated_at, completed_at
-       FROM calendar_tasks
+    `SELECT t.id, t.title, t.notes, t.due_at, t.priority, t.status, t.o365_task_id, t.created_at, t.updated_at, t.completed_at,
+      u.name as assignee_name, u.email as assignee_email
+       FROM calendar_tasks t
+      LEFT JOIN users u ON u.id = t.user_id
       WHERE ${clauses.join(" AND ")}
       ORDER BY COALESCE(due_at, '9999-12-31'::timestamptz) ASC, created_at DESC`,
     params,
   );
 
-  res.status(200).json(rows.map(toTaskResponse));
+  res.status(200).json(rows.map((row: any) => { const task: any = toTaskResponse(row); task.due_date = task.dueAt; task.assignee_name = row.assignee_name ?? null; task.assignee_email = row.assignee_email ?? null; return task; }));
 }));
 
 // POST /api/calendar/tasks

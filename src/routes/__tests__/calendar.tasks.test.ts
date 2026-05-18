@@ -45,6 +45,8 @@ describe("calendar tasks routes", () => {
     const get = await request(app).get("/api/calendar/tasks").set("Authorization", `Bearer ${token}`);
     expect(get.status).toBe(200);
     expect(get.body[0].title).toBe("t");
+    expect(get.body[0].dueAt).toBeNull();
+    expect(get.body[0].due_date).toBeNull();
   });
 
   it("PATCH updates title and toggles status to done", async () => {
