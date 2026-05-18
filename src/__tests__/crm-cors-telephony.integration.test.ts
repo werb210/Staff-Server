@@ -105,6 +105,28 @@ describe("CRM + CORS + telephony regressions", () => {
     expect(res.body?.data?.token.split(".")).toHaveLength(3);
   });
 
+
+  it("GET /api/telephony/token falls back to env outbound caller id", async () => {
+    process.env.TWILIO_DEFAULT_OUTBOUND_CALLER_ID = "+15551234567";
+    queryMock.mockImplementation(async (sql: string) => {
+      if (sql.includes("FROM users WHERE id = $1") && sql.includes("silos")) return { rows: [{ id: "00000000-0000-0000-0000-000000000001", email: null, role: "staff", silo: "BF", silos: ["BF"] }] };
+      if (sql.includes("SELECT outbound_caller_id")) return { rows: [{ outbound_caller_id: null }] };
+      return { rows: [] };
+    });
+
+    const { createApp } = await import("../app.js");
+    const app = createApp();
+    const token = makeAuthToken();
+
+    const res = await request(app)
+      .get("/api/telephony/token")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body?.data?.outbound_caller_id).toBe("+15551234567");
+    expect(res.body?.data?.missing_outbound_caller_id).toBe(false);
+  });
+
   it("GET /api/telephony/token returns 503 with missing env details", async () => {
     delete process.env.TWILIO_VOICE_APP_SID;
 

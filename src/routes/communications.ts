@@ -9,6 +9,32 @@ const router = Router();
 router.use(requireAuth);
 router.use(requireCapability([CAPABILITIES.COMMUNICATIONS_READ]));
 
+router.post("/call-events", safeHandler(async (req: any, res: any) => {
+  const userId = req.user?.id ?? req.user?.userId ?? null;
+  const { getSilo } = await import("../middleware/silo.js");
+  const silo = getSilo(res);
+  const body = req.body ?? {};
+  const eventType = typeof body.event_type === "string" ? body.event_type : "";
+  const toNumber = typeof body.to_number === "string" ? body.to_number : "";
+  if (!eventType || !toNumber) return res.status(400).json({ error: "event_type and to_number are required" });
+  const { rows } = await pool.query(`INSERT INTO call_events (user_id, contact_id, application_id, silo, event_type, direction, from_number, to_number, twilio_call_sid, duration_seconds, error_code, payload)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb) RETURNING id, occurred_at`,
+    [userId, body.contact_id ?? null, body.application_id ?? null, silo, eventType, body.direction ?? null, body.from_number ?? null, toNumber, body.twilio_call_sid ?? null, body.duration_seconds ?? null, body.error_code ?? null, JSON.stringify(body.payload ?? {})]);
+  return res.status(201).json(rows[0]);
+}));
+
+router.get("/call-events", safeHandler(async (req: any, res: any) => {
+  const { getSilo } = await import("../middleware/silo.js");
+  const silo = getSilo(res);
+  const clauses = ["silo = $1"];
+  const params: any[] = [silo];
+  if (typeof req.query.contact_id === "string" && req.query.contact_id) { params.push(req.query.contact_id); clauses.push(`contact_id = $${params.length}`); }
+  if (typeof req.query.application_id === "string" && req.query.application_id) { params.push(req.query.application_id); clauses.push(`application_id = $${params.length}`); }
+  if (typeof req.query.since === "string" && req.query.since) { params.push(req.query.since); clauses.push(`occurred_at >= $${params.length}::timestamptz`); }
+  const { rows } = await pool.query(`SELECT id, user_id, contact_id, application_id, silo, event_type, direction, from_number, to_number, twilio_call_sid, duration_seconds, error_code, payload, occurred_at FROM call_events WHERE ${clauses.join(" AND ")} ORDER BY occurred_at DESC LIMIT 500`, params);
+  return res.status(200).json({ events: rows });
+}));
+
 router.get("/", safeHandler((_req: any, res: any) => {
   res.json({ status: "ok" });
 }));

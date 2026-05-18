@@ -46,6 +46,11 @@ router.get("/token", auth, async (req: any, res: Response) => {
   const identity: string = req.user?.userId || req.user?.id || req.user?.sub || uuid();
   try {
     const token = generateVoiceToken(identity);
+    const userResult = await pool.query<{ outbound_caller_id: string | null }>(`SELECT outbound_caller_id FROM users WHERE id = $1 LIMIT 1`, [identity]).catch(() => ({ rows: [] as any[] }));
+    const userOutbound = userResult.rows[0]?.outbound_caller_id ?? null;
+    const envOutbound = process.env.TWILIO_DEFAULT_OUTBOUND_CALLER_ID ?? null;
+    const outboundCallerId = userOutbound ?? envOutbound;
+    const missingOutboundCallerId = !outboundCallerId;
     // Upsert presence on token fetch — means the browser is alive
     await pool.query(
       `INSERT INTO staff_presence (user_id, twilio_identity, status, last_heartbeat, updated_at)
@@ -54,7 +59,7 @@ router.get("/token", auth, async (req: any, res: Response) => {
          SET twilio_identity = $2, last_heartbeat = now(), updated_at = now()`,
       [identity, identity]
     ).catch(() => {}); // non-fatal
-    return res.status(200).json({ success: true, data: { token, identity } });
+    return res.status(200).json({ success: true, data: { token, identity, outbound_caller_id: outboundCallerId, missing_outbound_caller_id: missingOutboundCallerId } });
   } catch {
     return res.status(500).json({ success: false, error: "token_generation_failed" });
   }
