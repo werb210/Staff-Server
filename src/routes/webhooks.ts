@@ -252,6 +252,9 @@ router.post(
   })
 );
 
+// BF_SERVER_BLOCK_80_SMS_INBOUND_PERSIST_v1 - writes to communications_messages
+// (was hitting non-existent `messages` table, silently swallowing the error).
+// Broader phone lookup matches the voicemail handler on line 209.
 async function persistInboundSms(req: any): Promise<void> {
   const { Body, From, To, MessageSid } = req.body ?? {};
   if (!(Body && From)) return;
@@ -261,19 +264,24 @@ async function persistInboundSms(req: any): Promise<void> {
   const body = String(Body);
   const sid = typeof MessageSid === "string" ? MessageSid : null;
 
-  // Look up contact by phone number
+  // Look up contact by phone OR mobile_phone (matches voicemail handler).
   const contact = await pool.query<{ id: string; silo: string | null }>(
-    `SELECT id, silo FROM contacts WHERE phone = $1 LIMIT 1`,
+    `SELECT id, silo FROM contacts WHERE phone = $1 OR mobile_phone = $1 LIMIT 1`,
     [fromNum]
   ).then((r) => r.rows[0] ?? null).catch(() => null);
 
+  // ON CONFLICT on comm_messages_twilio_sid_idx (unique partial index from
+  // migration 109) makes Twilio retries idempotent without a duplicate row.
   await pool.query(
-    `INSERT INTO messages
-       (id, body, contact_id, direction, from_number, to_number, silo, created_at)
-     VALUES (gen_random_uuid(), $1, $2, 'inbound', $3, $4, $5, now())
-     `,
-    [body, contact?.id ?? null, fromNum, toNum, contact?.silo ?? "BF"]
-  ).catch(() => {});
+    `INSERT INTO communications_messages
+       (id, type, direction, status, contact_id, body, from_number, to_number, phone_number, twilio_sid, silo, created_at)
+     VALUES (gen_random_uuid(), 'sms', 'inbound', 'received', $1, $2, $3, $4, $3, $5, $6, now())
+     ON CONFLICT (twilio_sid) WHERE twilio_sid IS NOT NULL DO NOTHING`,
+    [contact?.id ?? null, body, fromNum, toNum, sid, contact?.silo ?? "BF"]
+  ).catch((err) => {
+    // Surface the failure in logs instead of swallowing it silently.
+    console.error({ event: "sms_inbound_persist_failed", err: String(err) });
+  });
 
   eventBus.emit("sms.inbound.received", {
     contactId: contact?.id ?? null,
